@@ -1,10 +1,11 @@
+
 import React, { useState } from 'react';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
-import SearchBar from '@/components/ui/search-bar';
+import SearchBar from '@/components/ui/SearchBar';
 import ArtistSearchResults from '@/components/artists/ArtistSearchResults';
-import FeaturedArtists from '@/components/artists/FeaturedArtists';
-import ShowsByGenre from '@/components/shows/ShowsByGenre';
+import { FeaturedArtists } from '@/components/home/FeaturedArtists';
+import ShowsByGenre from '@/components/artists/ShowsByGenre';
 import { Badge } from '@/components/ui/badge';
 
 const genres = [
@@ -31,7 +32,6 @@ const genres = [
 
 const Artists = () => {
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [activeGenre, setActiveGenre] = useState<string | null>(null);
@@ -41,14 +41,8 @@ const Artists = () => {
     setIsSearching(true);
     setIsLoading(true);
 
-    // Simulate API call
+    // API call happens in the ArtistSearchResults component
     setTimeout(() => {
-      const results = [
-        { id: '1', name: `${query} Artist 1`, image: 'https://via.placeholder.com/150' },
-        { id: '2', name: `${query} Artist 2`, image: 'https://via.placeholder.com/150' },
-        { id: '3', name: `${query} Artist 3`, image: 'https://via.placeholder.com/150' },
-      ];
-      setSearchResults(results);
       setIsLoading(false);
     }, 500);
   };
@@ -70,9 +64,7 @@ const Artists = () => {
             
             {isSearching ? (
               <ArtistSearchResults 
-                searchResults={searchResults} 
-                isLoading={isLoading}
-                searchQuery={searchQuery}
+                query={searchQuery}
               />
             ) : (
               <div className="space-y-16">
