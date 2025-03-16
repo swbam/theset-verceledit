@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { useNavigate } from 'react-router-dom';
@@ -11,6 +10,7 @@ interface AuthContextType {
   isLoading: boolean;
   isAuthenticated: boolean;
   session: Session | null;
+  login: () => void;
   loginWithEmail: (email: string, password: string) => Promise<void>;
   loginWithGoogle: () => Promise<void>;
   loginWithSpotify: () => Promise<void>;
@@ -28,7 +28,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Check for existing session
     const checkSession = async () => {
       try {
         const { data, error } = await supabase.auth.getSession();
@@ -53,7 +52,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     checkSession();
 
-    // Listen for auth state changes
     const { data: authListener } = supabase.auth.onAuthStateChange(
       async (event, currentSession) => {
         console.log('Auth state changed:', event);
@@ -92,6 +90,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (error) {
       console.error('Error fetching user profile:', error);
     }
+  };
+
+  const login = () => {
+    navigate('/auth');
   };
 
   const loginWithEmail = async (email: string, password: string) => {
@@ -164,7 +166,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       toast.success('Account created successfully!');
       
-      // Check if email confirmation is required
       if (data.user && !data.user.confirmed_at) {
         toast.info('Please check your email to confirm your account');
       } else {
@@ -202,6 +203,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isLoading,
         isAuthenticated: !!user,
         session,
+        login,
         loginWithEmail,
         loginWithGoogle,
         loginWithSpotify,

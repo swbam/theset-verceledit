@@ -41,7 +41,13 @@ const favoriteArtists = [
 ];
 
 const Profile = () => {
-  const { user, logout } = useAuth();
+  const { user, profile, logout } = useAuth();
+
+  // Get display name from profile or user email
+  const displayName = profile?.username || profile?.full_name || (user?.email ? user.email.split('@')[0] : 'User');
+  
+  // Get avatar URL from profile
+  const avatarUrl = profile?.avatar_url || null;
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -60,13 +66,13 @@ const Profile = () => {
               <div className="bg-card border border-border rounded-xl p-6 shadow-sm">
                 <div className="flex flex-col items-center text-center">
                   <Avatar className="h-24 w-24 mb-4">
-                    <AvatarImage src={user?.image} alt={user?.name} />
+                    <AvatarImage src={avatarUrl} alt={displayName} />
                     <AvatarFallback className="bg-primary/10 text-primary text-2xl">
-                      {user?.name?.charAt(0) || 'U'}
+                      {displayName.charAt(0).toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
                   
-                  <h1 className="text-2xl font-bold mb-1">{user?.name}</h1>
+                  <h1 className="text-2xl font-bold mb-1">{displayName}</h1>
                   {user?.email && (
                     <p className="text-muted-foreground mb-4">{user.email}</p>
                   )}
