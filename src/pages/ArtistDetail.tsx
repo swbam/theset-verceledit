@@ -14,31 +14,25 @@ import PastSetlists from '@/components/artists/PastSetlists';
 const ArtistDetail = () => {
   const { id } = useParams<{ id: string }>();
   
+  // Process artist data from the ID
+  const artistName = id?.startsWith('tm-') 
+    ? id.replace('tm-', '').replace(/-/g, ' ') 
+    : id || '';
+  
   const {
     data: shows = [],
     isLoading,
     error
   } = useQuery({
     queryKey: ['artistEvents', id],
-    queryFn: () => {
-      // Since we're getting the artists from Ticketmaster, we need to extract the name
-      // This is a simplification - in a real app we'd have a proper lookup
-      const artistName = id?.startsWith('tm-') 
-        ? id.replace('tm-', '').replace(/-/g, ' ') 
-        : id;
-      
-      return fetchArtistEvents(artistName || '');
-    },
+    queryFn: () => fetchArtistEvents(artistName),
     enabled: !!id,
+    staleTime: 1000 * 60 * 10, // 10 minutes
   });
-  
-  // Process artist data
-  const artistName = id?.startsWith('tm-') 
-    ? id.replace('tm-', '').replace(/-/g, ' ') 
-    : id || '';
   
   // Get artist image from the first show if available
   const artistImage = shows.length > 0 ? shows[0].image_url : undefined;
+  const upcomingShowsCount = shows.length;
 
   if (isLoading) {
     return <ArtistDetailSkeleton />;
@@ -56,7 +50,7 @@ const ArtistDetail = () => {
         <ArtistHeader 
           artistName={artistName} 
           artistImage={artistImage}
-          upcomingShowsCount={shows.length}
+          upcomingShowsCount={upcomingShowsCount}
         />
         
         <UpcomingShows 

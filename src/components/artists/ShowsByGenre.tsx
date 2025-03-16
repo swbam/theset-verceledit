@@ -4,21 +4,27 @@ import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { fetchShowsByGenre, popularMusicGenres } from '@/lib/ticketmaster';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ChevronRight, CalendarDays, MapPin } from 'lucide-react';
+import { ChevronRight, CalendarDays, MapPin, Music } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
 
 interface ShowsByGenreProps {
   genreId?: string;
   genreName?: string;
+  limit?: number;
 }
 
-const ShowsByGenre: React.FC<ShowsByGenreProps> = ({ genreId, genreName }) => {
+const ShowsByGenre: React.FC<ShowsByGenreProps> = ({ 
+  genreId, 
+  genreName,
+  limit = 8
+}) => {
   const [activeGenre, setActiveGenre] = React.useState(genreId || popularMusicGenres[0].id);
 
   const { data: shows = [], isLoading } = useQuery({
     queryKey: ['showsByGenre', activeGenre],
-    queryFn: () => fetchShowsByGenre(activeGenre, 8),
+    queryFn: () => fetchShowsByGenre(activeGenre, limit),
     staleTime: 1000 * 60 * 10, // 10 minutes
   });
 
@@ -70,10 +76,10 @@ const ShowsByGenre: React.FC<ShowsByGenreProps> = ({ genreId, genreName }) => {
           </div>
 
           {popularMusicGenres.map((genre) => (
-            <TabsContent key={genre.id} value={genre.id} className="pt-2">
+            <TabsContent key={genre.id} value={genre.id} className="mt-4">
               {isLoading ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                  {[...Array(8)].map((_, i) => (
+                  {[...Array(limit)].map((_, i) => (
                     <div key={i} className="rounded-lg border border-border bg-card overflow-hidden">
                       <Skeleton className="h-32 w-full" />
                       <div className="p-4 space-y-2">
@@ -86,7 +92,12 @@ const ShowsByGenre: React.FC<ShowsByGenreProps> = ({ genreId, genreName }) => {
                 </div>
               ) : shows.length === 0 ? (
                 <div className="text-center py-12 border border-border rounded-lg bg-secondary/30">
-                  <p className="text-muted-foreground">No upcoming shows found for this genre</p>
+                  <Music className="h-12 w-12 mx-auto text-muted-foreground/40 mb-4" />
+                  <p className="text-lg font-medium mb-2">No upcoming shows found for this genre</p>
+                  <p className="text-muted-foreground mb-6">Try selecting a different genre or check back later</p>
+                  <Button asChild variant="outline">
+                    <Link to="/shows">Browse all shows</Link>
+                  </Button>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -105,7 +116,7 @@ const ShowsByGenre: React.FC<ShowsByGenreProps> = ({ genreId, genreName }) => {
                           />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center bg-secondary">
-                            <span className="text-muted-foreground">No image</span>
+                            <Music className="h-8 w-8 text-muted-foreground/40" />
                           </div>
                         )}
                       </div>
@@ -132,15 +143,17 @@ const ShowsByGenre: React.FC<ShowsByGenreProps> = ({ genreId, genreName }) => {
                 </div>
               )}
 
-              <div className="mt-8 text-center">
-                <Link
-                  to="/shows"
-                  className="inline-flex items-center text-primary hover:underline"
-                >
-                  View all {genre.name} shows
-                  <ChevronRight size={16} className="ml-1" />
-                </Link>
-              </div>
+              {shows.length > 0 && (
+                <div className="mt-8 text-center">
+                  <Link
+                    to={`/shows?genre=${encodeURIComponent(genre.name)}`}
+                    className="inline-flex items-center text-primary hover:underline"
+                  >
+                    View all {genre.name} shows
+                    <ChevronRight size={16} className="ml-1" />
+                  </Link>
+                </div>
+              )}
             </TabsContent>
           ))}
         </Tabs>

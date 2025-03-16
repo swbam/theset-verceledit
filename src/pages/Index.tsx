@@ -6,6 +6,7 @@ import Hero from '@/components/home/Hero';
 import FeaturedArtists from '@/components/home/FeaturedArtists';
 import HowItWorks from '@/components/home/HowItWorks';
 import FeaturedShows from '@/components/home/FeaturedShows';
+import ShowsByGenre from '@/components/artists/ShowsByGenre';
 
 const Index = () => {
   return (
@@ -17,6 +18,7 @@ const Index = () => {
         <FeaturedArtists />
         <HowItWorks />
         <FeaturedShows />
+        <ShowsByGenre />
       </main>
       
       <Footer />

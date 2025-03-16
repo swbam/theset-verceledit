@@ -5,7 +5,8 @@ import {
   DropdownMenu, 
   DropdownMenuContent, 
   DropdownMenuItem, 
-  DropdownMenuTrigger 
+  DropdownMenuTrigger,
+  DropdownMenuSeparator
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
@@ -46,12 +47,32 @@ const ShareSetlistButton: React.FC<ShareSetlistButtonProps> = ({
   const shareOnTwitter = () => {
     const twitterUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(shareUrl)}`;
     window.open(twitterUrl, '_blank');
+    toast.success('Opening Twitter to share');
   };
   
   // Share on Facebook
   const shareOnFacebook = () => {
     const facebookUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}`;
     window.open(facebookUrl, '_blank');
+    toast.success('Opening Facebook to share');
+  };
+  
+  // Share via native share API if available
+  const nativeShare = () => {
+    if (navigator.share) {
+      navigator.share({
+        title: `${artistName} at ${showName} - Fan Setlist`,
+        text: shareText,
+        url: shareUrl,
+      })
+      .then(() => toast.success('Shared successfully!'))
+      .catch((error) => {
+        console.error('Error sharing:', error);
+        toast.error('Error sharing');
+      });
+    } else {
+      toast.error('Native sharing not supported on this device');
+    }
   };
 
   return (
@@ -80,6 +101,7 @@ const ShareSetlistButton: React.FC<ShareSetlistButtonProps> = ({
             </>
           )}
         </DropdownMenuItem>
+        <DropdownMenuSeparator />
         <DropdownMenuItem onClick={shareOnTwitter} className="cursor-pointer">
           <Twitter size={14} className="mr-2" />
           Share on Twitter
@@ -88,6 +110,15 @@ const ShareSetlistButton: React.FC<ShareSetlistButtonProps> = ({
           <Facebook size={14} className="mr-2" />
           Share on Facebook
         </DropdownMenuItem>
+        {navigator.share && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={nativeShare} className="cursor-pointer">
+              <Share2 size={14} className="mr-2" />
+              Share via device
+            </DropdownMenuItem>
+          </>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );
