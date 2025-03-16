@@ -12,7 +12,7 @@ export async function saveArtistToDatabase(artist: any) {
     // Check if artist already exists
     const { data: existingArtist, error: checkError } = await supabase
       .from('artists')
-      .select('id, updated_at')
+      .select('id, updated_at, stored_tracks')
       .eq('id', artist.id)
       .maybeSingle();
     
@@ -21,19 +21,20 @@ export async function saveArtistToDatabase(artist: any) {
       return;
     }
     
-    // If artist exists and was updated in the last 7 days, don't update
+    // If artist exists and was updated in the last 7 days, don't update unless stored_tracks is null
     if (existingArtist) {
       const lastUpdated = new Date(existingArtist.updated_at);
       const now = new Date();
       const daysSinceUpdate = (now.getTime() - lastUpdated.getTime()) / (1000 * 60 * 60 * 24);
       
-      if (daysSinceUpdate < 7) {
-        return;
+      // Only update if it's been more than 7 days or if stored_tracks is null and we have new tracks to store
+      if (daysSinceUpdate < 7 && (existingArtist.stored_tracks || !artist.stored_tracks)) {
+        return existingArtist;
       }
     }
     
     // Insert or update artist
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('artists')
       .upsert({
         id: artist.id,
@@ -49,8 +50,11 @@ export async function saveArtistToDatabase(artist: any) {
     if (error) {
       console.error("Error saving artist to database:", error);
     }
+    
+    return existingArtist || artist;
   } catch (error) {
     console.error("Error in saveArtistToDatabase:", error);
+    return null;
   }
 }
 
@@ -81,12 +85,12 @@ export async function saveVenueToDatabase(venue: any) {
       
       // Only update if it's been more than 30 days (venues change rarely)
       if (daysSinceUpdate < 30) {
-        return;
+        return existingVenue;
       }
     }
     
     // Insert or update venue
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('venues')
       .upsert({
         id: venue.id,
@@ -103,8 +107,11 @@ export async function saveVenueToDatabase(venue: any) {
     if (error) {
       console.error("Error saving venue to database:", error);
     }
+    
+    return existingVenue || venue;
   } catch (error) {
     console.error("Error in saveVenueToDatabase:", error);
+    return null;
   }
 }
 
@@ -135,12 +142,12 @@ export async function saveShowToDatabase(show: any) {
       
       // Only update if it's been more than 24 hours
       if (hoursSinceUpdate < 24) {
-        return;
+        return existingShow;
       }
     }
     
     // Insert or update show
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('shows')
       .upsert({
         id: show.id,
@@ -158,7 +165,38 @@ export async function saveShowToDatabase(show: any) {
     if (error) {
       console.error("Error saving show to database:", error);
     }
+    
+    return existingShow || show;
   } catch (error) {
     console.error("Error in saveShowToDatabase:", error);
+    return null;
+  }
+}
+
+/**
+ * Update stored tracks for an artist
+ */
+export async function updateArtistStoredTracks(artistId: string, tracks: any[]) {
+  if (!artistId || !tracks || !Array.isArray(tracks)) {
+    console.error("Invalid parameters for updateArtistStoredTracks");
+    return;
+  }
+  
+  try {
+    const { error } = await supabase
+      .from('artists')
+      .update({ 
+        stored_tracks: tracks,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', artistId);
+    
+    if (error) {
+      console.error("Error updating artist stored tracks:", error);
+    } else {
+      console.log(`Updated stored tracks for artist ${artistId}:`, tracks.length);
+    }
+  } catch (error) {
+    console.error("Error in updateArtistStoredTracks:", error);
   }
 }

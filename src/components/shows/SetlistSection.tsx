@@ -1,15 +1,14 @@
 
 import React from 'react';
-import { Music, AlertCircle, Users, Info, PlusCircle } from 'lucide-react';
+import { Music, AlertCircle, Users, Info } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
-import VotableSetlistTable from '@/components/setlist/VotableSetlistTable';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import ShareSetlistButton from '@/components/setlist/ShareSetlistButton';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import ShowSetlist from './ShowSetlist';
 
 interface Song {
   id: string;
@@ -142,62 +141,19 @@ const SetlistSection: React.FC<SetlistSectionProps> = ({
                 <div className="h-8 bg-secondary rounded w-full max-w-sm"></div>
                 <div className="h-8 bg-secondary rounded w-full max-w-lg"></div>
               </div>
-            ) : setlist.length === 0 ? (
-              <div className="text-center p-12">
-                <Music className="mx-auto mb-4 text-muted-foreground h-12 w-12 opacity-20" />
-                <h3 className="text-xl font-medium mb-2">No setlist available</h3>
-                <p className="text-muted-foreground">
-                  Check back later for setlist information
-                </p>
-              </div>
             ) : (
               <>
-                <VotableSetlistTable 
-                  songs={setlist} 
-                  onVote={handleVote} 
-                  className="animate-fade-in"
+                <ShowSetlist 
+                  setlist={setlist}
+                  handleVote={handleVote}
+                  availableTracks={availableTracks}
+                  isLoadingAllTracks={isLoadingAllTracks}
+                  selectedTrack={selectedTrack}
+                  setSelectedTrack={setSelectedTrack}
+                  handleAddSong={handleAddSong}
+                  isAuthenticated={isAuthenticated}
+                  login={login}
                 />
-                
-                {isAuthenticated && (
-                  <div className="p-4 border-t border-border/40">
-                    <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
-                      <div className="flex-grow w-full sm:w-auto">
-                        <p className="text-sm font-medium mb-1.5">Add a song to this setlist:</p>
-                        <Select
-                          value={selectedTrack}
-                          onValueChange={setSelectedTrack}
-                          disabled={isLoadingAllTracks || availableTracks.length === 0}
-                        >
-                          <SelectTrigger className="w-full">
-                            <SelectValue placeholder="Select a song" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {isLoadingAllTracks ? (
-                              <SelectItem value="loading" disabled>Loading songs...</SelectItem>
-                            ) : availableTracks.length === 0 ? (
-                              <SelectItem value="empty" disabled>No songs available</SelectItem>
-                            ) : (
-                              availableTracks.map((track: any) => (
-                                <SelectItem key={track.id} value={track.id}>
-                                  {track.name}
-                                </SelectItem>
-                              ))
-                            )}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <Button 
-                        onClick={handleAddSong}
-                        disabled={!selectedTrack || isLoadingAllTracks}
-                        className="mt-2 sm:mt-0 flex-shrink-0"
-                        size="sm"
-                      >
-                        <PlusCircle size={16} className="mr-1.5" />
-                        Add to Setlist
-                      </Button>
-                    </div>
-                  </div>
-                )}
                 
                 {!isAuthenticated && (
                   <div className="p-4 mx-4 mb-4 mt-2">
