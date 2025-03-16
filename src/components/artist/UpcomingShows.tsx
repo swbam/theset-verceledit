@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Calendar, MapPin, Music, Ticket } from 'lucide-react';
+import { Calendar, MapPin, Music } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { formatDate } from '@/lib/api/mock-service';
@@ -67,7 +67,7 @@ const UpcomingShows = ({
               <CardContent className="p-0">
                 <div className="p-4">
                   <div className="flex items-center gap-2 mb-3">
-                    <Calendar className="h-4 w-4 text-blue-400" />
+                    <Calendar className="h-4 w-4 text-white/60" />
                     <span className="font-medium text-white">{formatDate(show.date, false)}</span>
                   </div>
                   
@@ -90,15 +90,6 @@ const UpcomingShows = ({
                         View Setlist
                       </Link>
                     </Button>
-                    
-                    {show.ticket_url && (
-                      <Button variant="default" size="sm" className="w-full" asChild>
-                        <a href={show.ticket_url} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-1.5">
-                          <Ticket className="h-4 w-4" />
-                          Tickets
-                        </a>
-                      </Button>
-                    )}
                   </div>
                 </div>
               </CardContent>

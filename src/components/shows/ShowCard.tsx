@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Calendar, MapPin, ExternalLink, Music } from 'lucide-react';
+import { Calendar, MapPin, Music } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { formatDate } from '@/lib/api/mock-service';
 
@@ -100,26 +100,11 @@ const ShowCard = ({ show }: ShowCardProps) => {
           )}
         </div>
         
-        <div className="flex items-center gap-2">
-          <Button asChild className="w-full" size="sm">
-            <Link to={`/shows/${show.id}`}>
-              View Setlist
-            </Link>
-          </Button>
-          
-          {show.ticket_url && (
-            <Button 
-              variant="outline" 
-              size="sm" 
-              className="flex-shrink-0"
-              asChild
-            >
-              <a href={show.ticket_url} target="_blank" rel="noopener noreferrer">
-                <ExternalLink size={16} />
-              </a>
-            </Button>
-          )}
-        </div>
+        <Button asChild className="w-full" size="sm">
+          <Link to={`/shows/${show.id}`}>
+            View Setlist
+          </Link>
+        </Button>
       </div>
     </div>
   );

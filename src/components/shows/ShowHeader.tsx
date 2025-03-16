@@ -72,7 +72,7 @@ const ShowHeader: React.FC<ShowHeaderProps> = ({ show }) => {
     <section 
       className="relative bg-cover bg-center header-gradient"
       style={{
-        backgroundImage: show.image_url ? `linear-gradient(to bottom, rgba(10,10,27,0.8), rgba(26,26,46,0.7)), url(${show.image_url})` : undefined,
+        backgroundImage: show.image_url ? `linear-gradient(to bottom, rgba(0,0,0,0.8), rgba(0,0,0,0.7)), url(${show.image_url})` : undefined,
         height: 'auto',
       }}
     >
@@ -86,7 +86,7 @@ const ShowHeader: React.FC<ShowHeaderProps> = ({ show }) => {
           )}
           
           <div className="mb-3">
-            <span className="inline-block bg-blue-500/20 text-blue-400 text-xs px-3 py-1 rounded-full">
+            <span className="inline-block bg-white/20 text-white text-xs px-3 py-1 rounded-full">
               {new Date(show.date) > new Date() ? 'Upcoming' : 'Past'}
             </span>
           </div>
@@ -97,13 +97,13 @@ const ShowHeader: React.FC<ShowHeaderProps> = ({ show }) => {
           
           <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6 mt-4">
             <div className="flex items-center text-white/80">
-              <Calendar size={18} className="mr-2 text-blue-400" />
+              <Calendar size={18} className="mr-2 text-white/60" />
               {formatDate(show.date)}
             </div>
             
             {show.venue && (
               <div className="flex items-center text-white/80">
-                <MapPin size={18} className="mr-2 text-blue-400" />
+                <MapPin size={18} className="mr-2 text-white/60" />
                 {show.venue.name}, {show.venue.city}, {show.venue.state}
               </div>
             )}
@@ -111,7 +111,7 @@ const ShowHeader: React.FC<ShowHeaderProps> = ({ show }) => {
           
           {show.ticket_url && (
             <div className="mt-6">
-              <Button asChild className="bg-blue-600 hover:bg-blue-700 text-white">
+              <Button asChild className="bg-white hover:bg-white/90 text-black">
                 <a 
                   href={show.ticket_url} 
                   target="_blank" 
