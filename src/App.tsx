@@ -8,6 +8,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import Index from "./pages/Index";
 import Search from "./pages/Search";
+import Artists from "./pages/Artists"; 
 import ArtistDetail from "./pages/ArtistDetail";
 import ShowDetail from "./pages/ShowDetail";
 import Shows from "./pages/Shows";
@@ -36,7 +37,7 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/search" element={<Search />} />
-            <Route path="/artists" element={<Search />} />
+            <Route path="/artists" element={<Artists />} />
             <Route path="/artists/:id" element={<ArtistDetail />} />
             <Route path="/shows" element={<Shows />} />
             <Route path="/shows/:id" element={<ShowDetail />} />

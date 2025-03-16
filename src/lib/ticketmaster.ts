@@ -1,4 +1,3 @@
-
 import { toast } from "sonner";
 
 // Ticketmaster API key
@@ -173,3 +172,63 @@ export async function fetchShowDetails(eventId: string): Promise<any> {
     throw error;
   }
 }
+
+/**
+ * Fetch upcoming shows by genre
+ */
+export async function fetchShowsByGenre(genreId: string, limit = 8): Promise<any[]> {
+  try {
+    const url = `${TICKETMASTER_BASE_URL}/events.json?classificationId=${genreId}&segmentName=Music&sort=date,asc&size=${limit}&apikey=${TICKETMASTER_API_KEY}`;
+
+    const response = await fetch(url);
+    
+    if (!response.ok) {
+      throw new Error("Failed to fetch events from Ticketmaster");
+    }
+    
+    const data = await response.json();
+
+    if (!data._embedded?.events) {
+      return [];
+    }
+
+    return data._embedded.events.map((event: any) => ({
+      id: event.id,
+      name: event.name,
+      date: event.dates.start.dateTime,
+      venue: event._embedded?.venues?.[0]
+        ? {
+            id: event._embedded.venues[0].id,
+            name: event._embedded.venues[0].name,
+            city: event._embedded.venues[0].city?.name,
+            state: event._embedded.venues[0].state?.name,
+            country: event._embedded.venues[0].country?.name,
+          }
+        : null,
+      ticket_url: event.url,
+      image_url: event.images.find((img: any) => img.ratio === "16_9" && img.width > 500)?.url,
+      artist: {
+        name: event.name.split(' at ')[0].split(' - ')[0].trim()
+      }
+    }));
+  } catch (error) {
+    console.error("Ticketmaster events by genre error:", error);
+    toast.error("Failed to load shows for this genre");
+    return [];
+  }
+}
+
+/**
+ * Get popular music genres
+ */
+export const popularMusicGenres = [
+  { id: "KnvZfZ7vAeA", name: "Rock" },
+  { id: "KnvZfZ7vAvv", name: "Pop" },
+  { id: "KnvZfZ7vAv1", name: "Hip-Hop / Rap" },
+  { id: "KnvZfZ7vAvF", name: "Electronic" },
+  { id: "KnvZfZ7vAvE", name: "R&B" },
+  { id: "KnvZfZ7vAva", name: "Alternative" },
+  { id: "KnvZfZ7vAv6", name: "Country" },
+  { id: "KnvZfZ7vAe1", name: "Latin" },
+  { id: "KnvZfZ7vAeJ", name: "Jazz" },
+];
