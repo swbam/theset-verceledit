@@ -7,7 +7,7 @@
 }
 
 body, html {
-  background-color: #0A0A10; /* Darker blue-black background */
+  background-color: #000000; /* Pure black background */
   color: white;
 }
 
@@ -18,10 +18,10 @@ body, html {
   transition: filter 300ms;
 }
 .logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
+  filter: drop-shadow(0 0 2em rgba(255, 255, 255, 0.6));
 }
 .logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafbaa);
+  filter: drop-shadow(0 0 2em rgba(255, 255, 255, 0.6));
 }
 
 @keyframes logo-spin {

@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
@@ -34,9 +35,8 @@ const PastSetlists: React.FC<PastSetlistsProps> = ({ artistId, artistName }) => 
         if (existingSetlists && existingSetlists.length > 0) {
           return existingSetlists.map(item => ({
             id: item.id,
-            // Correctly handle the setlist_data by NOT spreading it
-            // but accessing its properties as needed
-            ...JSON.parse(JSON.stringify(item.setlist_data))
+            // Fix the spread operator issue by parsing and accessing properties properly
+            ...(typeof item.setlist_data === 'string' ? JSON.parse(item.setlist_data) : item.setlist_data)
           }));
         }
         
@@ -49,7 +49,7 @@ const PastSetlists: React.FC<PastSetlistsProps> = ({ artistId, artistName }) => 
           throw new Error(response.error.message);
         }
         
-        return response.data.setlists;
+        return response.data?.setlists || [];
       } catch (error) {
         console.error('Error fetching past setlists:', error);
         toast.error('Failed to load past setlists');

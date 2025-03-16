@@ -24,6 +24,11 @@ serve(async (req) => {
     async function fetchSetlistsFromApi(searchParam: string, searchValue: string) {
       console.log(`Fetching setlists for ${searchParam}=${searchValue}`);
       
+      // Check if API key is available
+      if (!SETLISTFM_API_KEY) {
+        throw new Error("Setlist.fm API key is not configured");
+      }
+      
       const response = await fetch(
         `https://api.setlist.fm/rest/1.0/search/setlists?${searchParam}=${encodeURIComponent(searchValue)}&p=1`,
         {
@@ -43,20 +48,36 @@ serve(async (req) => {
       return await response.json();
     }
     
+    // Check required parameters
+    if (!artistName) {
+      throw new Error("artistName is required");
+    }
+    
     // First try to fetch setlists for this artist
     let setlistsData;
     
-    if (mbid) {
-      // If we have a MusicBrainz ID, use that for the most reliable results
-      setlistsData = await fetchSetlistsFromApi("artistMbid", mbid);
-    } else {
-      // Otherwise search by artist name
-      setlistsData = await fetchSetlistsFromApi("artistName", artistName);
+    try {
+      if (mbid) {
+        // If we have a MusicBrainz ID, use that for the most reliable results
+        setlistsData = await fetchSetlistsFromApi("artistMbid", mbid);
+      } else {
+        // Otherwise search by artist name
+        setlistsData = await fetchSetlistsFromApi("artistName", artistName);
+      }
+    } catch (error) {
+      console.error("Error fetching from Setlist.fm:", error);
+      return new Response(
+        JSON.stringify({ error: error.message }),
+        { 
+          status: 500, 
+          headers: { ...corsHeaders, "Content-Type": "application/json" } 
+        }
+      );
     }
     
     if (!setlistsData.setlist || setlistsData.setlist.length === 0) {
       return new Response(
-        JSON.stringify({ error: "No setlists found for this artist" }),
+        JSON.stringify({ setlists: [] }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -113,7 +134,7 @@ serve(async (req) => {
       
       if (error) {
         console.error("Error storing setlist:", error);
-      } else {
+      } else if (insertedSetlist) {
         processedSetlist.dbId = insertedSetlist.id;
         processedSetlists.push(processedSetlist);
       }
@@ -126,7 +147,7 @@ serve(async (req) => {
   } catch (error) {
     console.error("Error processing request:", error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: error.message, setlists: [] }),
       { 
         status: 500, 
         headers: { ...corsHeaders, "Content-Type": "application/json" } 
