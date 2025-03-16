@@ -4,7 +4,7 @@ import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
 import SearchBar from '@/components/ui/SearchBar';
 import ArtistSearchResults from '@/components/artists/ArtistSearchResults';
-import { FeaturedArtists } from '@/components/home/FeaturedArtists';
+import FeaturedArtists from '@/components/home/FeaturedArtists';
 import ShowsByGenre from '@/components/artists/ShowsByGenre';
 import { Badge } from '@/components/ui/badge';
 

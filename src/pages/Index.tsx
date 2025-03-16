@@ -18,7 +18,7 @@ const Index = () => {
         <FeaturedArtists />
         <HowItWorks />
         <FeaturedShows />
-        <ShowsByGenre />
+        <ShowsByGenre genreId="KnvZfZ7vAeA" genreName="Pop" limit={4} />
       </main>
       
       <Footer />
