@@ -1,15 +1,14 @@
+
 import React, { useState, useEffect } from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import { Menu, X, Search } from 'lucide-react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Menu, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { useNavigate } from 'react-router-dom';
-import UserProfile from '@/components/auth/UserProfile';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useQuery } from '@tanstack/react-query';
 import { searchArtistsWithEvents } from '@/lib/ticketmaster';
-import SearchBar from '@/components/ui/SearchBar';
-import ArtistSearchResults from '@/components/search/ArtistSearchResults';
+import MobileMenu from './MobileMenu';
+import DesktopNav from './DesktopNav';
+import NavbarSearch from './NavbarSearch';
 
 const Navbar = ({ showSearch = true }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -46,13 +45,6 @@ const Navbar = ({ showSearch = true }) => {
     setIsMenuOpen(false);
   };
 
-  const isActive = (path: string) => {
-    if (path === '/') {
-      return location.pathname === '/';
-    }
-    return location.pathname.startsWith(path);
-  };
-
   const handleFullSearch = (query: string) => {
     if (query.trim()) {
       navigate(`/search?q=${encodeURIComponent(query)}`);
@@ -73,23 +65,14 @@ const Navbar = ({ showSearch = true }) => {
         </Link>
 
         {!isHomePage && showSearch && !isMobile && (
-          <div className="w-64 md:flex mx-4 relative">
-            <SearchBar
-              placeholder="Search artists..."
-              onChange={(query) => setSearchQuery(query)}
-              onSearch={handleFullSearch}
-              value={searchQuery}
-              className="w-full"
-            >
-              {searchQuery.length > 2 && (
-                <ArtistSearchResults
-                  artists={artists}
-                  isLoading={isLoading}
-                  onSelect={(artist) => handleNavigation(artist.id)}
-                />
-              )}
-            </SearchBar>
-          </div>
+          <NavbarSearch 
+            searchQuery={searchQuery}
+            setSearchQuery={setSearchQuery}
+            artists={artists}
+            isLoading={isLoading}
+            handleFullSearch={handleFullSearch}
+            handleNavigation={handleNavigation}
+          />
         )}
 
         {isMobile ? (
@@ -103,97 +86,19 @@ const Navbar = ({ showSearch = true }) => {
               {isMenuOpen ? <X size={20} /> : <Menu size={20} />}
             </Button>
 
-            {isMenuOpen && (
-              <div className="fixed inset-0 top-16 z-50 bg-black animate-in slide-in-from-top-5">
-                <nav className="container flex flex-col gap-6 p-6">
-                  <Link
-                    to="/"
-                    className={`text-lg ${isActive('/') ? 'font-semibold text-primary' : 'text-foreground'}`}
-                    onClick={closeMenu}
-                  >
-                    Home
-                  </Link>
-                  <Link
-                    to="/artists"
-                    className={`text-lg ${isActive('/artists') ? 'font-semibold text-primary' : 'text-foreground'}`}
-                    onClick={closeMenu}
-                  >
-                    Artists
-                  </Link>
-                  <Link
-                    to="/shows"
-                    className={`text-lg ${isActive('/shows') ? 'font-semibold text-primary' : 'text-foreground'}`}
-                    onClick={closeMenu}
-                  >
-                    Upcoming Shows
-                  </Link>
-                  <Link
-                    to="/how-it-works"
-                    className={`text-lg ${isActive('/how-it-works') ? 'font-semibold text-primary' : 'text-foreground'}`}
-                    onClick={closeMenu}
-                  >
-                    How It Works
-                  </Link>
-                  {!isHomePage && (
-                    <div className="mt-2">
-                      <SearchBar
-                        placeholder="Search artists..."
-                        onChange={(query) => setSearchQuery(query)}
-                        onSearch={handleFullSearch}
-                        value={searchQuery}
-                        className="w-full"
-                      >
-                        {searchQuery.length > 2 && (
-                          <ArtistSearchResults
-                            artists={artists}
-                            isLoading={isLoading}
-                            onSelect={(artist) => {
-                              handleNavigation(artist.id);
-                              closeMenu();
-                            }}
-                          />
-                        )}
-                      </SearchBar>
-                    </div>
-                  )}
-                  <div className="mt-4">
-                    <UserProfile />
-                  </div>
-                </nav>
-              </div>
-            )}
+            <MobileMenu 
+              isOpen={isMenuOpen}
+              searchQuery={searchQuery}
+              setSearchQuery={setSearchQuery}
+              artists={artists}
+              isLoading={isLoading}
+              handleFullSearch={handleFullSearch}
+              handleNavigation={handleNavigation}
+              closeMenu={closeMenu}
+            />
           </>
         ) : (
-          <div className="flex items-center gap-6">
-            <nav className="flex items-center gap-6">
-              <Link
-                to="/"
-                className={`text-sm font-medium ${isActive('/') ? 'text-primary' : 'text-foreground/80 hover:text-foreground'}`}
-              >
-                Home
-              </Link>
-              <Link
-                to="/artists"
-                className={`text-sm font-medium ${isActive('/artists') ? 'text-primary' : 'text-foreground/80 hover:text-foreground'}`}
-              >
-                Artists
-              </Link>
-              <Link
-                to="/shows"
-                className={`text-sm font-medium ${isActive('/shows') ? 'text-primary' : 'text-foreground/80 hover:text-foreground'}`}
-              >
-                Upcoming Shows
-              </Link>
-              <Link
-                to="/how-it-works"
-                className={`text-sm font-medium ${isActive('/how-it-works') ? 'text-primary' : 'text-foreground/80 hover:text-foreground'}`}
-              >
-                How It Works
-              </Link>
-            </nav>
-
-            <UserProfile />
-          </div>
+          <DesktopNav />
         )}
       </div>
     </header>
