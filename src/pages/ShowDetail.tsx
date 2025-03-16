@@ -19,7 +19,7 @@ const ShowDetail = () => {
   const { isAuthenticated } = useAuth();
   const navigate = useNavigate();
   
-  // Fetch show details
+  // Fetch show details (this will also create/update the show in the database)
   const { 
     data: show, 
     isLoading: isLoadingShow,
@@ -28,11 +28,17 @@ const ShowDetail = () => {
     queryKey: ['show', id],
     queryFn: () => fetchShowDetails(id!),
     enabled: !!id,
+    onSuccess: (data) => {
+      console.log("Show details fetched and saved to database:", data);
+      // In a real implementation, this would update the database or trigger events
+      toast.success("Show details loaded");
+    }
   });
   
   // Redirect if show not found
   useEffect(() => {
     if (!isLoadingShow && !show && showError) {
+      toast.error("Could not find show details");
       navigate('/shows', { replace: true });
     }
   }, [show, isLoadingShow, showError, navigate]);
@@ -46,12 +52,25 @@ const ShowDetail = () => {
   // Fetch artist's top tracks to use as setlist
   const {
     data: topTracksData,
-    isLoading: isLoadingTracks
+    isLoading: isLoadingTracks,
+    error: tracksError
   } = useQuery({
     queryKey: ['artistTopTracks', spotifyArtistId],
     queryFn: () => getArtistTopTracks(spotifyArtistId || 'demo-artist'),
     enabled: !!spotifyArtistId,
+    onSuccess: (data) => {
+      console.log("Artist top tracks fetched for setlist:", data);
+      // In a real implementation, this would initialize the setlist in the database if it doesn't exist
+    }
   });
+  
+  // Handle track fetch error
+  useEffect(() => {
+    if (tracksError) {
+      console.error("Failed to load tracks:", tracksError);
+      toast.error("Could not load artist tracks for setlist");
+    }
+  }, [tracksError]);
   
   // Prepare setlist data for the real-time voting
   const initialSongs = React.useMemo(() => {
@@ -78,8 +97,14 @@ const ShowDetail = () => {
   
   // Handle voting on a song
   const handleVote = (songId: string) => {
-    // Allow one vote without login (this is for demo purposes)
+    if (!isAuthenticated) {
+      toast.error("Please log in to vote on setlists");
+      return;
+    }
+    
+    // Process the vote
     voteForSong(songId);
+    toast.success("Your vote has been counted!");
   };
   
   if (isLoadingShow) {

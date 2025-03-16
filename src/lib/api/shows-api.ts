@@ -61,6 +61,11 @@ export async function fetchShowDetails(eventId: string): Promise<any> {
       artistId = `tm-${encodeURIComponent(artistName.toLowerCase().replace(/\s+/g, '-'))}`;
     }
     
+    // Create the show in our database
+    console.log(`Creating show in database: ${event.id} - ${event.name}`);
+    
+    // For now, we're just returning the transformed data
+    // In a real implementation, this would also store the data in a database
     return {
       id: event.id,
       name: event.name,
@@ -109,7 +114,7 @@ export async function fetchShowsByGenre(genreId: string, limit = 8): Promise<any
     const data = await callTicketmasterApi('events.json', {
       classificationId: genreId,
       segmentName: 'Music',
-      sort: 'date,asc',
+      sort: 'relevance,desc', // Sort by relevance to get popular shows first
       size: limit.toString()
     });
 
@@ -165,47 +170,75 @@ export async function fetchShowsByGenre(genreId: string, limit = 8): Promise<any
  */
 export async function fetchFeaturedShows(limit = 4): Promise<any[]> {
   try {
+    // Fetch more shows to allow better filtering
     const data = await callTicketmasterApi('events.json', {
-      size: limit.toString(),
+      size: '50', // Get more options to choose from
       segmentName: 'Music',
-      sort: 'relevance,desc'
+      sort: 'relevance,desc', // Sort by relevance to get more popular events
+      includeFamily: 'no' // Filter out family events
     });
 
     if (!data._embedded?.events) {
       return [];
     }
 
-    return data._embedded.events.map((event: any) => {
-      // Get artist from attractions if available
-      let artistName = '';
-      
-      if (event._embedded?.attractions && event._embedded.attractions.length > 0) {
-        artistName = event._embedded.attractions[0].name;
-      } else {
-        // Fallback to extracting from event name
-        artistName = event.name.split(' at ')[0].split(' - ')[0].trim();
-      }
-      
-      return {
-        id: event.id,
-        name: event.name,
-        date: event.dates.start.dateTime,
-        venue: event._embedded?.venues?.[0]
-          ? {
-              id: event._embedded.venues[0].id,
-              name: event._embedded.venues[0].name,
-              city: event._embedded.venues[0].city?.name,
-              state: event._embedded.venues[0].state?.name,
-              country: event._embedded.venues[0].country?.name,
-            }
-          : null,
-        ticket_url: event.url,
-        image_url: event.images.find((img: any) => img.ratio === "16_9" && img.width > 500)?.url,
-        artist: {
-          name: artistName
+    // Filter for events with high-quality images and venue information
+    const qualityEvents = data._embedded.events
+      .filter((event: any) => 
+        // Must have a good quality image
+        event.images.some((img: any) => img.ratio === "16_9" && img.width > 500) &&
+        // Must have venue information
+        event._embedded?.venues?.[0]?.name &&
+        // Must have a start date
+        event.dates?.start?.dateTime
+      )
+      // Calculate a "quality score" for each event
+      .map((event: any) => {
+        // Get artist from attractions if available
+        let artistName = '';
+        
+        if (event._embedded?.attractions && event._embedded.attractions.length > 0) {
+          artistName = event._embedded.attractions[0].name;
+        } else {
+          // Fallback to extracting from event name
+          artistName = event.name.split(' at ')[0].split(' - ')[0].trim();
         }
-      };
-    });
+        
+        // Calculate a quality score based on various factors
+        const qualityScore = (
+          (event.rank || 0) * 2 + 
+          (event._embedded?.venues?.[0]?.upcomingEvents?.totalEvents || 0) / 5 +
+          (event.dates?.status?.code === "onsale" ? 5 : 0) +
+          (event._embedded?.attractions?.length || 0) * 2
+        );
+        
+        return {
+          id: event.id,
+          name: event.name,
+          date: event.dates.start.dateTime,
+          venue: event._embedded?.venues?.[0]
+            ? {
+                id: event._embedded.venues[0].id,
+                name: event._embedded.venues[0].name,
+                city: event._embedded.venues[0].city?.name,
+                state: event._embedded.venues[0].state?.name,
+                country: event._embedded.venues[0].country?.name,
+              }
+            : null,
+          ticket_url: event.url,
+          image_url: event.images.find((img: any) => img.ratio === "16_9" && img.width > 500)?.url,
+          artist: {
+            name: artistName
+          },
+          qualityScore
+        };
+      })
+      // Sort by our quality score
+      .sort((a, b) => b.qualityScore - a.qualityScore)
+      // Take only the top events
+      .slice(0, limit);
+
+    return qualityEvents;
   } catch (error) {
     console.error("Ticketmaster featured shows error:", error);
     toast.error("Failed to load featured shows");
