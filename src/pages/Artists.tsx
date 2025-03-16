@@ -22,7 +22,7 @@ const Artists = () => {
 
   const { data: featuredArtists = [], isLoading: isLoadingFeatured } = useQuery({
     queryKey: ['featuredArtists'],
-    queryFn: () => fetchFeaturedArtists(8), 
+    queryFn: () => fetchFeaturedArtists(12), // Increased to show more featured artists
     staleTime: 1000 * 60 * 30, // 30 minutes
   });
 
@@ -133,6 +133,7 @@ const Artists = () => {
                 <ShowsByGenre 
                   genreId={genre.id} 
                   genreName={genre.name} 
+                  showArtistsOnly={true} // Focus on artists instead of shows
                 />
               </TabsContent>
             ))}

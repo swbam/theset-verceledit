@@ -37,6 +37,37 @@ const ShowHeader: React.FC<ShowHeaderProps> = ({ show }) => {
     }).format(date);
   };
 
+  // Format the show name to remove artist name and delivery info
+  const formatShowName = (fullName: string, artistName: string) => {
+    if (!fullName) return '';
+    
+    // Remove the artist name and any text after "delivered by" or similar phrases
+    let formattedName = fullName;
+    
+    // Remove artist name if present at the beginning
+    if (artistName && formattedName.startsWith(artistName)) {
+      formattedName = formattedName.substring(artistName.length).trim();
+      // Remove any colon at the beginning
+      if (formattedName.startsWith(':')) {
+        formattedName = formattedName.substring(1).trim();
+      }
+    }
+    
+    // Remove delivery information
+    const deliveryPhrases = [' - delivered by ', ' delivered by ', ' - presented by ', ' presented by '];
+    for (const phrase of deliveryPhrases) {
+      const index = formattedName.toLowerCase().indexOf(phrase.toLowerCase());
+      if (index !== -1) {
+        formattedName = formattedName.substring(0, index);
+      }
+    }
+    
+    return formattedName;
+  };
+
+  // Get the formatted show name
+  const tourName = formatShowName(show.name, show.artist?.name || '');
+
   return (
     <section 
       className="relative bg-cover bg-center"
@@ -45,10 +76,10 @@ const ShowHeader: React.FC<ShowHeaderProps> = ({ show }) => {
         backgroundColor: 'rgba(0,0,0,0.8)'
       }}
     >
-      <div className="px-6 md:px-8 lg:px-12 py-20 relative z-10">
+      <div className="px-6 md:px-8 lg:px-12 py-12 relative z-10">
         <div className="max-w-7xl mx-auto">
           {show.artist && (
-            <Link to={`/artists/${show.artist.id}`} className="text-white/80 hover:text-white inline-flex items-center mb-4 transition-colors">
+            <Link to={`/artists/${show.artist.id}`} className="text-white/80 hover:text-white inline-flex items-center mb-3 transition-colors">
               <ArrowLeft size={16} className="mr-2" />
               Back to artist
             </Link>
@@ -60,11 +91,11 @@ const ShowHeader: React.FC<ShowHeaderProps> = ({ show }) => {
             </span>
           </div>
           
-          <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold text-white mb-3">{show.name}</h1>
+          <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold text-white mb-2">{show.artist?.name}</h1>
           
-          {show.artist && <p className="text-lg text-white/80 mb-6">{show.artist.name}</p>}
+          {tourName && <p className="text-lg text-white/90 mb-4">{tourName}</p>}
           
-          <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-8 mt-6">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6 mt-4">
             <div className="flex items-center text-white/90">
               <Calendar size={18} className="mr-2" />
               {formatDate(show.date)}
@@ -79,7 +110,7 @@ const ShowHeader: React.FC<ShowHeaderProps> = ({ show }) => {
           </div>
           
           {show.ticket_url && (
-            <div className="mt-8">
+            <div className="mt-6">
               <Button asChild className="bg-primary hover:bg-primary/90">
                 <a 
                   href={show.ticket_url} 

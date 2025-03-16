@@ -24,6 +24,37 @@ interface ShowCardProps {
 }
 
 const ShowCard = ({ show }: ShowCardProps) => {
+  // Format the show name to remove artist name and delivery info
+  const formatShowName = (fullName: string, artistName: string) => {
+    if (!fullName) return '';
+    
+    // Remove the artist name and any text after "delivered by" or similar phrases
+    let formattedName = fullName;
+    
+    // Remove artist name if present at the beginning
+    if (artistName && formattedName.startsWith(artistName)) {
+      formattedName = formattedName.substring(artistName.length).trim();
+      // Remove any colon at the beginning
+      if (formattedName.startsWith(':')) {
+        formattedName = formattedName.substring(1).trim();
+      }
+    }
+    
+    // Remove delivery information
+    const deliveryPhrases = [' - delivered by ', ' delivered by ', ' - presented by ', ' presented by '];
+    for (const phrase of deliveryPhrases) {
+      const index = formattedName.toLowerCase().indexOf(phrase.toLowerCase());
+      if (index !== -1) {
+        formattedName = formattedName.substring(0, index);
+      }
+    }
+    
+    return formattedName;
+  };
+
+  // Get the formatted show name
+  const tourName = formatShowName(show.name, show.artist?.name || '');
+
   return (
     <div className="rounded-lg border border-border bg-card overflow-hidden hover:shadow-md transition-all hover:border-primary/30 group relative">
       <div className="aspect-[5/3] bg-secondary overflow-hidden relative">
@@ -42,12 +73,12 @@ const ShowCard = ({ show }: ShowCardProps) => {
       
       <div className="p-4">
         <h3 className="font-medium text-lg mb-1 line-clamp-1 group-hover:text-primary transition-colors">
-          {show.name}
+          {show.artist?.name}
         </h3>
         
-        {show.artist?.name && (
-          <p className="text-primary/80 text-sm mb-3">
-            {show.artist.name}
+        {tourName && (
+          <p className="text-primary/80 text-sm mb-3 line-clamp-2">
+            {tourName}
           </p>
         )}
         

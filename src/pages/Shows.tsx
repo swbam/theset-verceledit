@@ -49,26 +49,26 @@ const Shows = () => {
   } = useQuery({
     queryKey: ['shows', selectedGenre, artistParam],
     queryFn: async () => {
-      if (artistParam) {
-        // Fetch shows for this artist
-        try {
+      try {
+        if (artistParam) {
+          // Fetch shows for this artist
           const { fetchArtistEvents } = await import('@/lib/ticketmaster');
           return fetchArtistEvents(artistParam);
-        } catch (error) {
-          console.error("Error fetching artist events:", error);
-          toast.error("Failed to load shows for this artist");
+        } else if (selectedGenre) {
+          // Find the genre ID based on name
+          const genreObj = popularMusicGenres.find(g => g.name === selectedGenre);
+          if (genreObj) {
+            return fetchShowsByGenre(genreObj.id, 24);
+          } 
           return [];
+        } else {
+          // Default to featured shows if no filters
+          return fetchFeaturedShows(24);
         }
-      } else if (selectedGenre) {
-        // Find the genre ID based on name
-        const genreObj = popularMusicGenres.find(g => g.name === selectedGenre);
-        if (genreObj) {
-          return fetchShowsByGenre(genreObj.id, 24); // Show more results on this page
-        } 
+      } catch (error) {
+        console.error("Error fetching shows:", error);
+        toast.error("Failed to load shows");
         return [];
-      } else {
-        // Default to featured shows if no filters
-        return fetchFeaturedShows(24);
       }
     }
   });

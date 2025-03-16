@@ -22,17 +22,20 @@ export function useRealtimeVotes({ showId, initialSongs }: UseRealtimeVotesProps
   const { isAuthenticated, user } = useAuth();
   const [voteCount, setVoteCount] = useState(0);
   
-  // Initialize songs with user votes if user is authenticated
+  // Initialize songs when they change
   useEffect(() => {
     if (initialSongs.length > 0) {
-      setSongs(initialSongs);
+      // Sort the songs by votes (descending)
+      const sortedSongs = [...initialSongs].sort((a, b) => b.votes - a.votes);
+      setSongs(sortedSongs);
     }
   }, [initialSongs]);
   
+  // Connect to WebSocket for real-time updates
   useEffect(() => {
     if (!showId) return;
     
-    // Connect to WebSocket for real-time updates
+    // Create WebSocket connection
     const wsConnection = createMockWebSocketConnection(showId);
     
     // Connect to WebSocket
@@ -40,20 +43,19 @@ export function useRealtimeVotes({ showId, initialSongs }: UseRealtimeVotesProps
       try {
         await wsConnection.connect();
         setIsConnected(true);
-        toast.success('Connected to real-time updates');
         
         // Handle incoming vote updates
         const unsubscribe = wsConnection.subscribe((data) => {
           if (data.type === 'vote_update') {
             setSongs(prevSongs => {
-              // First, create a new array with updated vote counts
+              // Update vote counts
               const updatedSongs = prevSongs.map(song => 
                 song.id === data.data.songId
                   ? { ...song, votes: song.votes + data.data.votes }
                   : song
               );
               
-              // Then sort by vote count (descending)
+              // Sort by vote count (descending)
               return [...updatedSongs].sort((a, b) => b.votes - a.votes);
             });
           }
@@ -95,7 +97,7 @@ export function useRealtimeVotes({ showId, initialSongs }: UseRealtimeVotesProps
       return;
     }
     
-    // Allow one vote for non-authenticated users
+    // Allow limited votes for non-authenticated users
     if (!isAuthenticated && voteCount >= 1) {
       toast.error('Please log in to vote for more songs');
       return;
