@@ -1,4 +1,4 @@
-import { createClient } from '@/integrations/supabase/client';
+import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
 const SPOTIFY_API_BASE = 'https://api.spotify.com/v1';
@@ -42,8 +42,8 @@ const getAccessToken = async (): Promise<string> => {
 };
 
 // Function to search for artists
-export const searchArtists = async (query: string, limit = 5): Promise<any[]> => {
-  if (!query.trim()) return [];
+export const searchArtists = async (query: string, limit = 5): Promise<any> => {
+  if (!query.trim()) return { artists: { items: [] } };
   
   try {
     const token = await getAccessToken();
@@ -60,18 +60,10 @@ export const searchArtists = async (query: string, limit = 5): Promise<any[]> =>
       throw new Error(`Failed to search artists: ${response.statusText}`);
     }
 
-    const data = await response.json();
-    
-    return data.artists.items.map((artist: any) => ({
-      id: artist.id,
-      name: artist.name,
-      image: artist.images?.[0]?.url,
-      popularity: artist.popularity,
-      genres: artist.genres
-    }));
+    return await response.json();
   } catch (error) {
     console.error('Error searching artists:', error);
-    return [];
+    return { artists: { items: [] } };
   }
 };
 
@@ -127,14 +119,13 @@ export const getArtistById = async (artistId: string): Promise<any> => {
 };
 
 // Function to resolve artist ID (from database or Spotify search)
-export const resolveArtistId = async (artistName: string): Promise<string> => {
+export const resolveArtistId = async (artistId: string, artistName: string): Promise<string> => {
   try {
     // First, check if we have this artist in our database
-    const supabase = createClient();
     const { data: artistData, error } = await supabase
       .from('artists')
       .select('*')
-      .ilike('name', artistName)
+      .eq('id', artistId)
       .single();
 
     if (!error && artistData && artistData.stored_tracks) {
@@ -153,18 +144,19 @@ export const resolveArtistId = async (artistName: string): Promise<string> => {
         await supabase
           .from('artists')
           .update({ 
-            image_url: spotifyArtist.images?.[0]?.url,
+            image: spotifyArtist.images?.[0]?.url,
           })
-          .eq('id', artistData.id);
+          .eq('id', artistId);
         
-        return artistData.id;
+        return artistId;
       } else {
         // Insert new artist
         const { data: newArtist, error: insertError } = await supabase
           .from('artists')
           .insert({
+            id: artistId,
             name: artistName,
-            image_url: spotifyArtist.images?.[0]?.url,
+            image: spotifyArtist.images?.[0]?.url,
           })
           .select()
           .single();
@@ -174,7 +166,7 @@ export const resolveArtistId = async (artistName: string): Promise<string> => {
           throw insertError;
         }
         
-        return newArtist.id;
+        return artistId;
       }
     }
     
@@ -187,41 +179,30 @@ export const resolveArtistId = async (artistName: string): Promise<string> => {
 };
 
 // Get top tracks for an artist
-export const getArtistTopTracks = async (artistName: string, limit = 10): Promise<any[]> => {
+export const getArtistTopTracks = async (artistId: string, limit = 10): Promise<{ tracks: any[] }> => {
   try {
-    const artistId = await resolveArtistId(artistName);
-    
-    if (!artistId) {
-      throw new Error(`Could not resolve artist ID for: ${artistName}`);
-    }
-    
     // Check if we have stored tracks in the database
-    const supabase = createClient();
     const { data: artistData, error } = await supabase
       .from('artists')
       .select('stored_tracks')
       .eq('id', artistId)
-      .single();
+      .maybeSingle();
     
-    if (!error && artistData && artistData.stored_tracks && artistData.stored_tracks.length > 0) {
+    if (!error && artistData && artistData.stored_tracks && Array.isArray(artistData.stored_tracks) && artistData.stored_tracks.length > 0) {
       console.log("Using stored tracks from database");
       // Return stored tracks sorted by name
-      return artistData.stored_tracks
-        .slice(0, limit)
-        .sort((a: any, b: any) => a.name.localeCompare(b.name));
+      return { 
+        tracks: artistData.stored_tracks
+          .slice(0, limit)
+          .sort((a: any, b: any) => a.name.localeCompare(b.name))
+      };
     }
     
-    // If no stored tracks, get from Spotify API
+    // If no stored tracks, get artist details from Spotify API
     console.log("Fetching tracks from Spotify API");
-    const spotifyArtist = await getArtistByName(artistName);
-    
-    if (!spotifyArtist || !spotifyArtist.id) {
-      throw new Error(`Artist not found on Spotify: ${artistName}`);
-    }
-    
     const token = await getAccessToken();
     const response = await fetch(
-      `${SPOTIFY_API_BASE}/artists/${spotifyArtist.id}/top-tracks?market=US`,
+      `${SPOTIFY_API_BASE}/artists/${artistId}/top-tracks?market=US`,
       {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -251,26 +232,30 @@ export const getArtistTopTracks = async (artistName: string, limit = 10): Promis
       .eq('id', artistId);
     
     // Return sorted tracks
-    return tracks
-      .slice(0, limit)
-      .sort((a: any, b: any) => a.name.localeCompare(b.name));
+    return { 
+      tracks: tracks
+        .slice(0, limit)
+        .sort((a: any, b: any) => a.name.localeCompare(b.name))
+    };
       
   } catch (error) {
     console.error('Error getting artist top tracks:', error);
     // In case of error, return empty array
-    return [];
+    return { tracks: [] };
   }
 };
 
 // Get all tracks for an artist
-export const getArtistAllTracks = async (artistName: string): Promise<any[]> => {
+export const getArtistAllTracks = async (artistId: string): Promise<{ tracks: any[] }> => {
   try {
     // For now, this uses the same implementation as getArtistTopTracks
     // In a real app, you would implement pagination to get all tracks
-    const tracks = await getArtistTopTracks(artistName, 50);
-    return tracks.sort((a, b) => a.name.localeCompare(b.name));
+    const result = await getArtistTopTracks(artistId, 50);
+    return { 
+      tracks: result.tracks.sort((a, b) => a.name.localeCompare(b.name)) 
+    };
   } catch (error) {
     console.error('Error getting all artist tracks:', error);
-    return [];
+    return { tracks: [] };
   }
 };
