@@ -8,8 +8,13 @@ import { ChevronRight, CalendarDays, MapPin } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 
-const ShowsByGenre = () => {
-  const [activeGenre, setActiveGenre] = React.useState(popularMusicGenres[0].id);
+interface ShowsByGenreProps {
+  genreId?: string;
+  genreName?: string;
+}
+
+const ShowsByGenre: React.FC<ShowsByGenreProps> = ({ genreId, genreName }) => {
+  const [activeGenre, setActiveGenre] = React.useState(genreId || popularMusicGenres[0].id);
 
   const { data: shows = [], isLoading } = useQuery({
     queryKey: ['showsByGenre', activeGenre],

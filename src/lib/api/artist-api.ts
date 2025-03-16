@@ -1,0 +1,126 @@
+
+import { toast } from "sonner";
+import { callTicketmasterApi } from "./ticketmaster-config";
+
+/**
+ * Search for artists with upcoming events
+ */
+export async function searchArtistsWithEvents(query: string, limit = 10): Promise<any[]> {
+  try {
+    if (!query.trim()) return [];
+    
+    const data = await callTicketmasterApi('events.json', {
+      keyword: query,
+      segmentName: 'Music',
+      sort: 'date,asc',
+      size: limit.toString()
+    });
+
+    if (!data._embedded?.events) {
+      return [];
+    }
+
+    // Extract unique artists from events
+    const artistsMap = new Map();
+    
+    data._embedded.events.forEach((event: any) => {
+      // Get artist from attractions if available
+      let artistName = '';
+      let artistId = '';
+      let artistImage = '';
+      
+      if (event._embedded?.attractions && event._embedded.attractions.length > 0) {
+        const attraction = event._embedded.attractions[0];
+        artistName = attraction.name;
+        artistId = attraction.id;
+        artistImage = attraction.images?.find((img: any) => img.ratio === "16_9" && img.width > 500)?.url;
+      } else {
+        // Fallback to extracting from event name if no attractions
+        artistName = event.name.split(' at ')[0].split(' - ')[0].trim();
+        artistId = `tm-${encodeURIComponent(artistName.toLowerCase().replace(/\s+/g, '-'))}`;
+        artistImage = event.images.find((img: any) => img.ratio === "16_9" && img.width > 500)?.url;
+      }
+      
+      if (!artistsMap.has(artistId)) {
+        artistsMap.set(artistId, {
+          id: artistId,
+          name: artistName,
+          image: artistImage,
+          upcomingShows: 1
+        });
+      } else {
+        // Increment upcoming shows count for this artist
+        const artist = artistsMap.get(artistId);
+        artist.upcomingShows += 1;
+        artistsMap.set(artistId, artist);
+      }
+    });
+    
+    return Array.from(artistsMap.values());
+  } catch (error) {
+    console.error("Ticketmaster artist search error:", error);
+    toast.error("Failed to search for artists");
+    return [];
+  }
+}
+
+/**
+ * Fetch featured artists with upcoming shows
+ */
+export async function fetchFeaturedArtists(limit = 4): Promise<any[]> {
+  try {
+    const data = await callTicketmasterApi('events.json', {
+      size: '50',
+      segmentName: 'Music',
+      sort: 'date,asc'
+    });
+
+    if (!data._embedded?.events) {
+      return [];
+    }
+
+    // Extract unique artists from events
+    const artistsMap = new Map();
+    
+    data._embedded.events.forEach((event: any) => {
+      if (event._embedded?.attractions && event._embedded.attractions.length > 0) {
+        event._embedded.attractions.forEach((attraction: any) => {
+          if (!artistsMap.has(attraction.id) && attraction.classifications?.[0]?.segment?.name === "Music") {
+            const image = attraction.images?.find((img: any) => img.ratio === "1_1")?.url || 
+                         attraction.images?.find((img: any) => img.ratio === "16_9")?.url;
+            
+            const genres = [];
+            if (attraction.classifications?.[0]?.genre?.name) {
+              genres.push(attraction.classifications[0].genre.name);
+            }
+            if (attraction.classifications?.[0]?.subGenre?.name) {
+              genres.push(attraction.classifications[0].subGenre.name);
+            }
+            
+            artistsMap.set(attraction.id, {
+              id: attraction.id,
+              name: attraction.name,
+              image: image,
+              genres: genres,
+              upcoming_shows: 1
+            });
+          } else if (artistsMap.has(attraction.id)) {
+            // Increment upcoming shows count for this artist
+            const artist = artistsMap.get(attraction.id);
+            artist.upcoming_shows += 1;
+            artistsMap.set(attraction.id, artist);
+          }
+        });
+      }
+    });
+    
+    // Get the most popular artists (those with most upcoming shows)
+    return Array.from(artistsMap.values())
+      .sort((a, b) => b.upcoming_shows - a.upcoming_shows)
+      .slice(0, limit);
+  } catch (error) {
+    console.error("Ticketmaster featured artists error:", error);
+    toast.error("Failed to load featured artists");
+    return [];
+  }
+}
