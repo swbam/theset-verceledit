@@ -66,8 +66,8 @@ const VotableSetlistTable = ({ songs, onVote, className }: VotableSetlistTablePr
                 key={song.id} 
                 className={cn(
                   "transition-colors border-b border-white/10 group",
-                  animatingSongId === song.id ? "bg-blue-500/10" : "hover:bg-white/5",
-                  song.userVoted && "bg-blue-500/10 hover:bg-blue-500/15",
+                  animatingSongId === song.id ? "bg-white/5" : "hover:bg-white/5",
+                  song.userVoted && "bg-white/10 hover:bg-white/15",
                 )}
               >
                 <TableCell className="py-4 px-4 w-12">
@@ -100,7 +100,7 @@ const VotableSetlistTable = ({ songs, onVote, className }: VotableSetlistTablePr
                       index === 0 && "text-yellow-500", 
                       index === 1 && "text-gray-400",
                       index === 2 && "text-amber-700",
-                      song.userVoted && "text-blue-400"
+                      song.userVoted && "text-white"
                     )}>
                       {song.name}
                     </span>
@@ -109,7 +109,7 @@ const VotableSetlistTable = ({ songs, onVote, className }: VotableSetlistTablePr
                 <TableCell className="py-4 px-4 text-center hidden sm:table-cell">
                   <span className={cn(
                     "inline-flex items-center justify-center min-w-10 text-center font-mono font-medium text-sm rounded-full py-0.5 px-2",
-                    song.votes > 0 ? "bg-blue-500/20 text-blue-400" : "bg-white/10 text-white/60", 
+                    song.votes > 0 ? "bg-white/10 text-white" : "bg-white/5 text-white/60", 
                     animatingSongId === song.id && "animate-pulse"
                   )}>
                     {song.votes}
@@ -117,7 +117,7 @@ const VotableSetlistTable = ({ songs, onVote, className }: VotableSetlistTablePr
                 </TableCell>
                 <TableCell className="py-4 px-4 text-right">
                   <div className="flex items-center justify-end">
-                    <span className="mr-2 text-sm font-medium sm:hidden text-blue-400">
+                    <span className="mr-2 text-sm font-medium sm:hidden text-white">
                       {song.votes}
                     </span>
                     <button
@@ -126,7 +126,7 @@ const VotableSetlistTable = ({ songs, onVote, className }: VotableSetlistTablePr
                       className={cn(
                         "inline-flex items-center justify-center rounded-full w-9 h-9 transition-all",
                         song.userVoted 
-                          ? "bg-blue-600 text-white cursor-default" 
+                          ? "bg-white text-[#0A0A16] cursor-default" 
                           : "text-white/60 hover:bg-white/10 hover:text-white",
                         animatingSongId === song.id && "scale-110"
                       )}
@@ -135,7 +135,7 @@ const VotableSetlistTable = ({ songs, onVote, className }: VotableSetlistTablePr
                     >
                       <ArrowBigUp className={cn(
                         "h-5 w-5 transition-all",
-                        song.userVoted && "text-white",
+                        song.userVoted && "text-[#0A0A16]",
                         animatingSongId === song.id && "animate-bounce"
                       )} />
                       <span className="sr-only">

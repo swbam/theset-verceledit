@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
@@ -8,24 +7,25 @@ import { fetchFeaturedArtists } from '@/lib/ticketmaster';
 import { Skeleton } from '@/components/ui/skeleton';
 
 const FeaturedArtists = () => {
-  const { data: artists = [], isLoading, error } = useQuery({
+  const { data: artistsData = [], isLoading, error } = useQuery({
     queryKey: ['featuredArtists'],
-    queryFn: () => fetchFeaturedArtists(4),
+    queryFn: () => fetchFeaturedArtists(8),
   });
 
-  // Ensure no duplicate artists by ID
   const uniqueArtists = React.useMemo(() => {
     const uniqueMap = new Map();
-    artists.forEach(artist => {
+    
+    artistsData.forEach(artist => {
       if (!uniqueMap.has(artist.id)) {
         uniqueMap.set(artist.id, artist);
       }
     });
-    return Array.from(uniqueMap.values());
-  }, [artists]);
+
+    return Array.from(uniqueMap.values()).slice(0, 4);
+  }, [artistsData]);
 
   return (
-    <section className="py-20 px-6 md:px-8 lg:px-12 bg-secondary/50">
+    <section className="py-20 px-6 md:px-8 lg:px-12 bg-secondary/30">
       <div className="max-w-7xl mx-auto">
         <div className="flex flex-col md:flex-row md:items-end md:justify-between mb-12">
           <div>

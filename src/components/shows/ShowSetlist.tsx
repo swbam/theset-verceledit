@@ -84,14 +84,14 @@ const ShowSetlist = ({
               <SelectTrigger className="w-full bg-white/5 border-white/10 text-white">
                 <SelectValue placeholder="Select a song" />
               </SelectTrigger>
-              <SelectContent className="bg-[#14141F] border-white/10 text-white">
+              <SelectContent className="bg-[#0A0A16] border-white/10 text-white">
                 {isLoadingAllTracks ? (
                   <SelectItem value="loading" disabled>Loading songs...</SelectItem>
                 ) : availableTracks.length === 0 ? (
                   <SelectItem value="empty" disabled>No songs available</SelectItem>
                 ) : (
                   availableTracks.map((track) => (
-                    <SelectItem key={track.id} value={track.id} className="focus:bg-blue-500/20 focus:text-white">
+                    <SelectItem key={track.id} value={track.id} className="focus:bg-white/10 focus:text-white">
                       <div className="flex items-center">
                         <Music size={14} className="mr-2 text-white/60" />
                         {truncateSongName(track.name)}
@@ -105,7 +105,7 @@ const ShowSetlist = ({
           <Button 
             onClick={handleAddTrack}
             disabled={!selectedTrack || isLoadingAllTracks}
-            className="mt-2 sm:mt-0 flex-shrink-0 bg-blue-600 hover:bg-blue-700 text-white"
+            className="mt-2 sm:mt-0 flex-shrink-0 bg-white text-[#0A0A16] hover:bg-white/90" 
             size="sm"
           >
             <PlusCircle size={16} className="mr-1.5" />
