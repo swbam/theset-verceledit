@@ -49,36 +49,19 @@ const ShowDetail = () => {
     isLoading: isLoadingTracks
   } = useQuery({
     queryKey: ['artistTopTracks', spotifyArtistId],
-    queryFn: () => {
-      // In a real app, this would be a proper Spotify ID
-      // For demo purposes, we'll return mock data
-      return {
-        tracks: [
-          { id: 'track1', name: 'Hit Song 1' },
-          { id: 'track2', name: 'Greatest Hit' },
-          { id: 'track3', name: 'Fan Favorite' },
-          { id: 'track4', name: 'Classic Track' },
-          { id: 'track5', name: 'New Single' },
-          { id: 'track6', name: 'Deep Cut' },
-          { id: 'track7', name: 'B-Side' },
-          { id: 'track8', name: 'Ballad' },
-          { id: 'track9', name: 'Upbeat Number' },
-          { id: 'track10', name: 'Encore Song' },
-        ]
-      };
-    },
-    enabled: !!show?.artist?.name,
+    queryFn: () => getArtistTopTracks(spotifyArtistId || 'demo-artist'),
+    enabled: !!spotifyArtistId,
   });
   
   // Prepare setlist data for the real-time voting
   const initialSongs = React.useMemo(() => {
     if (!topTracksData?.tracks) return [];
     
-    // Convert top tracks to setlist items with vote count
+    // Convert top tracks to setlist items with vote count of 0
     return topTracksData.tracks.map((track: any) => ({
       id: track.id,
       name: track.name,
-      votes: Math.floor(Math.random() * 50), // Demo random votes
+      votes: 0, // Start with 0 votes
       userVoted: false // Start with user not having voted
     }));
   }, [topTracksData]);
@@ -95,10 +78,7 @@ const ShowDetail = () => {
   
   // Handle voting on a song
   const handleVote = (songId: string) => {
-    if (!isAuthenticated) {
-      toast.error('Please log in to vote');
-      return;
-    }
+    // Allow one vote without login (this is for demo purposes)
     voteForSong(songId);
   };
   

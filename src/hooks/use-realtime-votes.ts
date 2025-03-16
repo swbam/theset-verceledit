@@ -54,7 +54,8 @@ interface UseRealtimeVotesProps {
 export function useRealtimeVotes({ showId, initialSongs }: UseRealtimeVotesProps) {
   const [songs, setSongs] = useState<SongVote[]>(initialSongs);
   const [isConnected, setIsConnected] = useState(false);
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated } = useAuth();
+  const [voteCount, setVoteCount] = useState(0);
   
   // Initialize songs with user votes if user is authenticated
   useEffect(() => {
@@ -108,16 +109,17 @@ export function useRealtimeVotes({ showId, initialSongs }: UseRealtimeVotesProps
   
   // Function to vote for a song
   const voteForSong = (songId: string) => {
-    if (!isAuthenticated) {
-      toast.error('Please log in to vote');
-      return;
-    }
-    
     // Check if user already voted for this song
     const alreadyVoted = songs.find(song => song.id === songId)?.userVoted;
     
     if (alreadyVoted) {
       toast.error('You have already voted for this song');
+      return;
+    }
+    
+    // Allow one vote for non-authenticated users
+    if (!isAuthenticated && voteCount >= 1) {
+      toast.error('Please log in to vote for more songs');
       return;
     }
     
@@ -133,6 +135,11 @@ export function useRealtimeVotes({ showId, initialSongs }: UseRealtimeVotesProps
       // Then sort by vote count (descending)
       return [...updatedSongs].sort((a, b) => b.votes - a.votes);
     });
+    
+    // Increment vote count for non-authenticated users
+    if (!isAuthenticated) {
+      setVoteCount(prev => prev + 1);
+    }
     
     // In a real app, this would send a vote to the server
     toast.success('Vote recorded!');

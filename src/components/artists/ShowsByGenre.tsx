@@ -1,93 +1,145 @@
 
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowRight } from 'lucide-react';
 import { fetchShowsByGenre } from '@/lib/ticketmaster';
-import ShowCard from '@/components/shows/ShowCard';
-import { Button } from '@/components/ui/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { popularMusicGenres } from '@/lib/ticketmaster';
+import { ChevronRight, CalendarDays, MapPin } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
+import { cn } from '@/lib/utils';
 
-interface ShowsByGenreProps {
-  genreId: string;
-  genreName: string;
-}
+const ShowsByGenre = () => {
+  const [activeGenre, setActiveGenre] = React.useState(popularMusicGenres[0].id);
 
-const ShowsByGenre = ({ genreId, genreName }: ShowsByGenreProps) => {
-  const { data: shows = [], isLoading, error } = useQuery({
-    queryKey: ['showsByGenre', genreId],
-    queryFn: () => fetchShowsByGenre(genreId),
+  const { data: shows = [], isLoading } = useQuery({
+    queryKey: ['showsByGenre', activeGenre],
+    queryFn: () => fetchShowsByGenre(activeGenre, 8),
+    staleTime: 1000 * 60 * 10, // 10 minutes
   });
 
-  if (isLoading) {
-    return (
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <Skeleton className="h-8 w-40" />
-          <Skeleton className="h-8 w-32" />
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {Array(4).fill(0).map((_, index) => (
-            <Skeleton key={index} className="h-72 w-full rounded-xl" />
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  if (error || shows.length === 0) {
-    return (
-      <div className="text-center py-10">
-        <h3 className="text-xl font-medium mb-2">No {genreName} shows found</h3>
-        <p className="text-muted-foreground mb-6">Try checking out another genre</p>
-      </div>
-    );
-  }
-
-  // Filter out any shows with missing required data
-  const validShows = shows.filter(show => 
-    show.id && 
-    show.venue && 
-    show.venue.name && 
-    show.venue.city && 
-    show.venue.state && 
-    show.artist && 
-    show.artist.name
-  );
-
-  if (validShows.length === 0) {
-    return (
-      <div className="text-center py-10">
-        <h3 className="text-xl font-medium mb-2">No valid {genreName} shows found</h3>
-        <p className="text-muted-foreground mb-6">Try checking out another genre</p>
-      </div>
-    );
-  }
+  // Format date function
+  const formatDate = (dateString?: string) => {
+    if (!dateString) return "TBA";
+    
+    try {
+      const date = new Date(dateString);
+      // Check if date is valid
+      if (isNaN(date.getTime())) {
+        return "TBA";
+      }
+      return new Intl.DateTimeFormat('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric'
+      }).format(date);
+    } catch (error) {
+      return "TBA";
+    }
+  };
 
   return (
-    <section className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h2 className="text-2xl font-bold">{genreName}</h2>
-          <p className="text-muted-foreground">Upcoming {genreName} shows</p>
+    <section className="px-6 md:px-8 lg:px-12 py-16 bg-background">
+      <div className="max-w-7xl mx-auto">
+        <div className="mb-8">
+          <h2 className="text-3xl font-bold mb-2">Top Upcoming Shows</h2>
+          <p className="text-muted-foreground">Browse upcoming concerts by genre and vote on setlists</p>
         </div>
-        <Button variant="ghost" className="mt-2 sm:mt-0 group" asChild>
-          <div className="flex items-center">
-            See all {genreName} shows
-            <ArrowRight className="ml-1 h-4 w-4 transition-transform group-hover:translate-x-1" />
+
+        <Tabs defaultValue={activeGenre} onValueChange={setActiveGenre} className="w-full">
+          <div className="mb-6 border-b border-border">
+            <TabsList className="bg-transparent h-auto p-0 w-auto overflow-x-auto flex-wrap justify-start">
+              {popularMusicGenres.map((genre) => (
+                <TabsTrigger
+                  key={genre.id}
+                  value={genre.id}
+                  className={cn(
+                    "py-2 px-4 text-sm font-medium data-[state=active]:bg-transparent",
+                    "data-[state=active]:text-primary data-[state=active]:border-b-2 data-[state=active]:border-primary",
+                    "data-[state=active]:shadow-none rounded-none"
+                  )}
+                >
+                  {genre.name}
+                </TabsTrigger>
+              ))}
+            </TabsList>
           </div>
-        </Button>
-      </div>
-      
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        {validShows.map((show, index) => (
-          <div
-            key={show.id}
-            className="animate-fade-in"
-            style={{ animationDelay: `${index * 0.1}s` }}
-          >
-            <ShowCard show={show} />
-          </div>
-        ))}
+
+          {popularMusicGenres.map((genre) => (
+            <TabsContent key={genre.id} value={genre.id} className="pt-2">
+              {isLoading ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                  {[...Array(8)].map((_, i) => (
+                    <div key={i} className="rounded-lg border border-border bg-card overflow-hidden">
+                      <Skeleton className="h-32 w-full" />
+                      <div className="p-4 space-y-2">
+                        <Skeleton className="h-5 w-4/5" />
+                        <Skeleton className="h-4 w-2/3" />
+                        <Skeleton className="h-4 w-1/2" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : shows.length === 0 ? (
+                <div className="text-center py-12 border border-border rounded-lg bg-secondary/30">
+                  <p className="text-muted-foreground">No upcoming shows found for this genre</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                  {shows.map((show, index) => (
+                    <Link
+                      key={show.id}
+                      to={`/shows/${show.id}`}
+                      className="group rounded-lg border border-border bg-card overflow-hidden hover:shadow-md transition-all hover:border-primary/30 hover:-translate-y-1"
+                    >
+                      <div className="relative h-32 bg-secondary overflow-hidden">
+                        {show.image_url ? (
+                          <img
+                            src={show.image_url}
+                            alt={show.name}
+                            className="w-full h-full object-cover transition-transform group-hover:scale-105"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center bg-secondary">
+                            <span className="text-muted-foreground">No image</span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="p-4">
+                        <h3 className="font-medium text-sm line-clamp-1 group-hover:text-primary transition-colors">
+                          {show.name}
+                        </h3>
+                        <p className="text-primary/80 text-xs mt-1 line-clamp-1">
+                          {show.artist?.name || "Various Artists"}
+                        </p>
+                        <div className="mt-3 flex items-center text-xs text-muted-foreground">
+                          <CalendarDays size={14} className="mr-1" />
+                          <span>{formatDate(show.date)}</span>
+                        </div>
+                        <div className="mt-1 flex items-center text-xs text-muted-foreground">
+                          <MapPin size={14} className="mr-1" />
+                          <span className="line-clamp-1">
+                            {show.venue?.name}, {show.venue?.city || "Location TBA"}
+                          </span>
+                        </div>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              )}
+
+              <div className="mt-8 text-center">
+                <Link
+                  to="/shows"
+                  className="inline-flex items-center text-primary hover:underline"
+                >
+                  View all {genre.name} shows
+                  <ChevronRight size={16} className="ml-1" />
+                </Link>
+              </div>
+            </TabsContent>
+          ))}
+        </Tabs>
       </div>
     </section>
   );

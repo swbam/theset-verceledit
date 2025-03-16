@@ -104,8 +104,27 @@ export async function getArtistDetails(artistId: string): Promise<any> {
 
 /**
  * Get artist's top tracks from Spotify
+ * For demo purposes, we'll return mock data when using a demo artist ID
  */
 export async function getArtistTopTracks(artistId: string, market = "US"): Promise<any> {
+  // For demo purposes, return mock data for non-real Spotify IDs
+  if (artistId.startsWith('spotify-') || artistId === 'demo-artist') {
+    return {
+      tracks: [
+        { id: 'track1', name: 'Greatest Hit' },
+        { id: 'track2', name: 'Fan Favorite' },
+        { id: 'track3', name: 'Chart Topper' },
+        { id: 'track4', name: 'Classic Track' },
+        { id: 'track5', name: 'New Single' },
+        { id: 'track6', name: 'Deep Cut' },
+        { id: 'track7', name: 'B-Side' },
+        { id: 'track8', name: 'Ballad' },
+        { id: 'track9', name: 'Upbeat Number' },
+        { id: 'track10', name: 'Encore Song' },
+      ]
+    };
+  }
+  
   try {
     const token = await getSpotifyToken();
     const response = await fetch(
