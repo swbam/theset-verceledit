@@ -1,12 +1,13 @@
 
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
 const AuthCallback = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -16,6 +17,7 @@ const AuthCallback = () => {
         // Handle hash fragment for OAuth providers
         const hashParams = new URLSearchParams(window.location.hash.substring(1));
         const accessToken = hashParams.get('access_token');
+        const provider = new URLSearchParams(window.location.search).get('provider');
         
         if (accessToken) {
           console.log('Access token found in URL');
@@ -33,7 +35,14 @@ const AuthCallback = () => {
         if (session) {
           console.log('Session found:', session.user.id);
           toast.success('Successfully signed in!');
-          navigate('/');
+          
+          // If authentication was with Spotify, redirect to my-artists page
+          if (provider === 'spotify' || (session.provider_token && session.provider_type === 'spotify')) {
+            console.log('Redirecting to my-artists page');
+            navigate('/my-artists');
+          } else {
+            navigate('/');
+          }
         } else {
           console.log('No session found after redirect');
           // This might happen if the OAuth process wasn't completed
@@ -49,7 +58,7 @@ const AuthCallback = () => {
     };
 
     handleAuthCallback();
-  }, [navigate]);
+  }, [navigate, location]);
 
   if (error) {
     return (

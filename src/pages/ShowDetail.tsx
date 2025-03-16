@@ -22,6 +22,11 @@ const ShowDetail = () => {
   const [selectedTrack, setSelectedTrack] = useState<string>('');
   const [spotifyArtistId, setSpotifyArtistId] = useState<string>('');
   
+  // Reset scroll position when component mounts
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+  
   // Fetch show details from Ticketmaster
   const { 
     data: show, 

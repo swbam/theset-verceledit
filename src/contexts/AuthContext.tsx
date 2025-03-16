@@ -122,7 +122,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
+          redirectTo: `${window.location.origin}/auth/callback?provider=google`,
         },
       });
 
@@ -139,8 +139,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const { error, data } = await supabase.auth.signInWithOAuth({
         provider: 'spotify',
         options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
-          scopes: 'user-read-email user-read-private',
+          redirectTo: `${window.location.origin}/auth/callback?provider=spotify`,
+          scopes: 'user-read-email user-read-private user-top-read user-follow-read',
         },
       });
 

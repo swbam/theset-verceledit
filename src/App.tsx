@@ -15,6 +15,7 @@ import Shows from "./pages/Shows";
 import Auth from "./pages/Auth";
 import AuthCallback from "./pages/AuthCallback";
 import Profile from "./pages/Profile";
+import MyArtists from "./pages/MyArtists";
 import HowItWorks from "./pages/HowItWorks";
 import CreateShow from "./pages/CreateShow";
 import NotFound from "./pages/NotFound";
@@ -45,6 +46,14 @@ const App = () => (
               <Route path="/shows/:id" element={<ShowDetail />} />
               <Route path="/auth" element={<Auth />} />
               <Route path="/auth/callback" element={<AuthCallback />} />
+              <Route 
+                path="/my-artists" 
+                element={
+                  <ProtectedRoute>
+                    <MyArtists />
+                  </ProtectedRoute>
+                } 
+              />
               <Route 
                 path="/profile" 
                 element={
