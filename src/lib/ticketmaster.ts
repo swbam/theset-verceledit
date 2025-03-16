@@ -26,14 +26,19 @@ import { supabase } from '@/integrations/supabase/client';
 
 // Setlist.fm related functions
 export const fetchPastSetlists = async (artistId: string, artistName: string) => {
-  const { data, error } = await supabase.functions.invoke('fetch-past-setlists', {
-    body: { artistId, artistName }
-  });
-  
-  if (error) {
-    console.error("Error fetching past setlists:", error);
+  try {
+    const { data, error } = await supabase.functions.invoke('fetch-past-setlists', {
+      body: { artistId, artistName }
+    });
+    
+    if (error) {
+      console.error("Error fetching past setlists:", error);
+      throw error;
+    }
+    
+    return data.setlists;
+  } catch (error) {
+    console.error("Error in fetchPastSetlists:", error);
     throw error;
   }
-  
-  return data.setlists;
 };

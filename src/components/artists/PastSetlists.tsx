@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
@@ -35,7 +34,9 @@ const PastSetlists: React.FC<PastSetlistsProps> = ({ artistId, artistName }) => 
         if (existingSetlists && existingSetlists.length > 0) {
           return existingSetlists.map(item => ({
             id: item.id,
-            ...item.setlist_data
+            // Correctly handle the setlist_data by NOT spreading it
+            // but accessing its properties as needed
+            ...JSON.parse(JSON.stringify(item.setlist_data))
           }));
         }
         

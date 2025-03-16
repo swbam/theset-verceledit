@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils';
 
 interface SearchBarProps {
   placeholder?: string;
-  onSearch?: (query: string) => void;
+  onSearch?: (query: string) => void; // Updated to take a string parameter
   onChange?: (query: string) => void;
   className?: string;
   isLoading?: boolean;
@@ -39,7 +39,7 @@ const SearchBar = ({
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (onSearch && query.trim()) {
-      onSearch(query.trim());
+      onSearch(query.trim()); // Now passing string directly, not event
     }
   };
 
