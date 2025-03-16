@@ -35,7 +35,32 @@ const ShowsByGenre = ({ genreId, genreName }: ShowsByGenreProps) => {
   }
 
   if (error || shows.length === 0) {
-    return null;
+    return (
+      <div className="text-center py-10">
+        <h3 className="text-xl font-medium mb-2">No {genreName} shows found</h3>
+        <p className="text-muted-foreground mb-6">Try checking out another genre</p>
+      </div>
+    );
+  }
+
+  // Filter out any shows with missing required data
+  const validShows = shows.filter(show => 
+    show.id && 
+    show.venue && 
+    show.venue.name && 
+    show.venue.city && 
+    show.venue.state && 
+    show.artist && 
+    show.artist.name
+  );
+
+  if (validShows.length === 0) {
+    return (
+      <div className="text-center py-10">
+        <h3 className="text-xl font-medium mb-2">No valid {genreName} shows found</h3>
+        <p className="text-muted-foreground mb-6">Try checking out another genre</p>
+      </div>
+    );
   }
 
   return (
@@ -54,7 +79,7 @@ const ShowsByGenre = ({ genreId, genreName }: ShowsByGenreProps) => {
       </div>
       
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        {shows.map((show, index) => (
+        {validShows.map((show, index) => (
           <div
             key={show.id}
             className="animate-fade-in"

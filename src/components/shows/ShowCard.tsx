@@ -25,15 +25,24 @@ interface ShowProps {
 const ShowCard = ({ show, className }: ShowProps) => {
   const [imageLoaded, setImageLoaded] = useState(false);
   
-  // Format date
+  // Format date with fallback for invalid dates
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return new Intl.DateTimeFormat('en-US', {
-      weekday: 'short',
-      month: 'short', 
-      day: 'numeric',
-      year: 'numeric'
-    }).format(date);
+    try {
+      const date = new Date(dateString);
+      // Check if date is valid
+      if (isNaN(date.getTime())) {
+        return "Date TBA";
+      }
+      return new Intl.DateTimeFormat('en-US', {
+        weekday: 'short',
+        month: 'short', 
+        day: 'numeric',
+        year: 'numeric'
+      }).format(date);
+    } catch (error) {
+      console.error("Date formatting error:", error);
+      return "Date TBA";
+    }
   };
 
   return (

@@ -6,16 +6,23 @@ import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
 import ShowsByGenre from '@/components/artists/ShowsByGenre';
 import SearchBar from '@/components/ui/SearchBar';
+import ArtistSearchResults from '@/components/artists/ArtistSearchResults';
 import { useNavigate } from 'react-router-dom';
 
 const Artists = () => {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = React.useState('');
+  const [showResults, setShowResults] = React.useState(false);
 
   const handleSearch = (query: string) => {
     if (query.trim()) {
       navigate(`/search?q=${encodeURIComponent(query)}`);
     }
+  };
+
+  const handleQueryChange = (query: string) => {
+    setSearchQuery(query);
+    setShowResults(query.length > 2);
   };
 
   return (
@@ -30,9 +37,11 @@ const Artists = () => {
             <SearchBar 
               placeholder="Search for artists with upcoming shows..." 
               onSearch={handleSearch}
-              onChange={setSearchQuery}
+              onChange={handleQueryChange}
               className="w-full"
-            />
+            >
+              {showResults && <ArtistSearchResults query={searchQuery} />}
+            </SearchBar>
           </div>
           
           <Tabs defaultValue={popularMusicGenres[0].id} className="space-y-10">
