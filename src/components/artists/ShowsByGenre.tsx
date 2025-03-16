@@ -28,6 +28,17 @@ const ShowsByGenre: React.FC<ShowsByGenreProps> = ({
     staleTime: 1000 * 60 * 10, // 10 minutes
   });
 
+  // Deduplicate shows by ID
+  const uniqueShows = React.useMemo(() => {
+    const uniqueMap = new Map();
+    shows.forEach(show => {
+      if (!uniqueMap.has(show.id)) {
+        uniqueMap.set(show.id, show);
+      }
+    });
+    return Array.from(uniqueMap.values());
+  }, [shows]);
+
   // Format date function
   const formatDate = (dateString?: string) => {
     if (!dateString) return "TBA";
@@ -90,7 +101,7 @@ const ShowsByGenre: React.FC<ShowsByGenreProps> = ({
                     </div>
                   ))}
                 </div>
-              ) : shows.length === 0 ? (
+              ) : uniqueShows.length === 0 ? (
                 <div className="text-center py-12 border border-border rounded-lg bg-secondary/30">
                   <Music className="h-12 w-12 mx-auto text-muted-foreground/40 mb-4" />
                   <p className="text-lg font-medium mb-2">No upcoming shows found for this genre</p>
@@ -101,7 +112,7 @@ const ShowsByGenre: React.FC<ShowsByGenreProps> = ({
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                  {shows.map((show, index) => (
+                  {uniqueShows.map((show, index) => (
                     <Link
                       key={show.id}
                       to={`/shows/${show.id}`}
@@ -143,7 +154,7 @@ const ShowsByGenre: React.FC<ShowsByGenreProps> = ({
                 </div>
               )}
 
-              {shows.length > 0 && (
+              {uniqueShows.length > 0 && (
                 <div className="mt-8 text-center">
                   <Link
                     to={`/shows?genre=${encodeURIComponent(genre.name)}`}

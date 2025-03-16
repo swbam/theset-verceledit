@@ -13,6 +13,17 @@ const FeaturedArtists = () => {
     queryFn: () => fetchFeaturedArtists(4),
   });
 
+  // Ensure no duplicate artists by ID
+  const uniqueArtists = React.useMemo(() => {
+    const uniqueMap = new Map();
+    artists.forEach(artist => {
+      if (!uniqueMap.has(artist.id)) {
+        uniqueMap.set(artist.id, artist);
+      }
+    });
+    return Array.from(uniqueMap.values());
+  }, [artists]);
+
   return (
     <section className="py-20 px-6 md:px-8 lg:px-12 bg-secondary/50">
       <div className="max-w-7xl mx-auto">
@@ -48,13 +59,13 @@ const FeaturedArtists = () => {
           <div className="text-center py-10">
             <p className="text-muted-foreground">Unable to load featured artists</p>
           </div>
-        ) : artists.length === 0 ? (
+        ) : uniqueArtists.length === 0 ? (
           <div className="text-center py-10">
             <p className="text-muted-foreground">No featured artists found</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 md:gap-8">
-            {artists.map(artist => (
+            {uniqueArtists.map(artist => (
               <ArtistCard key={artist.id} artist={artist} />
             ))}
           </div>

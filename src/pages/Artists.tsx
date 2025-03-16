@@ -26,6 +26,17 @@ const Artists = () => {
     staleTime: 1000 * 60 * 30, // 30 minutes
   });
 
+  // Ensure no duplicate artists by ID
+  const uniqueArtists = React.useMemo(() => {
+    const uniqueMap = new Map();
+    featuredArtists.forEach(artist => {
+      if (!uniqueMap.has(artist.id)) {
+        uniqueMap.set(artist.id, artist);
+      }
+    });
+    return Array.from(uniqueMap.values());
+  }, [featuredArtists]);
+
   const handleSearch = (query: string) => {
     if (query.trim()) {
       navigate(`/search?q=${encodeURIComponent(query)}`);
@@ -71,7 +82,7 @@ const Artists = () => {
               </div>
             ) : (
               <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                {featuredArtists.map((artist, index) => (
+                {uniqueArtists.map((artist, index) => (
                   <Link 
                     key={artist.id}
                     to={`/artists/${artist.id}`}

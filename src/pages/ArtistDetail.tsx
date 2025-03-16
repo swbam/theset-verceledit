@@ -1,7 +1,8 @@
+
 import React from 'react';
 import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { fetchArtistEvents } from '@/lib/ticketmaster';
+import { fetchArtistEvents, fetchArtistById } from '@/lib/ticketmaster';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
 import ArtistHeader from '@/components/artist/ArtistHeader';
@@ -14,69 +15,38 @@ import { toast } from 'sonner';
 const ArtistDetail = () => {
   const { id } = useParams<{ id: string }>();
   
-  // Process artist data from the ID
-  const processArtistId = (artistId?: string) => {
-    if (!artistId) return { name: '', searchTerm: '' };
-    
-    // Handle Ticketmaster IDs
-    if (artistId.startsWith('tm-')) {
-      const name = artistId.replace('tm-', '').replace(/-/g, ' ');
-      return { 
-        name: name.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' '),
-        searchTerm: name
-      };
-    }
-    
-    // Handle regular Ticketmaster IDs (K8vZ...)
-    if (artistId.startsWith('K')) {
-      // We'll need to extract the name from the first show
-      return { name: '', searchTerm: artistId };
-    }
-    
-    // Default fallback
-    return { 
-      name: artistId.replace(/-/g, ' '), 
-      searchTerm: artistId
-    };
-  };
-  
-  const { name: artistName, searchTerm } = processArtistId(id);
-  
+  // Fetch artist details
   const {
-    data: shows = [],
-    isLoading,
-    error
+    data: artist,
+    isLoading: artistLoading,
+    error: artistError
   } = useQuery({
-    queryKey: ['artistEvents', id],
-    queryFn: async () => {
-      try {
-        // For Ticketmaster IDs that don't start with 'tm-', we need to use ID directly
-        if (id && id.startsWith('K')) {
-          return fetchArtistEvents(id);
-        }
-        // Otherwise use the search term derived from the ID
-        return fetchArtistEvents(searchTerm);
-      } catch (error) {
-        console.error("Error fetching artist events:", error);
-        toast.error("Failed to load upcoming shows");
-        return [];
-      }
-    },
+    queryKey: ['artist', id],
+    queryFn: () => fetchArtistById(id as string),
     enabled: !!id,
     staleTime: 1000 * 60 * 10, // 10 minutes
   });
   
-  // Get artist image from the first show if available and update artist name if empty
-  const artistImage = shows.length > 0 ? shows[0].image_url : undefined;
-  // If artistName is empty, try to get it from the first show
-  const finalArtistName = artistName || (shows.length > 0 && shows[0].artist?.name) || 'Artist';
-  const upcomingShowsCount = shows.length;
-
+  // Fetch upcoming shows for this artist
+  const {
+    data: shows = [],
+    isLoading: showsLoading,
+    error: showsError
+  } = useQuery({
+    queryKey: ['artistEvents', id],
+    queryFn: () => fetchArtistEvents(id as string),
+    enabled: !!id,
+    staleTime: 1000 * 60 * 10, // 10 minutes
+  });
+  
+  const isLoading = artistLoading || showsLoading;
+  const error = artistError || showsError;
+  
   if (isLoading) {
     return <ArtistDetailSkeleton />;
   }
 
-  if (error || !id) {
+  if (error || !id || !artist) {
     return <ArtistNotFound />;
   }
 
@@ -86,19 +56,19 @@ const ArtistDetail = () => {
       
       <main className="flex-grow">
         <ArtistHeader 
-          artistName={finalArtistName} 
-          artistImage={artistImage}
-          upcomingShowsCount={upcomingShowsCount}
+          artistName={artist.name} 
+          artistImage={artist.image}
+          upcomingShowsCount={shows.length}
         />
         
         <UpcomingShows 
           shows={shows}
-          artistName={finalArtistName}
+          artistName={artist.name}
         />
         
         <PastSetlists 
           artistId={id}
-          artistName={finalArtistName}
+          artistName={artist.name}
         />
       </main>
       

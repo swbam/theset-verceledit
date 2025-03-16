@@ -1,6 +1,6 @@
-
 import { toast } from "sonner";
 import { callTicketmasterApi } from "./ticketmaster-config";
+import { supabase } from "@/integrations/supabase/client";
 
 /**
  * Search for artists with upcoming events
@@ -56,7 +56,13 @@ export async function searchArtistsWithEvents(query: string, limit = 10): Promis
       }
     });
     
-    return Array.from(artistsMap.values());
+    // Save artists to database
+    const artists = Array.from(artistsMap.values());
+    for (const artist of artists) {
+      await saveArtistToDatabase(artist);
+    }
+    
+    return artists;
   } catch (error) {
     console.error("Ticketmaster artist search error:", error);
     toast.error("Failed to search for artists");
@@ -69,7 +75,19 @@ export async function searchArtistsWithEvents(query: string, limit = 10): Promis
  */
 export async function fetchFeaturedArtists(limit = 4): Promise<any[]> {
   try {
-    // Increase the number of events to find the most popular artists
+    // First, check if we have artists in the database
+    const { data: dbArtists, error: dbError } = await supabase
+      .from('artists')
+      .select('*')
+      .order('popularity', { ascending: false })
+      .limit(limit);
+    
+    // If we have enough artists in database, use them
+    if (dbArtists && dbArtists.length >= limit) {
+      return dbArtists;
+    }
+    
+    // Otherwise, fetch from Ticketmaster
     const data = await callTicketmasterApi('events.json', {
       size: '100', // Fetch more events to get better data
       segmentName: 'Music',
@@ -132,13 +150,136 @@ export async function fetchFeaturedArtists(limit = 4): Promise<any[]> {
       }
     });
     
-    // Get the most popular artists based on our popularity metrics
-    return Array.from(artistsMap.values())
+    // Get the most popular artists
+    const artists = Array.from(artistsMap.values())
       .sort((a, b) => b.popularity - a.popularity || b.upcoming_shows - a.upcoming_shows)
       .slice(0, limit);
+    
+    // Save artists to database
+    for (const artist of artists) {
+      await saveArtistToDatabase(artist);
+    }
+    
+    return artists;
   } catch (error) {
     console.error("Ticketmaster featured artists error:", error);
     toast.error("Failed to load featured artists");
     return [];
+  }
+}
+
+/**
+ * Save artist to database
+ */
+async function saveArtistToDatabase(artist: any) {
+  try {
+    // Check if artist already exists
+    const { data: existingArtist } = await supabase
+      .from('artists')
+      .select('id, updated_at')
+      .eq('id', artist.id)
+      .maybeSingle();
+    
+    // If artist exists and was updated in the last 7 days, don't update
+    if (existingArtist) {
+      const lastUpdated = new Date(existingArtist.updated_at);
+      const now = new Date();
+      const daysSinceUpdate = (now.getTime() - lastUpdated.getTime()) / (1000 * 60 * 60 * 24);
+      
+      if (daysSinceUpdate < 7) {
+        return;
+      }
+    }
+    
+    // Insert or update artist
+    const { error } = await supabase
+      .from('artists')
+      .upsert({
+        id: artist.id,
+        name: artist.name,
+        image: artist.image,
+        genres: Array.isArray(artist.genres) ? artist.genres : [],
+        popularity: artist.popularity || 0,
+        upcoming_shows: artist.upcomingShows || artist.upcoming_shows || 0,
+        updated_at: new Date().toISOString()
+      });
+    
+    if (error) {
+      console.error("Error saving artist to database:", error);
+    }
+  } catch (error) {
+    console.error("Error in saveArtistToDatabase:", error);
+  }
+}
+
+/**
+ * Fetch artist details by ID
+ */
+export async function fetchArtistById(artistId: string): Promise<any> {
+  try {
+    // First try to get from database
+    const { data: artist, error } = await supabase
+      .from('artists')
+      .select('*')
+      .eq('id', artistId)
+      .maybeSingle();
+    
+    if (artist) {
+      return artist;
+    }
+    
+    // If not in database, fetch from Ticketmaster for non-tm- prefixed IDs
+    if (!artistId.startsWith('tm-')) {
+      // For actual TM IDs, fetch using attraction endpoint
+      try {
+        const data = await callTicketmasterApi(`attractions/${artistId}.json`);
+        
+        if (!data) {
+          throw new Error("Artist not found");
+        }
+        
+        const artistData = {
+          id: data.id,
+          name: data.name,
+          image: data.images?.find((img: any) => img.ratio === "16_9" && img.width > 500)?.url,
+          genres: []
+        };
+        
+        if (data.classifications && data.classifications.length > 0) {
+          if (data.classifications[0].genre?.name) {
+            artistData.genres.push(data.classifications[0].genre.name);
+          }
+          if (data.classifications[0].subGenre?.name) {
+            artistData.genres.push(data.classifications[0].subGenre.name);
+          }
+        }
+        
+        // Save to database
+        await saveArtistToDatabase(artistData);
+        
+        return artistData;
+      } catch (fetchError) {
+        console.error("Error fetching artist by ID:", fetchError);
+        // Fall back to keyword search
+      }
+    }
+    
+    // For tm- prefixed IDs or if attraction endpoint failed, extract name and search
+    const searchTerm = artistId.startsWith('tm-') 
+      ? decodeURIComponent(artistId.replace('tm-', '')).replace(/-/g, ' ')
+      : artistId;
+    
+    // Search for artist by name
+    const artists = await searchArtistsWithEvents(searchTerm, 1);
+    
+    if (artists.length > 0) {
+      return artists[0];
+    }
+    
+    throw new Error("Artist not found");
+  } catch (error) {
+    console.error("Error in fetchArtistById:", error);
+    toast.error("Failed to load artist details");
+    throw error;
   }
 }
