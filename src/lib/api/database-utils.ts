@@ -42,6 +42,7 @@ export async function saveArtistToDatabase(artist: any) {
         genres: Array.isArray(artist.genres) ? artist.genres : [],
         popularity: artist.popularity || 0,
         upcoming_shows: artist.upcomingShows || artist.upcoming_shows || 0,
+        stored_tracks: artist.stored_tracks || null,
         updated_at: new Date().toISOString()
       });
     

@@ -17,6 +17,7 @@ export type Database = {
           image: string | null
           name: string
           popularity: number | null
+          stored_tracks: Json | null
           upcoming_shows: number | null
           updated_at: string | null
         }
@@ -27,6 +28,7 @@ export type Database = {
           image?: string | null
           name: string
           popularity?: number | null
+          stored_tracks?: Json | null
           upcoming_shows?: number | null
           updated_at?: string | null
         }
@@ -37,6 +39,7 @@ export type Database = {
           image?: string | null
           name?: string
           popularity?: number | null
+          stored_tracks?: Json | null
           upcoming_shows?: number | null
           updated_at?: string | null
         }
