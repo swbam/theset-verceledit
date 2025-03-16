@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Menu, X, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -7,14 +7,37 @@ import { Input } from '@/components/ui/input';
 import { useNavigate } from 'react-router-dom';
 import UserProfile from '@/components/auth/UserProfile';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { useQuery } from '@tanstack/react-query';
+import { searchArtistsWithEvents } from '@/lib/ticketmaster';
+import SearchBar from '@/components/ui/SearchBar';
+import ArtistSearchResults from '@/components/search/ArtistSearchResults';
 
 const Navbar = ({ showSearch = true }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
   const location = useLocation();
   const isMobile = useIsMobile();
   const navigate = useNavigate();
   const isHomePage = location.pathname === '/';
+
+  // Debounce search query
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedQuery(searchQuery);
+    }, 300);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [searchQuery]);
+
+  // Fetch artist search results
+  const { data: artists = [], isLoading } = useQuery({
+    queryKey: ['navSearch', debouncedQuery],
+    queryFn: () => searchArtistsWithEvents(debouncedQuery, 5),
+    enabled: debouncedQuery.length > 2,
+  });
 
   const toggleMenu = () => {
     setIsMenuOpen(!isMenuOpen);
@@ -31,12 +54,17 @@ const Navbar = ({ showSearch = true }) => {
     return location.pathname.startsWith(path);
   };
 
-  const handleSearch = (e: React.FormEvent) => {
+  const handleFullSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (searchQuery.trim()) {
       navigate(`/search?q=${encodeURIComponent(searchQuery)}`);
       setSearchQuery('');
     }
+  };
+
+  const handleNavigation = (artistId: string) => {
+    navigate(`/artists/${artistId}`);
+    setSearchQuery('');
   };
 
   return (
@@ -47,23 +75,23 @@ const Navbar = ({ showSearch = true }) => {
         </Link>
 
         {!isHomePage && showSearch && !isMobile && (
-          <form onSubmit={handleSearch} className="w-64 hidden md:flex mx-4 relative">
-            <Input
-              type="text"
+          <div className="w-64 md:flex mx-4 relative">
+            <SearchBar
               placeholder="Search artists..."
+              onChange={(query) => setSearchQuery(query)}
+              onSearch={handleFullSearch}
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pr-8"
-            />
-            <Button 
-              type="submit" 
-              variant="ghost" 
-              size="icon"
-              className="absolute right-0 top-0 h-full"
+              className="w-full"
             >
-              <Search size={18} />
-            </Button>
-          </form>
+              {searchQuery.length > 2 && (
+                <ArtistSearchResults
+                  artists={artists}
+                  isLoading={isLoading}
+                  onSelect={(artist) => handleNavigation(artist.id)}
+                />
+              )}
+            </SearchBar>
+          </div>
         )}
 
         {isMobile ? (
@@ -109,25 +137,26 @@ const Navbar = ({ showSearch = true }) => {
                     How It Works
                   </Link>
                   {!isHomePage && (
-                    <form onSubmit={handleSearch} className="mt-2">
-                      <div className="relative">
-                        <Input
-                          type="text"
-                          placeholder="Search artists..."
-                          value={searchQuery}
-                          onChange={(e) => setSearchQuery(e.target.value)}
-                          className="pr-8"
-                        />
-                        <Button 
-                          type="submit" 
-                          variant="ghost" 
-                          size="icon"
-                          className="absolute right-0 top-0 h-full"
-                        >
-                          <Search size={18} />
-                        </Button>
-                      </div>
-                    </form>
+                    <div className="mt-2">
+                      <SearchBar
+                        placeholder="Search artists..."
+                        onChange={(query) => setSearchQuery(query)}
+                        onSearch={handleFullSearch}
+                        value={searchQuery}
+                        className="w-full"
+                      >
+                        {searchQuery.length > 2 && (
+                          <ArtistSearchResults
+                            artists={artists}
+                            isLoading={isLoading}
+                            onSelect={(artist) => {
+                              handleNavigation(artist.id);
+                              closeMenu();
+                            }}
+                          />
+                        )}
+                      </SearchBar>
+                    </div>
                   )}
                   <div className="mt-4">
                     <UserProfile />

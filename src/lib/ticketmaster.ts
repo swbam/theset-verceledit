@@ -21,6 +21,9 @@ export {
   saveVenueToDatabase
 } from './api/database-utils';
 
+// Import supabase client
+import { supabase } from '@/integrations/supabase/client';
+
 // Setlist.fm related functions
 export const fetchPastSetlists = async (artistId: string, artistName: string) => {
   const { data, error } = await supabase.functions.invoke('fetch-past-setlists', {

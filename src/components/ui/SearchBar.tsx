@@ -11,6 +11,7 @@ interface SearchBarProps {
   isLoading?: boolean;
   autoFocus?: boolean;
   children?: React.ReactNode;
+  value?: string;
 }
 
 const SearchBar = ({ 
@@ -20,12 +21,20 @@ const SearchBar = ({
   className,
   isLoading = false,
   autoFocus = false,
-  children
+  children,
+  value
 }: SearchBarProps) => {
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState(value || '');
   const [isFocused, setIsFocused] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const searchBarRef = useRef<HTMLFormElement>(null);
+
+  // Update internal state when value prop changes
+  useEffect(() => {
+    if (value !== undefined) {
+      setQuery(value);
+    }
+  }, [value]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
