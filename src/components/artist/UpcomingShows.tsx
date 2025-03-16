@@ -30,7 +30,7 @@ const UpcomingShows = ({
           <div className="text-center p-10 border border-white/10 rounded-xl card-gradient">
             <p className="text-lg mb-4 text-white">No upcoming concerts found for this artist.</p>
             <Button variant="outline" className="border-white/20 bg-white/5 text-white hover:bg-white/10" asChild>
-              <Link to="/artists">Discover other artists</Link>
+              <Link to="/shows">Discover other shows</Link>
             </Button>
           </div>
         </div>

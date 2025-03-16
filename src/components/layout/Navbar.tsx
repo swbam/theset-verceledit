@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Menu, X, Search } from 'lucide-react';
@@ -125,7 +126,7 @@ const Navbar = ({ showSearch = true }) => {
                     className={`text-lg ${isActive('/shows') ? 'font-semibold text-primary' : 'text-foreground'}`}
                     onClick={closeMenu}
                   >
-                    Shows
+                    Upcoming Shows
                   </Link>
                   <Link
                     to="/how-it-works"
@@ -182,7 +183,7 @@ const Navbar = ({ showSearch = true }) => {
                 to="/shows"
                 className={`text-sm font-medium ${isActive('/shows') ? 'text-primary' : 'text-foreground/80 hover:text-foreground'}`}
               >
-                Shows
+                Upcoming Shows
               </Link>
               <Link
                 to="/how-it-works"

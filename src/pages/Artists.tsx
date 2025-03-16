@@ -1,5 +1,6 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
 import SearchBar from '@/components/ui/SearchBar';
@@ -7,34 +8,20 @@ import ArtistSearchResults from '@/components/artists/ArtistSearchResults';
 import FeaturedArtists from '@/components/home/FeaturedArtists';
 import ShowsByGenre from '@/components/artists/ShowsByGenre';
 import { Badge } from '@/components/ui/badge';
-
-const genres = [
-  { id: 'KnvZfZ7vAeA', name: 'Pop' },
-  { id: 'KnvZfZ7vAvv', name: 'Rock' },
-  { id: 'KnvZfZ7vAva', name: 'Hip-Hop/Rap' },
-  { id: 'KnvZfZ7vAvE', name: 'R&B' },
-  { id: 'KnvZfZ7vAv6', name: 'Country' },
-  { id: 'KnvZfZ7vAev', name: 'Electronic' },
-  { id: 'KnvZfZ7vAvl', name: 'Alternative' },
-  { id: 'KnvZfZ7vAve', name: 'Classical' },
-  { id: 'KnvZfZ7vAvY', name: 'Jazz' },
-  { id: 'KnvZfZ7vAka', name: 'Blues' },
-  { id: 'KnvZfZ7vAkE', name: 'Folk' },
-  { id: 'KnvZfZ7vAkF', name: 'World' },
-  { id: 'KnvZfZ7vAkA', name: 'Reggae' },
-  { id: 'KnvZfZ7vAee', name: 'Latin' },
-  { id: 'KnvZfZ7vAkv', name: 'Metal' },
-  { id: 'KnvZfZ7vAej', name: 'Punk' },
-  { id: 'KnvZfZ7vAke', name: 'Gospel' },
-  { id: 'KnvZfZ7vAky', name: 'New Age' },
-  { id: 'KnvZfZ7vA04', name: 'Comedy' },
-];
+import { popularMusicGenres } from '@/lib/ticketmaster';
 
 const Artists = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [activeGenre, setActiveGenre] = useState<string | null>(null);
+  const location = useLocation();
+  
+  // Determine if we're on the /shows path
+  const isShowsPage = location.pathname.startsWith('/shows');
+  
+  // Set page title based on path
+  const pageTitle = isShowsPage ? "Upcoming Shows" : "Discover Artists";
 
   const handleSearch = async (query: string) => {
     setSearchQuery(query);
@@ -54,11 +41,11 @@ const Artists = () => {
       <main className="flex-grow">
         <section className="px-6 py-12 md:px-8 lg:px-12 bg-gradient-to-b from-secondary/30 to-background">
           <div className="max-w-7xl mx-auto">
-            <h1 className="text-3xl md:text-4xl font-bold mb-6">Discover Artists</h1>
+            <h1 className="text-3xl md:text-4xl font-bold mb-6">{pageTitle}</h1>
             
             <SearchBar 
               onSearch={handleSearch}
-              placeholder="Search for artists..."
+              placeholder={isShowsPage ? "Search for shows..." : "Search for artists..."}
               className="mb-8 max-w-2xl"
             />
             
@@ -73,7 +60,7 @@ const Artists = () => {
                 <div className="space-y-6">
                   <h2 className="text-2xl font-bold">Popular Genres</h2>
                   <div className="flex flex-wrap gap-2">
-                    {genres.map((genre) => (
+                    {popularMusicGenres.map((genre) => (
                       <Badge 
                         key={genre.id}
                         variant={activeGenre === genre.id ? "default" : "outline"}
@@ -88,7 +75,7 @@ const Artists = () => {
                   {activeGenre && (
                     <ShowsByGenre 
                       genreId={activeGenre} 
-                      genreName={genres.find(g => g.id === activeGenre)?.name || ''}
+                      genreName={popularMusicGenres.find(g => g.id === activeGenre)?.name || ''}
                     />
                   )}
                 </div>
