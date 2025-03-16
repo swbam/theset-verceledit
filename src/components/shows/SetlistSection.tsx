@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Music, AlertCircle, Users } from 'lucide-react';
+import { Music, AlertCircle, Users, Info } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import VotableSetlistTable from '@/components/setlist/VotableSetlistTable';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,6 +8,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import ShareSetlistButton from '@/components/setlist/ShareSetlistButton';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface Song {
   id: string;
@@ -39,6 +40,7 @@ const SetlistSection: React.FC<SetlistSectionProps> = ({
   
   // Calculate total votes
   const totalVotes = setlist.reduce((acc, song) => acc + song.votes, 0);
+  const userVotedCount = setlist.filter(song => song.userVoted).length;
   
   return (
     <section className="px-6 md:px-8 lg:px-12 py-12 bg-secondary/20">
@@ -56,16 +58,55 @@ const SetlistSection: React.FC<SetlistSectionProps> = ({
                 </CardDescription>
               </div>
               
-              <div className="flex items-center gap-4">
-                <div className="text-xs bg-primary/10 text-primary px-3 py-1.5 rounded-full font-medium flex items-center gap-1.5">
-                  <Users size={14} />
-                  <span>{totalVotes} {totalVotes === 1 ? 'vote' : 'votes'}</span>
-                </div>
+              <div className="flex flex-wrap items-center gap-3">
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className="text-xs bg-primary/10 text-primary px-3 py-1.5 rounded-full font-medium flex items-center gap-1.5">
+                        <Users size={14} />
+                        <span>{totalVotes} {totalVotes === 1 ? 'vote' : 'votes'}</span>
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Total votes across all songs</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
                 
-                {isConnected && (
-                  <div className="text-xs bg-green-500/10 text-green-600 px-3 py-1.5 rounded-full font-medium flex items-center gap-1.5">
-                    <span className="inline-block w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-                    <span>Live updates</span>
+                {isAuthenticated && (
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div className="text-xs bg-amber-500/10 text-amber-600 dark:text-amber-400 px-3 py-1.5 rounded-full font-medium flex items-center gap-1.5">
+                          <span>{userVotedCount}</span>
+                          <span>songs voted</span>
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>You've voted for {userVotedCount} songs</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                )}
+                
+                {isConnected ? (
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div className="text-xs bg-green-500/10 text-green-600 dark:text-green-400 px-3 py-1.5 rounded-full font-medium flex items-center gap-1.5">
+                          <span className="inline-block w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                          <span>Live updates</span>
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>You're seeing votes in real time</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                ) : (
+                  <div className="text-xs bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 px-3 py-1.5 rounded-full font-medium flex items-center gap-1.5">
+                    <span className="inline-block w-2 h-2 bg-yellow-500 rounded-full"></span>
+                    <span>Offline mode</span>
                   </div>
                 )}
                 
@@ -106,7 +147,7 @@ const SetlistSection: React.FC<SetlistSectionProps> = ({
                     <Alert variant="default" className="bg-primary/5 border-primary/20">
                       <AlertCircle className="h-4 w-4 text-primary" />
                       <AlertDescription className="flex items-center justify-between">
-                        <span>Log in to vote for more songs</span>
+                        <span>Log in with Spotify to vote for songs</span>
                         <Button 
                           size="sm" 
                           onClick={login}
@@ -119,13 +160,24 @@ const SetlistSection: React.FC<SetlistSectionProps> = ({
                   </div>
                 )}
                 
-                <div className="p-5 border-t border-border/60 text-sm text-muted-foreground">
+                <div className="p-5 border-t border-border/60 text-sm text-muted-foreground flex justify-between items-center">
                   <div className="flex items-center gap-1.5">
                     <span className="inline-block w-2 h-2 bg-green-500 rounded-full"></span>
                     <p>
                       Last updated {formatDistanceToNow(new Date(), { addSuffix: true })}
                     </p>
                   </div>
+                  
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger>
+                        <Info className="h-4 w-4 text-muted-foreground/60" />
+                      </TooltipTrigger>
+                      <TooltipContent side="top">
+                        <p>Votes are updated in real time</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                 </div>
               </>
             )}

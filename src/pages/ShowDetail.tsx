@@ -16,10 +16,10 @@ import ShowNotFound from '@/components/shows/ShowNotFound';
 
 const ShowDetail = () => {
   const { id } = useParams<{ id: string }>();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, login } = useAuth();
   const navigate = useNavigate();
   
-  // Fix for demo mock data - check if ID is one of our mock shows
+  // Check if ID is one of our mock shows
   const isMockShow = id?.startsWith('show');
   
   // Fetch show details (this will also create/update the show in the database)
@@ -72,7 +72,7 @@ const ShowDetail = () => {
         
         // Fetch the actual show details from Ticketmaster
         const showDetails = await fetchShowDetails(id);
-        console.log("Show details fetched and saved to database:", showDetails);
+        console.log("Show details fetched:", showDetails);
         toast.success("Show details loaded");
         return showDetails;
       } catch (error) {
@@ -92,11 +92,23 @@ const ShowDetail = () => {
     }
   }, [show, isLoadingShow, isError, showError, navigate]);
   
-  // For demo purposes, we'll generate a Spotify artist ID from the artist name
-  // In a real app, we would have a proper mapping or lookup
-  const spotifyArtistId = show?.artist?.name 
-    ? `spotify-${show.artist.name.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]+/g, '')}`
-    : null;
+  // For Spotify integration, generate an artist ID from the name
+  const getSpotifyArtistId = (artistName: string | undefined) => {
+    if (!artistName) return null;
+    
+    // Handle common artists for demo purposes
+    const lowerName = artistName.toLowerCase();
+    if (lowerName.includes('taylor swift')) return 'spotify-taylor-swift';
+    if (lowerName.includes('beyonce') || lowerName.includes('beyoncé')) return 'spotify-beyonce';
+    if (lowerName.includes('kendrick lamar')) return 'spotify-kendrick-lamar';
+    if (lowerName.includes('dua lipa')) return 'spotify-dua-lipa';
+    if (lowerName.includes('ed sheeran')) return 'spotify-ed-sheeran';
+    
+    // Generate a generic ID for other artists
+    return `spotify-${artistName.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]+/g, '')}`;
+  };
+  
+  const spotifyArtistId = getSpotifyArtistId(show?.artist?.name);
   
   // Fetch artist's top tracks to use as setlist
   const {
@@ -105,45 +117,106 @@ const ShowDetail = () => {
     error: tracksError
   } = useQuery({
     queryKey: ['artistTopTracks', spotifyArtistId],
-    queryFn: () => {
+    queryFn: async () => {
       if (!spotifyArtistId) throw new Error("Artist ID is required");
       
-      // For demo, we'll use mock data for certain artists
-      if (spotifyArtistId === 'spotify-taylor-swift' || 
-          spotifyArtistId === 'spotify-kendrick-lamar' || 
-          spotifyArtistId === 'spotify-beyonce') {
-        console.log("Using mock track data for:", spotifyArtistId);
-        return {
-          tracks: Array(10).fill(0).map((_, i) => ({
-            id: `track-${i+1}`,
-            name: `${show?.artist?.name} Hit Song ${i+1}`,
-            popularity: 100 - i,
-          }))
-        };
+      try {
+        // For demo, we'll use mock data for certain artists
+        if (spotifyArtistId.includes('spotify-')) {
+          console.log("Using mock track data for:", spotifyArtistId);
+          
+          // Create realistic mock data based on artist
+          const mockTracks = [];
+          const artistName = show?.artist?.name || 'Artist';
+          
+          // Different mock track lists based on the artist
+          if (spotifyArtistId === 'spotify-taylor-swift') {
+            mockTracks.push(
+              { id: 'track-1', name: 'Cruel Summer', popularity: 98 },
+              { id: 'track-2', name: 'Anti-Hero', popularity: 96 },
+              { id: 'track-3', name: 'Blank Space', popularity: 95 },
+              { id: 'track-4', name: 'Shake It Off', popularity: 94 },
+              { id: 'track-5', name: 'Love Story', popularity: 92 },
+              { id: 'track-6', name: 'You Belong With Me', popularity: 91 },
+              { id: 'track-7', name: 'Cardigan', popularity: 90 },
+              { id: 'track-8', name: 'Wildest Dreams', popularity: 88 },
+              { id: 'track-9', name: 'All Too Well', popularity: 87 },
+              { id: 'track-10', name: 'Lover', popularity: 86 }
+            );
+          } else if (spotifyArtistId === 'spotify-beyonce') {
+            mockTracks.push(
+              { id: 'track-1', name: 'Single Ladies', popularity: 97 },
+              { id: 'track-2', name: 'Halo', popularity: 96 },
+              { id: 'track-3', name: 'Crazy in Love', popularity: 95 },
+              { id: 'track-4', name: 'Formation', popularity: 93 },
+              { id: 'track-5', name: 'Run the World (Girls)', popularity: 92 },
+              { id: 'track-6', name: 'Irreplaceable', popularity: 90 },
+              { id: 'track-7', name: 'If I Were a Boy', popularity: 89 },
+              { id: 'track-8', name: 'Love On Top', popularity: 88 },
+              { id: 'track-9', name: 'Drunk in Love', popularity: 87 },
+              { id: 'track-10', name: 'Countdown', popularity: 85 }
+            );
+          } else if (spotifyArtistId === 'spotify-kendrick-lamar') {
+            mockTracks.push(
+              { id: 'track-1', name: 'HUMBLE.', popularity: 98 },
+              { id: 'track-2', name: 'Alright', popularity: 96 },
+              { id: 'track-3', name: 'DNA.', popularity: 95 },
+              { id: 'track-4', name: 'Swimming Pools (Drank)', popularity: 93 },
+              { id: 'track-5', name: 'm.A.A.d city', popularity: 92 },
+              { id: 'track-6', name: 'LOYALTY.', popularity: 91 },
+              { id: 'track-7', name: 'Money Trees', popularity: 90 },
+              { id: 'track-8', name: 'King Kunta', popularity: 89 },
+              { id: 'track-9', name: 'Bitch, Don\'t Kill My Vibe', popularity: 88 },
+              { id: 'track-10', name: 'N95', popularity: 87 }
+            );
+          } else if (spotifyArtistId === 'spotify-dua-lipa') {
+            mockTracks.push(
+              { id: 'track-1', name: 'Don\'t Start Now', popularity: 98 },
+              { id: 'track-2', name: 'Levitating', popularity: 97 },
+              { id: 'track-3', name: 'New Rules', popularity: 96 },
+              { id: 'track-4', name: 'One Kiss', popularity: 95 },
+              { id: 'track-5', name: 'Physical', popularity: 94 },
+              { id: 'track-6', name: 'Break My Heart', popularity: 92 },
+              { id: 'track-7', name: 'IDGAF', popularity: 91 },
+              { id: 'track-8', name: 'Hallucinate', popularity: 90 },
+              { id: 'track-9', name: 'Electricity', popularity: 89 },
+              { id: 'track-10', name: 'Be the One', popularity: 87 }
+            );
+          } else {
+            // Generic track list for other artists
+            for (let i = 1; i <= 10; i++) {
+              mockTracks.push({
+                id: `track-${i}`,
+                name: `${artistName} Hit ${i}`,
+                popularity: 100 - i * 2
+              });
+            }
+          }
+          
+          return { tracks: mockTracks };
+        }
+        
+        // For real implementation, use the Spotify API
+        return await getArtistTopTracks(spotifyArtistId);
+      } catch (error) {
+        console.error("Error fetching tracks:", error);
+        toast.error("Failed to load artist tracks");
+        throw error;
       }
-      
-      return getArtistTopTracks(spotifyArtistId);
     },
     enabled: !!spotifyArtistId && !isLoadingShow,
   });
-  
-  // Handle track fetch error
-  useEffect(() => {
-    if (tracksError) {
-      console.error("Failed to load tracks:", tracksError);
-      toast.error("Could not load artist tracks for setlist");
-    }
-  }, [tracksError]);
   
   // Prepare setlist data for the real-time voting
   const initialSongs = React.useMemo(() => {
     if (!topTracksData?.tracks) return [];
     
-    // Convert top tracks to setlist items with vote count of 0
+    // Convert top tracks to setlist items with vote count
     return topTracksData.tracks.map((track: any) => ({
       id: track.id,
       name: track.name,
-      votes: Math.floor(Math.random() * 5), // Start with some random votes for demo
+      // Generate realistic vote numbers for demo purposes
+      votes: track.popularity ? Math.floor(track.popularity / 20) : Math.floor(Math.random() * 5),
       userVoted: false // Start with user not having voted
     }));
   }, [topTracksData]);
@@ -160,8 +233,14 @@ const ShowDetail = () => {
   
   // Handle voting on a song
   const handleVote = (songId: string) => {
+    // If not authenticated, prompt to log in
     if (!isAuthenticated) {
-      toast.error("Please log in to vote on setlists");
+      toast.error("Please log in to vote on setlists", {
+        action: {
+          label: "Log in",
+          onClick: login
+        }
+      });
       return;
     }
     
