@@ -58,7 +58,9 @@ export function useRealtimeVotes({ showId, initialSongs }: UseRealtimeVotesProps
           // Check if user has already voted
           if (song.userVoted) {
             console.log(`Already voted for song: ${song.name}`);
-            toast.info("You've already voted for this song");
+            toast.info("You've already voted for this song", {
+              style: { background: "#14141F", color: "#fff", border: "1px solid rgba(255,255,255,0.1)" }
+            });
             return song;
           }
           
@@ -85,11 +87,16 @@ export function useRealtimeVotes({ showId, initialSongs }: UseRealtimeVotesProps
       
       if (songExists) {
         console.log(`Song already exists in setlist: ${newSong.name}`);
-        toast.info("This song is already in the setlist");
+        toast.info("This song is already in the setlist", {
+          style: { background: "#14141F", color: "#fff", border: "1px solid rgba(255,255,255,0.1)" }
+        });
         return currentSongs;
       }
       
       console.log(`Adding new song to setlist: ${newSong.name}`);
+      toast.success(`"${newSong.name}" added to setlist`, {
+        style: { background: "#14141F", color: "#fff", border: "1px solid rgba(255,255,255,0.1)" }
+      });
       return [...currentSongs, newSong];
     });
     

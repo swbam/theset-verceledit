@@ -70,49 +70,48 @@ const ShowHeader: React.FC<ShowHeaderProps> = ({ show }) => {
 
   return (
     <section 
-      className="relative bg-cover bg-center"
+      className="relative bg-cover bg-center header-gradient"
       style={{
-        backgroundImage: show.image_url ? `linear-gradient(to bottom, rgba(0,0,0,0.7), rgba(0,0,0,0.4)), url(${show.image_url})` : undefined,
-        backgroundColor: 'rgba(0,0,0,0.8)',
-        height: 'auto' // Reduced height
+        backgroundImage: show.image_url ? `linear-gradient(to bottom, rgba(10,10,27,0.8), rgba(26,26,46,0.7)), url(${show.image_url})` : undefined,
+        height: 'auto',
       }}
     >
-      <div className="px-6 md:px-8 lg:px-12 py-8 relative z-10"> {/* Reduced vertical padding */}
+      <div className="px-6 md:px-8 lg:px-12 py-12 relative z-10">
         <div className="max-w-7xl mx-auto">
           {show.artist && (
-            <Link to={`/artists/${show.artist.id}`} className="text-white/80 hover:text-white inline-flex items-center mb-2 transition-colors">
-              <ArrowLeft size={16} className="mr-2" />
+            <Link to={`/artists/${show.artist.id}`} className="text-white/80 hover:text-white inline-flex items-center mb-4 transition-colors">
+              <ArrowLeft size={18} className="mr-2" />
               Back to artist
             </Link>
           )}
           
-          <div className="mb-2">
-            <span className="inline-block bg-primary/20 text-primary-foreground text-xs px-3 py-1 rounded-full">
+          <div className="mb-3">
+            <span className="inline-block bg-blue-500/20 text-blue-400 text-xs px-3 py-1 rounded-full">
               {new Date(show.date) > new Date() ? 'Upcoming' : 'Past'}
             </span>
           </div>
           
-          <h1 className="text-2xl md:text-3xl lg:text-3xl font-bold text-white mb-1">{show.artist?.name}</h1>
+          <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold text-white mb-2">{show.artist?.name}</h1>
           
-          {tourName && <p className="text-lg text-white/90 mb-3">{tourName}</p>}
+          {tourName && <p className="text-xl text-white/90 mb-4">{tourName}</p>}
           
-          <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6 mt-3">
-            <div className="flex items-center text-white/90">
-              <Calendar size={18} className="mr-2" />
+          <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6 mt-4">
+            <div className="flex items-center text-white/80">
+              <Calendar size={18} className="mr-2 text-blue-400" />
               {formatDate(show.date)}
             </div>
             
             {show.venue && (
-              <div className="flex items-center text-white/90">
-                <MapPin size={18} className="mr-2" />
+              <div className="flex items-center text-white/80">
+                <MapPin size={18} className="mr-2 text-blue-400" />
                 {show.venue.name}, {show.venue.city}, {show.venue.state}
               </div>
             )}
           </div>
           
           {show.ticket_url && (
-            <div className="mt-5">
-              <Button asChild className="bg-primary hover:bg-primary/90">
+            <div className="mt-6">
+              <Button asChild className="bg-blue-600 hover:bg-blue-700 text-white">
                 <a 
                   href={show.ticket_url} 
                   target="_blank" 

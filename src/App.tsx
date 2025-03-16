@@ -33,37 +33,39 @@ const App = () => (
     <BrowserRouter>
       <AuthProvider>
         <TooltipProvider>
-          <Toaster />
-          <Sonner />
-          <Routes>
-            <Route path="/" element={<Index />} />
-            <Route path="/search" element={<Search />} />
-            <Route path="/artists" element={<Artists />} />
-            <Route path="/artists/:id" element={<ArtistDetail />} />
-            <Route path="/shows" element={<Shows />} />
-            <Route path="/shows/:id" element={<ShowDetail />} />
-            <Route path="/auth" element={<Auth />} />
-            <Route path="/auth/callback" element={<AuthCallback />} />
-            <Route 
-              path="/profile" 
-              element={
-                <ProtectedRoute>
-                  <Profile />
-                </ProtectedRoute>
-              } 
-            />
-            <Route path="/how-it-works" element={<HowItWorks />} />
-            <Route 
-              path="/shows/create" 
-              element={
-                <ProtectedRoute>
-                  <CreateShow />
-                </ProtectedRoute>
-              } 
-            />
-            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-            <Route path="*" element={<NotFound />} />
-          </Routes>
+          <div className="app-gradient min-h-screen">
+            <Toaster />
+            <Sonner className="dark" theme="dark" />
+            <Routes>
+              <Route path="/" element={<Index />} />
+              <Route path="/search" element={<Search />} />
+              <Route path="/artists" element={<Artists />} />
+              <Route path="/artists/:id" element={<ArtistDetail />} />
+              <Route path="/shows" element={<Shows />} />
+              <Route path="/shows/:id" element={<ShowDetail />} />
+              <Route path="/auth" element={<Auth />} />
+              <Route path="/auth/callback" element={<AuthCallback />} />
+              <Route 
+                path="/profile" 
+                element={
+                  <ProtectedRoute>
+                    <Profile />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route path="/how-it-works" element={<HowItWorks />} />
+              <Route 
+                path="/shows/create" 
+                element={
+                  <ProtectedRoute>
+                    <CreateShow />
+                  </ProtectedRoute>
+                } 
+              />
+              {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </div>
         </TooltipProvider>
       </AuthProvider>
     </BrowserRouter>

@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { ArrowBigUp, Music, Sparkles, Star } from 'lucide-react';
+import { ArrowBigUp, Music, Trophy, Star, Crown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { 
   Table,
@@ -44,19 +44,19 @@ const VotableSetlistTable = ({ songs, onVote, className }: VotableSetlistTablePr
     <div className={cn("w-full", className)}>
       <Table>
         <TableHeader>
-          <TableRow className="border-b border-border/40">
-            <TableHead className="py-3 px-4 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">#</TableHead>
-            <TableHead className="py-3 px-4 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Song</TableHead>
-            <TableHead className="py-3 px-4 text-center text-xs font-medium text-muted-foreground uppercase tracking-wider hidden sm:table-cell">Votes</TableHead>
-            <TableHead className="py-3 px-4 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">
+          <TableRow className="border-b border-white/10">
+            <TableHead className="py-3 px-4 text-left text-xs font-medium text-white/60 uppercase tracking-wider">#</TableHead>
+            <TableHead className="py-3 px-4 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Song</TableHead>
+            <TableHead className="py-3 px-4 text-center text-xs font-medium text-white/60 uppercase tracking-wider hidden sm:table-cell">Votes</TableHead>
+            <TableHead className="py-3 px-4 text-right text-xs font-medium text-white/60 uppercase tracking-wider">
               <span className="sr-only">Vote</span>
             </TableHead>
           </TableRow>
         </TableHeader>
-        <TableBody className="divide-y divide-border/20">
+        <TableBody>
           {sortedSongs.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={4} className="py-8 text-center text-muted-foreground">
+              <TableCell colSpan={4} className="py-8 text-center text-white/60">
                 No songs in the setlist yet. Add some songs using the dropdown below.
               </TableCell>
             </TableRow>
@@ -65,41 +65,42 @@ const VotableSetlistTable = ({ songs, onVote, className }: VotableSetlistTablePr
               <TableRow 
                 key={song.id} 
                 className={cn(
-                  "transition-colors group",
-                  animatingSongId === song.id ? "bg-primary/5" : "hover:bg-secondary/40",
-                  song.userVoted && "bg-primary/5 hover:bg-primary/10",
-                  index === 0 && "bg-amber-50/30 hover:bg-amber-50/40 dark:bg-amber-950/20 dark:hover:bg-amber-950/30",
-                  index === 1 && "bg-slate-50/30 hover:bg-slate-50/40 dark:bg-slate-950/10 dark:hover:bg-slate-950/20",
-                  index === 2 && "bg-zinc-50/30 hover:bg-zinc-50/40 dark:bg-zinc-950/5 dark:hover:bg-zinc-950/10"
+                  "transition-colors border-b border-white/10 group",
+                  animatingSongId === song.id ? "bg-blue-500/10" : "hover:bg-white/5",
+                  song.userVoted && "bg-blue-500/10 hover:bg-blue-500/15",
                 )}
               >
                 <TableCell className="py-4 px-4 w-12">
                   {index === 0 ? (
-                    <div className="flex items-center text-amber-500">
-                      <Sparkles size={16} className="mr-1" />
+                    <div className="flex items-center text-yellow-500">
+                      <Trophy size={16} className="mr-1.5" />
                       <span className="font-medium">1</span>
                     </div>
                   ) : index === 1 ? (
-                    <div className="flex items-center text-slate-500">
-                      <Star size={14} className="mr-1" />
+                    <div className="flex items-center text-gray-400">
+                      <Crown size={14} className="mr-1.5" />
                       <span className="font-medium">2</span>
                     </div>
+                  ) : index === 2 ? (
+                    <div className="flex items-center text-amber-700">
+                      <Star size={14} className="mr-1.5" />
+                      <span className="font-medium">3</span>
+                    </div>
                   ) : (
-                    <span className={cn(
-                      "font-medium",
-                      index === 2 && "text-zinc-500"
-                    )}>
+                    <span className="font-medium text-white/70">
                       {index + 1}
                     </span>
                   )}
                 </TableCell>
                 <TableCell className="py-4 px-4">
                   <div className="flex items-center">
-                    <Music size={16} className="mr-2 text-muted-foreground/60" />
+                    <Music size={16} className="mr-2 text-white/40" />
                     <span className={cn(
                       "font-medium truncate max-w-[150px] sm:max-w-[250px] md:max-w-full",
-                      index === 0 && "text-amber-800 dark:text-amber-400", 
-                      song.userVoted && "text-primary"
+                      index === 0 && "text-yellow-500", 
+                      index === 1 && "text-gray-400",
+                      index === 2 && "text-amber-700",
+                      song.userVoted && "text-blue-400"
                     )}>
                       {song.name}
                     </span>
@@ -108,7 +109,7 @@ const VotableSetlistTable = ({ songs, onVote, className }: VotableSetlistTablePr
                 <TableCell className="py-4 px-4 text-center hidden sm:table-cell">
                   <span className={cn(
                     "inline-flex items-center justify-center min-w-10 text-center font-mono font-medium text-sm rounded-full py-0.5 px-2",
-                    song.votes > 0 ? "bg-primary/10 text-primary" : "bg-secondary/60 text-muted-foreground", 
+                    song.votes > 0 ? "bg-blue-500/20 text-blue-400" : "bg-white/10 text-white/60", 
                     animatingSongId === song.id && "animate-pulse"
                   )}>
                     {song.votes}
@@ -116,7 +117,7 @@ const VotableSetlistTable = ({ songs, onVote, className }: VotableSetlistTablePr
                 </TableCell>
                 <TableCell className="py-4 px-4 text-right">
                   <div className="flex items-center justify-end">
-                    <span className="mr-2 text-sm font-medium sm:hidden">
+                    <span className="mr-2 text-sm font-medium sm:hidden text-blue-400">
                       {song.votes}
                     </span>
                     <button
@@ -125,8 +126,8 @@ const VotableSetlistTable = ({ songs, onVote, className }: VotableSetlistTablePr
                       className={cn(
                         "inline-flex items-center justify-center rounded-full w-9 h-9 transition-all",
                         song.userVoted 
-                          ? "bg-primary text-primary-foreground cursor-default" 
-                          : "text-muted-foreground hover:bg-secondary hover:text-foreground",
+                          ? "bg-blue-600 text-white cursor-default" 
+                          : "text-white/60 hover:bg-white/10 hover:text-white",
                         animatingSongId === song.id && "scale-110"
                       )}
                       title={song.userVoted ? "You already voted for this song" : "Vote for this song"}
@@ -134,7 +135,7 @@ const VotableSetlistTable = ({ songs, onVote, className }: VotableSetlistTablePr
                     >
                       <ArrowBigUp className={cn(
                         "h-5 w-5 transition-all",
-                        song.userVoted && "text-primary-foreground",
+                        song.userVoted && "text-white",
                         animatingSongId === song.id && "animate-bounce"
                       )} />
                       <span className="sr-only">
