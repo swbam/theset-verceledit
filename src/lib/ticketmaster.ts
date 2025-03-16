@@ -11,8 +11,12 @@ export {
   fetchShowDetails, 
   fetchVenueDetails,
   fetchShowsByGenre,
-  fetchFeaturedShows,
-  saveShowToDatabase,
-  saveVenueToDatabase,
-  saveArtistToDatabase
+  fetchFeaturedShows
 } from './api/shows-api';
+
+// Export utility functions for saving data to the database
+export { 
+  saveArtistToDatabase,
+  saveShowToDatabase,
+  saveVenueToDatabase
+} from './api/database-utils';

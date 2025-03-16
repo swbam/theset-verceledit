@@ -2,7 +2,7 @@
 import { toast } from "sonner";
 import { callTicketmasterApi } from "./ticketmaster-config";
 import { supabase } from "@/integrations/supabase/client";
-import { saveArtistToDatabase } from "./artist-api";
+import { saveArtistToDatabase, saveShowToDatabase, saveVenueToDatabase } from "./database-utils";
 
 /**
  * Fetch upcoming shows for an artist
@@ -10,13 +10,13 @@ import { saveArtistToDatabase } from "./artist-api";
 export async function fetchArtistEvents(artistIdentifier: string): Promise<any[]> {
   try {
     // First check if we have shows in the database for this artist
-    let { data: dbShows, error: dbError } = await supabase
+    const { data: dbShows, error: dbError } = await supabase
       .from('shows')
       .select(`
         id, 
         name, 
         date, 
-        venue:venues(id, name, city, state, country),
+        venue_id,
         ticket_url,
         image_url
       `)
@@ -24,12 +24,32 @@ export async function fetchArtistEvents(artistIdentifier: string): Promise<any[]
       .gte('date', new Date().toISOString())
       .order('date', { ascending: true });
     
-    // If we have shows in the database that are current, return them
+    if (dbError) {
+      console.error("Error fetching shows from database:", dbError);
+    }
+    
+    // If we have shows in the database, fetch venue details for each show
     if (dbShows && dbShows.length > 0) {
-      return dbShows.map(show => ({
-        ...show,
-        venue: show.venue || null
+      const showsWithVenues = await Promise.all(dbShows.map(async (show) => {
+        if (show.venue_id) {
+          const { data: venue } = await supabase
+            .from('venues')
+            .select('*')
+            .eq('id', show.venue_id)
+            .maybeSingle();
+          
+          return {
+            ...show,
+            venue: venue || null
+          };
+        }
+        return {
+          ...show,
+          venue: null
+        };
       }));
+      
+      return showsWithVenues;
     }
     
     // Determine search parameter based on ID format
@@ -83,6 +103,7 @@ export async function fetchArtistEvents(artistIdentifier: string): Promise<any[]
       
       // Process venue
       let venue = null;
+      let venueId = null;
       if (event._embedded?.venues?.[0]) {
         const venueData = event._embedded.venues[0];
         venue = {
@@ -92,6 +113,7 @@ export async function fetchArtistEvents(artistIdentifier: string): Promise<any[]
           state: venueData.state?.name,
           country: venueData.country?.name,
         };
+        venueId = venueData.id;
         
         // Save venue to database
         await saveVenueToDatabase(venue);
@@ -105,7 +127,8 @@ export async function fetchArtistEvents(artistIdentifier: string): Promise<any[]
         venue: venue,
         ticket_url: event.url,
         image_url: event.images.find((img: any) => img.ratio === "16_9" && img.width > 500)?.url,
-        artist_id: artistId
+        artist_id: artistId,
+        venue_id: venueId
       };
       
       // Save show to database
@@ -137,20 +160,36 @@ export async function fetchShowDetails(eventId: string): Promise<any> {
         artist_id,
         venue_id,
         ticket_url,
-        image_url,
-        artists(id, name),
-        venues(id, name, city, state, country, address)
+        image_url
       `)
       .eq('id', eventId)
       .maybeSingle();
     
+    if (dbError) {
+      console.error("Error fetching show from database:", dbError);
+    }
+    
     if (dbShow) {
+      // Fetch related artist and venue
+      const [artistResult, venueResult] = await Promise.all([
+        dbShow.artist_id ? supabase
+          .from('artists')
+          .select('*')
+          .eq('id', dbShow.artist_id)
+          .maybeSingle() : null,
+        dbShow.venue_id ? supabase
+          .from('venues')
+          .select('*')
+          .eq('id', dbShow.venue_id)
+          .maybeSingle() : null
+      ]);
+      
       return {
         id: dbShow.id,
         name: dbShow.name,
         date: dbShow.date,
-        artist: dbShow.artists,
-        venue: dbShow.venues,
+        artist: artistResult?.data || null,
+        venue: venueResult?.data || null,
         ticket_url: dbShow.ticket_url,
         image_url: dbShow.image_url,
         artist_id: dbShow.artist_id,
@@ -164,23 +203,33 @@ export async function fetchShowDetails(eventId: string): Promise<any> {
     // Get artist from attractions if available
     let artistName = '';
     let artistId = '';
+    let artistData = null;
     
     if (event._embedded?.attractions && event._embedded.attractions.length > 0) {
       const attraction = event._embedded.attractions[0];
       artistName = attraction.name;
       artistId = attraction.id;
       
-      // Save artist to database
-      await saveArtistToDatabase({
+      // Create artist object
+      artistData = {
         id: artistId,
         name: artistName,
         image: attraction.images?.find((img: any) => img.ratio === "16_9" && img.width > 500)?.url,
         upcoming_shows: 1
-      });
+      };
+      
+      // Save artist to database
+      await saveArtistToDatabase(artistData);
     } else {
       // Fallback to extracting from event name
       artistName = event.name.split(' at ')[0].split(' - ')[0].trim();
       artistId = `tm-${encodeURIComponent(artistName.toLowerCase().replace(/\s+/g, '-'))}`;
+      
+      // Create minimal artist data
+      artistData = {
+        id: artistId,
+        name: artistName
+      };
     }
     
     // Process venue
@@ -207,10 +256,7 @@ export async function fetchShowDetails(eventId: string): Promise<any> {
       id: event.id,
       name: event.name,
       date: event.dates.start.dateTime,
-      artist: {
-        id: artistId,
-        name: artistName,
-      },
+      artist: artistData,
       venue: venue,
       ticket_url: event.url,
       image_url: event.images.find((img: any) => img.ratio === "16_9" && img.width > 500)?.url,
@@ -240,6 +286,10 @@ export async function fetchVenueDetails(venueId: string): Promise<any> {
       .select('*')
       .eq('id', venueId)
       .maybeSingle();
+    
+    if (error) {
+      console.error("Error fetching venue from database:", error);
+    }
     
     if (venue) {
       return venue;
@@ -287,9 +337,7 @@ export async function fetchShowsByGenre(genreId: string, limit = 8): Promise<any
         name, 
         date, 
         artist_id,
-        artists(id, name),
         venue_id,
-        venues(id, name, city, state, country),
         ticket_url,
         image_url,
         genre_ids
@@ -299,17 +347,38 @@ export async function fetchShowsByGenre(genreId: string, limit = 8): Promise<any
       .order('date', { ascending: true })
       .limit(limit);
     
-    // If we have shows in the database, return them
+    if (dbError) {
+      console.error("Error fetching shows by genre from database:", dbError);
+    }
+    
+    // If we have shows in the database, enrich them with artist and venue data
     if (dbShows && dbShows.length > 0) {
-      return dbShows.map(show => ({
-        id: show.id,
-        name: show.name,
-        date: show.date,
-        artist: show.artists,
-        venue: show.venues,
-        ticket_url: show.ticket_url,
-        image_url: show.image_url
+      const enrichedShows = await Promise.all(dbShows.map(async (show) => {
+        const [artistResult, venueResult] = await Promise.all([
+          show.artist_id ? supabase
+            .from('artists')
+            .select('*')
+            .eq('id', show.artist_id)
+            .maybeSingle() : null,
+          show.venue_id ? supabase
+            .from('venues')
+            .select('*')
+            .eq('id', show.venue_id)
+            .maybeSingle() : null
+        ]);
+        
+        return {
+          id: show.id,
+          name: show.name,
+          date: show.date,
+          artist: artistResult?.data || null,
+          venue: venueResult?.data || null,
+          ticket_url: show.ticket_url,
+          image_url: show.image_url
+        };
       }));
+      
+      return enrichedShows;
     }
     
     // Fetch from Ticketmaster API
@@ -328,24 +397,34 @@ export async function fetchShowsByGenre(genreId: string, limit = 8): Promise<any
       // Get artist from attractions if available
       let artistName = '';
       let artistId = '';
+      let artistData = null;
       
       if (event._embedded?.attractions && event._embedded.attractions.length > 0) {
         const attraction = event._embedded.attractions[0];
         artistName = attraction.name;
         artistId = attraction.id;
         
-        // Save artist to database
-        await saveArtistToDatabase({
+        // Create artist object
+        artistData = {
           id: artistId,
           name: artistName,
           image: attraction.images?.find((img: any) => img.ratio === "16_9" && img.width > 500)?.url,
           upcoming_shows: 1,
           genres: [event.classifications?.[0]?.genre?.name].filter(Boolean)
-        });
+        };
+        
+        // Save artist to database
+        await saveArtistToDatabase(artistData);
       } else {
         // Fallback to extracting from event name
         artistName = event.name.split(' at ')[0].split(' - ')[0].trim();
         artistId = `tm-${encodeURIComponent(artistName.toLowerCase().replace(/\s+/g, '-'))}`;
+        
+        // Create minimal artist data
+        artistData = {
+          id: artistId,
+          name: artistName
+        };
       }
       
       // Process venue
@@ -383,10 +462,7 @@ export async function fetchShowsByGenre(genreId: string, limit = 8): Promise<any
       
       return {
         ...show,
-        artist: {
-          id: artistId,
-          name: artistName
-        },
+        artist: artistData,
         venue: venue
       };
     }));
@@ -412,9 +488,7 @@ export async function fetchFeaturedShows(limit = 4): Promise<any[]> {
         name, 
         date, 
         artist_id,
-        artists(id, name),
         venue_id,
-        venues(id, name, city, state, country),
         ticket_url,
         image_url,
         popularity
@@ -423,17 +497,38 @@ export async function fetchFeaturedShows(limit = 4): Promise<any[]> {
       .order('popularity', { ascending: false })
       .limit(limit);
     
-    // If we have enough shows in database, use them
+    if (dbError) {
+      console.error("Error fetching featured shows from database:", dbError);
+    }
+    
+    // If we have enough shows in database, enrich them with artist and venue data
     if (dbShows && dbShows.length >= limit) {
-      return dbShows.map(show => ({
-        id: show.id,
-        name: show.name,
-        date: show.date,
-        artist: show.artists,
-        venue: show.venues,
-        ticket_url: show.ticket_url,
-        image_url: show.image_url
+      const enrichedShows = await Promise.all(dbShows.map(async (show) => {
+        const [artistResult, venueResult] = await Promise.all([
+          show.artist_id ? supabase
+            .from('artists')
+            .select('*')
+            .eq('id', show.artist_id)
+            .maybeSingle() : null,
+          show.venue_id ? supabase
+            .from('venues')
+            .select('*')
+            .eq('id', show.venue_id)
+            .maybeSingle() : null
+        ]);
+        
+        return {
+          id: show.id,
+          name: show.name,
+          date: show.date,
+          artist: artistResult?.data || null,
+          venue: venueResult?.data || null,
+          ticket_url: show.ticket_url,
+          image_url: show.image_url
+        };
       }));
+      
+      return enrichedShows;
     }
     
     // Fetch from Ticketmaster API
@@ -464,23 +559,33 @@ export async function fetchFeaturedShows(limit = 4): Promise<any[]> {
           // Get artist from attractions if available
           let artistName = '';
           let artistId = '';
+          let artistData = null;
           
           if (event._embedded?.attractions && event._embedded.attractions.length > 0) {
             const attraction = event._embedded.attractions[0];
             artistName = attraction.name;
             artistId = attraction.id;
             
-            // Save artist to database
-            await saveArtistToDatabase({
+            // Create artist object
+            artistData = {
               id: artistId,
               name: artistName,
               image: attraction.images?.find((img: any) => img.ratio === "16_9" && img.width > 500)?.url,
               upcoming_shows: 1
-            });
+            };
+            
+            // Save artist to database
+            await saveArtistToDatabase(artistData);
           } else {
             // Fallback to extracting from event name
             artistName = event.name.split(' at ')[0].split(' - ')[0].trim();
             artistId = `tm-${encodeURIComponent(artistName.toLowerCase().replace(/\s+/g, '-'))}`;
+            
+            // Create minimal artist data
+            artistData = {
+              id: artistId,
+              name: artistName
+            };
           }
           
           // Process venue
@@ -526,10 +631,7 @@ export async function fetchFeaturedShows(limit = 4): Promise<any[]> {
           
           return {
             ...show,
-            artist: {
-              name: artistName,
-              id: artistId
-            },
+            artist: artistData,
             venue: venue,
             qualityScore
           };
@@ -546,100 +648,3 @@ export async function fetchFeaturedShows(limit = 4): Promise<any[]> {
     return [];
   }
 }
-
-/**
- * Save venue to database
- */
-async function saveVenueToDatabase(venue: any) {
-  try {
-    if (!venue || !venue.id) return;
-    
-    // Check if venue already exists
-    const { data: existingVenue } = await supabase
-      .from('venues')
-      .select('id, updated_at')
-      .eq('id', venue.id)
-      .maybeSingle();
-    
-    // If venue exists and was updated recently, don't update
-    if (existingVenue) {
-      const lastUpdated = new Date(existingVenue.updated_at);
-      const now = new Date();
-      const daysSinceUpdate = (now.getTime() - lastUpdated.getTime()) / (1000 * 60 * 60 * 24);
-      
-      // Only update if it's been more than 30 days (venues change rarely)
-      if (daysSinceUpdate < 30) {
-        return;
-      }
-    }
-    
-    // Insert or update venue
-    const { error } = await supabase.from('venues').upsert({
-      id: venue.id,
-      name: venue.name,
-      city: venue.city,
-      state: venue.state,
-      country: venue.country,
-      address: venue.address,
-      postal_code: venue.postal_code,
-      location: venue.location,
-      updated_at: new Date().toISOString()
-    });
-    
-    if (error) {
-      console.error("Error saving venue to database:", error);
-    }
-  } catch (error) {
-    console.error("Error in saveVenueToDatabase:", error);
-  }
-}
-
-/**
- * Save show to database
- */
-async function saveShowToDatabase(show: any) {
-  try {
-    if (!show || !show.id) return;
-    
-    // Check if show already exists
-    const { data: existingShow } = await supabase
-      .from('shows')
-      .select('id, updated_at')
-      .eq('id', show.id)
-      .maybeSingle();
-    
-    // If show exists and was updated recently, don't update
-    if (existingShow) {
-      const lastUpdated = new Date(existingShow.updated_at);
-      const now = new Date();
-      const hoursSinceUpdate = (now.getTime() - lastUpdated.getTime()) / (1000 * 60 * 60);
-      
-      // Only update if it's been more than 24 hours
-      if (hoursSinceUpdate < 24) {
-        return;
-      }
-    }
-    
-    // Insert or update show
-    const { error } = await supabase.from('shows').upsert({
-      id: show.id,
-      name: show.name,
-      date: show.date,
-      artist_id: show.artist_id,
-      venue_id: show.venue_id,
-      ticket_url: show.ticket_url,
-      image_url: show.image_url,
-      genre_ids: show.genre_ids || [],
-      popularity: show.popularity || 0,
-      updated_at: new Date().toISOString()
-    });
-    
-    if (error) {
-      console.error("Error saving show to database:", error);
-    }
-  } catch (error) {
-    console.error("Error in saveShowToDatabase:", error);
-  }
-}
-
-export { saveVenueToDatabase, saveArtistToDatabase, saveShowToDatabase };

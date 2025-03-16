@@ -25,6 +25,7 @@ const ArtistDetail = () => {
     queryFn: () => fetchArtistById(id as string),
     enabled: !!id,
     staleTime: 1000 * 60 * 10, // 10 minutes
+    retry: 1
   });
   
   // Fetch upcoming shows for this artist
@@ -37,6 +38,7 @@ const ArtistDetail = () => {
     queryFn: () => fetchArtistEvents(id as string),
     enabled: !!id,
     staleTime: 1000 * 60 * 10, // 10 minutes
+    retry: 1
   });
   
   const isLoading = artistLoading || showsLoading;
@@ -47,6 +49,7 @@ const ArtistDetail = () => {
   }
 
   if (error || !id || !artist) {
+    console.error("Artist detail error:", error);
     return <ArtistNotFound />;
   }
 

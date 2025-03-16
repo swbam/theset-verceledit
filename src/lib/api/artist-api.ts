@@ -1,6 +1,7 @@
 import { toast } from "sonner";
 import { callTicketmasterApi } from "./ticketmaster-config";
 import { supabase } from "@/integrations/supabase/client";
+import { saveArtistToDatabase } from "./database-utils";
 
 /**
  * Search for artists with upcoming events
@@ -81,6 +82,10 @@ export async function fetchFeaturedArtists(limit = 4): Promise<any[]> {
       .select('*')
       .order('popularity', { ascending: false })
       .limit(limit);
+    
+    if (dbError) {
+      console.error("Error fetching artists from database:", dbError);
+    }
     
     // If we have enough artists in database, use them
     if (dbArtists && dbArtists.length >= limit) {
@@ -169,50 +174,6 @@ export async function fetchFeaturedArtists(limit = 4): Promise<any[]> {
 }
 
 /**
- * Save artist to database
- */
-async function saveArtistToDatabase(artist: any) {
-  try {
-    // Check if artist already exists
-    const { data: existingArtist } = await supabase
-      .from('artists')
-      .select('id, updated_at')
-      .eq('id', artist.id)
-      .maybeSingle();
-    
-    // If artist exists and was updated in the last 7 days, don't update
-    if (existingArtist) {
-      const lastUpdated = new Date(existingArtist.updated_at);
-      const now = new Date();
-      const daysSinceUpdate = (now.getTime() - lastUpdated.getTime()) / (1000 * 60 * 60 * 24);
-      
-      if (daysSinceUpdate < 7) {
-        return;
-      }
-    }
-    
-    // Insert or update artist
-    const { error } = await supabase
-      .from('artists')
-      .upsert({
-        id: artist.id,
-        name: artist.name,
-        image: artist.image,
-        genres: Array.isArray(artist.genres) ? artist.genres : [],
-        popularity: artist.popularity || 0,
-        upcoming_shows: artist.upcomingShows || artist.upcoming_shows || 0,
-        updated_at: new Date().toISOString()
-      });
-    
-    if (error) {
-      console.error("Error saving artist to database:", error);
-    }
-  } catch (error) {
-    console.error("Error in saveArtistToDatabase:", error);
-  }
-}
-
-/**
  * Fetch artist details by ID
  */
 export async function fetchArtistById(artistId: string): Promise<any> {
@@ -223,6 +184,10 @@ export async function fetchArtistById(artistId: string): Promise<any> {
       .select('*')
       .eq('id', artistId)
       .maybeSingle();
+    
+    if (error) {
+      console.error("Error fetching artist from database:", error);
+    }
     
     if (artist) {
       return artist;

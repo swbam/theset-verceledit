@@ -9,6 +9,39 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      artists: {
+        Row: {
+          created_at: string | null
+          genres: string[] | null
+          id: string
+          image: string | null
+          name: string
+          popularity: number | null
+          upcoming_shows: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          genres?: string[] | null
+          id: string
+          image?: string | null
+          name: string
+          popularity?: number | null
+          upcoming_shows?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          genres?: string[] | null
+          id?: string
+          image?: string | null
+          name?: string
+          popularity?: number | null
+          upcoming_shows?: number | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -39,6 +72,102 @@ export type Database = {
           provider_id?: string | null
           updated_at?: string
           username?: string | null
+        }
+        Relationships: []
+      }
+      shows: {
+        Row: {
+          artist_id: string | null
+          created_at: string | null
+          date: string | null
+          genre_ids: string[] | null
+          id: string
+          image_url: string | null
+          name: string
+          popularity: number | null
+          ticket_url: string | null
+          updated_at: string | null
+          venue_id: string | null
+        }
+        Insert: {
+          artist_id?: string | null
+          created_at?: string | null
+          date?: string | null
+          genre_ids?: string[] | null
+          id: string
+          image_url?: string | null
+          name: string
+          popularity?: number | null
+          ticket_url?: string | null
+          updated_at?: string | null
+          venue_id?: string | null
+        }
+        Update: {
+          artist_id?: string | null
+          created_at?: string | null
+          date?: string | null
+          genre_ids?: string[] | null
+          id?: string
+          image_url?: string | null
+          name?: string
+          popularity?: number | null
+          ticket_url?: string | null
+          updated_at?: string | null
+          venue_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shows_artist_id_fkey"
+            columns: ["artist_id"]
+            isOneToOne: false
+            referencedRelation: "artists"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shows_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      venues: {
+        Row: {
+          address: string | null
+          city: string | null
+          country: string | null
+          created_at: string | null
+          id: string
+          location: Json | null
+          name: string
+          postal_code: string | null
+          state: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          address?: string | null
+          city?: string | null
+          country?: string | null
+          created_at?: string | null
+          id: string
+          location?: Json | null
+          name: string
+          postal_code?: string | null
+          state?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          address?: string | null
+          city?: string | null
+          country?: string | null
+          created_at?: string | null
+          id?: string
+          location?: Json | null
+          name?: string
+          postal_code?: string | null
+          state?: string | null
+          updated_at?: string | null
         }
         Relationships: []
       }
