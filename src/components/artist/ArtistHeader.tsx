@@ -35,7 +35,7 @@ const ArtistHeader = ({ artistName, artistImage, upcomingShowsCount }: ArtistHea
           </div>
           
           <div>
-            <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold text-white">{artistName}</h1>
+            <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold text-white text-gradient">{artistName}</h1>
             
             <div className="mt-6 flex flex-wrap items-center gap-3">
               <div className="inline-flex items-center bg-blue-500/10 text-blue-400 px-3 py-1 rounded-full text-sm">

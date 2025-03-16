@@ -1,238 +1,276 @@
+import { createClient } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
-import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
-
-// API endpoints
 const SPOTIFY_API_BASE = 'https://api.spotify.com/v1';
+const SPOTIFY_CLIENT_ID = import.meta.env.VITE_SPOTIFY_CLIENT_ID || '2946864dc822469b9c672292ead45f43';
+const SPOTIFY_CLIENT_SECRET = import.meta.env.VITE_SPOTIFY_CLIENT_SECRET || 'feaf0fc901124b839b11e02f97d18a8d';
 
-// Mock some data for development/fallback
-const mockTopTracks = [
-  { id: '1', name: 'Yellow', popularity: 85 },
-  { id: '2', name: 'Viva La Vida', popularity: 89 },
-  { id: '3', name: 'The Scientist', popularity: 83 },
-  { id: '4', name: 'Fix You', popularity: 87 },
-  { id: '5', name: 'Paradise', popularity: 82 },
-  { id: '6', name: 'A Sky Full of Stars', popularity: 84 },
-  { id: '7', name: 'Adventure of a Lifetime', popularity: 78 },
-  { id: '8', name: 'Clocks', popularity: 79 },
-  { id: '9', name: 'Something Just Like This', popularity: 85 },
-  { id: '10', name: 'Higher Power', popularity: 75 },
-];
-
-// Authentication token management
 let accessToken: string | null = null;
-let tokenExpiry: number | null = null;
+let tokenExpirationTime: number | null = null;
 
-const getAccessToken = async (): Promise<string | null> => {
+// Get Spotify API token using client credentials flow
+const getAccessToken = async (): Promise<string> => {
+  // If we have a valid token, return it
+  if (accessToken && tokenExpirationTime && Date.now() < tokenExpirationTime) {
+    return accessToken;
+  }
+
   try {
-    // Check if we have a valid token
-    if (accessToken && tokenExpiry && Date.now() < tokenExpiry) {
-      return accessToken;
-    }
-    
-    // This would typically be handled by a backend endpoint
-    // For demo purposes, we'll use the client credentials flow with hardcoded values
-    const SPOTIFY_CLIENT_ID = '2946864dc822469b9c672292ead45f43';
-    const SPOTIFY_CLIENT_SECRET = 'feaf0fc901124b839b11e02f97d18a8d';
-    
+    // Otherwise, request a new token
     const response = await fetch('https://accounts.spotify.com/api/token', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
-        'Authorization': `Basic ${btoa(`${SPOTIFY_CLIENT_ID}:${SPOTIFY_CLIENT_SECRET}`)}`
+        Authorization: `Basic ${btoa(`${SPOTIFY_CLIENT_ID}:${SPOTIFY_CLIENT_SECRET}`)}`,
       },
-      body: new URLSearchParams({
-        'grant_type': 'client_credentials'
-      })
+      body: 'grant_type=client_credentials',
     });
-    
+
     if (!response.ok) {
-      console.error('Failed to get Spotify token:', await response.text());
-      throw new Error('Failed to authenticate with Spotify');
+      throw new Error(`Failed to get Spotify access token: ${response.statusText}`);
     }
-    
+
     const data = await response.json();
     accessToken = data.access_token;
-    tokenExpiry = Date.now() + (data.expires_in * 1000);
+    tokenExpirationTime = Date.now() + (data.expires_in * 1000);
     
     return accessToken;
   } catch (error) {
     console.error('Error getting Spotify access token:', error);
-    return null;
-  }
-};
-
-// API request wrapper
-const spotifyApi = async (endpoint: string, method: string = 'GET', useAuth: boolean = true): Promise<any> => {
-  try {
-    let headers: HeadersInit = {
-      'Content-Type': 'application/json'
-    };
-    
-    if (useAuth) {
-      const token = await getAccessToken();
-      if (!token) {
-        throw new Error('No access token available');
-      }
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-    
-    const response = await fetch(`${SPOTIFY_API_BASE}${endpoint}`, {
-      method,
-      headers
-    });
-    
-    if (!response.ok) {
-      console.error(`Spotify API error (${response.status}):`, await response.text());
-      throw new Error(`Spotify API error: ${response.status}`);
-    }
-    
-    return await response.json();
-  } catch (error) {
-    console.error('Spotify API request failed:', error);
     throw error;
   }
 };
 
-// Get a Spotify Artist ID from a Ticketmaster Artist ID or name
-export const resolveArtistId = async (ticketmasterId: string, artistName: string): Promise<string> => {
+// Function to search for artists
+export const searchArtists = async (query: string, limit = 5): Promise<any[]> => {
+  if (!query.trim()) return [];
+  
   try {
-    console.log(`Resolving Spotify ID for artist: ${artistName} (Ticketmaster ID: ${ticketmasterId})`);
-    
-    // Try to fetch from database first
-    const { data: artistData, error } = await supabase
-      .from('artists')
-      .select('id, spotify_id')
-      .eq('ticketmaster_id', ticketmasterId)
-      .maybeSingle();
-    
-    if (error) {
-      console.error("Error fetching artist from database:", error);
-    }
-    
-    // If we have a Spotify ID in the database, return it
-    if (artistData?.spotify_id) {
-      console.log(`Found cached Spotify ID: ${artistData.spotify_id}`);
-      return artistData.spotify_id;
-    }
-    
-    // Search Spotify for the artist
-    const searchResult = await spotifyApi(`/search?q=${encodeURIComponent(artistName)}&type=artist&limit=1`);
-    
-    if (searchResult.artists && searchResult.artists.items && searchResult.artists.items.length > 0) {
-      const spotifyId = searchResult.artists.items[0].id;
-      console.log(`Found Spotify ID: ${spotifyId}`);
-      
-      // Store the Spotify ID in the database for future use
-      const { error: upsertError } = await supabase
-        .from('artists')
-        .upsert({
-          id: spotifyId,
-          name: artistName,
-          ticketmaster_id: ticketmasterId,
-          spotify_id: spotifyId,
-          updated_at: new Date().toISOString()
-        });
-        
-      if (upsertError) {
-        console.error("Error storing artist in database:", upsertError);
+    const token = await getAccessToken();
+    const response = await fetch(
+      `${SPOTIFY_API_BASE}/search?q=${encodeURIComponent(query)}&type=artist&limit=${limit}`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
       }
-      
-      return spotifyId;
-    } else {
-      console.warn(`No Spotify artist found for: ${artistName}`);
-      throw new Error(`No Spotify artist found for: ${artistName}`);
+    );
+
+    if (!response.ok) {
+      throw new Error(`Failed to search artists: ${response.statusText}`);
     }
+
+    const data = await response.json();
+    
+    return data.artists.items.map((artist: any) => ({
+      id: artist.id,
+      name: artist.name,
+      image: artist.images?.[0]?.url,
+      popularity: artist.popularity,
+      genres: artist.genres
+    }));
   } catch (error) {
-    console.error("Error resolving artist ID:", error);
-    toast.error(`Could not find artist "${artistName}" on Spotify`);
-    // Return a fallback ID for the mock data
-    return "4gzpq5DPGxSnKTe4SA8HAU"; // Coldplay's Spotify ID as fallback
+    console.error('Error searching artists:', error);
+    return [];
   }
 };
 
-// Get artist's top tracks
-export const getArtistTopTracks = async (artistId: string, limit: number = 5): Promise<any> => {
+// Get artist info by name
+export const getArtistByName = async (name: string): Promise<any> => {
   try {
-    console.log(`Fetching top ${limit} tracks for artist ID: ${artistId}`);
-    const data = await spotifyApi(`/artists/${artistId}/top-tracks?market=US`);
-    
-    if (data && data.tracks) {
-      console.log(`Successfully fetched ${data.tracks.length} top tracks`);
-      // Sort tracks by popularity (highest first)
-      const sortedTracks = data.tracks
-        .sort((a: any, b: any) => b.popularity - a.popularity)
-        .slice(0, limit);
-      
-      console.log("Top tracks:", sortedTracks.map((t: any) => t.name));
-      return { tracks: sortedTracks };
-    } else {
-      throw new Error("No tracks found in response");
+    const token = await getAccessToken();
+    const response = await fetch(
+      `${SPOTIFY_API_BASE}/search?q=${encodeURIComponent(name)}&type=artist&limit=1`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`Failed to search artist: ${response.statusText}`);
     }
+
+    const data = await response.json();
+    
+    if (data.artists.items.length === 0) {
+      throw new Error(`No artist found with name: ${name}`);
+    }
+    
+    return data.artists.items[0];
   } catch (error) {
-    console.error("Error fetching artist top tracks:", error);
-    // Return mock data
-    console.log("Returning mock top tracks");
-    return { tracks: mockTopTracks.slice(0, limit) };
+    console.error('Error searching for artist:', error);
+    throw error;
+  }
+};
+
+// Function to get artist by ID
+export const getArtistById = async (artistId: string): Promise<any> => {
+  try {
+    const token = await getAccessToken();
+    const response = await fetch(`${SPOTIFY_API_BASE}/artists/${artistId}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to get artist: ${response.statusText}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Error getting artist by ID:', error);
+    throw error;
+  }
+};
+
+// Function to resolve artist ID (from database or Spotify search)
+export const resolveArtistId = async (artistName: string): Promise<string> => {
+  try {
+    // First, check if we have this artist in our database
+    const supabase = createClient();
+    const { data: artistData, error } = await supabase
+      .from('artists')
+      .select('*')
+      .ilike('name', artistName)
+      .single();
+
+    if (!error && artistData && artistData.stored_tracks) {
+      // If we have stored tracks, use this artist's ID
+      console.log("Found artist with stored tracks in DB:", artistData);
+      return artistData.id;
+    }
+
+    // If not found or no stored tracks, search Spotify for the artist
+    const spotifyArtist = await getArtistByName(artistName);
+    
+    // Update or insert the artist with the Spotify ID
+    if (spotifyArtist && spotifyArtist.id) {
+      if (artistData) {
+        // Update existing artist
+        await supabase
+          .from('artists')
+          .update({ 
+            image_url: spotifyArtist.images?.[0]?.url,
+          })
+          .eq('id', artistData.id);
+        
+        return artistData.id;
+      } else {
+        // Insert new artist
+        const { data: newArtist, error: insertError } = await supabase
+          .from('artists')
+          .insert({
+            name: artistName,
+            image_url: spotifyArtist.images?.[0]?.url,
+          })
+          .select()
+          .single();
+        
+        if (insertError) {
+          console.error("Error inserting artist:", insertError);
+          throw insertError;
+        }
+        
+        return newArtist.id;
+      }
+    }
+    
+    throw new Error(`Could not resolve artist ID for: ${artistName}`);
+  } catch (error) {
+    console.error('Error resolving artist ID:', error);
+    toast.error("Error finding artist information");
+    throw error;
+  }
+};
+
+// Get top tracks for an artist
+export const getArtistTopTracks = async (artistName: string, limit = 10): Promise<any[]> => {
+  try {
+    const artistId = await resolveArtistId(artistName);
+    
+    if (!artistId) {
+      throw new Error(`Could not resolve artist ID for: ${artistName}`);
+    }
+    
+    // Check if we have stored tracks in the database
+    const supabase = createClient();
+    const { data: artistData, error } = await supabase
+      .from('artists')
+      .select('stored_tracks')
+      .eq('id', artistId)
+      .single();
+    
+    if (!error && artistData && artistData.stored_tracks && artistData.stored_tracks.length > 0) {
+      console.log("Using stored tracks from database");
+      // Return stored tracks sorted by name
+      return artistData.stored_tracks
+        .slice(0, limit)
+        .sort((a: any, b: any) => a.name.localeCompare(b.name));
+    }
+    
+    // If no stored tracks, get from Spotify API
+    console.log("Fetching tracks from Spotify API");
+    const spotifyArtist = await getArtistByName(artistName);
+    
+    if (!spotifyArtist || !spotifyArtist.id) {
+      throw new Error(`Artist not found on Spotify: ${artistName}`);
+    }
+    
+    const token = await getAccessToken();
+    const response = await fetch(
+      `${SPOTIFY_API_BASE}/artists/${spotifyArtist.id}/top-tracks?market=US`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`Failed to get top tracks: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    const tracks = data.tracks.map((track: any) => ({
+      id: track.id,
+      name: track.name,
+      duration_ms: track.duration_ms,
+      popularity: track.popularity,
+      preview_url: track.preview_url,
+      uri: track.uri,
+      votes: 0
+    }));
+    
+    // Store these tracks in the database for future use
+    await supabase
+      .from('artists')
+      .update({ stored_tracks: tracks })
+      .eq('id', artistId);
+    
+    // Return sorted tracks
+    return tracks
+      .slice(0, limit)
+      .sort((a: any, b: any) => a.name.localeCompare(b.name));
+      
+  } catch (error) {
+    console.error('Error getting artist top tracks:', error);
+    // In case of error, return empty array
+    return [];
   }
 };
 
 // Get all tracks for an artist
-export const getArtistAllTracks = async (artistId: string): Promise<any> => {
+export const getArtistAllTracks = async (artistName: string): Promise<any[]> => {
   try {
-    console.log(`Fetching all tracks for artist ID: ${artistId}`);
-    
-    // First, get albums by the artist
-    const albumsData = await spotifyApi(`/artists/${artistId}/albums?include_groups=album,single&limit=50`);
-    
-    if (!albumsData || !albumsData.items || albumsData.items.length === 0) {
-      throw new Error("No albums found");
-    }
-    
-    // Get all tracks from each album
-    const albumIds = albumsData.items.map((album: any) => album.id);
-    
-    // Fetch tracks for each album (may need to batch requests if there are many albums)
-    const batchSize = 20; // Spotify API limit
-    const allTracks: any[] = [];
-    
-    for (let i = 0; i < albumIds.length; i += batchSize) {
-      const batch = albumIds.slice(i, i + batchSize);
-      
-      for (const albumId of batch) {
-        const tracksData = await spotifyApi(`/albums/${albumId}/tracks?limit=50`);
-        
-        if (tracksData && tracksData.items) {
-          // Add album tracks to the collection
-          allTracks.push(...tracksData.items);
-        }
-      }
-    }
-    
-    if (allTracks.length === 0) {
-      throw new Error("No tracks found across all albums");
-    }
-    
-    // Remove duplicates (same track name)
-    const uniqueTracks = allTracks.reduce((unique: any[], track: any) => {
-      const exists = unique.some(t => t.name.toLowerCase() === track.name.toLowerCase());
-      if (!exists) {
-        unique.push(track);
-      }
-      return unique;
-    }, []);
-    
-    // Sort tracks alphabetically by name
-    const sortedTracks = uniqueTracks.sort((a: any, b: any) => 
-      a.name.localeCompare(b.name)
-    );
-    
-    console.log(`Successfully fetched ${sortedTracks.length} unique tracks`);
-    return { tracks: sortedTracks };
+    // For now, this uses the same implementation as getArtistTopTracks
+    // In a real app, you would implement pagination to get all tracks
+    const tracks = await getArtistTopTracks(artistName, 50);
+    return tracks.sort((a, b) => a.name.localeCompare(b.name));
   } catch (error) {
-    console.error("Error fetching all artist tracks:", error);
-    // Return expanded mock data
-    console.log("Returning mock tracks");
-    return { tracks: mockTopTracks.sort((a, b) => a.name.localeCompare(b.name)) };
+    console.error('Error getting all artist tracks:', error);
+    return [];
   }
 };

@@ -87,7 +87,7 @@
 
 @layer base {
   * {
-    @apply border-border;
+    @apply border-border selection:bg-white/10 selection:text-white;
   }
 
   html, body {
@@ -130,6 +130,14 @@
 
   .header-gradient {
     @apply bg-gradient-to-b from-[#14141F]/90 via-[#191927]/80 to-transparent;
+  }
+  
+  .neo-blur {
+    @apply backdrop-blur-2xl bg-black/40 border border-white/10;
+  }
+  
+  .text-gradient {
+    @apply bg-gradient-to-br from-white via-white/90 to-white/70 bg-clip-text text-transparent;
   }
 }
 

@@ -33,7 +33,7 @@ const App = () => (
     <BrowserRouter>
       <AuthProvider>
         <TooltipProvider>
-          <div className="app-gradient min-h-screen">
+          <div className="app-gradient min-h-screen dark text-foreground">
             <Toaster />
             <Sonner className="dark" theme="dark" />
             <Routes>
