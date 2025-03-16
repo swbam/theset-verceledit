@@ -37,7 +37,7 @@ const AuthCallback = () => {
           toast.success('Successfully signed in!');
           
           // If authentication was with Spotify, redirect to my-artists page
-          if (provider === 'spotify' || (session.provider_token && session.provider_type === 'spotify')) {
+          if (provider === 'spotify' || (session.provider_token && provider === 'spotify')) {
             console.log('Redirecting to my-artists page');
             navigate('/my-artists');
           } else {

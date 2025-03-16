@@ -1,32 +1,42 @@
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { User, Session } from '@supabase/supabase-js';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import { AuthState, UserProfile } from './types';
 
-interface AuthContextType {
-  user: User | null;
-  profile: any | null;
-  isLoading: boolean;
-  isAuthenticated: boolean;
-  session: Session | null;
-  login: () => void;
+export function useSupabaseAuth(): AuthState & {
   loginWithEmail: (email: string, password: string) => Promise<void>;
   loginWithGoogle: () => Promise<void>;
   loginWithSpotify: () => Promise<void>;
   signup: (email: string, password: string, username?: string) => Promise<void>;
   logout: () => Promise<void>;
-}
-
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [profile, setProfile] = useState<any | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
+  login: () => void;
+} {
+  const [user, setUser] = useState(null);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [session, setSession] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
+
+  const fetchUserProfile = useCallback(async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+      
+      if (error) {
+        console.error('Error fetching user profile:', error);
+        return;
+      }
+      
+      setProfile(data);
+    } catch (error) {
+      console.error('Error fetching user profile:', error);
+    }
+  }, []);
 
   useEffect(() => {
     const checkSession = async () => {
@@ -72,32 +82,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => {
       authListener?.subscription?.unsubscribe();
     };
-  }, []);
+  }, [fetchUserProfile]);
 
-  const fetchUserProfile = async (userId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single();
-      
-      if (error) {
-        console.error('Error fetching user profile:', error);
-        return;
-      }
-      
-      setProfile(data);
-    } catch (error) {
-      console.error('Error fetching user profile:', error);
-    }
-  };
-
-  const login = () => {
+  const login = useCallback(() => {
     navigate('/auth');
-  };
+  }, [navigate]);
 
-  const loginWithEmail = async (email: string, password: string) => {
+  const loginWithEmail = useCallback(async (email: string, password: string) => {
     setIsLoading(true);
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
@@ -115,9 +106,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [navigate]);
 
-  const loginWithGoogle = async () => {
+  const loginWithGoogle = useCallback(async () => {
     try {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
@@ -131,9 +122,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       toast.error(error.message || 'Failed to login with Google');
       console.error('Google login error:', error);
     }
-  };
+  }, []);
 
-  const loginWithSpotify = async () => {
+  const loginWithSpotify = useCallback(async () => {
     try {
       console.log('Starting Spotify login process');
       const { error, data } = await supabase.auth.signInWithOAuth({
@@ -154,9 +145,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.error('Spotify login error:', error);
       toast.error(error.message || 'Failed to login with Spotify');
     }
-  };
+  }, []);
 
-  const signup = async (email: string, password: string, username?: string) => {
+  const signup = useCallback(async (email: string, password: string, username?: string) => {
     setIsLoading(true);
     try {
       const { data, error } = await supabase.auth.signUp({
@@ -184,9 +175,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [navigate]);
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
     try {
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
@@ -200,33 +191,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       toast.error(error.message || 'Failed to log out');
       console.error('Logout error:', error);
     }
+  }, [navigate]);
+
+  return {
+    user,
+    profile,
+    session,
+    isLoading,
+    isAuthenticated: !!user,
+    login,
+    loginWithEmail,
+    loginWithGoogle,
+    loginWithSpotify,
+    signup,
+    logout,
   };
-
-  return (
-    <AuthContext.Provider
-      value={{
-        user,
-        profile,
-        isLoading,
-        isAuthenticated: !!user,
-        session,
-        login,
-        loginWithEmail,
-        loginWithGoogle,
-        loginWithSpotify,
-        signup,
-        logout,
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
-  );
-};
-
-export const useAuth = (): AuthContextType => {
-  const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
-};
+}

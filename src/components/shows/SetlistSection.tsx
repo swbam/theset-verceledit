@@ -1,11 +1,10 @@
-
 import React from 'react';
 import { Music, AlertCircle, Users, Info, Clock, Trophy } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth } from '@/contexts/auth/AuthContext';
 import ShareSetlistButton from '@/components/setlist/ShareSetlistButton';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import ShowSetlist from './ShowSetlist';
@@ -53,7 +52,6 @@ const SetlistSection: React.FC<SetlistSectionProps> = ({
 }) => {
   const { isAuthenticated, login } = useAuth();
   
-  // Calculate total votes
   const totalVotes = setlist.reduce((acc, song) => acc + song.votes, 0);
   const userVotedCount = setlist.filter(song => song.userVoted).length;
   
