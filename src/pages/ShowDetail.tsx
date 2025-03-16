@@ -13,6 +13,7 @@ import ShowHeader from '@/components/shows/ShowHeader';
 import SetlistSection from '@/components/shows/SetlistSection';
 import ShowDetailSkeleton from '@/components/shows/ShowDetailSkeleton';
 import ShowNotFound from '@/components/shows/ShowNotFound';
+import { supabase } from '@/integrations/supabase/client';
 
 const ShowDetail = () => {
   const { id } = useParams<{ id: string }>();
@@ -56,7 +57,33 @@ const ShowDetail = () => {
   // Get Spotify artist ID from artist name
   const spotifyArtistId = show?.artist?.id || '';
   
-  // Fetch artist's top tracks from Spotify to use as setlist (limited to 5)
+  // Check if we have stored tracks for this artist in the database
+  const {
+    data: storedArtistData,
+    isLoading: isLoadingStoredData
+  } = useQuery({
+    queryKey: ['storedArtistData', spotifyArtistId],
+    queryFn: async () => {
+      if (!spotifyArtistId) return null;
+      
+      // Try to get the stored artist data from Supabase
+      const { data, error } = await supabase
+        .from('artists')
+        .select('id, stored_tracks')
+        .eq('id', spotifyArtistId)
+        .maybeSingle();
+      
+      if (error) {
+        console.error("Error fetching stored artist data:", error);
+        return null;
+      }
+      
+      return data;
+    },
+    enabled: !!spotifyArtistId && !isLoadingShow,
+  });
+  
+  // Fetch artist's top tracks from Spotify (limited to 5)
   const {
     data: topTracksData,
     isLoading: isLoadingTracks,
@@ -89,16 +116,40 @@ const ShowDetail = () => {
     queryFn: async () => {
       if (!spotifyArtistId) throw new Error("Artist ID is required");
       
+      // Check if we have stored tracks in the database
+      if (storedArtistData?.stored_tracks && Array.isArray(storedArtistData.stored_tracks)) {
+        console.log("Using stored tracks from database:", storedArtistData.stored_tracks.length);
+        return { tracks: storedArtistData.stored_tracks };
+      }
+      
       try {
         // Use the Spotify API to get all artist's tracks
         const tracks = await getArtistAllTracks(spotifyArtistId);
+        
+        // Store the tracks in the database for future use
+        if (tracks && tracks.tracks && tracks.tracks.length > 0) {
+          const { error } = await supabase
+            .from('artists')
+            .update({ 
+              stored_tracks: tracks.tracks,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', spotifyArtistId);
+          
+          if (error) {
+            console.error("Error storing tracks in database:", error);
+          } else {
+            console.log("Stored tracks in database:", tracks.tracks.length);
+          }
+        }
+        
         return tracks;
       } catch (error) {
         console.error("Error fetching all tracks:", error);
         return { tracks: [] };
       }
     },
-    enabled: !!spotifyArtistId && !isLoadingShow,
+    enabled: !!spotifyArtistId && !isLoadingShow && !isLoadingStoredData,
     retry: 2,
   });
   
