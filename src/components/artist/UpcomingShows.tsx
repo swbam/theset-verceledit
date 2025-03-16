@@ -71,6 +71,7 @@ const UpcomingShows = ({ shows, artistName }: UpcomingShowsProps) => {
                   date: show.date,
                   image_url: show.image_url,
                   venue: show.venue,
+                  ticket_url: show.ticket_url,
                   artist: { name: artistName }
                 }} 
               />
