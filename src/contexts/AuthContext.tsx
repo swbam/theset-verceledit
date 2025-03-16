@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { useNavigate } from 'react-router-dom';
@@ -134,7 +135,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const loginWithSpotify = async () => {
     try {
-      const { error } = await supabase.auth.signInWithOAuth({
+      console.log('Starting Spotify login process');
+      const { error, data } = await supabase.auth.signInWithOAuth({
         provider: 'spotify',
         options: {
           redirectTo: `${window.location.origin}/auth/callback`,
@@ -142,10 +144,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         },
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Spotify login error:', error);
+        throw error;
+      }
+      
+      console.log('Spotify auth initiated:', data);
     } catch (error: any) {
-      toast.error(error.message || 'Failed to login with Spotify');
       console.error('Spotify login error:', error);
+      toast.error(error.message || 'Failed to login with Spotify');
     }
   };
 
