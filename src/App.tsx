@@ -5,9 +5,18 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
+import Search from "./pages/Search";
+import ArtistDetail from "./pages/ArtistDetail";
 import NotFound from "./pages/NotFound";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 1000 * 60 * 5, // 5 minutes
+      retry: 1,
+    },
+  },
+});
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -17,8 +26,9 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Index />} />
-          <Route path="/artists" element={<NotFound />} />
-          <Route path="/artists/:id" element={<NotFound />} />
+          <Route path="/search" element={<Search />} />
+          <Route path="/artists" element={<Search />} />
+          <Route path="/artists/:id" element={<ArtistDetail />} />
           <Route path="/shows" element={<NotFound />} />
           <Route path="/shows/:id" element={<NotFound />} />
           <Route path="/how-it-works" element={<NotFound />} />
