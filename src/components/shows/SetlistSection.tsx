@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
+import ShareSetlistButton from '@/components/setlist/ShareSetlistButton';
 
 interface Song {
   id: string;
@@ -20,13 +21,19 @@ interface SetlistSectionProps {
   isConnected: boolean;
   isLoadingTracks: boolean;
   handleVote: (songId: string) => void;
+  showId?: string;
+  showName?: string;
+  artistName?: string;
 }
 
 const SetlistSection: React.FC<SetlistSectionProps> = ({ 
   setlist, 
   isConnected, 
   isLoadingTracks, 
-  handleVote 
+  handleVote,
+  showId = '',
+  showName = 'Concert',
+  artistName = 'Artist'
 }) => {
   const { isAuthenticated, login } = useAuth();
   
@@ -61,6 +68,12 @@ const SetlistSection: React.FC<SetlistSectionProps> = ({
                     <span>Live updates</span>
                   </div>
                 )}
+                
+                <ShareSetlistButton 
+                  showId={showId}
+                  showName={showName}
+                  artistName={artistName}
+                />
               </div>
             </div>
           </CardHeader>

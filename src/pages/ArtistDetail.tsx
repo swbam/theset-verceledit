@@ -1,6 +1,6 @@
 
-import React, { useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import React from 'react';
+import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { fetchArtistEvents } from '@/lib/ticketmaster';
 import Navbar from '@/components/layout/Navbar';
@@ -9,59 +9,63 @@ import ArtistHeader from '@/components/artist/ArtistHeader';
 import UpcomingShows from '@/components/artist/UpcomingShows';
 import ArtistDetailSkeleton from '@/components/artist/ArtistDetailSkeleton';
 import ArtistNotFound from '@/components/artist/ArtistNotFound';
+import PastSetlists from '@/components/artists/PastSetlists';
 
 const ArtistDetail = () => {
   const { id } = useParams<{ id: string }>();
-  const navigate = useNavigate();
   
-  // Extract artist name from ID (since we're using Ticketmaster, we encoded the name in the ID)
-  const artistName = id ? decodeURIComponent(id.replace('tm-', '').replace(/-/g, ' ')) : '';
-  
-  // Fetch upcoming shows from Ticketmaster
   const {
-    data: events = [],
-    isLoading: isLoadingEvents,
-    error: eventsError
+    data: shows = [],
+    isLoading,
+    error
   } = useQuery({
-    queryKey: ['artistEvents', artistName],
-    queryFn: () => fetchArtistEvents(artistName),
-    enabled: !!artistName,
+    queryKey: ['artistEvents', id],
+    queryFn: () => {
+      // Since we're getting the artists from Ticketmaster, we need to extract the name
+      // This is a simplification - in a real app we'd have a proper lookup
+      const artistName = id?.startsWith('tm-') 
+        ? id.replace('tm-', '').replace(/-/g, ' ') 
+        : id;
+      
+      return fetchArtistEvents(artistName || '');
+    },
+    enabled: !!id,
   });
   
-  // If there are no events, redirect to search
-  useEffect(() => {
-    if (!isLoadingEvents && events.length === 0 && !eventsError) {
-      navigate('/search', { replace: true });
-    }
-  }, [events, isLoadingEvents, eventsError, navigate]);
+  // Process artist data
+  const artistName = id?.startsWith('tm-') 
+    ? id.replace('tm-', '').replace(/-/g, ' ') 
+    : id || '';
   
-  // Get the first event to extract artist info
-  const firstEvent = events[0];
-  
-  if (isLoadingEvents) {
+  // Get artist image from the first show if available
+  const artistImage = shows.length > 0 ? shows[0].image_url : undefined;
+
+  if (isLoading) {
     return <ArtistDetailSkeleton />;
   }
-  
-  if (eventsError || events.length === 0) {
+
+  if (error || !id) {
     return <ArtistNotFound />;
   }
-  
-  // Extract artist image from the first event
-  const artistImage = firstEvent?.image_url;
-  
+
   return (
     <div className="min-h-screen flex flex-col">
       <Navbar />
       
       <main className="flex-grow">
         <ArtistHeader 
-          artistName={artistName}
+          artistName={artistName} 
           artistImage={artistImage}
-          upcomingShowsCount={events.length}
+          upcomingShowsCount={shows.length}
         />
         
         <UpcomingShows 
-          shows={events}
+          shows={shows}
+          artistName={artistName}
+        />
+        
+        <PastSetlists 
+          artistId={id}
           artistName={artistName}
         />
       </main>

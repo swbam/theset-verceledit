@@ -28,10 +28,11 @@ const ShowDetail = () => {
     queryKey: ['show', id],
     queryFn: () => fetchShowDetails(id!),
     enabled: !!id,
-    onSuccess: (data) => {
-      console.log("Show details fetched and saved to database:", data);
-      // In a real implementation, this would update the database or trigger events
-      toast.success("Show details loaded");
+    meta: {
+      onSuccess: (data: any) => {
+        console.log("Show details fetched and saved to database:", data);
+        toast.success("Show details loaded");
+      }
     }
   });
   
@@ -58,9 +59,10 @@ const ShowDetail = () => {
     queryKey: ['artistTopTracks', spotifyArtistId],
     queryFn: () => getArtistTopTracks(spotifyArtistId || 'demo-artist'),
     enabled: !!spotifyArtistId,
-    onSuccess: (data) => {
-      console.log("Artist top tracks fetched for setlist:", data);
-      // In a real implementation, this would initialize the setlist in the database if it doesn't exist
+    meta: {
+      onSuccess: (data: any) => {
+        console.log("Artist top tracks fetched for setlist:", data);
+      }
     }
   });
   
@@ -126,6 +128,9 @@ const ShowDetail = () => {
           isConnected={isConnected}
           isLoadingTracks={isLoadingTracks}
           handleVote={handleVote}
+          showId={id}
+          showName={show.name}
+          artistName={show.artist?.name || 'Artist'}
         />
       </main>
       
