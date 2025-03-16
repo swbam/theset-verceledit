@@ -8,7 +8,7 @@ import { useAuth } from '@/contexts/AuthContext';
 const createMockWebSocket = (showId: string, callback: (data: any) => void) => {
   console.log(`Creating mock WebSocket connection for show ${showId}`);
   
-  // Simulate incoming votes from other users every 5-15 seconds
+  // Simulate incoming votes every 5-15 seconds
   const interval = setInterval(() => {
     // 30% chance of a vote update
     if (Math.random() > 0.7) {
@@ -21,8 +21,7 @@ const createMockWebSocket = (showId: string, callback: (data: any) => void) => {
         type: 'vote_update',
         data: {
           songId: randomSongId,
-          votes: 1, // Single vote increment
-          userId: `user${Math.floor(Math.random() * 1000)}`, // Random user ID
+          votes: Math.floor(Math.random() * 5) + 1, // Random increment between 1-5
         }
       });
     }
@@ -50,21 +49,10 @@ interface UseRealtimeVotesProps {
 export function useRealtimeVotes({ showId, initialSongs }: UseRealtimeVotesProps) {
   const [songs, setSongs] = useState<SongVote[]>(initialSongs);
   const [isConnected, setIsConnected] = useState(false);
-  const [voteHistory, setVoteHistory] = useState<Set<string>>(new Set());
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated } = useAuth();
   
-  // Connect to WebSocket on mount
   useEffect(() => {
     if (!showId) return;
-    
-    // Initialize vote history from initialSongs
-    const initialVotes = new Set<string>();
-    initialSongs.forEach(song => {
-      if (song.userVoted) {
-        initialVotes.add(song.id);
-      }
-    });
-    setVoteHistory(initialVotes);
     
     // Connect to WebSocket (mock implementation)
     setIsConnected(true);
@@ -73,21 +61,13 @@ export function useRealtimeVotes({ showId, initialSongs }: UseRealtimeVotesProps
     // Handle incoming vote updates
     const handleVoteUpdate = (data: any) => {
       if (data.type === 'vote_update') {
-        const { songId, votes, userId } = data.data;
-        
-        // Update song votes
         setSongs(prevSongs => 
           prevSongs.map(song => 
-            song.id === songId
-              ? { ...song, votes: song.votes + votes }
+            song.id === data.data.songId
+              ? { ...song, votes: song.votes + data.data.votes }
               : song
-          ).sort((a, b) => b.votes - a.votes) // Re-sort by votes
+          )
         );
-        
-        // Show toast notification for other users' votes
-        if (user?.id !== userId) {
-          toast.info('Someone just voted for a song!');
-        }
       }
     };
     
@@ -99,7 +79,7 @@ export function useRealtimeVotes({ showId, initialSongs }: UseRealtimeVotesProps
       setIsConnected(false);
       cleanup();
     };
-  }, [showId, initialSongs, user]);
+  }, [showId]);
   
   // Function to vote for a song
   const voteForSong = (songId: string) => {
@@ -108,8 +88,10 @@ export function useRealtimeVotes({ showId, initialSongs }: UseRealtimeVotesProps
       return;
     }
     
-    // Check if user already voted for this song using voteHistory
-    if (voteHistory.has(songId)) {
+    // Check if user already voted for this song
+    const alreadyVoted = songs.find(song => song.id === songId)?.userVoted;
+    
+    if (alreadyVoted) {
       toast.error('You have already voted for this song');
       return;
     }
@@ -120,31 +102,19 @@ export function useRealtimeVotes({ showId, initialSongs }: UseRealtimeVotesProps
         song.id === songId
           ? { ...song, votes: song.votes + 1, userVoted: true }
           : song
-      ).sort((a, b) => b.votes - a.votes) // Re-sort by votes
+      )
     );
     
-    // Update vote history
-    setVoteHistory(prev => {
-      const newHistory = new Set(prev);
-      newHistory.add(songId);
-      return newHistory;
-    });
-    
-    // In a real app, this would send the vote to the server
+    // In a real app, this would send a vote to the server
     toast.success('Vote recorded!');
     
-    // Simulate the server broadcasting the vote to all clients
+    // Simulate the server confirming the vote
     console.log(`Voted for song: ${songId}`);
-    
-    // In a real app with WebSockets, the server would broadcast this vote
-    // to all connected clients, and we would NOT need to update local state here
-    // as the WebSocket would receive the update and trigger the same state change
   };
   
   return {
-    songs: songs.sort((a, b) => b.votes - a.votes), // Always ensure songs are sorted by votes
+    songs,
     isConnected,
-    voteForSong,
-    voteHistory: Array.from(voteHistory)
+    voteForSong
   };
 }
