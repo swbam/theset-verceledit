@@ -2,9 +2,8 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { fetchShowsByGenre } from '@/lib/ticketmaster';
+import { fetchShowsByGenre, popularMusicGenres } from '@/lib/ticketmaster';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { popularMusicGenres } from '@/lib/ticketmaster';
 import { ChevronRight, CalendarDays, MapPin } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';

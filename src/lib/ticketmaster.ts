@@ -6,24 +6,48 @@ const TICKETMASTER_API_KEY = "k8GrSAkbFaN0w7qDxGl7ohr8LwdAQm9b";
 const TICKETMASTER_BASE_URL = "https://app.ticketmaster.com/discovery/v2";
 
 /**
+ * Make a request to the Ticketmaster API directly
+ */
+async function callTicketmasterApi(endpoint: string, params: Record<string, string> = {}) {
+  try {
+    // Construct URL with query parameters
+    const url = new URL(`${TICKETMASTER_BASE_URL}/${endpoint}`);
+    
+    // Add API key
+    url.searchParams.append('apikey', TICKETMASTER_API_KEY);
+    
+    // Add other query parameters
+    for (const [key, value] of Object.entries(params)) {
+      url.searchParams.append(key, value);
+    }
+    
+    console.log('Fetching from Ticketmaster API:', url.toString());
+    const response = await fetch(url.toString());
+    
+    if (!response.ok) {
+      throw new Error(`API request failed with status ${response.status}`);
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error('Ticketmaster API error:', error);
+    throw error;
+  }
+}
+
+/**
  * Search for artists with upcoming events
  */
 export async function searchArtistsWithEvents(query: string, limit = 10): Promise<any[]> {
   try {
     if (!query.trim()) return [];
     
-    // Use a proxy to avoid CORS issues
-    const url = `/api/ticketmaster?endpoint=events.json&keyword=${encodeURIComponent(
-      query
-    )}&segmentName=Music&sort=date,asc&size=${limit}`;
-
-    const response = await fetch(url);
-    
-    if (!response.ok) {
-      throw new Error("Failed to fetch events from Ticketmaster");
-    }
-    
-    const data = await response.json();
+    const data = await callTicketmasterApi('events.json', {
+      keyword: query,
+      segmentName: 'Music',
+      sort: 'date,asc',
+      size: limit.toString()
+    });
 
     if (!data._embedded?.events) {
       return [];
@@ -78,18 +102,11 @@ export async function searchArtistsWithEvents(query: string, limit = 10): Promis
  */
 export async function fetchArtistEvents(artistName: string): Promise<any[]> {
   try {
-    // Use a proxy to avoid CORS issues
-    const url = `/api/ticketmaster?endpoint=events.json&keyword=${encodeURIComponent(
-      artistName
-    )}&segmentName=Music&sort=date,asc`;
-
-    const response = await fetch(url);
-    
-    if (!response.ok) {
-      throw new Error("Failed to fetch events from Ticketmaster");
-    }
-    
-    const data = await response.json();
+    const data = await callTicketmasterApi('events.json', {
+      keyword: artistName,
+      segmentName: 'Music',
+      sort: 'date,asc'
+    });
 
     if (!data._embedded?.events) {
       return [];
@@ -123,16 +140,7 @@ export async function fetchArtistEvents(artistName: string): Promise<any[]> {
  */
 export async function fetchVenueDetails(venueId: string): Promise<any> {
   try {
-    // Use a proxy to avoid CORS issues
-    const url = `/api/ticketmaster?endpoint=venues/${venueId}.json`;
-    
-    const response = await fetch(url);
-    
-    if (!response.ok) {
-      throw new Error("Failed to fetch venue details");
-    }
-    
-    return response.json();
+    return await callTicketmasterApi(`venues/${venueId}.json`);
   } catch (error) {
     console.error("Venue details error:", error);
     toast.error("Failed to load venue details");
@@ -145,16 +153,7 @@ export async function fetchVenueDetails(venueId: string): Promise<any> {
  */
 export async function fetchShowDetails(eventId: string): Promise<any> {
   try {
-    // Use a proxy to avoid CORS issues
-    const url = `/api/ticketmaster?endpoint=events/${eventId}.json`;
-    
-    const response = await fetch(url);
-    
-    if (!response.ok) {
-      throw new Error("Failed to fetch event details");
-    }
-    
-    const event = await response.json();
+    const event = await callTicketmasterApi(`events/${eventId}.json`);
     
     // Get artist from attractions if available
     let artistName = '';
@@ -202,16 +201,12 @@ export async function fetchShowDetails(eventId: string): Promise<any> {
  */
 export async function fetchShowsByGenre(genreId: string, limit = 8): Promise<any[]> {
   try {
-    // Use a proxy to avoid CORS issues
-    const url = `/api/ticketmaster?endpoint=events.json&classificationId=${genreId}&segmentName=Music&sort=date,asc&size=${limit}`;
-
-    const response = await fetch(url);
-    
-    if (!response.ok) {
-      throw new Error("Failed to fetch events from Ticketmaster");
-    }
-    
-    const data = await response.json();
+    const data = await callTicketmasterApi('events.json', {
+      classificationId: genreId,
+      segmentName: 'Music',
+      sort: 'date,asc',
+      size: limit.toString()
+    });
 
     if (!data._embedded?.events) {
       return [];
@@ -265,16 +260,11 @@ export async function fetchShowsByGenre(genreId: string, limit = 8): Promise<any
  */
 export async function fetchFeaturedArtists(limit = 4): Promise<any[]> {
   try {
-    // Use a proxy to avoid CORS issues
-    const url = `/api/ticketmaster?endpoint=events.json&size=50&segmentName=Music&sort=date,asc`;
-    
-    const response = await fetch(url);
-    
-    if (!response.ok) {
-      throw new Error("Failed to fetch events from Ticketmaster");
-    }
-    
-    const data = await response.json();
+    const data = await callTicketmasterApi('events.json', {
+      size: '50',
+      segmentName: 'Music',
+      sort: 'date,asc'
+    });
 
     if (!data._embedded?.events) {
       return [];
@@ -331,16 +321,11 @@ export async function fetchFeaturedArtists(limit = 4): Promise<any[]> {
  */
 export async function fetchFeaturedShows(limit = 4): Promise<any[]> {
   try {
-    // Use a proxy to avoid CORS issues
-    const url = `/api/ticketmaster?endpoint=events.json&size=${limit}&segmentName=Music&sort=relevance,desc`;
-    
-    const response = await fetch(url);
-    
-    if (!response.ok) {
-      throw new Error("Failed to fetch events from Ticketmaster");
-    }
-    
-    const data = await response.json();
+    const data = await callTicketmasterApi('events.json', {
+      size: limit.toString(),
+      segmentName: 'Music',
+      sort: 'relevance,desc'
+    });
 
     if (!data._embedded?.events) {
       return [];

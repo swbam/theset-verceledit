@@ -17,6 +17,7 @@ export async function proxyTicketmasterApi(endpoint: string, queryParams: Record
   }
   
   try {
+    console.log('Fetching from Ticketmaster API:', url.toString());
     const response = await fetch(url.toString());
     
     if (!response.ok) {
