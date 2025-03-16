@@ -5,7 +5,6 @@ import { toast } from 'sonner';
 import VotableSetlistTable from '@/components/setlist/VotableSetlistTable';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useAuth } from '@/contexts/AuthContext';
 
 interface Song {
   id: string;
@@ -60,6 +59,11 @@ const ShowSetlist = ({
     handleAddSong();
   };
   
+  // Truncate long song names
+  const truncateSongName = (name: string, maxLength = 50) => {
+    return name.length > maxLength ? `${name.substring(0, maxLength)}...` : name;
+  };
+  
   return (
     <div className="flex flex-col">
       <VotableSetlistTable 
@@ -88,7 +92,7 @@ const ShowSetlist = ({
                 ) : (
                   availableTracks.map((track) => (
                     <SelectItem key={track.id} value={track.id}>
-                      {track.name}
+                      {truncateSongName(track.name)}
                     </SelectItem>
                   ))
                 )}

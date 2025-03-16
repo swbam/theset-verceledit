@@ -6,7 +6,7 @@ import { toast } from 'sonner';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
 import { fetchShowDetails } from '@/lib/ticketmaster';
-import { getArtistTopTracks, getArtistAllTracks } from '@/lib/spotify';
+import { getArtistTopTracks, getArtistAllTracks, resolveArtistId } from '@/lib/spotify';
 import { useRealtimeVotes } from '@/hooks/use-realtime-votes';
 import { useAuth } from '@/contexts/AuthContext';
 import ShowHeader from '@/components/shows/ShowHeader';
@@ -20,6 +20,7 @@ const ShowDetail = () => {
   const { isAuthenticated, login } = useAuth();
   const navigate = useNavigate();
   const [selectedTrack, setSelectedTrack] = useState<string>('');
+  const [spotifyArtistId, setSpotifyArtistId] = useState<string>('');
   
   // Fetch show details from Ticketmaster
   const { 
@@ -36,6 +37,17 @@ const ShowDetail = () => {
         // Fetch the show details from Ticketmaster
         const showDetails = await fetchShowDetails(id);
         console.log("Show details fetched:", showDetails);
+        
+        // If we have an artist ID, try to resolve it to a Spotify ID
+        if (showDetails?.artist?.id) {
+          const resolvedId = await resolveArtistId(
+            showDetails.artist.id, 
+            showDetails.artist.name
+          );
+          setSpotifyArtistId(resolvedId);
+          console.log(`Set Spotify artist ID: ${resolvedId}`);
+        }
+        
         return showDetails;
       } catch (error) {
         console.error("Error fetching show details:", error);
@@ -53,9 +65,6 @@ const ShowDetail = () => {
       navigate('/shows', { replace: true });
     }
   }, [show, isLoadingShow, isError, showError, navigate]);
-  
-  // Get Spotify artist ID from artist name
-  const spotifyArtistId = show?.artist?.id || '';
   
   // Check if we have stored tracks for this artist in the database
   const {
@@ -78,6 +87,7 @@ const ShowDetail = () => {
         return null;
       }
       
+      console.log(`Stored artist data for ${spotifyArtistId}:`, data);
       return data;
     },
     enabled: !!spotifyArtistId && !isLoadingShow,
@@ -91,16 +101,20 @@ const ShowDetail = () => {
   } = useQuery({
     queryKey: ['artistTopTracks', spotifyArtistId],
     queryFn: async () => {
-      if (!spotifyArtistId) throw new Error("Artist ID is required");
+      console.log(`Fetching top tracks for artist ID: ${spotifyArtistId}`);
+      if (!spotifyArtistId) {
+        console.error("No valid Spotify artist ID available");
+        return { tracks: [] };
+      }
       
       try {
         // Use the Spotify API to get artist's top 5 tracks
         const tracks = await getArtistTopTracks(spotifyArtistId, 5);
+        console.log(`Fetched ${tracks.tracks?.length || 0} top tracks`);
         return tracks;
       } catch (error) {
         console.error("Error fetching tracks:", error);
-        // Instead of throwing, return a fallback
-        return { tracks: generateFallbackTracks(show?.artist?.name || 'Unknown Artist', 5) };
+        return { tracks: [] };
       }
     },
     enabled: !!spotifyArtistId && !isLoadingShow,
@@ -114,7 +128,10 @@ const ShowDetail = () => {
   } = useQuery({
     queryKey: ['artistAllTracks', spotifyArtistId],
     queryFn: async () => {
-      if (!spotifyArtistId) throw new Error("Artist ID is required");
+      if (!spotifyArtistId) {
+        console.error("No valid Spotify artist ID available");
+        return { tracks: [] };
+      }
       
       // Check if we have stored tracks in the database
       if (storedArtistData?.stored_tracks && Array.isArray(storedArtistData.stored_tracks)) {
@@ -128,6 +145,7 @@ const ShowDetail = () => {
         
         // Store the tracks in the database for future use
         if (tracks && tracks.tracks && tracks.tracks.length > 0) {
+          console.log(`Storing ${tracks.tracks.length} tracks in database for artist ${spotifyArtistId}`);
           const { error } = await supabase
             .from('artists')
             .update({ 
@@ -139,7 +157,7 @@ const ShowDetail = () => {
           if (error) {
             console.error("Error storing tracks in database:", error);
           } else {
-            console.log("Stored tracks in database:", tracks.tracks.length);
+            console.log("Successfully stored tracks in database");
           }
         }
         
@@ -153,19 +171,14 @@ const ShowDetail = () => {
     retry: 2,
   });
   
-  // Generate fallback tracks if Spotify API fails
-  const generateFallbackTracks = (artistName: string, count: number = 5) => {
-    // Create sample placeholder tracks
-    return Array(count).fill(0).map((_, i) => ({
-      id: `fallback-${i}`,
-      name: `${artistName} Song ${i + 1}`,
-      popularity: Math.floor(Math.random() * 100)
-    }));
-  };
-  
   // Prepare setlist data for the real-time voting
   const initialSongs = React.useMemo(() => {
-    if (!topTracksData?.tracks) return [];
+    if (!topTracksData?.tracks || !Array.isArray(topTracksData.tracks)) {
+      console.log("No top tracks data available");
+      return [];
+    }
+    
+    console.log(`Converting ${topTracksData.tracks.length} top tracks to setlist items`);
     
     // Convert top tracks to setlist items with vote count
     return topTracksData.tracks.map((track: any) => ({
@@ -227,15 +240,21 @@ const ShowDetail = () => {
 
   // Filter out tracks that are already in the setlist
   const availableTracks = React.useMemo(() => {
-    if (!allTracksData?.tracks || !setlist) return [];
+    if (!allTracksData?.tracks || !setlist) {
+      console.log("No tracks available for filtering");
+      return [];
+    }
     
     // Get IDs of songs already in the setlist
     const setlistIds = new Set(setlist.map(song => song.id));
     
     // Filter and sort alphabetically
-    return allTracksData.tracks
+    const filteredTracks = allTracksData.tracks
       .filter((track: any) => !setlistIds.has(track.id))
       .sort((a: any, b: any) => a.name.localeCompare(b.name));
+    
+    console.log(`${filteredTracks.length} tracks available after filtering out ${setlist.length} setlist tracks`);
+    return filteredTracks;
   }, [allTracksData, setlist]);
   
   if (isLoadingShow) {

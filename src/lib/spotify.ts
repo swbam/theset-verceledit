@@ -49,23 +49,38 @@ export async function getSpotifyToken(): Promise<string> {
 }
 
 /**
- * Generate mock tracks for an artist when API fails
+ * Search for artists on Spotify using their name
  */
-function generateMockTracks(artistName: string, count = 10) {
-  const songTypes = ['Hit', 'Single', 'Remix', 'Live', 'Acoustic', 'Demo', 'Cover', 'Extended', 'Radio Edit', 'Club Mix'];
-  const result = [];
+export async function searchArtistsByName(name: string): Promise<string | null> {
+  if (!name) return null;
   
-  for (let i = 1; i <= count; i++) {
-    const randomType = songTypes[Math.floor(Math.random() * songTypes.length)];
-    result.push({
-      id: `mock-${i}`,
-      name: `${artistName} ${randomType} ${i}`,
-      popularity: Math.floor(Math.random() * 100)
-    });
+  try {
+    const token = await getSpotifyToken();
+    const response = await fetch(
+      `${SPOTIFY_BASE_URL}/search?q=${encodeURIComponent(name)}&type=artist&limit=1`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`Failed to search artists: ${response.status}`);
+    }
+
+    const data = await response.json();
+    
+    if (data.artists && data.artists.items && data.artists.items.length > 0) {
+      return data.artists.items[0].id;
+    }
+    
+    return null;
+  } catch (error) {
+    console.error("Artist search error:", error);
+    toast.error("Failed to find artist on Spotify");
+    return null;
   }
-  
-  // Sort by name for consistency
-  return result.sort((a, b) => a.name.localeCompare(b.name));
 }
 
 /**
@@ -102,6 +117,16 @@ export async function searchArtists(query: string, limit = 10): Promise<any> {
  * Get artist details from Spotify
  */
 export async function getArtistDetails(artistId: string): Promise<any> {
+  if (!artistId) {
+    console.error("No artist ID provided");
+    return {
+      id: "unknown",
+      name: "Unknown Artist",
+      genres: [],
+      popularity: 50
+    };
+  }
+  
   try {
     const token = await getSpotifyToken();
     const response = await fetch(`${SPOTIFY_BASE_URL}/artists/${artistId}`, {
@@ -128,20 +153,45 @@ export async function getArtistDetails(artistId: string): Promise<any> {
 }
 
 /**
+ * Resolve Ticketmaster artist ID to Spotify artist ID if needed
+ */
+export async function resolveArtistId(artistId: string, artistName?: string): Promise<string> {
+  // If it's already a valid Spotify ID (not starting with K or tm-), return it
+  if (artistId && !artistId.startsWith('K') && !artistId.startsWith('tm-')) {
+    return artistId;
+  }
+  
+  // If we have an artist name, try to search for it on Spotify
+  if (artistName) {
+    console.log(`Searching for Spotify ID for artist: ${artistName}`);
+    const spotifyId = await searchArtistsByName(artistName);
+    if (spotifyId) {
+      console.log(`Found Spotify ID for ${artistName}: ${spotifyId}`);
+      return spotifyId;
+    }
+  }
+  
+  // If we couldn't find a Spotify ID, log the issue but return the original ID
+  console.warn(`Could not resolve Spotify ID for artist: ${artistId} (${artistName || 'unknown'})`);
+  return artistId;
+}
+
+/**
  * Get artist's top tracks from Spotify
  * Supports limiting the number of tracks returned
  */
 export async function getArtistTopTracks(artistId: string, limit = 10, market = "US"): Promise<any> {
-  // For demo purposes, return mock data for non-real Spotify IDs
-  if (artistId.startsWith('spotify-') || artistId === 'demo-artist') {
-    const mockTracks = generateMockTracks("Artist", 10);
-    return {
-      tracks: mockTracks.slice(0, limit)
-    };
+  if (!artistId) {
+    console.error("No artist ID provided to getArtistTopTracks");
+    return { tracks: [] };
   }
   
   try {
+    // Get Spotify token
     const token = await getSpotifyToken();
+    
+    // Try to make the API call
+    console.log(`Fetching top tracks for artist ID: ${artistId}`);
     const response = await fetch(
       `${SPOTIFY_BASE_URL}/artists/${artistId}/top-tracks?market=${market}`,
       {
@@ -151,11 +201,16 @@ export async function getArtistTopTracks(artistId: string, limit = 10, market = 
       }
     );
 
+    // Handle non-successful responses properly
     if (!response.ok) {
+      const errorDetails = await response.text();
+      console.error(`API returned ${response.status}: ${errorDetails}`);
       throw new Error(`Failed to get artist top tracks: ${response.status}`);
     }
 
+    // Parse the successful response
     const data = await response.json();
+    console.log(`Retrieved ${data.tracks?.length || 0} top tracks for artist`);
     
     // Limit the number of tracks returned if specified
     if (data.tracks && limit > 0 && limit < data.tracks.length) {
@@ -165,19 +220,8 @@ export async function getArtistTopTracks(artistId: string, limit = 10, market = 
     return data;
   } catch (error) {
     console.error("Top tracks error:", error);
-    
-    // Get artist name if possible or use fallback
-    let artistName = "Artist";
-    try {
-      const artistInfo = await getArtistDetails(artistId);
-      artistName = artistInfo.name || "Artist";
-    } catch {
-      // Use default name if artist details can't be fetched
-    }
-    
-    // Generate mock tracks for this artist
-    const mockTracks = generateMockTracks(artistName, limit);
-    return { tracks: mockTracks };
+    console.log("Returning empty track list due to error");
+    return { tracks: [] };
   }
 }
 
@@ -187,24 +231,23 @@ export async function getArtistTopTracks(artistId: string, limit = 10, market = 
  * and handle pagination to get a more comprehensive list
  */
 export async function getArtistAllTracks(artistId: string, market = "US"): Promise<any> {
-  // For demo purposes, return mock data for non-real Spotify IDs
-  if (artistId.startsWith('spotify-') || artistId === 'demo-artist') {
-    return {
-      tracks: generateMockTracks("Artist", 20)
-    };
+  if (!artistId) {
+    console.error("No artist ID provided to getArtistAllTracks");
+    return { tracks: [] };
   }
   
   try {
     // Get artist name for generating fallback tracks if needed
-    let artistName = "Artist";
+    let artistName = "Unknown Artist";
     try {
       const artistInfo = await getArtistDetails(artistId);
-      artistName = artistInfo.name || "Artist";
+      artistName = artistInfo.name || "Unknown Artist";
     } catch {
       // Use default name if artist details can't be fetched
     }
     
     // First get the artist's top tracks to ensure we have some data
+    console.log(`Getting all tracks for artist ID: ${artistId}`);
     const topTracksResponse = await getArtistTopTracks(artistId, 50, market);
     
     // Try to get more tracks from albums if possible
@@ -223,10 +266,12 @@ export async function getArtistAllTracks(artistId: string, market = "US"): Promi
 
       if (!albumsResponse.ok) {
         // If albums can't be fetched, just return top tracks
+        console.log("Could not fetch albums, using top tracks only");
         return topTracksResponse;
       }
 
       const albumsData = await albumsResponse.json();
+      console.log(`Retrieved ${albumsData.items?.length || 0} albums for artist`);
       
       // Combine the tracks and remove duplicates
       const allTracks = [...(topTracksResponse.tracks || [])];
@@ -237,6 +282,7 @@ export async function getArtistAllTracks(artistId: string, market = "US"): Promi
         const limitedAlbums = albumsData.items.slice(0, 3);
         
         for (const album of limitedAlbums) {
+          console.log(`Fetching tracks for album: ${album.name}`);
           const tracksResponse = await fetch(
             `${SPOTIFY_BASE_URL}/albums/${album.id}/tracks?limit=20&market=${market}`,
             {
@@ -248,6 +294,7 @@ export async function getArtistAllTracks(artistId: string, market = "US"): Promi
           
           if (tracksResponse.ok) {
             const albumTracks = await tracksResponse.json();
+            console.log(`Retrieved ${albumTracks.items?.length || 0} tracks from album ${album.name}`);
             
             // Add tracks that aren't already in our collection
             for (const track of albumTracks.items) {
@@ -262,6 +309,7 @@ export async function getArtistAllTracks(artistId: string, market = "US"): Promi
       
       // Sort alphabetically
       allTracks.sort((a: any, b: any) => a.name.localeCompare(b.name));
+      console.log(`Total unique tracks found: ${allTracks.length}`);
       
       return { tracks: allTracks };
     } catch (error) {
@@ -269,26 +317,50 @@ export async function getArtistAllTracks(artistId: string, market = "US"): Promi
       console.log("Using top tracks as fallback");
       
       // If there was an error getting album tracks, just return top tracks
-      // If top tracks failed too, generate mock data
       if (!topTracksResponse.tracks || topTracksResponse.tracks.length === 0) {
-        return { tracks: generateMockTracks(artistName, 20) };
+        console.error("No tracks could be retrieved for artist");
+        return { tracks: [] };
       }
       
       return topTracksResponse;
     }
   } catch (error) {
     console.error("All tracks error:", error);
+    console.log("Returning empty track list due to error");
+    return { tracks: [] };
+  }
+}
+
+/**
+ * Get tracks from stored artist data if available, or fetch from Spotify API
+ */
+export async function getArtistTracksFromDatabase(artistId: string): Promise<any[]> {
+  if (!artistId) {
+    console.error("No artist ID provided to getArtistTracksFromDatabase");
+    return [];
+  }
+  
+  try {
+    // Query the Supabase database for the artist's stored tracks
+    const { data, error } = await supabase
+      .from('artists')
+      .select('stored_tracks')
+      .eq('id', artistId)
+      .maybeSingle();
     
-    // Get artist name for mock tracks
-    let artistName = "Artist";
-    try {
-      const artistInfo = await getArtistDetails(artistId);
-      artistName = artistInfo.name || "Artist";
-    } catch {
-      // Use default name if artist details can't be fetched
+    if (error) {
+      console.error("Error fetching stored tracks from database:", error);
+      return [];
     }
     
-    // Generate mock data if everything fails
-    return { tracks: generateMockTracks(artistName, 20) };
+    if (data && data.stored_tracks && Array.isArray(data.stored_tracks)) {
+      console.log(`Retrieved ${data.stored_tracks.length} stored tracks from database for artist ${artistId}`);
+      return data.stored_tracks;
+    }
+    
+    return [];
+  } catch (error) {
+    console.error("Database tracks error:", error);
+    return [];
   }
 }
