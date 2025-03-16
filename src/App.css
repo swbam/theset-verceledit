@@ -7,7 +7,7 @@
 }
 
 body, html {
-  background-color: #0A0A16; /* Darker blue-black background */
+  background-color: #0A0A10; /* Darker blue-black background */
   color: white;
 }
 
@@ -45,4 +45,25 @@ body, html {
 
 .read-the-docs {
   color: #888;
+}
+
+/* New styles */
+.genre-pill {
+  @apply px-3 py-1.5 rounded-full text-xs font-medium bg-secondary/20 text-white border border-white/10 hover:bg-secondary/30 cursor-pointer transition-colors;
+}
+
+.view-all-button {
+  @apply text-sm font-medium text-white hover:text-primary transition-colors;
+}
+
+.section-header {
+  @apply flex justify-between items-center mb-6;
+}
+
+.section-title {
+  @apply text-2xl font-bold text-white;
+}
+
+.section-subtitle {
+  @apply text-sm text-white/70 mt-1;
 }

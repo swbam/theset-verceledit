@@ -1,17 +1,18 @@
+
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
-import ArtistCard from '../artist/ArtistCard';
-import { fetchFeaturedArtists } from '@/lib/ticketmaster';
+import { Music } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
+import { fetchFeaturedArtists } from '@/lib/ticketmaster';
 
 const FeaturedArtists = () => {
   const { data: artistsData = [], isLoading, error } = useQuery({
     queryKey: ['featuredArtists'],
-    queryFn: () => fetchFeaturedArtists(8),
+    queryFn: () => fetchFeaturedArtists(6),
   });
 
+  // Ensure we have unique artists by ID
   const uniqueArtists = React.useMemo(() => {
     const uniqueMap = new Map();
     
@@ -21,52 +22,70 @@ const FeaturedArtists = () => {
       }
     });
 
-    return Array.from(uniqueMap.values()).slice(0, 4);
+    return Array.from(uniqueMap.values()).slice(0, 6);
   }, [artistsData]);
 
   return (
-    <section className="py-20 px-6 md:px-8 lg:px-12 bg-secondary/30">
-      <div className="max-w-7xl mx-auto">
-        <div className="flex flex-col md:flex-row md:items-end md:justify-between mb-12">
+    <section className="py-16 px-4 bg-[#0A0A12]">
+      <div className="container mx-auto max-w-5xl">
+        <div className="section-header">
           <div>
-            <span className="block text-sm font-medium text-muted-foreground mb-2">Featured</span>
-            <h2 className="text-3xl md:text-4xl font-bold">Trending Artists</h2>
+            <h2 className="section-title">Featured Artists</h2>
+            <p className="section-subtitle">Top artists with upcoming shows to vote on</p>
           </div>
-          
-          <Link 
-            to="/artists" 
-            className="mt-4 md:mt-0 group inline-flex items-center text-foreground hover:text-primary transition-colors"
-          >
-            View all artists
-            <ArrowRight size={16} className="ml-1 transition-transform group-hover:translate-x-1" />
+          <Link to="/artists" className="view-all-button">
+            View all →
           </Link>
         </div>
         
         {isLoading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 md:gap-8">
-            {[...Array(4)].map((_, index) => (
-              <div key={index} className="rounded-xl border border-border bg-card overflow-hidden">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+            {[...Array(6)].map((_, index) => (
+              <div key={index} className="bg-black/40 rounded-lg overflow-hidden border border-white/10">
                 <Skeleton className="aspect-square w-full" />
-                <div className="p-5 space-y-2">
-                  <Skeleton className="h-5 w-3/4" />
-                  <Skeleton className="h-4 w-1/2" />
-                  <Skeleton className="h-4 w-2/3 mt-4" />
+                <div className="p-3">
+                  <Skeleton className="h-4 w-2/3 mb-1" />
+                  <Skeleton className="h-3 w-1/2" />
                 </div>
               </div>
             ))}
           </div>
         ) : error ? (
           <div className="text-center py-10">
-            <p className="text-muted-foreground">Unable to load featured artists</p>
+            <p className="text-white/60">Unable to load featured artists</p>
           </div>
         ) : uniqueArtists.length === 0 ? (
           <div className="text-center py-10">
-            <p className="text-muted-foreground">No featured artists found</p>
+            <p className="text-white/60">No featured artists found</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 md:gap-8">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
             {uniqueArtists.map(artist => (
-              <ArtistCard key={artist.id} artist={artist} />
+              <Link 
+                key={artist.id}
+                to={`/artists/${artist.id}`}
+                className="bg-black/40 rounded-lg overflow-hidden border border-white/10 hover:border-white/30 transition-all hover:scale-[1.02]"
+              >
+                <div className="aspect-square overflow-hidden relative">
+                  {artist.image ? (
+                    <img 
+                      src={artist.image} 
+                      alt={artist.name} 
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-secondary/20 flex items-center justify-center">
+                      <Music className="h-12 w-12 text-white/40" />
+                    </div>
+                  )}
+                </div>
+                <div className="p-3 text-left">
+                  <h3 className="font-medium text-sm line-clamp-1">{artist.name}</h3>
+                  <div className="flex items-center mt-1 text-xs text-white/60">
+                    <span>{artist.upcoming_shows || 0} shows</span>
+                  </div>
+                </div>
+              </Link>
             ))}
           </div>
         )}
