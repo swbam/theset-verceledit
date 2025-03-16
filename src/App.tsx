@@ -12,7 +12,8 @@ import Artists from "./pages/Artists";
 import ArtistDetail from "./pages/ArtistDetail";
 import ShowDetail from "./pages/ShowDetail";
 import Shows from "./pages/Shows";
-import Login from "./pages/Login";
+import Auth from "./pages/Auth";
+import AuthCallback from "./pages/AuthCallback";
 import Profile from "./pages/Profile";
 import HowItWorks from "./pages/HowItWorks";
 import CreateShow from "./pages/CreateShow";
@@ -29,11 +30,11 @@ const queryClient = new QueryClient({
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <AuthProvider>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
+    <BrowserRouter>
+      <AuthProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/search" element={<Search />} />
@@ -41,7 +42,8 @@ const App = () => (
             <Route path="/artists/:id" element={<ArtistDetail />} />
             <Route path="/shows" element={<Shows />} />
             <Route path="/shows/:id" element={<ShowDetail />} />
-            <Route path="/login" element={<Login />} />
+            <Route path="/auth" element={<Auth />} />
+            <Route path="/auth/callback" element={<AuthCallback />} />
             <Route 
               path="/profile" 
               element={
@@ -62,9 +64,9 @@ const App = () => (
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
-        </BrowserRouter>
-      </TooltipProvider>
-    </AuthProvider>
+        </TooltipProvider>
+      </AuthProvider>
+    </BrowserRouter>
   </QueryClientProvider>
 );
 

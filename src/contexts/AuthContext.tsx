@@ -1,75 +1,211 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { User, Session } from '@supabase/supabase-js';
+import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-
-interface User {
-  id: string;
-  name: string;
-  email?: string;
-  image?: string;
-}
+import { supabase } from '@/integrations/supabase/client';
 
 interface AuthContextType {
   user: User | null;
+  profile: any | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  login: () => void;
-  logout: () => void;
+  session: Session | null;
+  loginWithEmail: (email: string, password: string) => Promise<void>;
+  loginWithGoogle: () => Promise<void>;
+  loginWithSpotify: () => Promise<void>;
+  signup: (email: string, password: string, username?: string) => Promise<void>;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Mock user for demo
-const MOCK_USER: User = {
-  id: 'spotify-user-123',
-  name: 'Demo User',
-  email: 'user@example.com',
-  image: 'https://i.pravatar.cc/150?img=68',
-};
-
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [profile, setProfile] = useState<any | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const navigate = useNavigate();
 
   useEffect(() => {
     // Check for existing session
-    const checkSession = () => {
-      const savedUser = localStorage.getItem('user');
-      if (savedUser) {
-        setUser(JSON.parse(savedUser));
+    const checkSession = async () => {
+      try {
+        const { data, error } = await supabase.auth.getSession();
+        
+        if (error) {
+          console.error('Error checking session:', error);
+          return;
+        }
+
+        setSession(data.session);
+        
+        if (data.session?.user) {
+          setUser(data.session.user);
+          await fetchUserProfile(data.session.user.id);
+        }
+      } catch (error) {
+        console.error('Error checking authentication:', error);
+      } finally {
+        setIsLoading(false);
       }
-      setIsLoading(false);
     };
 
     checkSession();
+
+    // Listen for auth state changes
+    const { data: authListener } = supabase.auth.onAuthStateChange(
+      async (event, currentSession) => {
+        console.log('Auth state changed:', event);
+        setSession(currentSession);
+        setUser(currentSession?.user || null);
+        
+        if (currentSession?.user) {
+          await fetchUserProfile(currentSession.user.id);
+        } else {
+          setProfile(null);
+        }
+        
+        setIsLoading(false);
+      }
+    );
+
+    return () => {
+      authListener?.subscription?.unsubscribe();
+    };
   }, []);
 
-  const login = () => {
-    // In a real app, this would redirect to Spotify OAuth
-    setIsLoading(true);
-    
-    // Simulate API call delay
-    setTimeout(() => {
-      setUser(MOCK_USER);
-      localStorage.setItem('user', JSON.stringify(MOCK_USER));
-      setIsLoading(false);
-      toast.success('Logged in successfully!');
-    }, 1000);
+  const fetchUserProfile = async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+      
+      if (error) {
+        console.error('Error fetching user profile:', error);
+        return;
+      }
+      
+      setProfile(data);
+    } catch (error) {
+      console.error('Error fetching user profile:', error);
+    }
   };
 
-  const logout = () => {
-    setUser(null);
-    localStorage.removeItem('user');
-    toast.info('Logged out successfully');
+  const loginWithEmail = async (email: string, password: string) => {
+    setIsLoading(true);
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) throw error;
+      
+      toast.success('Logged in successfully!');
+      navigate('/');
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to login');
+      console.error('Login error:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const loginWithGoogle = async () => {
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+        },
+      });
+
+      if (error) throw error;
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to login with Google');
+      console.error('Google login error:', error);
+    }
+  };
+
+  const loginWithSpotify = async () => {
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'spotify',
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+          scopes: 'user-read-email user-read-private',
+        },
+      });
+
+      if (error) throw error;
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to login with Spotify');
+      console.error('Spotify login error:', error);
+    }
+  };
+
+  const signup = async (email: string, password: string, username?: string) => {
+    setIsLoading(true);
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            username: username || email.split('@')[0],
+          },
+        },
+      });
+
+      if (error) throw error;
+      
+      toast.success('Account created successfully!');
+      
+      // Check if email confirmation is required
+      if (data.user && !data.user.confirmed_at) {
+        toast.info('Please check your email to confirm your account');
+      } else {
+        navigate('/');
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to create account');
+      console.error('Signup error:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const logout = async () => {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      
+      setUser(null);
+      setProfile(null);
+      setSession(null);
+      toast.info('Logged out successfully');
+      navigate('/');
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to log out');
+      console.error('Logout error:', error);
+    }
   };
 
   return (
     <AuthContext.Provider
       value={{
         user,
+        profile,
         isLoading,
         isAuthenticated: !!user,
-        login,
+        session,
+        loginWithEmail,
+        loginWithGoogle,
+        loginWithSpotify,
+        signup,
         logout,
       }}
     >
