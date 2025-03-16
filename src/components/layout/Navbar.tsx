@@ -1,14 +1,20 @@
+
 import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Menu, X } from 'lucide-react';
+import { Menu, X, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { useNavigate } from 'react-router-dom';
 import UserProfile from '@/components/auth/UserProfile';
 import { useIsMobile } from '@/hooks/use-mobile';
 
-const Navbar = () => {
+const Navbar = ({ showSearch = true }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const location = useLocation();
   const isMobile = useIsMobile();
+  const navigate = useNavigate();
+  const isHomePage = location.pathname === '/';
 
   const toggleMenu = () => {
     setIsMenuOpen(!isMenuOpen);
@@ -25,12 +31,40 @@ const Navbar = () => {
     return location.pathname.startsWith(path);
   };
 
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (searchQuery.trim()) {
+      navigate(`/search?q=${encodeURIComponent(searchQuery)}`);
+      setSearchQuery('');
+    }
+  };
+
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-16 items-center justify-between">
         <Link to="/" className="flex items-center" onClick={closeMenu}>
           <span className="text-xl font-semibold bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent">TheSet</span>
         </Link>
+
+        {!isHomePage && showSearch && !isMobile && (
+          <form onSubmit={handleSearch} className="w-64 hidden md:flex mx-4 relative">
+            <Input
+              type="text"
+              placeholder="Search artists..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pr-8"
+            />
+            <Button 
+              type="submit" 
+              variant="ghost" 
+              size="icon"
+              className="absolute right-0 top-0 h-full"
+            >
+              <Search size={18} />
+            </Button>
+          </form>
+        )}
 
         {isMobile ? (
           <>
@@ -54,8 +88,8 @@ const Navbar = () => {
                     Home
                   </Link>
                   <Link
-                    to="/search"
-                    className={`text-lg ${isActive('/search') || isActive('/artists') ? 'font-semibold text-primary' : 'text-foreground'}`}
+                    to="/artists"
+                    className={`text-lg ${isActive('/artists') ? 'font-semibold text-primary' : 'text-foreground'}`}
                     onClick={closeMenu}
                   >
                     Artists
@@ -74,6 +108,27 @@ const Navbar = () => {
                   >
                     How It Works
                   </Link>
+                  {!isHomePage && (
+                    <form onSubmit={handleSearch} className="mt-2">
+                      <div className="relative">
+                        <Input
+                          type="text"
+                          placeholder="Search artists..."
+                          value={searchQuery}
+                          onChange={(e) => setSearchQuery(e.target.value)}
+                          className="pr-8"
+                        />
+                        <Button 
+                          type="submit" 
+                          variant="ghost" 
+                          size="icon"
+                          className="absolute right-0 top-0 h-full"
+                        >
+                          <Search size={18} />
+                        </Button>
+                      </div>
+                    </form>
+                  )}
                   <div className="mt-4">
                     <UserProfile />
                   </div>
@@ -91,8 +146,8 @@ const Navbar = () => {
                 Home
               </Link>
               <Link
-                to="/search"
-                className={`text-sm font-medium ${isActive('/search') || isActive('/artists') ? 'text-primary' : 'text-foreground/80 hover:text-foreground'}`}
+                to="/artists"
+                className={`text-sm font-medium ${isActive('/artists') ? 'text-primary' : 'text-foreground/80 hover:text-foreground'}`}
               >
                 Artists
               </Link>

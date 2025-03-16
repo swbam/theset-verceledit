@@ -1,48 +1,61 @@
 
-import React from 'react';
-import { ArrowRight } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { ArrowRight, Search } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 
 const Hero = () => {
+  const [searchQuery, setSearchQuery] = useState('');
+  const navigate = useNavigate();
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (searchQuery.trim()) {
+      navigate(`/search?q=${encodeURIComponent(searchQuery)}`);
+    }
+  };
+
   return (
-    <section className="relative min-h-[90vh] flex items-center justify-center px-6 overflow-hidden">
-      {/* Background gradient */}
-      <div className="absolute inset-0 bg-gradient-to-b from-background to-background/50 z-0" />
-      
-      {/* Animated background circles */}
-      <div className="absolute top-1/4 -left-20 w-80 h-80 bg-primary/5 rounded-full filter blur-3xl animate-pulse-slow" />
-      <div className="absolute bottom-1/4 right-0 w-96 h-96 bg-primary/5 rounded-full filter blur-3xl animate-pulse-slow" style={{ animationDelay: '1s' }} />
-      
-      <div className="relative z-10 max-w-3xl text-center">
-        <div className="inline-block animate-fade-in mb-4">
-          <span className="bg-primary/10 text-primary-foreground/80 px-3 py-1 rounded-full text-sm font-medium tracking-wide">
-            Launching Soon
-          </span>
-        </div>
-        
-        <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold tracking-tight animate-fade-in text-balance" style={{ animationDelay: '0.2s' }}>
-          Help Shape the Perfect Concert Experience
-        </h1>
-        
-        <p className="mt-6 text-xl text-foreground/80 animate-fade-in text-balance max-w-2xl mx-auto" style={{ animationDelay: '0.4s' }}>
-          Vote on setlists for upcoming concerts, influence what your favorite artists play, and connect with other fans.
-        </p>
-        
-        <div className="mt-10 flex flex-col sm:flex-row items-center justify-center space-y-4 sm:space-y-0 sm:space-x-4 animate-fade-in" style={{ animationDelay: '0.6s' }}>
-          <Link 
-            to="/artists" 
-            className="bg-primary text-primary-foreground px-8 py-3 rounded-lg font-medium hover:opacity-90 transition-opacity flex items-center"
+    <section className="relative bg-primary text-primary-foreground overflow-hidden">
+      <div className="absolute inset-0 bg-[url('/placeholder.svg')] opacity-10"></div>
+      <div className="container relative z-10 py-20 md:py-32">
+        <div className="max-w-3xl mx-auto text-center">
+          <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-6">
+            Vote on the setlists you want to hear
+          </h1>
+          <p className="text-xl md:text-2xl mb-10 opacity-90">
+            Discover upcoming concerts and help shape the perfect show
+          </p>
+
+          <form onSubmit={handleSearch} className="flex flex-col sm:flex-row gap-3 max-w-xl mx-auto mb-8">
+            <div className="relative flex-grow">
+              <Input
+                type="text"
+                placeholder="Search for artists with upcoming shows..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="h-12 pl-4 pr-10 bg-white/20 border-white/30 text-white placeholder:text-white/60 focus-visible:ring-white"
+              />
+              <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-white/60" size={20} />
+            </div>
+            <Button 
+              type="submit" 
+              size="lg" 
+              className="bg-white text-primary hover:bg-white/90"
+            >
+              Search
+            </Button>
+          </form>
+
+          <Button 
+            variant="link" 
+            className="text-white group"
+            onClick={() => navigate('/shows')}
           >
-            Discover Artists
-            <ArrowRight size={18} className="ml-2" />
-          </Link>
-          
-          <Link 
-            to="/how-it-works" 
-            className="bg-transparent border border-border hover:border-foreground/30 px-8 py-3 rounded-lg font-medium transition-all"
-          >
-            How It Works
-          </Link>
+            Browse all upcoming shows
+            <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
+          </Button>
         </div>
       </div>
     </section>

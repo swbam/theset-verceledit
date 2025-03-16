@@ -1,109 +1,96 @@
 
-import React, { useState } from 'react';
+import React from 'react';
 import { Link } from 'react-router-dom';
-import { Calendar, MapPin } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { Calendar, MapPin, ExternalLink, Music } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { formatDate } from '@/lib/api/mock-service';
 
-interface ShowProps {
+interface ShowCardProps {
   show: {
     id: string;
     name: string;
-    date: string;
+    date?: string;
     image_url?: string;
-    venue: {
-      name: string;
-      city: string;
-      state: string;
+    ticket_url?: string;
+    venue?: {
+      name?: string;
+      city?: string;
+      state?: string;
     };
-    artist: {
-      name: string;
+    artist?: {
+      name?: string;
     };
   };
-  className?: string;
 }
 
-const ShowCard = ({ show, className }: ShowProps) => {
-  const [imageLoaded, setImageLoaded] = useState(false);
-  
-  // Format date with fallback for invalid dates
-  const formatDate = (dateString: string) => {
-    try {
-      const date = new Date(dateString);
-      // Check if date is valid
-      if (isNaN(date.getTime())) {
-        return "Date TBA";
-      }
-      return new Intl.DateTimeFormat('en-US', {
-        weekday: 'short',
-        month: 'short', 
-        day: 'numeric',
-        year: 'numeric'
-      }).format(date);
-    } catch (error) {
-      console.error("Date formatting error:", error);
-      return "Date TBA";
-    }
-  };
-
+const ShowCard = ({ show }: ShowCardProps) => {
   return (
-    <Link 
-      to={`/shows/${show.id}`} 
-      className={cn(
-        "group block overflow-hidden rounded-xl transition-all hover-scale",
-        "border border-border bg-card shadow-sm",
-        className
-      )}
-    >
-      {show.image_url && (
-        <div className="relative aspect-[16/9] overflow-hidden bg-secondary">
-          {/* Blurred placeholder */}
-          <div className={cn(
-            "absolute inset-0 bg-secondary animate-pulse", 
-            imageLoaded ? "opacity-0" : "opacity-100"
-          )} />
-          
+    <div className="rounded-lg border border-border bg-card overflow-hidden hover:shadow-md transition-all hover:border-primary/30 group relative">
+      <div className="aspect-[5/3] bg-secondary overflow-hidden relative">
+        {show.image_url ? (
           <img
             src={show.image_url}
             alt={show.name}
-            className={cn(
-              "object-cover w-full h-full transition-all duration-500",
-              imageLoaded ? "opacity-100 scale-100" : "opacity-0 scale-110"
-            )}
-            onLoad={() => setImageLoaded(true)}
+            className="w-full h-full object-cover transition-transform group-hover:scale-105"
           />
-        </div>
-      )}
-      
-      <div className="p-5">
-        <div className="flex items-start justify-between">
-          <div>
-            <h3 className="font-semibold text-lg transition-colors group-hover:text-primary">
-              {show.name}
-            </h3>
-            
-            <p className="text-sm text-primary/80 mt-1">{show.artist.name}</p>
+        ) : (
+          <div className="w-full h-full flex items-center justify-center bg-secondary/50">
+            <Music className="h-10 w-10 text-muted-foreground/50" />
           </div>
-        </div>
+        )}
+      </div>
+      
+      <div className="p-4">
+        <h3 className="font-medium text-lg mb-1 line-clamp-1 group-hover:text-primary transition-colors">
+          {show.name}
+        </h3>
         
-        <div className="mt-4 space-y-2">
+        {show.artist?.name && (
+          <p className="text-primary/80 text-sm mb-3">
+            {show.artist.name}
+          </p>
+        )}
+        
+        <div className="space-y-2 mb-4">
           <div className="flex items-center text-sm text-muted-foreground">
-            <Calendar size={16} className="mr-2" />
-            {formatDate(show.date)}
+            <Calendar size={16} className="mr-2 flex-shrink-0" />
+            <span>{formatDate(show.date, true)}</span>
           </div>
           
-          <div className="flex items-center text-sm text-muted-foreground">
-            <MapPin size={16} className="mr-2" />
-            {show.venue.name}, {show.venue.city}, {show.venue.state}
-          </div>
+          {show.venue && (
+            <div className="flex items-center text-sm text-muted-foreground">
+              <MapPin size={16} className="mr-2 flex-shrink-0" />
+              <span className="line-clamp-1">
+                {show.venue.name}
+                {show.venue.city && `, ${show.venue.city}`}
+                {show.venue.state && `, ${show.venue.state}`}
+              </span>
+            </div>
+          )}
         </div>
         
-        <div className="mt-5 pt-4 border-t border-border">
-          <span className="inline-block text-sm font-medium transition-colors bg-secondary/70 px-3 py-1 rounded-full group-hover:bg-primary/10 group-hover:text-primary">
-            View Setlist
-          </span>
+        <div className="flex items-center gap-2">
+          <Button asChild className="w-full" size="sm">
+            <Link to={`/shows/${show.id}`}>
+              View Setlist
+            </Link>
+          </Button>
+          
+          {show.ticket_url && (
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="flex-shrink-0"
+              asChild
+            >
+              <a href={show.ticket_url} target="_blank" rel="noopener noreferrer">
+                <ExternalLink size={16} />
+              </a>
+            </Button>
+          )}
         </div>
       </div>
-    </Link>
+    </div>
   );
 };
 

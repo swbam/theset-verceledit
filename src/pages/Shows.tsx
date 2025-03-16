@@ -1,6 +1,6 @@
 
-import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { 
   PlusCircle, 
@@ -8,82 +8,114 @@ import {
   Search, 
   Music, 
   MapPin, 
-  ArrowRight 
+  ArrowRight,
+  Filter 
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { 
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { toast } from 'sonner';
 import ShowCard from '@/components/shows/ShowCard';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
-
-// This would come from your API in a real app
-const mockFetchShows = async () => {
-  // Simulate API delay
-  await new Promise(resolve => setTimeout(resolve, 500));
-  
-  return [
-    {
-      id: "show1",
-      name: "The Eras Tour",
-      date: "2023-11-10T19:30:00",
-      image_url: "https://images.unsplash.com/photo-1501386761578-eac5c94b800a?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=800&q=80",
-      artist: {
-        name: "Taylor Swift",
-      },
-      venue: {
-        name: "Madison Square Garden",
-        city: "New York",
-        state: "NY",
-      }
-    },
-    {
-      id: "show2",
-      name: "World Tour",
-      date: "2023-12-15T20:00:00",
-      image_url: "https://images.unsplash.com/photo-1540039155733-5bb30b53aa14?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=800&q=80",
-      artist: {
-        name: "Kendrick Lamar",
-      },
-      venue: {
-        name: "Staples Center",
-        city: "Los Angeles",
-        state: "CA",
-      }
-    },
-    {
-      id: "show3",
-      name: "Renaissance World Tour",
-      date: "2024-01-20T19:00:00",
-      image_url: "https://images.unsplash.com/photo-1565035010268-a3816f98589a?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=800&q=80",
-      artist: {
-        name: "Beyoncé",
-      },
-      venue: {
-        name: "Wembley Stadium",
-        city: "London",
-        state: "UK",
-      }
-    }
-  ];
-};
+import { fetchShowsByGenre, popularMusicGenres, fetchFeaturedShows } from '@/lib/ticketmaster';
 
 const Shows = () => {
-  const [search, setSearch] = useState("");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchQuery, setSearchQuery] = useState('');
+  const genreParam = searchParams.get('genre');
+  const artistParam = searchParams.get('artist');
   
-  const { data: shows, isLoading } = useQuery({
-    queryKey: ['shows'],
-    queryFn: mockFetchShows
+  const [selectedGenre, setSelectedGenre] = useState(genreParam || '');
+  
+  // When URL params change, update state
+  useEffect(() => {
+    if (genreParam) {
+      setSelectedGenre(genreParam);
+    }
+  }, [genreParam]);
+  
+  // Fetch shows based on filter criteria
+  const { 
+    data: shows = [], 
+    isLoading,
+    error
+  } = useQuery({
+    queryKey: ['shows', selectedGenre, artistParam],
+    queryFn: async () => {
+      if (artistParam) {
+        // Fetch shows for this artist
+        try {
+          const { fetchArtistEvents } = await import('@/lib/ticketmaster');
+          return fetchArtistEvents(artistParam);
+        } catch (error) {
+          console.error("Error fetching artist events:", error);
+          toast.error("Failed to load shows for this artist");
+          return [];
+        }
+      } else if (selectedGenre) {
+        // Find the genre ID based on name
+        const genreObj = popularMusicGenres.find(g => g.name === selectedGenre);
+        if (genreObj) {
+          return fetchShowsByGenre(genreObj.id, 24); // Show more results on this page
+        } 
+        return [];
+      } else {
+        // Default to featured shows if no filters
+        return fetchFeaturedShows(24);
+      }
+    }
   });
+
+  const handleGenreChange = (value: string) => {
+    setSelectedGenre(value);
+    const newParams = new URLSearchParams(searchParams);
+    
+    if (value) {
+      newParams.set('genre', value);
+      // Remove artist param if genre is selected
+      newParams.delete('artist');
+    } else {
+      newParams.delete('genre');
+    }
+    
+    setSearchParams(newParams);
+  };
+  
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    // Filter shows client-side based on search
+    if (searchQuery.trim()) {
+      toast.info(`Searching for "${searchQuery}"...`);
+    }
+  };
   
   // Filter shows based on search input
-  const filteredShows = shows ? shows.filter((show: any) => {
-    const searchLower = search.toLowerCase();
+  const filteredShows = shows.filter((show: any) => {
+    if (!searchQuery.trim()) return true;
+    
+    const query = searchQuery.toLowerCase();
     return (
-      show.name.toLowerCase().includes(searchLower) ||
-      show.artist.name.toLowerCase().includes(searchLower) ||
-      show.venue.name.toLowerCase().includes(searchLower) ||
-      `${show.venue.city}, ${show.venue.state}`.toLowerCase().includes(searchLower)
+      show.name?.toLowerCase().includes(query) ||
+      show.artist?.name?.toLowerCase().includes(query) ||
+      show.venue?.name?.toLowerCase().includes(query) ||
+      show.venue?.city?.toLowerCase().includes(query)
     );
-  }) : [];
+  });
+  
+  // Generate page title based on filters
+  const pageTitle = artistParam 
+    ? `Shows for ${artistParam}` 
+    : selectedGenre 
+      ? `${selectedGenre} Shows` 
+      : "Upcoming Shows";
   
   return (
     <div className="min-h-screen flex flex-col">
@@ -95,12 +127,12 @@ const Shows = () => {
           <div className="max-w-7xl mx-auto">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between">
               <div className="md:w-1/2">
-                <h1 className="text-3xl md:text-4xl font-bold mb-4">Upcoming Shows</h1>
+                <h1 className="text-3xl md:text-4xl font-bold mb-4">{pageTitle}</h1>
                 <p className="md:text-lg opacity-90 mb-6">
                   Browse upcoming concerts and vote on the setlists you want to hear
                 </p>
                 
-                <div className="flex space-x-4">
+                <div className="flex flex-wrap gap-4">
                   <Link to="/shows/create">
                     <Button size="lg" className="gap-2">
                       <PlusCircle size={18} />
@@ -140,16 +172,33 @@ const Shows = () => {
         {/* Shows section */}
         <section className="px-6 md:px-8 lg:px-12 py-12">
           <div className="max-w-7xl mx-auto">
-            <div className="mb-8">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground" size={18} />
-                <input
-                  type="text"
-                  placeholder="Search shows by artist, venue, or location..."
-                  className="w-full pl-10 pr-4 py-2 rounded-lg border border-border bg-background"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                />
+            <div className="mb-8 flex flex-col md:flex-row gap-4 md:items-center justify-between">
+              <div className="flex-1 md:max-w-md">
+                <form onSubmit={handleSearch} className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground" size={18} />
+                  <Input
+                    type="text"
+                    placeholder="Search shows by name, artist, or venue..."
+                    className="w-full pl-10 pr-4 py-2"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
+                </form>
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <Filter size={18} className="text-muted-foreground" />
+                <Select value={selectedGenre} onValueChange={handleGenreChange}>
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder="All Genres" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">All Genres</SelectItem>
+                    {popularMusicGenres.map(genre => (
+                      <SelectItem key={genre.id} value={genre.name}>{genre.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
             
@@ -166,7 +215,14 @@ const Shows = () => {
                   </div>
                 ))}
               </div>
-            ) : filteredShows && filteredShows.length > 0 ? (
+            ) : error ? (
+              <div className="text-center py-12 border border-border rounded-lg">
+                <p className="text-lg text-red-500 mb-4">Error loading shows</p>
+                <Button variant="outline" onClick={() => window.location.reload()}>
+                  Try Again
+                </Button>
+              </div>
+            ) : filteredShows.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {filteredShows.map((show: any) => (
                   <ShowCard key={show.id} show={show} />
