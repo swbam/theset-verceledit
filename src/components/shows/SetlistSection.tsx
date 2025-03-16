@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Music, AlertCircle, Users, Info, Clock, Trophy } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
@@ -56,11 +57,11 @@ const SetlistSection: React.FC<SetlistSectionProps> = ({
   const userVotedCount = setlist.filter(song => song.userVoted).length;
   
   return (
-    <section className="px-6 md:px-8 lg:px-12 py-12 bg-gradient-to-b from-[#0A0A16] to-[#10101E]">
+    <section className="px-6 md:px-8 lg:px-12 py-12 bg-black">
       <div className="max-w-6xl mx-auto">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2">
-            <Card className="bg-[#0A0A16] border-white/10 shadow-lg overflow-hidden">
+            <Card className="bg-[#0A0A0A] border-white/10 shadow-lg overflow-hidden">
               <CardHeader className="pb-4 border-b border-white/10">
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                   <div>
@@ -85,7 +86,7 @@ const SetlistSection: React.FC<SetlistSectionProps> = ({
                             <span>{totalVotes} {totalVotes === 1 ? 'vote' : 'votes'}</span>
                           </div>
                         </TooltipTrigger>
-                        <TooltipContent className="bg-[#0A0A16] border-white/10 text-white">
+                        <TooltipContent className="bg-[#0A0A0A] border-white/10 text-white">
                           <p>Total votes across all songs</p>
                         </TooltipContent>
                       </Tooltip>
@@ -100,7 +101,7 @@ const SetlistSection: React.FC<SetlistSectionProps> = ({
                               <span>songs voted</span>
                             </div>
                           </TooltipTrigger>
-                          <TooltipContent className="bg-[#0A0A16] border-white/10 text-white">
+                          <TooltipContent className="bg-[#0A0A0A] border-white/10 text-white">
                             <p>You've voted for {userVotedCount} songs</p>
                           </TooltipContent>
                         </Tooltip>
@@ -116,7 +117,7 @@ const SetlistSection: React.FC<SetlistSectionProps> = ({
                               <span>Live updates</span>
                             </div>
                           </TooltipTrigger>
-                          <TooltipContent className="bg-[#0A0A16] border-white/10 text-white">
+                          <TooltipContent className="bg-[#0A0A0A] border-white/10 text-white">
                             <p>You're seeing votes in real time</p>
                           </TooltipContent>
                         </Tooltip>
@@ -167,7 +168,7 @@ const SetlistSection: React.FC<SetlistSectionProps> = ({
                             <Button 
                               size="sm" 
                               onClick={login}
-                              className="bg-white text-[#0A0A16] hover:bg-white/90"
+                              className="bg-white text-black hover:bg-white/90"
                             >
                               Log In
                             </Button>
@@ -189,7 +190,7 @@ const SetlistSection: React.FC<SetlistSectionProps> = ({
                           <TooltipTrigger>
                             <Info className="h-4 w-4 text-white/40" />
                           </TooltipTrigger>
-                          <TooltipContent side="top" className="bg-[#0A0A16] border-white/10 text-white">
+                          <TooltipContent side="top" className="bg-[#0A0A0A] border-white/10 text-white">
                             <p>Votes are updated in real time</p>
                           </TooltipContent>
                         </Tooltip>
@@ -202,7 +203,7 @@ const SetlistSection: React.FC<SetlistSectionProps> = ({
           </div>
           
           <div className="space-y-6">
-            <Card className="bg-[#0A0A16] border-white/10 shadow-lg">
+            <Card className="bg-[#0A0A0A] border-white/10 shadow-lg">
               <CardHeader>
                 <CardTitle className="text-xl font-bold flex items-center gap-2 text-white">
                   <Trophy className="h-5 w-5 text-white/70" />
@@ -242,7 +243,7 @@ const SetlistSection: React.FC<SetlistSectionProps> = ({
               </CardContent>
             </Card>
             
-            <Card className="bg-[#0A0A16] border-white/10 shadow-lg">
+            <Card className="bg-[#0A0A0A] border-white/10 shadow-lg">
               <CardHeader>
                 <CardTitle className="text-xl font-bold flex items-center gap-2 text-white">
                   <Info className="h-5 w-5 text-white/70" />

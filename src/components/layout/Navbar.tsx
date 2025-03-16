@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Menu, X, Search } from 'lucide-react';
@@ -105,7 +104,7 @@ const Navbar = ({ showSearch = true }) => {
             </Button>
 
             {isMenuOpen && (
-              <div className="fixed inset-0 top-16 z-50 bg-background animate-in slide-in-from-top-5">
+              <div className="fixed inset-0 top-16 z-50 bg-black animate-in slide-in-from-top-5">
                 <nav className="container flex flex-col gap-6 p-6">
                   <Link
                     to="/"
