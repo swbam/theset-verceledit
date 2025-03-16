@@ -1,3 +1,4 @@
+
 import { toast } from "sonner";
 
 // Ticketmaster API key
@@ -11,9 +12,10 @@ export async function searchArtistsWithEvents(query: string, limit = 10): Promis
   try {
     if (!query.trim()) return [];
     
-    const url = `${TICKETMASTER_BASE_URL}/events.json?keyword=${encodeURIComponent(
+    // Use a proxy to avoid CORS issues
+    const url = `/api/ticketmaster?endpoint=events.json&keyword=${encodeURIComponent(
       query
-    )}&segmentName=Music&sort=date,asc&size=${limit}&apikey=${TICKETMASTER_API_KEY}`;
+    )}&segmentName=Music&sort=date,asc&size=${limit}`;
 
     const response = await fetch(url);
     
@@ -31,26 +33,35 @@ export async function searchArtistsWithEvents(query: string, limit = 10): Promis
     const artistsMap = new Map();
     
     data._embedded.events.forEach((event: any) => {
-      // Extract artist name from event name (this is a simplification)
-      // In a real app, we'd use a more robust method to extract artist names
-      const artistName = event.name.split(' at ')[0].split(' - ')[0].trim();
+      // Get artist from attractions if available
+      let artistName = '';
+      let artistId = '';
+      let artistImage = '';
       
-      if (!artistsMap.has(artistName)) {
-        const artistImage = event.images.find((img: any) => img.ratio === "16_9" && img.width > 500)?.url;
-        
-        artistsMap.set(artistName, {
+      if (event._embedded?.attractions && event._embedded.attractions.length > 0) {
+        const attraction = event._embedded.attractions[0];
+        artistName = attraction.name;
+        artistId = attraction.id;
+        artistImage = attraction.images?.find((img: any) => img.ratio === "16_9" && img.width > 500)?.url;
+      } else {
+        // Fallback to extracting from event name if no attractions
+        artistName = event.name.split(' at ')[0].split(' - ')[0].trim();
+        artistId = `tm-${encodeURIComponent(artistName.toLowerCase().replace(/\s+/g, '-'))}`;
+        artistImage = event.images.find((img: any) => img.ratio === "16_9" && img.width > 500)?.url;
+      }
+      
+      if (!artistsMap.has(artistId)) {
+        artistsMap.set(artistId, {
+          id: artistId,
           name: artistName,
-          // Generate a deterministic ID based on the name since Ticketmaster doesn't provide artist IDs directly
-          id: `tm-${encodeURIComponent(artistName.toLowerCase().replace(/\s+/g, '-'))}`,
           image: artistImage,
-          // Count upcoming shows for this artist
           upcomingShows: 1
         });
       } else {
         // Increment upcoming shows count for this artist
-        const artist = artistsMap.get(artistName);
+        const artist = artistsMap.get(artistId);
         artist.upcomingShows += 1;
-        artistsMap.set(artistName, artist);
+        artistsMap.set(artistId, artist);
       }
     });
     
@@ -67,9 +78,10 @@ export async function searchArtistsWithEvents(query: string, limit = 10): Promis
  */
 export async function fetchArtistEvents(artistName: string): Promise<any[]> {
   try {
-    const url = `${TICKETMASTER_BASE_URL}/events.json?keyword=${encodeURIComponent(
+    // Use a proxy to avoid CORS issues
+    const url = `/api/ticketmaster?endpoint=events.json&keyword=${encodeURIComponent(
       artistName
-    )}&segmentName=Music&sort=date,asc&apikey=${TICKETMASTER_API_KEY}`;
+    )}&segmentName=Music&sort=date,asc`;
 
     const response = await fetch(url);
     
@@ -111,7 +123,8 @@ export async function fetchArtistEvents(artistName: string): Promise<any[]> {
  */
 export async function fetchVenueDetails(venueId: string): Promise<any> {
   try {
-    const url = `${TICKETMASTER_BASE_URL}/venues/${venueId}.json?apikey=${TICKETMASTER_API_KEY}`;
+    // Use a proxy to avoid CORS issues
+    const url = `/api/ticketmaster?endpoint=venues/${venueId}.json`;
     
     const response = await fetch(url);
     
@@ -132,7 +145,8 @@ export async function fetchVenueDetails(venueId: string): Promise<any> {
  */
 export async function fetchShowDetails(eventId: string): Promise<any> {
   try {
-    const url = `${TICKETMASTER_BASE_URL}/events/${eventId}.json?apikey=${TICKETMASTER_API_KEY}`;
+    // Use a proxy to avoid CORS issues
+    const url = `/api/ticketmaster?endpoint=events/${eventId}.json`;
     
     const response = await fetch(url);
     
@@ -142,9 +156,19 @@ export async function fetchShowDetails(eventId: string): Promise<any> {
     
     const event = await response.json();
     
-    // Extract the artist name to use for getting artist ID
-    const artistName = event.name.split(' at ')[0].split(' - ')[0].trim();
-    const artistId = `tm-${encodeURIComponent(artistName.toLowerCase().replace(/\s+/g, '-'))}`;
+    // Get artist from attractions if available
+    let artistName = '';
+    let artistId = '';
+    
+    if (event._embedded?.attractions && event._embedded.attractions.length > 0) {
+      const attraction = event._embedded.attractions[0];
+      artistName = attraction.name;
+      artistId = attraction.id;
+    } else {
+      // Fallback to extracting from event name
+      artistName = event.name.split(' at ')[0].split(' - ')[0].trim();
+      artistId = `tm-${encodeURIComponent(artistName.toLowerCase().replace(/\s+/g, '-'))}`;
+    }
     
     return {
       id: event.id,
@@ -178,7 +202,8 @@ export async function fetchShowDetails(eventId: string): Promise<any> {
  */
 export async function fetchShowsByGenre(genreId: string, limit = 8): Promise<any[]> {
   try {
-    const url = `${TICKETMASTER_BASE_URL}/events.json?classificationId=${genreId}&segmentName=Music&sort=date,asc&size=${limit}&apikey=${TICKETMASTER_API_KEY}`;
+    // Use a proxy to avoid CORS issues
+    const url = `/api/ticketmaster?endpoint=events.json&classificationId=${genreId}&segmentName=Music&sort=date,asc&size=${limit}`;
 
     const response = await fetch(url);
     
@@ -192,28 +217,169 @@ export async function fetchShowsByGenre(genreId: string, limit = 8): Promise<any
       return [];
     }
 
-    return data._embedded.events.map((event: any) => ({
-      id: event.id,
-      name: event.name,
-      date: event.dates.start.dateTime,
-      venue: event._embedded?.venues?.[0]
-        ? {
-            id: event._embedded.venues[0].id,
-            name: event._embedded.venues[0].name,
-            city: event._embedded.venues[0].city?.name,
-            state: event._embedded.venues[0].state?.name,
-            country: event._embedded.venues[0].country?.name,
-          }
-        : null,
-      ticket_url: event.url,
-      image_url: event.images.find((img: any) => img.ratio === "16_9" && img.width > 500)?.url,
-      artist: {
-        name: event.name.split(' at ')[0].split(' - ')[0].trim()
+    return data._embedded.events.map((event: any) => {
+      // Get artist from attractions if available
+      let artistName = '';
+      let artistId = '';
+      
+      if (event._embedded?.attractions && event._embedded.attractions.length > 0) {
+        const attraction = event._embedded.attractions[0];
+        artistName = attraction.name;
+        artistId = attraction.id;
+      } else {
+        // Fallback to extracting from event name
+        artistName = event.name.split(' at ')[0].split(' - ')[0].trim();
+        artistId = `tm-${encodeURIComponent(artistName.toLowerCase().replace(/\s+/g, '-'))}`;
       }
-    }));
+      
+      return {
+        id: event.id,
+        name: event.name,
+        date: event.dates.start.dateTime,
+        venue: event._embedded?.venues?.[0]
+          ? {
+              id: event._embedded.venues[0].id,
+              name: event._embedded.venues[0].name,
+              city: event._embedded.venues[0].city?.name,
+              state: event._embedded.venues[0].state?.name,
+              country: event._embedded.venues[0].country?.name,
+            }
+          : null,
+        ticket_url: event.url,
+        image_url: event.images.find((img: any) => img.ratio === "16_9" && img.width > 500)?.url,
+        artist: {
+          id: artistId,
+          name: artistName
+        }
+      };
+    });
   } catch (error) {
     console.error("Ticketmaster events by genre error:", error);
     toast.error("Failed to load shows for this genre");
+    return [];
+  }
+}
+
+/**
+ * Fetch featured artists with upcoming shows
+ */
+export async function fetchFeaturedArtists(limit = 4): Promise<any[]> {
+  try {
+    // Use a proxy to avoid CORS issues
+    const url = `/api/ticketmaster?endpoint=events.json&size=50&segmentName=Music&sort=date,asc`;
+    
+    const response = await fetch(url);
+    
+    if (!response.ok) {
+      throw new Error("Failed to fetch events from Ticketmaster");
+    }
+    
+    const data = await response.json();
+
+    if (!data._embedded?.events) {
+      return [];
+    }
+
+    // Extract unique artists from events
+    const artistsMap = new Map();
+    
+    data._embedded.events.forEach((event: any) => {
+      if (event._embedded?.attractions && event._embedded.attractions.length > 0) {
+        event._embedded.attractions.forEach((attraction: any) => {
+          if (!artistsMap.has(attraction.id) && attraction.classifications?.[0]?.segment?.name === "Music") {
+            const image = attraction.images?.find((img: any) => img.ratio === "1_1")?.url || 
+                         attraction.images?.find((img: any) => img.ratio === "16_9")?.url;
+            
+            const genres = [];
+            if (attraction.classifications?.[0]?.genre?.name) {
+              genres.push(attraction.classifications[0].genre.name);
+            }
+            if (attraction.classifications?.[0]?.subGenre?.name) {
+              genres.push(attraction.classifications[0].subGenre.name);
+            }
+            
+            artistsMap.set(attraction.id, {
+              id: attraction.id,
+              name: attraction.name,
+              image: image,
+              genres: genres,
+              upcoming_shows: 1
+            });
+          } else if (artistsMap.has(attraction.id)) {
+            // Increment upcoming shows count for this artist
+            const artist = artistsMap.get(attraction.id);
+            artist.upcoming_shows += 1;
+            artistsMap.set(attraction.id, artist);
+          }
+        });
+      }
+    });
+    
+    // Get the most popular artists (those with most upcoming shows)
+    return Array.from(artistsMap.values())
+      .sort((a, b) => b.upcoming_shows - a.upcoming_shows)
+      .slice(0, limit);
+  } catch (error) {
+    console.error("Ticketmaster featured artists error:", error);
+    toast.error("Failed to load featured artists");
+    return [];
+  }
+}
+
+/**
+ * Fetch featured shows
+ */
+export async function fetchFeaturedShows(limit = 4): Promise<any[]> {
+  try {
+    // Use a proxy to avoid CORS issues
+    const url = `/api/ticketmaster?endpoint=events.json&size=${limit}&segmentName=Music&sort=relevance,desc`;
+    
+    const response = await fetch(url);
+    
+    if (!response.ok) {
+      throw new Error("Failed to fetch events from Ticketmaster");
+    }
+    
+    const data = await response.json();
+
+    if (!data._embedded?.events) {
+      return [];
+    }
+
+    return data._embedded.events.map((event: any) => {
+      // Get artist from attractions if available
+      let artistName = '';
+      
+      if (event._embedded?.attractions && event._embedded.attractions.length > 0) {
+        artistName = event._embedded.attractions[0].name;
+      } else {
+        // Fallback to extracting from event name
+        artistName = event.name.split(' at ')[0].split(' - ')[0].trim();
+      }
+      
+      return {
+        id: event.id,
+        name: event.name,
+        date: event.dates.start.dateTime,
+        venue: event._embedded?.venues?.[0]
+          ? {
+              id: event._embedded.venues[0].id,
+              name: event._embedded.venues[0].name,
+              city: event._embedded.venues[0].city?.name,
+              state: event._embedded.venues[0].state?.name,
+              country: event._embedded.venues[0].country?.name,
+            }
+          : null,
+        ticket_url: event.url,
+        image_url: event.images.find((img: any) => img.ratio === "16_9" && img.width > 500)?.url,
+        artist: {
+          name: artistName
+        }
+      };
+    });
+  } catch (error) {
+    console.error("Ticketmaster featured shows error:", error);
+    toast.error("Failed to load featured shows");
     return [];
   }
 }

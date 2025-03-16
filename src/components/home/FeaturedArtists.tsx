@@ -2,41 +2,17 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
 import ArtistCard from '../artist/ArtistCard';
-
-// Mock data for featured artists
-const featuredArtists = [
-  {
-    id: 'artist1',
-    name: 'Taylor Swift',
-    image: 'https://i.scdn.co/image/ab6761610000e5eb5a00969a4698c3132a15fbb0',
-    genres: ['pop', 'pop rock'],
-    upcoming_shows: 3
-  },
-  {
-    id: 'artist2',
-    name: 'The Weeknd',
-    image: 'https://i.scdn.co/image/ab6761610000e5eb214f3cf1cbe7139c1e26ffbb',
-    genres: ['r&b', 'pop'],
-    upcoming_shows: 2
-  },
-  {
-    id: 'artist3',
-    name: 'Kendrick Lamar',
-    image: 'https://i.scdn.co/image/ab6761610000e5eb437b9e2a82505b3d93ff1022',
-    genres: ['hip hop', 'rap'],
-    upcoming_shows: 4
-  },
-  {
-    id: 'artist4',
-    name: 'Billie Eilish',
-    image: 'https://i.scdn.co/image/ab6761610000e5ebd8b9980db67272cb4d2c3daf',
-    genres: ['pop', 'alt-pop'],
-    upcoming_shows: 1
-  }
-];
+import { fetchFeaturedArtists } from '@/lib/ticketmaster';
+import { Skeleton } from '@/components/ui/skeleton';
 
 const FeaturedArtists = () => {
+  const { data: artists = [], isLoading, error } = useQuery({
+    queryKey: ['featuredArtists'],
+    queryFn: () => fetchFeaturedArtists(4),
+  });
+
   return (
     <section className="py-20 px-6 md:px-8 lg:px-12 bg-secondary/50">
       <div className="max-w-7xl mx-auto">
@@ -55,11 +31,34 @@ const FeaturedArtists = () => {
           </Link>
         </div>
         
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 md:gap-8">
-          {featuredArtists.map(artist => (
-            <ArtistCard key={artist.id} artist={artist} />
-          ))}
-        </div>
+        {isLoading ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 md:gap-8">
+            {[...Array(4)].map((_, index) => (
+              <div key={index} className="rounded-xl border border-border bg-card overflow-hidden">
+                <Skeleton className="aspect-square w-full" />
+                <div className="p-5 space-y-2">
+                  <Skeleton className="h-5 w-3/4" />
+                  <Skeleton className="h-4 w-1/2" />
+                  <Skeleton className="h-4 w-2/3 mt-4" />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : error ? (
+          <div className="text-center py-10">
+            <p className="text-muted-foreground">Unable to load featured artists</p>
+          </div>
+        ) : artists.length === 0 ? (
+          <div className="text-center py-10">
+            <p className="text-muted-foreground">No featured artists found</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 md:gap-8">
+            {artists.map(artist => (
+              <ArtistCard key={artist.id} artist={artist} />
+            ))}
+          </div>
+        )}
       </div>
     </section>
   );
