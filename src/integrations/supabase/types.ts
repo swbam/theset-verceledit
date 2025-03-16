@@ -45,6 +45,54 @@ export type Database = {
         }
         Relationships: []
       }
+      past_setlists: {
+        Row: {
+          artist_id: string
+          created_at: string
+          event_date: string
+          id: string
+          setlist_data: Json
+          setlist_id: string
+          show_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          artist_id: string
+          created_at?: string
+          event_date: string
+          id?: string
+          setlist_data: Json
+          setlist_id: string
+          show_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          artist_id?: string
+          created_at?: string
+          event_date?: string
+          id?: string
+          setlist_data?: Json
+          setlist_id?: string
+          show_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "past_setlists_artist_id_fkey"
+            columns: ["artist_id"]
+            isOneToOne: false
+            referencedRelation: "artists"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "past_setlists_show_id_fkey"
+            columns: ["show_id"]
+            isOneToOne: false
+            referencedRelation: "shows"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null

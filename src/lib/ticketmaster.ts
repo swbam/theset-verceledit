@@ -20,3 +20,17 @@ export {
   saveShowToDatabase,
   saveVenueToDatabase
 } from './api/database-utils';
+
+// Setlist.fm related functions
+export const fetchPastSetlists = async (artistId: string, artistName: string) => {
+  const { data, error } = await supabase.functions.invoke('fetch-past-setlists', {
+    body: { artistId, artistName }
+  });
+  
+  if (error) {
+    console.error("Error fetching past setlists:", error);
+    throw error;
+  }
+  
+  return data.setlists;
+};

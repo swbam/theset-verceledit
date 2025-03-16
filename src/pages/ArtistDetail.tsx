@@ -10,7 +10,6 @@ import UpcomingShows from '@/components/artist/UpcomingShows';
 import ArtistDetailSkeleton from '@/components/artist/ArtistDetailSkeleton';
 import ArtistNotFound from '@/components/artist/ArtistNotFound';
 import PastSetlists from '@/components/artists/PastSetlists';
-import { toast } from 'sonner';
 
 const ArtistDetail = () => {
   const { id } = useParams<{ id: string }>();
