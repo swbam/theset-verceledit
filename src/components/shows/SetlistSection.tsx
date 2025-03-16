@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Music, AlertCircle, Users, Info } from 'lucide-react';
+import { Music, AlertCircle, Users, Info, PlusCircle } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import VotableSetlistTable from '@/components/setlist/VotableSetlistTable';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,12 +9,18 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import ShareSetlistButton from '@/components/setlist/ShareSetlistButton';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface Song {
   id: string;
   name: string;
   votes: number;
   userVoted: boolean;
+}
+
+interface Track {
+  id: string;
+  name: string;
 }
 
 interface SetlistSectionProps {
@@ -25,6 +31,11 @@ interface SetlistSectionProps {
   showId?: string;
   showName?: string;
   artistName?: string;
+  availableTracks?: Track[];
+  isLoadingAllTracks?: boolean;
+  selectedTrack?: string;
+  setSelectedTrack?: (trackId: string) => void;
+  handleAddSong?: () => void;
 }
 
 const SetlistSection: React.FC<SetlistSectionProps> = ({ 
@@ -34,7 +45,12 @@ const SetlistSection: React.FC<SetlistSectionProps> = ({
   handleVote,
   showId = '',
   showName = 'Concert',
-  artistName = 'Artist'
+  artistName = 'Artist',
+  availableTracks = [],
+  isLoadingAllTracks = false,
+  selectedTrack = '',
+  setSelectedTrack = () => {},
+  handleAddSong = () => {}
 }) => {
   const { isAuthenticated, login } = useAuth();
   
@@ -141,6 +157,47 @@ const SetlistSection: React.FC<SetlistSectionProps> = ({
                   onVote={handleVote} 
                   className="animate-fade-in"
                 />
+                
+                {isAuthenticated && (
+                  <div className="p-4 border-t border-border/40">
+                    <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+                      <div className="flex-grow w-full sm:w-auto">
+                        <p className="text-sm font-medium mb-1.5">Add a song to this setlist:</p>
+                        <Select
+                          value={selectedTrack}
+                          onValueChange={setSelectedTrack}
+                          disabled={isLoadingAllTracks || availableTracks.length === 0}
+                        >
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Select a song" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {isLoadingAllTracks ? (
+                              <SelectItem value="loading" disabled>Loading songs...</SelectItem>
+                            ) : availableTracks.length === 0 ? (
+                              <SelectItem value="empty" disabled>No songs available</SelectItem>
+                            ) : (
+                              availableTracks.map((track: any) => (
+                                <SelectItem key={track.id} value={track.id}>
+                                  {track.name}
+                                </SelectItem>
+                              ))
+                            )}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <Button 
+                        onClick={handleAddSong}
+                        disabled={!selectedTrack || isLoadingAllTracks}
+                        className="mt-2 sm:mt-0 flex-shrink-0"
+                        size="sm"
+                      >
+                        <PlusCircle size={16} className="mr-1.5" />
+                        Add to Setlist
+                      </Button>
+                    </div>
+                  </div>
+                )}
                 
                 {!isAuthenticated && (
                   <div className="p-4 mx-4 mb-4 mt-2">

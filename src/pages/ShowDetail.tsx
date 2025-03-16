@@ -1,12 +1,12 @@
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
 import { fetchShowDetails } from '@/lib/ticketmaster';
-import { getArtistTopTracks } from '@/lib/spotify';
+import { getArtistTopTracks, getArtistAllTracks } from '@/lib/spotify';
 import { useRealtimeVotes } from '@/hooks/use-realtime-votes';
 import { useAuth } from '@/contexts/AuthContext';
 import ShowHeader from '@/components/shows/ShowHeader';
@@ -18,6 +18,7 @@ const ShowDetail = () => {
   const { id } = useParams<{ id: string }>();
   const { isAuthenticated, login } = useAuth();
   const navigate = useNavigate();
+  const [selectedTrack, setSelectedTrack] = useState<string>('');
   
   // Fetch show details from Ticketmaster
   const { 
@@ -55,7 +56,7 @@ const ShowDetail = () => {
   // Get Spotify artist ID from artist name
   const spotifyArtistId = show?.artist?.id || '';
   
-  // Fetch artist's top tracks from Spotify to use as setlist
+  // Fetch artist's top tracks from Spotify to use as setlist (limited to 5)
   const {
     data: topTracksData,
     isLoading: isLoadingTracks,
@@ -66,13 +67,35 @@ const ShowDetail = () => {
       if (!spotifyArtistId) throw new Error("Artist ID is required");
       
       try {
-        // Use the Spotify API to get artist's top tracks
-        const tracks = await getArtistTopTracks(spotifyArtistId);
+        // Use the Spotify API to get artist's top 5 tracks
+        const tracks = await getArtistTopTracks(spotifyArtistId, 5);
         return tracks;
       } catch (error) {
         console.error("Error fetching tracks:", error);
         // Instead of throwing, return a fallback
-        return { tracks: generateFallbackTracks(show?.artist?.name || 'Unknown Artist') };
+        return { tracks: generateFallbackTracks(show?.artist?.name || 'Unknown Artist', 5) };
+      }
+    },
+    enabled: !!spotifyArtistId && !isLoadingShow,
+    retry: 2,
+  });
+
+  // Fetch all tracks for the artist for the dropdown
+  const {
+    data: allTracksData,
+    isLoading: isLoadingAllTracks
+  } = useQuery({
+    queryKey: ['artistAllTracks', spotifyArtistId],
+    queryFn: async () => {
+      if (!spotifyArtistId) throw new Error("Artist ID is required");
+      
+      try {
+        // Use the Spotify API to get all artist's tracks
+        const tracks = await getArtistAllTracks(spotifyArtistId);
+        return tracks;
+      } catch (error) {
+        console.error("Error fetching all tracks:", error);
+        return { tracks: [] };
       }
     },
     enabled: !!spotifyArtistId && !isLoadingShow,
@@ -80,9 +103,9 @@ const ShowDetail = () => {
   });
   
   // Generate fallback tracks if Spotify API fails
-  const generateFallbackTracks = (artistName: string) => {
+  const generateFallbackTracks = (artistName: string, count: number = 5) => {
     // Create sample placeholder tracks
-    return Array(10).fill(0).map((_, i) => ({
+    return Array(count).fill(0).map((_, i) => ({
       id: `fallback-${i}`,
       name: `${artistName} Song ${i + 1}`,
       popularity: Math.floor(Math.random() * 100)
@@ -106,7 +129,8 @@ const ShowDetail = () => {
   const {
     songs: setlist,
     isConnected,
-    voteForSong
+    voteForSong,
+    addSongToSetlist
   } = useRealtimeVotes({
     showId: id || '',
     initialSongs
@@ -129,6 +153,39 @@ const ShowDetail = () => {
     voteForSong(songId);
     toast.success("Your vote has been counted!");
   };
+
+  // Handle adding a new song to the setlist
+  const handleAddSong = () => {
+    if (!selectedTrack) return;
+
+    // Find the track in the all tracks data
+    const trackToAdd = allTracksData?.tracks?.find((track: any) => track.id === selectedTrack);
+    
+    if (trackToAdd) {
+      addSongToSetlist({
+        id: trackToAdd.id,
+        name: trackToAdd.name,
+        votes: 1, // Start with 1 vote since the user is adding it
+        userVoted: true
+      });
+      
+      setSelectedTrack(''); // Reset selection
+      toast.success(`"${trackToAdd.name}" added to setlist!`);
+    }
+  };
+
+  // Filter out tracks that are already in the setlist
+  const availableTracks = React.useMemo(() => {
+    if (!allTracksData?.tracks || !setlist) return [];
+    
+    // Get IDs of songs already in the setlist
+    const setlistIds = new Set(setlist.map(song => song.id));
+    
+    // Filter and sort alphabetically
+    return allTracksData.tracks
+      .filter((track: any) => !setlistIds.has(track.id))
+      .sort((a: any, b: any) => a.name.localeCompare(b.name));
+  }, [allTracksData, setlist]);
   
   if (isLoadingShow) {
     return <ShowDetailSkeleton />;
@@ -152,6 +209,11 @@ const ShowDetail = () => {
           showId={id}
           showName={show.name}
           artistName={show.artist?.name || 'Artist'}
+          availableTracks={availableTracks}
+          isLoadingAllTracks={isLoadingAllTracks}
+          selectedTrack={selectedTrack}
+          setSelectedTrack={setSelectedTrack}
+          handleAddSong={handleAddSong}
         />
       </main>
       

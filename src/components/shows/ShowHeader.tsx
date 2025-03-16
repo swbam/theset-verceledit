@@ -73,13 +73,14 @@ const ShowHeader: React.FC<ShowHeaderProps> = ({ show }) => {
       className="relative bg-cover bg-center"
       style={{
         backgroundImage: show.image_url ? `linear-gradient(to bottom, rgba(0,0,0,0.7), rgba(0,0,0,0.4)), url(${show.image_url})` : undefined,
-        backgroundColor: 'rgba(0,0,0,0.8)'
+        backgroundColor: 'rgba(0,0,0,0.8)',
+        height: 'auto' // Reduced height
       }}
     >
-      <div className="px-6 md:px-8 lg:px-12 py-12 relative z-10">
+      <div className="px-6 md:px-8 lg:px-12 py-8 relative z-10"> {/* Reduced vertical padding */}
         <div className="max-w-7xl mx-auto">
           {show.artist && (
-            <Link to={`/artists/${show.artist.id}`} className="text-white/80 hover:text-white inline-flex items-center mb-3 transition-colors">
+            <Link to={`/artists/${show.artist.id}`} className="text-white/80 hover:text-white inline-flex items-center mb-2 transition-colors">
               <ArrowLeft size={16} className="mr-2" />
               Back to artist
             </Link>
@@ -91,11 +92,11 @@ const ShowHeader: React.FC<ShowHeaderProps> = ({ show }) => {
             </span>
           </div>
           
-          <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold text-white mb-2">{show.artist?.name}</h1>
+          <h1 className="text-2xl md:text-3xl lg:text-3xl font-bold text-white mb-1">{show.artist?.name}</h1>
           
-          {tourName && <p className="text-lg text-white/90 mb-4">{tourName}</p>}
+          {tourName && <p className="text-lg text-white/90 mb-3">{tourName}</p>}
           
-          <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6 mt-4">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6 mt-3">
             <div className="flex items-center text-white/90">
               <Calendar size={18} className="mr-2" />
               {formatDate(show.date)}
@@ -110,7 +111,7 @@ const ShowHeader: React.FC<ShowHeaderProps> = ({ show }) => {
           </div>
           
           {show.ticket_url && (
-            <div className="mt-6">
+            <div className="mt-5">
               <Button asChild className="bg-primary hover:bg-primary/90">
                 <a 
                   href={show.ticket_url} 
