@@ -1,6 +1,6 @@
 
-import React from 'react';
-import { useParams, Link } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowLeft, Calendar, MapPin, ExternalLink, Music } from 'lucide-react';
 import { toast } from 'sonner';
@@ -11,9 +11,13 @@ import VotableSetlistTable from '@/components/setlist/VotableSetlistTable';
 import { Button } from '@/components/ui/button';
 import { fetchShowDetails } from '@/lib/ticketmaster';
 import { getArtistTopTracks } from '@/lib/spotify';
+import { useRealtimeVotes } from '@/hooks/use-realtime-votes';
+import { useAuth } from '@/contexts/AuthContext';
 
 const ShowDetail = () => {
   const { id } = useParams<{ id: string }>();
+  const { isAuthenticated } = useAuth();
+  const navigate = useNavigate();
   
   // Fetch show details
   const { 
@@ -26,14 +30,67 @@ const ShowDetail = () => {
     enabled: !!id,
   });
   
+  // Redirect if show not found
+  useEffect(() => {
+    if (!isLoadingShow && !show && showError) {
+      navigate('/shows', { replace: true });
+    }
+  }, [show, isLoadingShow, showError, navigate]);
+  
+  // For demo purposes, we'll generate a Spotify artist ID from the artist name
+  // In a real app, we would have a proper mapping or lookup
+  const spotifyArtistId = show?.artist?.name 
+    ? `spotify-${show.artist.name.toLowerCase().replace(/\s+/g, '-')}`
+    : null;
+  
   // Fetch artist's top tracks to use as setlist
   const {
     data: topTracksData,
     isLoading: isLoadingTracks
   } = useQuery({
-    queryKey: ['artistTopTracks', show?.artist?.id],
-    queryFn: () => getArtistTopTracks(show?.artist?.id!),
-    enabled: !!show?.artist?.id,
+    queryKey: ['artistTopTracks', spotifyArtistId],
+    queryFn: () => {
+      // In a real app, this would be a proper Spotify ID
+      // For demo purposes, we'll return mock data
+      return {
+        tracks: [
+          { id: 'track1', name: 'Hit Song 1' },
+          { id: 'track2', name: 'Greatest Hit' },
+          { id: 'track3', name: 'Fan Favorite' },
+          { id: 'track4', name: 'Classic Track' },
+          { id: 'track5', name: 'New Single' },
+          { id: 'track6', name: 'Deep Cut' },
+          { id: 'track7', name: 'B-Side' },
+          { id: 'track8', name: 'Ballad' },
+          { id: 'track9', name: 'Upbeat Number' },
+          { id: 'track10', name: 'Encore Song' },
+        ]
+      };
+    },
+    enabled: !!show?.artist?.name,
+  });
+  
+  // Prepare setlist data for the real-time voting
+  const initialSongs = React.useMemo(() => {
+    if (!topTracksData?.tracks) return [];
+    
+    // Convert top tracks to setlist items with vote count
+    return topTracksData.tracks.map((track: any) => ({
+      id: track.id,
+      name: track.name,
+      votes: Math.floor(Math.random() * 50), // Demo random votes
+      userVoted: false // Start with user not having voted
+    }));
+  }, [topTracksData]);
+  
+  // Set up real-time voting
+  const {
+    songs: setlist,
+    isConnected,
+    voteForSong
+  } = useRealtimeVotes({
+    showId: id || '',
+    initialSongs
   });
   
   // Format date for display
@@ -49,24 +106,13 @@ const ShowDetail = () => {
     }).format(date);
   };
   
-  // Prepare setlist data for the table
-  const setlist = React.useMemo(() => {
-    if (!topTracksData?.tracks) return [];
-    
-    // Convert top tracks to setlist items with vote count
-    return topTracksData.tracks.map((track: any) => ({
-      id: track.id,
-      name: track.name,
-      votes: Math.floor(Math.random() * 200), // Demo random votes
-      userVoted: Math.random() > 0.7 // Demo random user votes
-    }));
-  }, [topTracksData]);
-  
   // Handle voting on a song
   const handleVote = (songId: string) => {
-    // In a real app, this would call an API to register the vote
-    toast.success(`Voted for song! In a complete app, this would be saved to the database.`);
-    console.log(`Voted for song: ${songId}`);
+    if (!isAuthenticated) {
+      toast.error('Please log in to vote');
+      return;
+    }
+    voteForSong(songId);
   };
   
   if (isLoadingShow) {
@@ -179,9 +225,17 @@ const ShowDetail = () => {
                 <p className="text-muted-foreground mt-1">Vote for songs you want to hear at this show</p>
               </div>
               
-              <p className="text-sm text-muted-foreground mt-4 md:mt-0">
-                Last updated {formatDistanceToNow(new Date(), { addSuffix: true })}
-              </p>
+              <div className="flex items-center mt-4 md:mt-0">
+                {isConnected && (
+                  <span className="text-xs bg-green-500/10 text-green-500 px-2 py-1 rounded-full flex items-center">
+                    <span className="inline-block w-2 h-2 bg-green-500 rounded-full mr-1"></span>
+                    Live updates
+                  </span>
+                )}
+                <p className="text-sm text-muted-foreground ml-3">
+                  Last updated {formatDistanceToNow(new Date(), { addSuffix: true })}
+                </p>
+              </div>
             </div>
             
             {isLoadingTracks ? (

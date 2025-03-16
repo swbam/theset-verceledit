@@ -12,7 +12,11 @@ const createMockWebSocket = (showId: string, callback: (data: any) => void) => {
   const interval = setInterval(() => {
     // 30% chance of a vote update
     if (Math.random() > 0.7) {
-      const songIds = ['song1', 'song2', 'song3', 'song4', 'song5', 'song6', 'song7', 'song8', 'song9', 'song10'];
+      // Get random song ID from the first 10 songs
+      const songIds = [];
+      for (let i = 1; i <= 10; i++) {
+        songIds.push(`track${i}`);
+      }
       const randomSongIndex = Math.floor(Math.random() * songIds.length);
       const randomSongId = songIds[randomSongIndex];
       
@@ -21,7 +25,8 @@ const createMockWebSocket = (showId: string, callback: (data: any) => void) => {
         type: 'vote_update',
         data: {
           songId: randomSongId,
-          votes: Math.floor(Math.random() * 5) + 1, // Random increment between 1-5
+          votes: 1, // Increment by 1 vote
+          userId: `user-${Math.floor(Math.random() * 1000)}`
         }
       });
     }
@@ -49,35 +54,55 @@ interface UseRealtimeVotesProps {
 export function useRealtimeVotes({ showId, initialSongs }: UseRealtimeVotesProps) {
   const [songs, setSongs] = useState<SongVote[]>(initialSongs);
   const [isConnected, setIsConnected] = useState(false);
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
+  
+  // Initialize songs with user votes if user is authenticated
+  useEffect(() => {
+    if (initialSongs.length > 0) {
+      setSongs(initialSongs);
+    }
+  }, [initialSongs]);
   
   useEffect(() => {
     if (!showId) return;
     
-    // Connect to WebSocket (mock implementation)
-    setIsConnected(true);
-    toast.success('Connected to real-time updates');
+    let wsConnection: () => void;
     
-    // Handle incoming vote updates
-    const handleVoteUpdate = (data: any) => {
-      if (data.type === 'vote_update') {
-        setSongs(prevSongs => 
-          prevSongs.map(song => 
-            song.id === data.data.songId
-              ? { ...song, votes: song.votes + data.data.votes }
-              : song
-          )
-        );
-      }
+    // Connect to WebSocket
+    const connectWebSocket = () => {
+      setIsConnected(true);
+      toast.success('Connected to real-time updates');
+      
+      // Handle incoming vote updates
+      const handleVoteUpdate = (data: any) => {
+        if (data.type === 'vote_update') {
+          setSongs(prevSongs => {
+            // First, create a new array with updated vote counts
+            const updatedSongs = prevSongs.map(song => 
+              song.id === data.data.songId
+                ? { ...song, votes: song.votes + data.data.votes }
+                : song
+            );
+            
+            // Then sort by vote count (descending)
+            return [...updatedSongs].sort((a, b) => b.votes - a.votes);
+          });
+        }
+      };
+      
+      // Create mock WebSocket connection
+      wsConnection = createMockWebSocket(showId, handleVoteUpdate);
     };
     
-    // Create mock WebSocket connection
-    const cleanup = createMockWebSocket(showId, handleVoteUpdate);
+    // Attempt to connect
+    connectWebSocket();
     
     // Cleanup function
     return () => {
+      if (wsConnection) {
+        wsConnection();
+      }
       setIsConnected(false);
-      cleanup();
     };
   }, [showId]);
   
@@ -97,13 +122,17 @@ export function useRealtimeVotes({ showId, initialSongs }: UseRealtimeVotesProps
     }
     
     // Update local state immediately (optimistic update)
-    setSongs(prevSongs => 
-      prevSongs.map(song => 
+    setSongs(prevSongs => {
+      // First, update the song with the new vote
+      const updatedSongs = prevSongs.map(song => 
         song.id === songId
           ? { ...song, votes: song.votes + 1, userVoted: true }
           : song
-      )
-    );
+      );
+      
+      // Then sort by vote count (descending)
+      return [...updatedSongs].sort((a, b) => b.votes - a.votes);
+    });
     
     // In a real app, this would send a vote to the server
     toast.success('Vote recorded!');
