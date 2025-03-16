@@ -2,42 +2,7 @@
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
-
-// Mock websocket data handler to simulate real-time updates
-// In a real app, this would connect to a real WebSocket server
-const createMockWebSocket = (showId: string, callback: (data: any) => void) => {
-  console.log(`Creating mock WebSocket connection for show ${showId}`);
-  
-  // Simulate incoming votes every 5-15 seconds
-  const interval = setInterval(() => {
-    // 30% chance of a vote update
-    if (Math.random() > 0.7) {
-      // Get random song ID from the first 10 songs
-      const songIds = [];
-      for (let i = 1; i <= 10; i++) {
-        songIds.push(`track${i}`);
-      }
-      const randomSongIndex = Math.floor(Math.random() * songIds.length);
-      const randomSongId = songIds[randomSongIndex];
-      
-      // Mock vote update
-      callback({
-        type: 'vote_update',
-        data: {
-          songId: randomSongId,
-          votes: 1, // Increment by 1 vote
-          userId: `user-${Math.floor(Math.random() * 1000)}`
-        }
-      });
-    }
-  }, Math.random() * 10000 + 5000); // Random interval between 5-15 seconds
-  
-  // Return cleanup function
-  return () => {
-    console.log(`Closing mock WebSocket connection for show ${showId}`);
-    clearInterval(interval);
-  };
-};
+import { createMockWebSocketConnection } from '@/lib/api/mock-service';
 
 export interface SongVote {
   id: string;
@@ -54,7 +19,7 @@ interface UseRealtimeVotesProps {
 export function useRealtimeVotes({ showId, initialSongs }: UseRealtimeVotesProps) {
   const [songs, setSongs] = useState<SongVote[]>(initialSongs);
   const [isConnected, setIsConnected] = useState(false);
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const [voteCount, setVoteCount] = useState(0);
   
   // Initialize songs with user votes if user is authenticated
@@ -67,48 +32,61 @@ export function useRealtimeVotes({ showId, initialSongs }: UseRealtimeVotesProps
   useEffect(() => {
     if (!showId) return;
     
-    let wsConnection: () => void;
+    // Connect to WebSocket for real-time updates
+    const wsConnection = createMockWebSocketConnection(showId);
     
     // Connect to WebSocket
-    const connectWebSocket = () => {
-      setIsConnected(true);
-      toast.success('Connected to real-time updates');
-      
-      // Handle incoming vote updates
-      const handleVoteUpdate = (data: any) => {
-        if (data.type === 'vote_update') {
-          setSongs(prevSongs => {
-            // First, create a new array with updated vote counts
-            const updatedSongs = prevSongs.map(song => 
-              song.id === data.data.songId
-                ? { ...song, votes: song.votes + data.data.votes }
-                : song
-            );
-            
-            // Then sort by vote count (descending)
-            return [...updatedSongs].sort((a, b) => b.votes - a.votes);
-          });
-        }
-      };
-      
-      // Create mock WebSocket connection
-      wsConnection = createMockWebSocket(showId, handleVoteUpdate);
+    const connectWebSocket = async () => {
+      try {
+        await wsConnection.connect();
+        setIsConnected(true);
+        toast.success('Connected to real-time updates');
+        
+        // Handle incoming vote updates
+        const unsubscribe = wsConnection.subscribe((data) => {
+          if (data.type === 'vote_update') {
+            setSongs(prevSongs => {
+              // First, create a new array with updated vote counts
+              const updatedSongs = prevSongs.map(song => 
+                song.id === data.data.songId
+                  ? { ...song, votes: song.votes + data.data.votes }
+                  : song
+              );
+              
+              // Then sort by vote count (descending)
+              return [...updatedSongs].sort((a, b) => b.votes - a.votes);
+            });
+          }
+        });
+        
+        // Return cleanup function
+        return unsubscribe;
+      } catch (error) {
+        console.error("WebSocket connection error:", error);
+        toast.error("Could not connect to real-time updates");
+        setIsConnected(false);
+        return () => {};
+      }
     };
     
-    // Attempt to connect
-    connectWebSocket();
+    // Connect to WebSocket
+    let unsubscribe: (() => void) | undefined;
+    connectWebSocket().then(cleanup => {
+      unsubscribe = cleanup;
+    });
     
     // Cleanup function
     return () => {
-      if (wsConnection) {
-        wsConnection();
+      if (unsubscribe) {
+        unsubscribe();
       }
+      wsConnection.close();
       setIsConnected(false);
     };
   }, [showId]);
   
   // Function to vote for a song
-  const voteForSong = (songId: string) => {
+  const voteForSong = async (songId: string) => {
     // Check if user already voted for this song
     const alreadyVoted = songs.find(song => song.id === songId)?.userVoted;
     
@@ -122,6 +100,9 @@ export function useRealtimeVotes({ showId, initialSongs }: UseRealtimeVotesProps
       toast.error('Please log in to vote for more songs');
       return;
     }
+    
+    // Get user ID for tracking votes
+    const userId = user?.id || 'anonymous';
     
     // Update local state immediately (optimistic update)
     setSongs(prevSongs => {
@@ -141,11 +122,25 @@ export function useRealtimeVotes({ showId, initialSongs }: UseRealtimeVotesProps
       setVoteCount(prev => prev + 1);
     }
     
-    // In a real app, this would send a vote to the server
-    toast.success('Vote recorded!');
-    
-    // Simulate the server confirming the vote
-    console.log(`Voted for song: ${songId}`);
+    try {
+      // In a real app, this would send a vote to the server
+      // For now, we'll use the mock WebSocket connection to simulate this
+      const wsConnection = createMockWebSocketConnection(showId);
+      await wsConnection.sendVote(songId, userId);
+      console.log(`Vote recorded for song: ${songId} by user: ${userId}`);
+    } catch (error) {
+      console.error("Error sending vote:", error);
+      toast.error("Failed to record your vote");
+      
+      // Revert the optimistic update
+      setSongs(prevSongs => {
+        return prevSongs.map(song => 
+          song.id === songId
+            ? { ...song, votes: song.votes - 1, userVoted: false }
+            : song
+        );
+      });
+    }
   };
   
   return {

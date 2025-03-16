@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, Calendar, MapPin, ExternalLink, Clock } from 'lucide-react';
+import { ArrowRight, Calendar, MapPin, ExternalLink, Clock, Music, Ticket } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { formatDate } from '@/lib/api/mock-service';
 import { Badge } from '@/components/ui/badge';
@@ -111,15 +111,22 @@ const UpcomingShows = ({ shows, artistName }: UpcomingShowsProps) => {
               {/* Actions */}
               <div className="flex items-center justify-end gap-2">
                 <Button variant="outline" size="sm" asChild>
-                  <Link to={`/shows/${show.id}`}>
-                    View Setlist
+                  <Link to={`/shows/${show.id}`} className="flex items-center gap-1.5">
+                    <Music className="h-4 w-4" />
+                    Setlist
                   </Link>
                 </Button>
                 
                 {show.ticket_url && (
-                  <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
-                    <a href={show.ticket_url} target="_blank" rel="noopener noreferrer" title="Buy Tickets">
-                      <ExternalLink className="h-4 w-4" />
+                  <Button variant="ghost" size="sm" asChild>
+                    <a 
+                      href={show.ticket_url} 
+                      target="_blank" 
+                      rel="noopener noreferrer" 
+                      className="flex items-center gap-1.5"
+                    >
+                      <Ticket className="h-4 w-4" />
+                      Tickets
                     </a>
                   </Button>
                 )}
