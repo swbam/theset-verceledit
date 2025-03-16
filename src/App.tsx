@@ -13,6 +13,8 @@ import ShowDetail from "./pages/ShowDetail";
 import Shows from "./pages/Shows";
 import Login from "./pages/Login";
 import Profile from "./pages/Profile";
+import HowItWorks from "./pages/HowItWorks";
+import CreateShow from "./pages/CreateShow";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient({
@@ -47,7 +49,15 @@ const App = () => (
                 </ProtectedRoute>
               } 
             />
-            <Route path="/how-it-works" element={<NotFound />} />
+            <Route path="/how-it-works" element={<HowItWorks />} />
+            <Route 
+              path="/shows/create" 
+              element={
+                <ProtectedRoute>
+                  <CreateShow />
+                </ProtectedRoute>
+              } 
+            />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

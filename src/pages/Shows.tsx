@@ -1,12 +1,13 @@
-
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Music, Search } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Music, Search, X, PlusCircle } from 'lucide-react';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
 import ShowCard from '@/components/shows/ShowCard';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { useAuth } from '@/contexts/AuthContext';
 
 // Mock data for shows
 const mockShows = [
@@ -70,6 +71,7 @@ const mockShows = [
 
 const Shows = () => {
   const [searchQuery, setSearchQuery] = useState('');
+  const { isAuthenticated } = useAuth();
 
   // In a real app, this would fetch data from the API
   const { data: shows, isLoading } = useQuery({
@@ -99,11 +101,22 @@ const Shows = () => {
       
       <main className="flex-grow px-6 md:px-8 lg:px-12 py-12">
         <div className="max-w-7xl mx-auto">
-          <div className="mb-8">
-            <h1 className="text-3xl md:text-4xl font-bold mb-4">Upcoming Shows</h1>
-            <p className="text-muted-foreground max-w-2xl">
-              Browse upcoming concerts and vote on setlists to help shape the perfect show
-            </p>
+          <div className="flex flex-col md:flex-row md:items-end md:justify-between mb-8">
+            <div>
+              <h1 className="text-3xl md:text-4xl font-bold mb-4">Upcoming Shows</h1>
+              <p className="text-muted-foreground max-w-2xl">
+                Browse upcoming concerts and vote on setlists to help shape the perfect show
+              </p>
+            </div>
+            
+            {isAuthenticated && (
+              <Link to="/shows/create" className="mt-4 md:mt-0">
+                <Button className="flex items-center">
+                  <PlusCircle className="mr-2 h-4 w-4" />
+                  Create Show
+                </Button>
+              </Link>
+            )}
           </div>
           
           <div className="mb-8">
@@ -144,9 +157,9 @@ const Shows = () => {
                 </div>
               ))}
             </div>
-          ) : shows.length > 0 ? (
+          ) : shows && shows.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {shows.map((show, index) => (
+              {shows.map((show: any, index: number) => (
                 <div 
                   key={show.id} 
                   className="animate-fade-in" 
