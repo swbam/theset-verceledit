@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
@@ -9,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 
-// Mock data for shows
+// Mock data for shows with proper typing
 const mockShows = [
   {
     id: 'show1',
@@ -69,14 +70,30 @@ const mockShows = [
   }
 ];
 
+// Define the show type to match what ShowCard expects
+interface Show {
+  id: string;
+  name: string;
+  date: string;
+  image_url?: string;
+  venue: {
+    name: string;
+    city: string;
+    state: string;
+  };
+  artist: {
+    name: string;
+  };
+}
+
 const Shows = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const { isAuthenticated } = useAuth();
 
   // In a real app, this would fetch data from the API
-  const { data: shows, isLoading } = useQuery({
+  const { data: shows, isLoading } = useQuery<Show[]>({
     queryKey: ['shows', searchQuery],
-    queryFn: () => new Promise(resolve => {
+    queryFn: () => new Promise<Show[]>(resolve => {
       setTimeout(() => {
         if (!searchQuery) {
           resolve(mockShows);
@@ -159,11 +176,11 @@ const Shows = () => {
             </div>
           ) : shows && shows.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {shows.map((show: any, index: number) => (
+              {shows.map((show: Show) => (
                 <div 
                   key={show.id} 
                   className="animate-fade-in" 
-                  style={{ animationDelay: `${index * 0.1}s` }}
+                  style={{ animationDelay: `${shows.indexOf(show) * 0.1}s` }}
                 >
                   <ShowCard show={show} />
                 </div>
