@@ -1,6 +1,9 @@
 
 // Re-export all functions from the different modules
-export { popularMusicGenres } from './api/ticketmaster-config';
+export { 
+  popularMusicGenres,
+  getTrendingConcerts
+} from './api/ticketmaster-config';
 export { 
   searchArtistsWithEvents, 
   fetchFeaturedArtists,

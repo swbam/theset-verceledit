@@ -1,86 +1,131 @@
-import React, { useState } from 'react';
+
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Calendar, MapPin, ChevronRight, Music, Flame } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
-import { fetchShowsByGenre, popularMusicGenres, fetchFeaturedShows } from '@/lib/ticketmaster';
+import { getTrendingConcerts, popularMusicGenres } from '@/lib/ticketmaster';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { toast } from 'sonner';
-
-const STADIUM_ATTENDANCE_THRESHOLD = 20000;
+import { saveArtistToDatabase, saveShowToDatabase, saveVenueToDatabase } from '@/lib/api/database-utils';
 
 const UpcomingShows = () => {
   const [activeGenre, setActiveGenre] = useState("all");
   const isMobile = useIsMobile();
   
-  const { data: showsData = [], isLoading, error } = useQuery({
-    queryKey: ['upcomingShows', activeGenre],
+  const { data: concerts = [], isLoading, error } = useQuery({
+    queryKey: ['trendingConcerts', activeGenre],
     queryFn: async () => {
       try {
-        let genreId = activeGenre === "all" ? popularMusicGenres[0].id : activeGenre;
+        // Fetch trending concerts
+        const events = await getTrendingConcerts(20);
         
-        const [upcomingShows, trendingShows] = await Promise.all([
-          fetchShowsByGenre(genreId, 30),
-          fetchFeaturedShows(30)
-        ]);
+        // Process events to extract useful data
+        const processedShows = await Promise.all(events.map(async (event: any) => {
+          // Get artist from attractions if available
+          let artistName = '';
+          let artistId = '';
+          let artistData = null;
+          let genreName = 'Music';
+          
+          if (event._embedded?.attractions && event._embedded.attractions.length > 0) {
+            const attraction = event._embedded.attractions[0];
+            artistName = attraction.name;
+            artistId = attraction.id;
+            
+            // Get genre if available
+            if (event.classifications && event.classifications[0]) {
+              const classification = event.classifications[0];
+              genreName = classification.genre?.name || 
+                          classification.subGenre?.name || 
+                          classification.segment?.name || 
+                          'Music';
+            }
+            
+            // Create artist object
+            artistData = {
+              id: artistId,
+              name: artistName,
+              image: attraction.images?.find((img: any) => img.ratio === "16_9" && img.width > 500)?.url,
+              upcoming_shows: 1,
+              genres: [genreName].filter(Boolean)
+            };
+            
+            // Save artist to database
+            await saveArtistToDatabase(artistData);
+          } else {
+            // Fallback to extracting from event name
+            artistName = event.name.split(' at ')[0].split(' - ')[0].trim();
+            artistId = `tm-${encodeURIComponent(artistName.toLowerCase().replace(/\s+/g, '-'))}`;
+            
+            // Create minimal artist data
+            artistData = {
+              id: artistId,
+              name: artistName
+            };
+          }
+          
+          // Process venue
+          let venue = null;
+          let venueId = null;
+          if (event._embedded?.venues?.[0]) {
+            const venueData = event._embedded.venues[0];
+            venue = {
+              id: venueData.id,
+              name: venueData.name,
+              city: venueData.city?.name,
+              state: venueData.state?.name,
+              country: venueData.country?.name,
+            };
+            venueId = venueData.id;
+            
+            // Save venue to database
+            await saveVenueToDatabase(venue);
+          }
+          
+          // Create show object
+          const show = {
+            id: event.id,
+            name: event.name,
+            date: event.dates.start.dateTime || event.dates.start.localDate,
+            artist_id: artistId,
+            venue_id: venueId,
+            ticket_url: event.url,
+            image_url: event.images.find((img: any) => img.ratio === "16_9" && img.width > 500)?.url,
+            genre: genreName,
+            artist: artistData,
+            venue: venue,
+            popularity: Math.floor(Math.random() * 8000) + 3000 // Random popularity for now
+          };
+          
+          // Save show to database
+          await saveShowToDatabase(show);
+          
+          return show;
+        }));
         
-        let combinedShows = [...upcomingShows, ...trendingShows];
+        // If we want to filter by genre
+        if (activeGenre !== "all") {
+          const genreName = popularMusicGenres.find(g => g.id === activeGenre)?.name.toLowerCase() || '';
+          return processedShows.filter(show => 
+            show.genre?.toLowerCase().includes(genreName) || 
+            show.artist?.genres?.some((g: string) => g.toLowerCase().includes(genreName))
+          );
+        }
         
-        const uniqueShows = Array.from(
-          new Map(combinedShows.map(show => [show.id, show])).values()
-        );
-        
-        return uniqueShows.map(show => ({
-          ...show,
-          popularityScore: Math.floor(Math.random() * 8000) + 3000
-        }))
-        .filter(show => {
-          const isStadium = 
-            show.venue?.name?.toLowerCase().includes('stadium') || 
-            show.venue?.name?.toLowerCase().includes('arena') || 
-            show.venue?.name?.toLowerCase().includes('center') ||
-            show.venue?.name?.toLowerCase().includes('dome');
-          const highAttendance = show.popularityScore >= STADIUM_ATTENDANCE_THRESHOLD;
-          return isStadium || highAttendance;
-        });
+        return processedShows;
       } catch (error) {
-        console.error("Failed to fetch upcoming shows:", error);
-        toast.error("Couldn't load upcoming shows");
+        console.error("Failed to fetch trending concerts:", error);
+        toast.error("Couldn't load trending shows");
         return [];
       }
     },
   });
 
-  const shows = React.useMemo(() => {
-    if (!showsData.length) return [];
-    
-    const seenArtists = new Set();
-    const uniqueByArtist = [];
-    
-    const sorted = [...showsData].sort((a, b) => {
-      const popularityDiff = (b.popularityScore || 0) - (a.popularityScore || 0);
-      if (popularityDiff !== 0) return popularityDiff;
-      
-      if (!a.date) return 1;
-      if (!b.date) return -1;
-      return new Date(a.date).getTime() - new Date(b.date).getTime();
-    });
-    
-    for (const show of sorted) {
-      const artistId = show.artist?.id || show.artist?.name;
-      if (artistId && !seenArtists.has(artistId)) {
-        seenArtists.add(artistId);
-        uniqueByArtist.push(show);
-        
-        if (uniqueByArtist.length >= 8) break;
-      }
-    }
-    
-    return uniqueByArtist;
-  }, [showsData]);
-
   const formatDate = (dateString: string) => {
+    if (!dateString) return "TBA";
+    
     try {
       return new Date(dateString).toLocaleDateString('en-US', { 
         month: 'short',
@@ -97,9 +142,9 @@ const UpcomingShows = () => {
       <div className="container mx-auto max-w-7xl">
         <div className="flex justify-between items-center mb-6 md:mb-8">
           <div>
-            <h2 className="text-2xl md:text-3xl font-bold text-white">Stadium Shows</h2>
+            <h2 className="text-2xl md:text-3xl font-bold text-white">Trending Shows</h2>
             <p className="text-sm md:text-base text-white/70 mt-1">
-              Big venues with 20k+ attendance
+              Hottest concerts coming up soon
             </p>
           </div>
           <Link to="/shows" className="text-white hover:text-white/80 font-medium flex items-center group">
@@ -155,16 +200,16 @@ const UpcomingShows = () => {
           </div>
         ) : error ? (
           <div className="text-center py-10 bg-black/20 rounded-lg border border-white/5">
-            <p className="text-white/60">No stadium shows found</p>
+            <p className="text-white/60">No trending shows found</p>
           </div>
-        ) : shows.length === 0 ? (
+        ) : concerts.length === 0 ? (
           <div className="text-center py-10 bg-black/20 rounded-lg border border-white/5">
-            <p className="text-white/60">No stadium shows found</p>
+            <p className="text-white/60">No trending shows found</p>
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 md:gap-4">
-            {shows.map((show) => {
-              const genre = show.genre || show.artist?.genres?.[0] || 'Pop';
+            {concerts.slice(0, 8).map((show) => {
+              const genre = show.genre || show.artist?.genres?.[0] || 'Music';
               const formattedDate = formatDate(show.date);
               const artistName = show.artist?.name || 'Unknown Artist';
               const tourName = show.name || 'Upcoming Show';
@@ -197,7 +242,7 @@ const UpcomingShows = () => {
                         <div className="flex items-center gap-1 bg-white/10 backdrop-blur-sm rounded-full px-1.5 py-0.5">
                           <Flame className="h-2.5 w-2.5 text-orange-400" />
                           <span className="text-white text-xs font-medium">
-                            {show.popularityScore?.toLocaleString() || Math.floor(Math.random() * 5000) + 3000}
+                            {show.popularity?.toLocaleString() || Math.floor(Math.random() * 5000) + 3000}
                           </span>
                         </div>
                       </div>
@@ -221,7 +266,7 @@ const UpcomingShows = () => {
                         <div className="flex items-start">
                           <MapPin size={12} className="mr-1.5 mt-0.5 opacity-70 flex-shrink-0" />
                           <span className="line-clamp-1">
-                            {show.venue?.name ? `${show.venue.name}, ${show.venue.city || ''}` : 'Stadium TBA'}
+                            {show.venue?.name ? `${show.venue.name}, ${show.venue.city || ''}` : 'Venue TBA'}
                           </span>
                         </div>
                       )}

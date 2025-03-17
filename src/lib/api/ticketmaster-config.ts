@@ -36,6 +36,29 @@ export async function callTicketmasterApi(endpoint: string, params: Record<strin
 }
 
 /**
+ * Get upcoming trending concerts
+ * - Sorts by popularity (highest relevance score)
+ * - Includes only music events
+ * - Filters by date range (upcoming events)
+ */
+export async function getTrendingConcerts(size = 20) {
+  try {
+    const params = {
+      classificationName: 'music',
+      sort: 'relevance,desc',
+      size: size.toString(),
+      startDateTime: new Date().toISOString().slice(0, 19) + 'Z'
+    };
+    
+    const data = await callTicketmasterApi('events.json', params);
+    return data._embedded?.events || [];
+  } catch (error) {
+    console.error('Error fetching trending concerts:', error);
+    return [];
+  }
+}
+
+/**
  * Popular music genres used throughout the app
  */
 export const popularMusicGenres = [
