@@ -59,13 +59,9 @@ export function useSongManagement(showId: string, initialSongs: Song[], isAuthen
       }
       
       try {
-        // Add the song to the setlist using the handleAddSong from useRealtimeVotes
-        const result = await realtimeHandleAddSong();
-        // Check if result is explicitly false (not void or true)
-        if (result === false) {
-          toast.error("Failed to add song to setlist");
-          return false;
-        }
+        // Call realtimeHandleAddSong and store the result
+        // We don't check the result here since it's void and not meant to return a status
+        await realtimeHandleAddSong();
         
         setSelectedTrack('');
         toast.success(`"${trackToAdd.name}" added to setlist!`);
