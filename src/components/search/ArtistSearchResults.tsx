@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Music } from 'lucide-react';
@@ -9,6 +8,7 @@ interface Artist {
   name: string;
   image?: string;
   upcomingShows: number;
+  popularity?: number;
 }
 
 interface ArtistSearchResultsProps {
@@ -24,6 +24,16 @@ const ArtistSearchResults = ({
   onSelect,
   className 
 }: ArtistSearchResultsProps) => {
+  // Sort artists by popularity (if available) or by upcoming shows count
+  const sortedArtists = [...artists].sort((a, b) => {
+    // If popularity is available, use it for sorting (higher first)
+    if (a.popularity !== undefined && b.popularity !== undefined) {
+      return b.popularity - a.popularity;
+    }
+    // Otherwise sort by number of upcoming shows (higher first)
+    return b.upcomingShows - a.upcomingShows;
+  });
+
   if (isLoading) {
     return (
       <div className={cn("py-1 bg-background border border-border rounded-lg shadow-lg", className)}>
@@ -40,18 +50,21 @@ const ArtistSearchResults = ({
     );
   }
 
-  if (artists.length === 0) {
+  if (sortedArtists.length === 0) {
     return null;
   }
 
   return (
     <div className={cn("py-1 bg-background border border-border rounded-lg shadow-lg divide-y divide-border", className)}>
-      {artists.map((artist) => (
+      {sortedArtists.map((artist) => (
         <Link
           key={artist.id}
           to={`/artists/${artist.id}`}
           className="flex items-center gap-3 px-3 py-2 hover:bg-secondary transition-colors"
-          onClick={() => onSelect?.(artist)}
+          onClick={(e) => {
+            e.preventDefault(); // Prevent default to allow our custom handler
+            onSelect?.(artist);
+          }}
         >
           {artist.image ? (
             <img 
