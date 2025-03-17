@@ -1,9 +1,8 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { getArtistTopTracks, getArtistAllTracks, SpotifyTrack } from '@/lib/spotify';
+import { getArtistTopTracks, getArtistAllTracks, SpotifyTrack, convertStoredTracks } from '@/lib/spotify';
 import { useMemo } from 'react';
-import { Json } from '@/integrations/supabase/types';
 
 export function useArtistTracks(spotifyArtistId: string, isLoadingShow: boolean) {
   // Fetch stored artist data
@@ -27,9 +26,8 @@ export function useArtistTracks(spotifyArtistId: string, isLoadingShow: boolean)
       }
       
       // Safely check if stored_tracks exists and is an array
-      const tracksCount = data?.stored_tracks && 
-        Array.isArray(data.stored_tracks) ? 
-        data.stored_tracks.length : 0;
+      const storedTracks = convertStoredTracks(data?.stored_tracks);
+      const tracksCount = storedTracks.length;
       
       console.log(`Stored artist data for ${spotifyArtistId}:`, tracksCount, 'tracks');
       return data;
