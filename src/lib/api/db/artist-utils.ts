@@ -114,10 +114,47 @@ export async function importArtistTracks(artistId: string) {
       console.error("Error updating artist stored_tracks:", error);
     } else {
       console.log(`Successfully stored ${tracks.length} tracks for artist ${artistId}`);
+      
+      // Also save tracks to top_tracks table for easier querying
+      const topTracks = tracks.slice(0, 20); // Use top 20 tracks
+      saveTracksToTopTracksTable(artistId, topTracks);
     }
     
   } catch (error) {
     console.error("Error importing artist tracks:", error);
+  }
+}
+
+/**
+ * Save tracks to top_tracks table for easier joins
+ */
+async function saveTracksToTopTracksTable(artistId: string, tracks: SpotifyTrack[]) {
+  if (!tracks || tracks.length === 0) return;
+  
+  console.log(`Saving ${tracks.length} tracks to top_tracks table for artist ${artistId}`);
+  
+  const tracksToInsert = tracks.map(track => ({
+    id: track.id,
+    artist_id: artistId,
+    name: track.name,
+    spotify_url: track.uri,
+    preview_url: track.preview_url,
+    album_name: track.album?.name,
+    album_image_url: track.album?.images?.[0]?.url,
+    duration_ms: track.duration_ms,
+    popularity: track.popularity,
+    last_updated: new Date().toISOString()
+  }));
+  
+  // Use upsert to handle duplicates
+  const { error } = await supabase
+    .from('top_tracks')
+    .upsert(tracksToInsert);
+    
+  if (error) {
+    console.error("Error saving tracks to top_tracks table:", error);
+  } else {
+    console.log(`Successfully saved ${tracks.length} tracks to top_tracks table`);
   }
 }
 

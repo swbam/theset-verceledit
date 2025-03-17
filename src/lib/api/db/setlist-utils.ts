@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { SpotifyTrack } from "@/lib/spotify/types";
 import { Json } from "@/integrations/supabase/types";
@@ -318,7 +319,7 @@ export async function voteForSetlistSong(setlistSongId: string, userId: string) 
     // Increment the vote count on the setlist_songs table
     const { error: incrementError } = await supabase
       .from('setlist_songs')
-      .update({ votes: () => 'votes + 1' })
+      .update({ votes: 1 }) // Use explicit number value instead of a function
       .eq('id', setlistSongId);
     
     if (incrementError) {
