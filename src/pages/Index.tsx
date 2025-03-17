@@ -20,10 +20,10 @@ const Index = () => {
       
       <main className="flex-grow">
         <Hero />
-        <PersonalizedRecommendations />
         <TrendingShows />
         <FeaturedArtists />
         <UpcomingShows />
+        <PersonalizedRecommendations />
         <HowItWorks />
       </main>
       

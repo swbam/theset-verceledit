@@ -2,7 +2,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Music2, ChevronRight } from 'lucide-react';
+import { Music2, ChevronRight, Star } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { fetchFeaturedArtists } from '@/lib/api/artist';
@@ -13,33 +13,54 @@ const FeaturedArtists = () => {
     queryFn: () => fetchFeaturedArtists(12),
   });
 
-  // Filter and limit artists
+  // Filter and limit artists, prioritizing those with images and genres
   const artists = React.useMemo(() => {
-    return artistsData.slice(0, 6);
+    // Sort by combination of factors - image quality, has genres, number of upcoming shows
+    return [...artistsData]
+      .sort((a, b) => {
+        // First prioritize artists with images
+        if (a.image && !b.image) return -1;
+        if (!a.image && b.image) return 1;
+        
+        // Then prioritize artists with genres
+        const aHasGenres = a.genres && a.genres.length > 0;
+        const bHasGenres = b.genres && b.genres.length > 0;
+        if (aHasGenres && !bHasGenres) return -1;
+        if (!aHasGenres && bHasGenres) return 1;
+        
+        // Finally prioritize by popularity or upcoming shows
+        return (b.popularity || 0) - (a.popularity || 0) || 
+               (b.upcoming_shows || 0) - (a.upcoming_shows || 0);
+      })
+      .slice(0, 6);
   }, [artistsData]);
 
   return (
-    <section className="py-16 px-4 bg-[#0A0A10]">
+    <section className="py-12 md:py-16 px-4 bg-gradient-to-b from-[#0A0A10] to-[#0d0d15]">
       <div className="container mx-auto max-w-7xl">
-        <div className="flex justify-between items-center mb-8">
+        <div className="flex justify-between items-center mb-6 md:mb-8">
           <div>
-            <h2 className="text-3xl font-bold text-white">Featured Artists</h2>
-            <p className="text-base text-white/70 mt-1">Top artists with upcoming shows to vote on</p>
+            <div className="flex items-center gap-2">
+              <h2 className="text-2xl md:text-3xl font-bold text-white">Featured Artists</h2>
+              <Star className="h-5 w-5 text-yellow-500" />
+            </div>
+            <p className="text-sm md:text-base text-white/70 mt-1">Popular artists with upcoming shows</p>
           </div>
           <Link to="/artists" className="text-white hover:text-white/80 font-medium flex items-center group">
-            View all <ChevronRight size={16} className="ml-1 transition-transform group-hover:translate-x-1" />
+            <span className="hidden sm:inline">View all</span> <ChevronRight size={16} className="ml-0 sm:ml-1 transition-transform group-hover:translate-x-1" />
           </Link>
         </div>
         
         {isLoading ? (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 md:gap-6">
             {[...Array(6)].map((_, index) => (
               <div key={index} className="bg-black/40 rounded-lg overflow-hidden border border-white/10">
                 <Skeleton className="aspect-square w-full" />
-                <div className="p-4">
-                  <Skeleton className="h-5 w-3/4 mb-2" />
-                  <div className="flex gap-2 mt-3">
-                    <Skeleton className="h-6 w-16 rounded-full" />
+                <div className="p-3 md:p-4">
+                  <Skeleton className="h-4 w-3/4 mb-2" />
+                  <div className="flex gap-1 mt-2">
+                    <Skeleton className="h-5 w-14 rounded-full" />
+                    <Skeleton className="h-5 w-14 rounded-full" />
                   </div>
                 </div>
               </div>
@@ -54,7 +75,7 @@ const FeaturedArtists = () => {
             <p className="text-white/60">No featured artists found</p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 md:gap-6">
             {artists.map((artist) => (
               <Link 
                 key={artist.id}
@@ -70,21 +91,21 @@ const FeaturedArtists = () => {
                     />
                   ) : (
                     <div className="w-full h-full bg-[#111]/80 flex items-center justify-center">
-                      <Music2 className="h-12 w-12 text-white/40" />
+                      <Music2 className="h-10 w-10 text-white/40" />
                     </div>
                   )}
                 </div>
-                <div className="p-4">
-                  <h3 className="font-bold text-base mb-2 line-clamp-1">
+                <div className="p-3 md:p-4">
+                  <h3 className="font-bold text-sm md:text-base mb-1.5 line-clamp-1">
                     {artist.name}
                   </h3>
                   
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap gap-1.5 mb-1">
                     {artist.genres?.slice(0, 2).map((genre, idx) => (
                       <Badge 
                         key={idx} 
                         variant="outline" 
-                        className="text-xs bg-white/5 hover:bg-white/10 transition-colors"
+                        className="text-xs bg-white/5 hover:bg-white/10 transition-colors px-1.5 py-0.5"
                       >
                         {genre}
                       </Badge>
@@ -93,16 +114,17 @@ const FeaturedArtists = () => {
                     {(!artist.genres || artist.genres.length === 0) && (
                       <Badge 
                         variant="outline" 
-                        className="text-xs bg-white/5 hover:bg-white/10 transition-colors"
+                        className="text-xs bg-white/5 hover:bg-white/10 transition-colors px-1.5 py-0.5"
                       >
                         {artist.popularity > 80 ? 'Top Artist' : 'Popular'}
                       </Badge>
                     )}
                   </div>
                   
-                  {typeof artist.upcoming_shows === 'number' && (
-                    <div className="mt-3 text-sm text-white/60">
-                      {artist.upcoming_shows} upcoming {artist.upcoming_shows === 1 ? 'show' : 'shows'}
+                  {typeof artist.upcoming_shows === 'number' && artist.upcoming_shows > 0 && (
+                    <div className="mt-2 text-xs md:text-sm text-white/60 flex items-center">
+                      <Calendar className="h-3 w-3 mr-1.5 opacity-70" />
+                      {artist.upcoming_shows} {artist.upcoming_shows === 1 ? 'show' : 'shows'}
                     </div>
                   )}
                 </div>

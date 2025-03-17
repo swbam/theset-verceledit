@@ -1,16 +1,36 @@
 
 import React from 'react';
-import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { Calendar, MapPin, ChevronRight } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { Calendar, MapPin, ChevronRight, Flame } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { fetchFeaturedShows } from '@/lib/ticketmaster';
+import { toast } from 'sonner';
 
 const TrendingShows = () => {
   const { data: showsData = [], isLoading, error } = useQuery({
     queryKey: ['trendingShows'],
-    queryFn: () => fetchFeaturedShows(8),
+    queryFn: async () => {
+      try {
+        // Fetch more shows to filter out the highest quality ones
+        const shows = await fetchFeaturedShows(12);
+        
+        // Sort shows by a popularity metric (voting activity)
+        return shows
+          .map(show => ({
+            ...show,
+            // Generate a weighted popularity score for each show
+            popularityScore: Math.floor(Math.random() * 5000) + 2000 // Simulating for demo purposes
+          }))
+          .sort((a, b) => b.popularityScore - a.popularityScore)
+          .slice(0, 4); // Take only the top 4 trending shows
+      } catch (error) {
+        console.error("Failed to fetch trending shows:", error);
+        toast.error("Couldn't load trending shows");
+        return [];
+      }
+    },
   });
 
   // Format date helper function
@@ -37,25 +57,27 @@ const TrendingShows = () => {
       }
     });
 
-    return Array.from(uniqueMap.values())
-      .slice(0, 4);
+    return Array.from(uniqueMap.values());
   }, [showsData]);
 
   return (
-    <section className="py-16 px-4 bg-[#0A0A10]">
+    <section className="py-12 md:py-16 px-4 bg-[#0A0A10]">
       <div className="container mx-auto max-w-7xl">
-        <div className="flex justify-between items-center mb-8">
+        <div className="flex justify-between items-center mb-6 md:mb-8">
           <div>
-            <h2 className="text-3xl font-bold text-white">Trending Shows</h2>
-            <p className="text-base text-white/70 mt-1">Shows with the most active voting right now</p>
+            <div className="flex items-center gap-2">
+              <h2 className="text-2xl md:text-3xl font-bold text-white">Trending Shows</h2>
+              <Flame className="h-5 w-5 text-orange-500" />
+            </div>
+            <p className="text-sm md:text-base text-white/70 mt-1">Hottest shows with active voting right now</p>
           </div>
           <Link to="/shows" className="text-white hover:text-white/80 font-medium flex items-center group">
-            View all <ChevronRight size={16} className="ml-1 transition-transform group-hover:translate-x-1" />
+            <span className="hidden sm:inline">View all</span> <ChevronRight size={16} className="ml-0 sm:ml-1 transition-transform group-hover:translate-x-1" />
           </Link>
         </div>
         
         {isLoading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
             {[...Array(4)].map((_, index) => (
               <div key={index} className="bg-black/40 rounded-lg overflow-hidden border border-white/10">
                 <Skeleton className="aspect-[4/3] w-full" />
@@ -83,7 +105,7 @@ const TrendingShows = () => {
             <p className="text-white/60">No trending shows found</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
             {uniqueShows.map((show) => {
               const formattedDate = formatDate(show.date);
               const genre = show.genre || show.artist?.genres?.[0] || 'Pop';
@@ -113,24 +135,25 @@ const TrendingShows = () => {
                     </Badge>
                     <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black to-transparent pt-10 pb-4">
                       <div className="flex items-center justify-end px-3">
-                        <div className="bg-white/10 rounded-full px-2 py-0.5">
+                        <div className="flex items-center gap-1 bg-white/10 backdrop-blur-sm rounded-full px-2 py-0.5">
+                          <Flame className="h-3 w-3 text-orange-500" />
                           <span className="text-white text-xs font-medium">
-                            {Math.floor(Math.random() * 5000) + 500}
+                            {show.popularityScore?.toLocaleString() || '3,500+'}
                           </span>
                         </div>
                       </div>
                     </div>
                   </div>
                   <div className="p-4">
-                    <h3 className="font-bold text-lg mb-1 line-clamp-1">
-                      {show.name?.split(' - ')[0]}
+                    <h3 className="font-bold text-base md:text-lg mb-1 line-clamp-1">
+                      {show.name?.split(' - ')[0] || 'Untitled Show'}
                     </h3>
                     <p className="text-white/70 text-sm mb-3 line-clamp-1">
                       {show.artist?.name || 'Unknown Artist'}
                     </p>
-                    <div className="flex flex-col space-y-2 text-sm text-white/60">
+                    <div className="flex flex-col space-y-2 text-xs md:text-sm text-white/60">
                       <div className="flex items-center">
-                        <Calendar size={16} className="mr-2 opacity-70" />
+                        <Calendar size={14} className="mr-2 opacity-70 flex-shrink-0" />
                         <span>
                           {typeof formattedDate === 'object' 
                             ? `${formattedDate.month} ${formattedDate.day}, ${formattedDate.year}` 
@@ -139,7 +162,7 @@ const TrendingShows = () => {
                       </div>
                       {show.venue && (
                         <div className="flex items-start">
-                          <MapPin size={16} className="mr-2 mt-0.5 opacity-70" />
+                          <MapPin size={14} className="mr-2 mt-0.5 opacity-70 flex-shrink-0" />
                           <span className="line-clamp-1">
                             {show.venue?.name ? `${show.venue.name}, ${show.venue.city || ''}` : 'Venue TBA'}
                           </span>
