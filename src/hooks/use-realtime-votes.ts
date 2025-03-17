@@ -83,6 +83,6 @@ export function useRealtimeVotes(showId: string, spotifyArtistId: string, initia
       await handleAddSong(trackId, trackName);
     },
     anonymousVoteCount,
-    setlistId // Export the setlistId so it can be passed to the component
+    setlistId
   };
 }
