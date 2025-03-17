@@ -1,13 +1,16 @@
+
 import React from 'react';
-import { Music, AlertCircle, Users, Info, Clock, Trophy } from 'lucide-react';
+import { AlertCircle, Info } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/auth/AuthContext';
-import ShareSetlistButton from '@/components/setlist/ShareSetlistButton';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
+import SetlistHeader from './SetlistHeader';
 import ShowSetlist from './ShowSetlist';
+import VotingStats from './VotingStats';
+import HowItWorksCard from './HowItWorksCard';
 
 interface Song {
   id: string;
@@ -57,70 +60,25 @@ const SetlistSection: React.FC<SetlistSectionProps> = ({
   const totalVotes = setlist.reduce((acc, song) => acc + song.votes, 0);
   const userVotedCount = setlist.filter(song => song.userVoted).length;
   
+  // For debugging
+  console.log("Available tracks:", availableTracks.length);
+  console.log("Selected track:", selectedTrack);
+  console.log("Is loading tracks:", isLoadingAllTracks);
+  
   return (
     <section className="px-6 md:px-8 lg:px-12 py-12 bg-black">
       <div className="max-w-6xl mx-auto">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2">
             <Card className="bg-[#0A0A0A] border-white/10 shadow-lg overflow-hidden">
-              <CardHeader className="pb-4 border-b border-white/10">
-                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                  <div>
-                    <CardTitle className="text-2xl font-bold flex items-center gap-2 text-white">
-                      <Music className="h-5 w-5 text-white/70" />
-                      Setlist Voting
-                      <span className="inline-flex items-center ml-2 text-xs bg-white/10 text-white/90 px-2 py-0.5 rounded-full">
-                        Live
-                      </span>
-                    </CardTitle>
-                    <CardDescription className="mt-1.5 text-white/70">
-                      Vote for songs you want to hear at this show
-                    </CardDescription>
-                  </div>
-                  
-                  <div className="flex flex-wrap items-center gap-3">
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <div className="text-xs bg-white/10 text-white px-3 py-1.5 rounded-full font-medium flex items-center gap-1.5">
-                            <Users size={14} />
-                            <span>{totalVotes} {totalVotes === 1 ? 'vote' : 'votes'}</span>
-                          </div>
-                        </TooltipTrigger>
-                        <TooltipContent className="bg-[#0A0A0A] border-white/10 text-white">
-                          <p>Total votes across all songs</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                    
-                    {isConnected ? (
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <div className="text-xs bg-green-500/10 text-green-400 px-3 py-1.5 rounded-full font-medium flex items-center gap-1.5">
-                              <span className="inline-block w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-                              <span>Live updates</span>
-                            </div>
-                          </TooltipTrigger>
-                          <TooltipContent className="bg-[#0A0A0A] border-white/10 text-white">
-                            <p>You're seeing votes in real time</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    ) : (
-                      <div className="text-xs bg-yellow-500/10 text-yellow-400 px-3 py-1.5 rounded-full font-medium flex items-center gap-1.5">
-                        <span className="inline-block w-2 h-2 bg-yellow-500 rounded-full"></span>
-                        <span>Offline mode</span>
-                      </div>
-                    )}
-                    
-                    <ShareSetlistButton 
-                      showId={showId}
-                      showName={showName}
-                      artistName={artistName}
-                    />
-                  </div>
-                </div>
+              <CardHeader className="pb-0">
+                <SetlistHeader 
+                  isConnected={isConnected}
+                  totalVotes={totalVotes}
+                  showId={showId}
+                  showName={showName}
+                  artistName={artistName}
+                />
               </CardHeader>
               <CardContent className="p-0">
                 {isLoadingTracks ? (
@@ -189,89 +147,15 @@ const SetlistSection: React.FC<SetlistSectionProps> = ({
           </div>
           
           <div className="space-y-6">
-            <Card className="bg-[#0A0A0A] border-white/10 shadow-lg">
-              <CardHeader>
-                <CardTitle className="text-xl font-bold flex items-center gap-2 text-white">
-                  <Trophy className="h-5 w-5 text-white/70" />
-                  Voting Stats
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <p className="text-sm text-white/70 mb-1">Total Votes</p>
-                  <div className="text-2xl font-bold text-white">{totalVotes}</div>
-                  <div className="w-full h-2 bg-white/10 rounded-full mt-1">
-                    <div className="h-full bg-white/30 rounded-full" style={{ width: `${Math.min(100, totalVotes / 10)}%` }}></div>
-                  </div>
-                </div>
-                
-                {(isAuthenticated || userVotedCount > 0) && (
-                  <div>
-                    <p className="text-sm text-white/70 mb-1">Your Votes</p>
-                    <div className="text-2xl font-bold text-white">{userVotedCount}</div>
-                    <div className="w-full h-2 bg-white/10 rounded-full mt-1">
-                      <div className="h-full bg-white/30 rounded-full" style={{ width: `${Math.min(100, (userVotedCount / 10) * 100)}%` }}></div>
-                    </div>
-                  </div>
-                )}
-                
-                {!isAuthenticated && anonymousVoteCount > 0 && (
-                  <div>
-                    <p className="text-sm text-white/70 mb-1">Free Votes Used</p>
-                    <div className="flex items-center gap-2">
-                      <div className="text-2xl font-bold text-white">{anonymousVoteCount}/3</div>
-                      <Button 
-                        size="sm" 
-                        onClick={login}
-                        variant="outline"
-                        className="text-xs h-7 mt-1 border-white/20 hover:bg-white/10"
-                      >
-                        Log in for more
-                      </Button>
-                    </div>
-                    <div className="w-full h-2 bg-white/10 rounded-full mt-1">
-                      <div className="h-full bg-amber-500/50 rounded-full" style={{ width: `${(anonymousVoteCount / 3) * 100}%` }}></div>
-                    </div>
-                  </div>
-                )}
-                
-                <div>
-                  <p className="text-sm text-white/70 mb-1">Voting Closes In</p>
-                  <div className="text-xl font-bold text-white">2d 14h</div>
-                </div>
-                
-                <div className="pt-2 mt-2 border-t border-white/10">
-                  <div className="flex items-center gap-2">
-                    <Users size={16} className="text-white/70" />
-                    <p className="text-sm text-white/70"><span className="font-bold text-white">127</span> fans have voted</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            <VotingStats
+              totalVotes={totalVotes}
+              userVotedCount={userVotedCount}
+              anonymousVoteCount={anonymousVoteCount}
+              isAuthenticated={isAuthenticated}
+              login={login}
+            />
             
-            <Card className="bg-[#0A0A0A] border-white/10 shadow-lg">
-              <CardHeader>
-                <CardTitle className="text-xl font-bold flex items-center gap-2 text-white">
-                  <Info className="h-5 w-5 text-white/70" />
-                  How It Works
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="text-white/70 text-sm space-y-4">
-                <p>
-                  Vote for songs you want to hear at this show. The most voted songs rise to the top of the list.
-                </p>
-                <p>
-                  Non-logged in users can vote for up to 3 songs. Create an account to vote for unlimited songs!
-                </p>
-                <p>
-                  Anyone can add songs to the setlist from the dropdown below. Artists and promoters can see these votes to help plan setlists.
-                </p>
-                <div className="flex items-center gap-2 text-white/50 mt-2 pt-2 border-t border-white/10">
-                  <Clock size={14} />
-                  <p className="text-xs">Voting closes 2 hours before the show</p>
-                </div>
-              </CardContent>
-            </Card>
+            <HowItWorksCard />
           </div>
         </div>
       </div>
