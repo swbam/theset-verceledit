@@ -59,8 +59,8 @@ export function useSongManagement(showId: string, initialSongs: Song[], isAuthen
       }
       
       try {
-        // Call realtimeHandleAddSong and store the result
-        // We don't check the result here since it's void and not meant to return a status
+        // Call realtimeHandleAddSong without checking its return value
+        // since it's a void function
         await realtimeHandleAddSong();
         
         setSelectedTrack('');
