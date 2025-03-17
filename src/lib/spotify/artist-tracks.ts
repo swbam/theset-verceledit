@@ -1,10 +1,23 @@
 import { supabase } from '@/integrations/supabase/client';
 import { getAccessToken } from './auth';
+import { Json } from '@/integrations/supabase/types';
 
 const SPOTIFY_API_BASE = 'https://api.spotify.com/v1';
 
+// Track interface for type safety
+interface SpotifyTrack {
+  id: string;
+  name: string;
+  duration_ms?: number;
+  popularity?: number;
+  preview_url?: string;
+  uri?: string;
+  album?: string;
+  votes?: number;
+}
+
 // Get top tracks for an artist
-export const getArtistTopTracks = async (artistId: string, limit = 10): Promise<{ tracks: any[] }> => {
+export const getArtistTopTracks = async (artistId: string, limit = 10): Promise<{ tracks: SpotifyTrack[] }> => {
   try {
     // Check if we have stored tracks in the database
     const { data: artistData, error } = await supabase
@@ -13,12 +26,15 @@ export const getArtistTopTracks = async (artistId: string, limit = 10): Promise<
       .eq('id', artistId)
       .maybeSingle();
     
-    if (!error && artistData && artistData.stored_tracks && Array.isArray(artistData.stored_tracks) && artistData.stored_tracks.length > 0) {
+    if (!error && artistData && artistData.stored_tracks && 
+        Array.isArray(artistData.stored_tracks) && 
+        artistData.stored_tracks.length > 0) {
       console.log("Using stored tracks from database");
       // Return top tracks sorted by popularity
+      const tracks = artistData.stored_tracks as SpotifyTrack[];
       return { 
-        tracks: artistData.stored_tracks
-          .sort((a: any, b: any) => b.popularity - a.popularity)
+        tracks: tracks
+          .sort((a, b) => (b.popularity || 0) - (a.popularity || 0))
           .slice(0, limit)
       };
     }
@@ -33,11 +49,13 @@ export const getArtistTopTracks = async (artistId: string, limit = 10): Promise<
       .eq('id', artistId)
       .maybeSingle();
       
-    if (!refreshError && refreshedData && refreshedData.stored_tracks && Array.isArray(refreshedData.stored_tracks)) {
+    if (!refreshError && refreshedData && refreshedData.stored_tracks && 
+        Array.isArray(refreshedData.stored_tracks)) {
       // Return top tracks sorted by popularity
+      const tracks = refreshedData.stored_tracks as SpotifyTrack[];
       return { 
-        tracks: refreshedData.stored_tracks
-          .sort((a: any, b: any) => b.popularity - a.popularity)
+        tracks: tracks
+          .sort((a, b) => (b.popularity || 0) - (a.popularity || 0))
           .slice(0, limit)
       };
     }
@@ -53,7 +71,7 @@ export const getArtistTopTracks = async (artistId: string, limit = 10): Promise<
 };
 
 // Get all tracks for an artist
-export const getArtistAllTracks = async (artistId: string): Promise<{ tracks: any[] }> => {
+export const getArtistAllTracks = async (artistId: string): Promise<{ tracks: SpotifyTrack[] }> => {
   try {
     // Check if we have stored tracks and they're less than 7 days old
     const { data: artistData, error } = await supabase
@@ -71,7 +89,7 @@ export const getArtistAllTracks = async (artistId: string): Promise<{ tracks: an
         artistData.stored_tracks.length > 0 &&
         new Date(artistData.updated_at) > sevenDaysAgo) {
       console.log(`Using ${artistData.stored_tracks.length} stored tracks from database`);
-      return { tracks: artistData.stored_tracks };
+      return { tracks: artistData.stored_tracks as SpotifyTrack[] };
     }
     
     // Otherwise fetch from Spotify API
@@ -93,7 +111,7 @@ export const getArtistAllTracks = async (artistId: string): Promise<{ tracks: an
     }
     
     const topTracksData = await topTracksResponse.json();
-    let allTracks = topTracksData.tracks.map((track: any) => ({
+    let allTracks: SpotifyTrack[] = topTracksData.tracks.map((track: any) => ({
       id: track.id,
       name: track.name,
       duration_ms: track.duration_ms,
@@ -141,7 +159,7 @@ export const getArtistAllTracks = async (artistId: string): Promise<{ tracks: an
       // Get full track details for each track (for popularity score)
       for (const track of tracksData.items) {
         // Skip if we already have this track from top tracks
-        if (allTracks.some((t: any) => t.id === track.id)) {
+        if (allTracks.some((t) => t.id === track.id)) {
           continue;
         }
         
@@ -182,14 +200,17 @@ export const getArtistAllTracks = async (artistId: string): Promise<{ tracks: an
     
     // Remove duplicates (based on ID)
     const uniqueTracks = Array.from(
-      new Map(allTracks.map((track: any) => [track.id, track])).values()
+      new Map(allTracks.map((track) => [track.id, track])).values()
     );
     
     // Store all tracks in the database
+    // Convert tracks to a JSON-compatible format
+    const tracksForStorage: Json = uniqueTracks as unknown as Json;
+    
     await supabase
       .from('artists')
       .update({ 
-        stored_tracks: uniqueTracks,
+        stored_tracks: tracksForStorage,
         updated_at: new Date().toISOString()
       })
       .eq('id', artistId);

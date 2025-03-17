@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { getArtistTopTracks, getArtistAllTracks } from '@/lib/spotify';
 import { useMemo } from 'react';
+import { Json } from '@/integrations/supabase/types';
 
 export function useArtistTracks(spotifyArtistId: string, isLoadingShow: boolean) {
   // Fetch stored artist data
@@ -25,7 +26,12 @@ export function useArtistTracks(spotifyArtistId: string, isLoadingShow: boolean)
         return null;
       }
       
-      console.log(`Stored artist data for ${spotifyArtistId}:`, data?.stored_tracks?.length || 0, 'tracks');
+      // Safely check if stored_tracks exists and is an array
+      const tracksCount = data?.stored_tracks && 
+        Array.isArray(data.stored_tracks) ? 
+        data.stored_tracks.length : 0;
+      
+      console.log(`Stored artist data for ${spotifyArtistId}:`, tracksCount, 'tracks');
       return data;
     },
     enabled: !!spotifyArtistId && !isLoadingShow,
