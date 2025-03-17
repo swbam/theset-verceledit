@@ -1,3 +1,4 @@
+const SPOTIFY_API_BASE = 'https://api.spotify.com/v1';
 const SPOTIFY_CLIENT_ID = import.meta.env.VITE_SPOTIFY_CLIENT_ID || '2946864dc822469b9c672292ead45f43';
 const SPOTIFY_CLIENT_SECRET = import.meta.env.VITE_SPOTIFY_CLIENT_SECRET || 'feaf0fc901124b839b11e02f97d18a8d';
 
