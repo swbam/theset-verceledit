@@ -1,14 +1,12 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
 import SearchBar from '@/components/ui/SearchBar';
 import ArtistSearchResults from '@/components/artists/ArtistSearchResults';
 import FeaturedArtists from '@/components/home/FeaturedArtists';
-import ShowsByGenre from '@/components/artists/ShowsByGenre';
-import { Badge } from '@/components/ui/badge';
-import { popularMusicGenres } from '@/lib/ticketmaster';
+import GenreBrowser from '@/components/artists/GenreBrowser';
 
 const Artists = () => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -57,28 +55,10 @@ const Artists = () => {
               <div className="space-y-16">
                 <FeaturedArtists />
                 
-                <div className="space-y-6">
-                  <h2 className="text-2xl font-bold">Popular Genres</h2>
-                  <div className="flex flex-wrap gap-2">
-                    {popularMusicGenres.map((genre) => (
-                      <Badge 
-                        key={genre.id}
-                        variant={activeGenre === genre.id ? "default" : "outline"}
-                        className="cursor-pointer text-sm py-1.5 px-3"
-                        onClick={() => setActiveGenre(genre.id)}
-                      >
-                        {genre.name}
-                      </Badge>
-                    ))}
-                  </div>
-                  
-                  {activeGenre && (
-                    <ShowsByGenre 
-                      genreId={activeGenre} 
-                      genreName={popularMusicGenres.find(g => g.id === activeGenre)?.name || ''}
-                    />
-                  )}
-                </div>
+                <GenreBrowser 
+                  activeGenre={activeGenre}
+                  setActiveGenre={setActiveGenre}
+                />
               </div>
             )}
           </div>
