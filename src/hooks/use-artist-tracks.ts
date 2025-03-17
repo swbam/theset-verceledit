@@ -25,7 +25,7 @@ export function useArtistTracks(spotifyArtistId: string, isLoadingShow: boolean)
         return null;
       }
       
-      console.log(`Stored artist data for ${spotifyArtistId}:`, data);
+      console.log(`Stored artist data for ${spotifyArtistId}:`, data?.stored_tracks?.length || 0, 'tracks');
       return data;
     },
     enabled: !!spotifyArtistId && !isLoadingShow,
@@ -46,7 +46,7 @@ export function useArtistTracks(spotifyArtistId: string, isLoadingShow: boolean)
       }
       
       try {
-        const tracks = await getArtistTopTracks(spotifyArtistId, 5);
+        const tracks = await getArtistTopTracks(spotifyArtistId, 10);
         console.log(`Fetched ${tracks.tracks?.length || 0} top tracks`);
         return tracks;
       } catch (error) {
@@ -79,52 +79,31 @@ export function useArtistTracks(spotifyArtistId: string, isLoadingShow: boolean)
         return { tracks: [] };
       }
       
-      if (storedArtistData?.stored_tracks && Array.isArray(storedArtistData.stored_tracks)) {
-        console.log("Using stored tracks from database:", storedArtistData.stored_tracks.length);
-        return { tracks: storedArtistData.stored_tracks };
-      }
-      
+      console.log(`Fetching all tracks for artist ID: ${spotifyArtistId}`);
       try {
         const tracks = await getArtistAllTracks(spotifyArtistId);
-        
-        if (tracks && tracks.tracks && tracks.tracks.length > 0) {
-          console.log(`Storing ${tracks.tracks.length} tracks in database for artist ${spotifyArtistId}`);
-          const { error } = await supabase
-            .from('artists')
-            .update({ 
-              stored_tracks: tracks.tracks,
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', spotifyArtistId);
-          
-          if (error) {
-            console.error("Error storing tracks in database:", error);
-          } else {
-            console.log("Successfully stored tracks in database");
-          }
-        }
-        
+        console.log(`Fetched ${tracks.tracks?.length || 0} tracks in total`);
         return tracks;
       } catch (error) {
         console.error("Error fetching all tracks:", error);
         // Return some mock data if the API fails
         return { 
           tracks: [
-            { id: 'mock1', name: 'Hit Song 1' },
-            { id: 'mock2', name: 'Hit Song 2' },
-            { id: 'mock3', name: 'Hit Song 3' },
-            { id: 'mock4', name: 'Deep Cut 1' },
-            { id: 'mock5', name: 'Deep Cut 2' },
-            { id: 'mock6', name: 'Acoustic Version' },
-            { id: 'mock7', name: 'Live Version' },
-            { id: 'mock8', name: 'Remix' },
-            { id: 'mock9', name: 'Extended Mix' },
-            { id: 'mock10', name: 'Collaboration Track' }
+            { id: 'mock1', name: 'Hit Song 1', album: 'Album 1', popularity: 90 },
+            { id: 'mock2', name: 'Hit Song 2', album: 'Album 1', popularity: 85 },
+            { id: 'mock3', name: 'Hit Song 3', album: 'Album 2', popularity: 80 },
+            { id: 'mock4', name: 'Deep Cut 1', album: 'Album 2', popularity: 60 },
+            { id: 'mock5', name: 'Deep Cut 2', album: 'Album 3', popularity: 55 },
+            { id: 'mock6', name: 'Acoustic Version', album: 'Album 3', popularity: 70 },
+            { id: 'mock7', name: 'Live Version', album: 'Live Album', popularity: 75 },
+            { id: 'mock8', name: 'Remix', album: 'Remix Album', popularity: 65 },
+            { id: 'mock9', name: 'Extended Mix', album: 'Remix Album', popularity: 50 },
+            { id: 'mock10', name: 'Collaboration Track', album: 'Featuring', popularity: 85 }
           ] 
         };
       }
     },
-    enabled: !!spotifyArtistId && !isLoadingShow && !isLoadingStoredData,
+    enabled: !!spotifyArtistId && !isLoadingShow,
     retry: 2,
   });
 
@@ -155,8 +134,7 @@ export function useArtistTracks(spotifyArtistId: string, isLoadingShow: boolean)
     const setlistIds = new Set(setlist.map(song => song.id));
     
     const filteredTracks = allTracksData.tracks
-      .filter((track: any) => !setlistIds.has(track.id))
-      .sort((a: any, b: any) => a.name.localeCompare(b.name));
+      .filter((track: any) => !setlistIds.has(track.id));
     
     console.log(`${filteredTracks.length} tracks available after filtering out ${setlist.length} setlist tracks`);
     return filteredTracks;

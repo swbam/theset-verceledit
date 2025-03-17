@@ -1,10 +1,18 @@
 
 import React from 'react';
-import { PlusCircle, Music } from 'lucide-react';
+import { PlusCircle, Music, Disc3 } from 'lucide-react';
 import { toast } from 'sonner';
 import VotableSetlistTable from '@/components/setlist/VotableSetlistTable';
 import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { 
+  Select, 
+  SelectContent, 
+  SelectItem, 
+  SelectTrigger, 
+  SelectValue,
+  SelectGroup,
+  SelectLabel
+} from '@/components/ui/select';
 
 interface Song {
   id: string;
@@ -16,6 +24,8 @@ interface Song {
 interface Track {
   id: string;
   name: string;
+  album?: string;
+  popularity?: number;
 }
 
 interface ShowSetlistProps {
@@ -62,6 +72,33 @@ const ShowSetlist = ({
     return name.length > maxLength ? `${name.substring(0, maxLength)}...` : name;
   };
   
+  // Group tracks by album
+  const tracksByAlbum = React.useMemo(() => {
+    const albums: Record<string, Track[]> = {};
+    
+    if (!availableTracks) return albums;
+    
+    availableTracks.forEach(track => {
+      const albumName = track.album || 'Other Songs';
+      if (!albums[albumName]) {
+        albums[albumName] = [];
+      }
+      albums[albumName].push(track);
+    });
+    
+    // Sort albums by popularity of first track in each album
+    return Object.entries(albums)
+      .sort((a, b) => {
+        const aPopularity = a[1][0]?.popularity || 0;
+        const bPopularity = b[1][0]?.popularity || 0;
+        return bPopularity - aPopularity;
+      })
+      .reduce((acc, [album, tracks]) => {
+        acc[album] = tracks;
+        return acc;
+      }, {} as Record<string, Track[]>);
+  }, [availableTracks]);
+  
   return (
     <div className="flex flex-col">
       {/* Song selection dropdown at the top */}
@@ -88,13 +125,23 @@ const ShowSetlist = ({
                       </div>
                     </SelectItem>
                   ) : (
-                    availableTracks.map((track) => (
-                      <SelectItem key={track.id} value={track.id} className="focus:bg-white/10 focus:text-white">
-                        <div className="flex items-center">
-                          <Music size={14} className="mr-2 text-white/60" />
-                          {truncateSongName(track.name)}
-                        </div>
-                      </SelectItem>
+                    Object.entries(tracksByAlbum).map(([album, tracks]) => (
+                      <SelectGroup key={album}>
+                        <SelectLabel className="px-2 text-xs font-semibold text-white/50">
+                          <Disc3 size={12} className="inline mr-1" /> {album}
+                        </SelectLabel>
+                        {tracks
+                          .sort((a, b) => (b.popularity || 0) - (a.popularity || 0))
+                          .map((track) => (
+                            <SelectItem key={track.id} value={track.id} className="focus:bg-white/10 focus:text-white">
+                              <div className="flex items-center">
+                                <Music size={14} className="mr-2 text-white/60" />
+                                {truncateSongName(track.name)}
+                              </div>
+                            </SelectItem>
+                          ))
+                        }
+                      </SelectGroup>
                     ))
                   )}
                 </SelectContent>
