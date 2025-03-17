@@ -82,7 +82,11 @@ const ShowSetlist = ({
                   {isLoadingAllTracks ? (
                     <SelectItem value="loading" disabled>Loading songs...</SelectItem>
                   ) : availableTracks.length === 0 ? (
-                    <SelectItem value="empty" disabled>No songs available</SelectItem>
+                    <SelectItem value="empty" disabled>
+                      <div className="text-center py-2 text-white/60">
+                        No songs available. We'll add some default tracks soon!
+                      </div>
+                    </SelectItem>
                   ) : (
                     availableTracks.map((track) => (
                       <SelectItem key={track.id} value={track.id} className="focus:bg-white/10 focus:text-white">
@@ -98,7 +102,7 @@ const ShowSetlist = ({
             </div>
             <Button 
               onClick={handleAddTrack}
-              disabled={isLoadingAllTracks}
+              disabled={isLoadingAllTracks || !availableTracks.length}
               className="mt-2 sm:mt-0 flex-shrink-0 bg-white text-[#0A0A16] hover:bg-white/90" 
               size="sm"
             >

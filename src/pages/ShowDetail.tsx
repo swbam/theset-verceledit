@@ -6,7 +6,7 @@ import { toast } from 'sonner';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
 import { fetchShowDetails } from '@/lib/ticketmaster';
-import { getArtistTopTracks, getArtistAllTracks, resolveArtistId } from '@/lib/spotify';
+import { getArtistTopTracks, getArtistAllTracks, resolveArtistId, searchArtists } from '@/lib/spotify';
 import { useRealtimeVotes } from '@/hooks/use-realtime-votes';
 import { useAuth } from '@/contexts/auth';
 import ShowHeader from '@/components/shows/ShowHeader';
@@ -40,13 +40,24 @@ const ShowDetail = () => {
         const showDetails = await fetchShowDetails(id);
         console.log("Show details fetched:", showDetails);
         
-        if (showDetails?.artist?.id) {
-          const resolvedId = await resolveArtistId(
-            showDetails.artist.id, 
-            showDetails.artist.name
-          );
-          setSpotifyArtistId(resolvedId);
-          console.log(`Set Spotify artist ID: ${resolvedId}`);
+        // Fix for Spotify artist ID - search by name instead of using Ticketmaster ID
+        if (showDetails?.artist?.name) {
+          try {
+            const artistResult = await searchArtists(showDetails.artist.name, 1);
+            if (artistResult?.artists?.items && artistResult.artists.items.length > 0) {
+              const spotifyId = artistResult.artists.items[0].id;
+              setSpotifyArtistId(spotifyId);
+              console.log(`Set Spotify artist ID from search: ${spotifyId}`);
+            } else {
+              console.log("No Spotify artist found with name:", showDetails.artist.name);
+              // Set mock ID to allow for mock data fallback
+              setSpotifyArtistId('mock-artist');
+            }
+          } catch (error) {
+            console.error("Error searching for artist by name:", error);
+            // Set mock ID to allow for mock data fallback
+            setSpotifyArtistId('mock-artist');
+          }
         }
         
         return showDetails;
