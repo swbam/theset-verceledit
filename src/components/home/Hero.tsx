@@ -29,7 +29,7 @@ const Hero = () => {
   ];
 
   return (
-    <section className="relative bg-gradient-to-b from-black to-[#0A0A10] text-white py-16 md:py-20">
+    <section className="relative bg-black text-white py-16 md:py-20">
       <div className="container mx-auto px-4 md:px-6 max-w-5xl">
         <div className="text-center mb-8">
           <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-4">
@@ -52,7 +52,7 @@ const Hero = () => {
               placeholder="Search for artists, venues, or cities..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 py-6 h-12 bg-white/10 border-white/10 text-white placeholder:text-white/60 rounded-md w-full focus-visible:ring-white/30"
+              className="pl-10 py-6 h-12 bg-black/40 border-white/10 text-white placeholder:text-white/60 rounded-md w-full focus-visible:ring-white/30"
             />
           </div>
         </form>
@@ -61,9 +61,9 @@ const Hero = () => {
           {popularSearches.map((search) => (
             <Button
               key={search.name}
-              variant="secondary"
+              variant="outline"
               size="sm"
-              className="bg-white/10 hover:bg-white/20 border border-white/20 text-white rounded-full px-4 py-1"
+              className="bg-black/40 hover:bg-black/60 border border-white/20 text-white rounded-full px-4 py-1"
               onClick={() => handlePopularSearch(search.path)}
             >
               {search.name}
