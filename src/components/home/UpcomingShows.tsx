@@ -9,7 +9,7 @@ import { fetchShowsByGenre, popularMusicGenres } from '@/lib/ticketmaster';
 const UpcomingShows = () => {
   const [activeGenre, setActiveGenre] = useState("all");
   
-  const { data: shows = [], isLoading, error } = useQuery({
+  const { data: showsData = [], isLoading, error } = useQuery({
     queryKey: ['upcomingShows', activeGenre],
     queryFn: () => {
       if (activeGenre === "all") {
@@ -18,6 +18,19 @@ const UpcomingShows = () => {
       return fetchShowsByGenre(activeGenre, 3);
     },
   });
+
+  // Ensure unique shows by ID
+  const shows = React.useMemo(() => {
+    const uniqueMap = new Map();
+    
+    showsData.forEach(show => {
+      if (!uniqueMap.has(show.id)) {
+        uniqueMap.set(show.id, show);
+      }
+    });
+
+    return Array.from(uniqueMap.values());
+  }, [showsData]);
 
   // Format date helper function
   const formatDate = (dateString: string) => {

@@ -33,6 +33,19 @@ const TrendingShows = () => {
     return "Pop"; // Fallback genre
   };
 
+  // Ensure unique shows by ID
+  const uniqueShows = React.useMemo(() => {
+    const uniqueMap = new Map();
+    
+    shows.forEach(show => {
+      if (!uniqueMap.has(show.id)) {
+        uniqueMap.set(show.id, show);
+      }
+    });
+
+    return Array.from(uniqueMap.values()).slice(0, 4);
+  }, [shows]);
+
   return (
     <section className="py-16 px-4">
       <div className="container mx-auto max-w-5xl">
@@ -72,7 +85,7 @@ const TrendingShows = () => {
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {shows.map((show, index) => {
+            {uniqueShows.map((show, index) => {
               const formattedDate = formatDate(show.date);
               const genre = getGenreLabel(show);
               
