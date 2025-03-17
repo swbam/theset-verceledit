@@ -1,79 +1,87 @@
+import { createClient } from '@supabase/supabase-js';
+import { SpotifyTrack } from '@/lib/spotify/types';
 
-import { SpotifyTrack } from './types';
-import { supabase } from '@/integrations/supabase/client';
-
-/**
- * Safely converts stored tracks from database JSON to SpotifyTrack objects
- */
-export const convertStoredTracks = (storedTracks: any): SpotifyTrack[] => {
-  if (!storedTracks || !Array.isArray(storedTracks) || storedTracks.length === 0) {
-    return [];
-  }
-  
-  return storedTracks.map((track: any) => ({
-    id: track.id || `unknown-${Math.random().toString(36).substring(2, 9)}`,
-    name: track.name || 'Unknown Track',
-    duration_ms: track.duration_ms,
-    popularity: track.popularity || 50,
-    preview_url: track.preview_url,
-    uri: track.uri,
-    album: track.album || 'Unknown Album',
-    votes: track.votes || 0
-  }));
-};
-
-/**
- * Save tracks to the database for future use
- */
-export const saveTracksToDb = async (artistId: string, tracks: SpotifyTrack[]): Promise<void> => {
-  console.log(`Saving ${tracks.length} tracks to database for artist ${artistId}`);
-  
+// Utility function to store tracks in database for caching
+export async function storeTracksInDb(artistId: string, tracks: SpotifyTrack[]) {
   try {
-    const { error } = await supabase
-      .from('artists')
-      .upsert({
-        id: artistId,
-        stored_tracks: tracks,
-        updated_at: new Date().toISOString()
-      });
+    const supabase = createClient(
+      import.meta.env.VITE_SUPABASE_URL as string,
+      import.meta.env.VITE_SUPABASE_ANON_KEY as string
+    );
     
-    if (error) {
-      console.error('Error saving tracks to database:', error);
+    // First, get the artist record
+    const { data: artist } = await supabase
+      .from('artists')
+      .select('*')
+      .eq('id', artistId)
+      .single();
+    
+    if (artist) {
+      // Convert tracks to serializable JSON format
+      const tracksJSON = tracks.map(track => ({
+        id: track.id,
+        name: track.name,
+        uri: track.uri,
+        popularity: track.popularity,
+        preview_url: track.preview_url,
+        album: track.album ? {
+          id: track.album.id,
+          name: track.album.name,
+          images: track.album.images
+        } : null
+      }));
+      
+      // Update the artist with the stored tracks
+      const { error } = await supabase
+        .from('artists')
+        .update({ 
+          stored_tracks: tracksJSON,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', artistId);
+      
+      if (error) {
+        console.error('Error storing tracks in DB:', error);
+      } else {
+        console.log(`Successfully stored ${tracks.length} tracks for artist ${artistId}`);
+      }
     } else {
-      console.log('Tracks saved successfully to database');
+      console.log(`Artist ${artistId} not found in database, not storing tracks`);
     }
   } catch (error) {
-    console.error('Error in saveTracksToDb:', error);
+    console.error('Error in storeTracksInDb:', error);
   }
-};
+}
 
-/**
- * Get stored tracks from the database
- */
-export const getStoredTracksFromDb = async (artistId: string): Promise<SpotifyTrack[] | null> => {
+// Utility function to get stored tracks from database
+export async function getStoredTracksFromDb(artistId: string): Promise<SpotifyTrack[] | null> {
   try {
-    const { data, error } = await supabase
+    const supabase = createClient(
+      import.meta.env.VITE_SUPABASE_URL as string,
+      import.meta.env.VITE_SUPABASE_ANON_KEY as string
+    );
+    
+    // Get the artist with stored tracks
+    const { data: artist } = await supabase
       .from('artists')
       .select('stored_tracks, updated_at')
       .eq('id', artistId)
-      .maybeSingle();
+      .single();
     
-    if (error) {
-      console.error('Error fetching stored tracks:', error);
-      return null;
-    }
-    
-    // Check if we have stored tracks and they're not too old
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-    
-    if (data && data.stored_tracks && 
-        Array.isArray(data.stored_tracks) && 
-        data.stored_tracks.length > 0 &&
-        new Date(data.updated_at) > sevenDaysAgo) {
+    if (artist?.stored_tracks) {
+      // Check if the cached data is recent (less than 7 days old)
+      const updatedAt = new Date(artist.updated_at);
+      const now = new Date();
+      const diffTime = Math.abs(now.getTime() - updatedAt.getTime());
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
       
-      console.log(`Retrieved ${data.stored_tracks.length} tracks from database for artist ${artistId}`);
-      return convertStoredTracks(data.stored_tracks);
+      if (diffDays <= 7) {
+        // Convert the stored JSON tracks back to SpotifyTrack objects
+        return artist.stored_tracks as unknown as SpotifyTrack[];
+      } else {
+        console.log('Stored tracks are older than 7 days, fetching fresh data');
+        return null;
+      }
     }
     
     return null;
@@ -81,4 +89,24 @@ export const getStoredTracksFromDb = async (artistId: string): Promise<SpotifyTr
     console.error('Error in getStoredTracksFromDb:', error);
     return null;
   }
-};
+}
+
+// Mock data generator for tracks
+export function generateMockTracks(count: number) {
+  const mockTracks = [];
+  for (let i = 0; i < count; i++) {
+    mockTracks.push({
+      id: `mock-track-${i}`,
+      name: `Mock Track ${i}`,
+      artists: [{ name: 'Mock Artist' }],
+      album: {
+        name: 'Mock Album',
+        images: [{ url: 'https://via.placeholder.com/640x480' }]
+      },
+      uri: `spotify:track:mock-${i}`,
+      popularity: Math.floor(Math.random() * 100),
+      preview_url: null
+    });
+  }
+  return mockTracks;
+}

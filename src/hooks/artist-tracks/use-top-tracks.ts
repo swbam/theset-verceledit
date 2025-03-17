@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { getArtistTopTracks, SpotifyTrack } from '@/lib/spotify';
+import { getArtistTopTracks } from '@/lib/spotify';
 import { generateMockTracks } from './utils';
 
 // Fetch top tracks query

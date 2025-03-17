@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { fetchArtistEvents } from '@/lib/ticketmaster';
@@ -12,9 +12,11 @@ import ArtistDetailSkeleton from '@/components/artist/ArtistDetailSkeleton';
 import ArtistNotFound from '@/components/artist/ArtistNotFound';
 import PastSetlists from '@/components/artists/PastSetlists';
 import { useDocumentTitle } from '@/hooks/use-document-title';
+import { toast } from 'sonner';
 
 const ArtistDetail = () => {
   const { id } = useParams<{ id: string }>();
+  const [loadAllShows, setLoadAllShows] = useState(false);
   
   // Fetch artist details
   const {
@@ -33,10 +35,23 @@ const ArtistDetail = () => {
   const {
     data: shows = [],
     isLoading: showsLoading,
-    error: showsError
+    error: showsError,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage
   } = useQuery({
-    queryKey: ['artistEvents', id],
-    queryFn: () => fetchArtistEvents(id as string),
+    queryKey: ['artistEvents', id, loadAllShows],
+    queryFn: async () => {
+      try {
+        const allShows = await fetchArtistEvents(id as string);
+        console.log(`Loaded ${allShows.length} shows for artist`);
+        return allShows;
+      } catch (error) {
+        console.error("Error fetching artist events:", error);
+        toast.error("Failed to load all shows");
+        return [];
+      }
+    },
     enabled: !!id,
     staleTime: 1000 * 60 * 10, // 10 minutes
     retry: 1
