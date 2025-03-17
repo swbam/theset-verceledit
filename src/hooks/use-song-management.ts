@@ -40,7 +40,7 @@ export function useSongManagement(showId: string, initialSongs: Song[], isAuthen
     }
   };
 
-  const handleAddSong = (allTracksData: any) => {
+  const handleAddSong = async (allTracksData: any) => {
     if (!selectedTrack) {
       toast.error("Please select a song first");
       return;
@@ -59,7 +59,7 @@ export function useSongManagement(showId: string, initialSongs: Song[], isAuthen
       }
       
       // Add the song to the setlist using the handleAddSong from useRealtimeVotes
-      realtimeHandleAddSong();
+      await realtimeHandleAddSong();
       
       setSelectedTrack('');
       toast.success(`"${trackToAdd.name}" added to setlist!`);

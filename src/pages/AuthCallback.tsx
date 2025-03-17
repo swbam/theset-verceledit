@@ -21,7 +21,6 @@ const AuthCallback = () => {
         
         if (accessToken) {
           console.log('Access token found in URL');
-          // Handle access token if present in the hash
         }
         
         // Get the current session
@@ -34,12 +33,15 @@ const AuthCallback = () => {
         
         if (session) {
           console.log('Session found:', session.user.id);
+          console.log('Provider from URL:', provider);
+          console.log('Provider from session:', session.provider_token ? 'Has provider token' : 'No provider token');
+          
           toast.success('Successfully signed in!');
           
           // If authentication was with Spotify, redirect to my-artists page
-          if (provider === 'spotify' || (session.provider_token && provider === 'spotify')) {
+          if (provider === 'spotify' || session.provider_token) {
             console.log('Redirecting to my-artists page');
-            navigate('/my-artists');
+            setTimeout(() => navigate('/my-artists'), 100);
           } else {
             navigate('/');
           }
