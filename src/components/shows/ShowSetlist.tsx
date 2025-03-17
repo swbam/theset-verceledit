@@ -10,8 +10,6 @@ import {
   SelectItem, 
   SelectTrigger, 
   SelectValue,
-  SelectGroup,
-  SelectLabel
 } from '@/components/ui/select';
 
 interface Song {
@@ -72,31 +70,21 @@ const ShowSetlist = ({
     return name.length > maxLength ? `${name.substring(0, maxLength)}...` : name;
   };
   
-  // Group tracks by album
-  const tracksByAlbum = React.useMemo(() => {
-    const albums: Record<string, Track[]> = {};
+  // Sort tracks by popularity
+  const sortedTracks = React.useMemo(() => {
+    if (!availableTracks || !Array.isArray(availableTracks)) return [];
     
-    if (!availableTracks) return albums;
-    
-    availableTracks.forEach(track => {
-      const albumName = track.album || 'Other Songs';
-      if (!albums[albumName]) {
-        albums[albumName] = [];
-      }
-      albums[albumName].push(track);
+    // Filter out duplicates by name (case-insensitive)
+    const uniqueNames = new Set();
+    const uniqueTracks = availableTracks.filter(track => {
+      const lowercaseName = track.name.toLowerCase();
+      if (uniqueNames.has(lowercaseName)) return false;
+      uniqueNames.add(lowercaseName);
+      return true;
     });
     
-    // Sort albums by popularity of first track in each album
-    return Object.entries(albums)
-      .sort((a, b) => {
-        const aPopularity = a[1][0]?.popularity || 0;
-        const bPopularity = b[1][0]?.popularity || 0;
-        return bPopularity - aPopularity;
-      })
-      .reduce((acc, [album, tracks]) => {
-        acc[album] = tracks;
-        return acc;
-      }, {} as Record<string, Track[]>);
+    // Sort by popularity (higher first)
+    return [...uniqueTracks].sort((a, b) => (b.popularity || 0) - (a.popularity || 0));
   }, [availableTracks]);
   
   return (
@@ -112,33 +100,27 @@ const ShowSetlist = ({
                 onValueChange={handleTrackSelect}
                 disabled={isLoadingAllTracks}
               >
-                <SelectTrigger className="w-full bg-white/5 border-white/10 text-white">
+                <SelectTrigger className="w-full bg-black border-white/10 text-white">
                   <SelectValue placeholder="Select a song" />
                 </SelectTrigger>
-                <SelectContent className="bg-[#0A0A16] border-white/10 text-white z-50 max-h-80">
+                <SelectContent className="bg-black border-white/10 text-white z-50 max-h-80">
                   {isLoadingAllTracks ? (
-                    <SelectItem value="loading" disabled>Loading songs...</SelectItem>
-                  ) : availableTracks.length === 0 ? (
+                    <SelectItem value="loading" disabled className="text-white/60">Loading songs...</SelectItem>
+                  ) : sortedTracks.length === 0 ? (
                     <SelectItem value="empty" disabled>
                       <div className="text-center py-2 text-white/60">
                         No songs available. We'll add some default tracks soon!
                       </div>
                     </SelectItem>
                   ) : (
-                    Object.entries(tracksByAlbum).map(([album, tracks]) => (
-                      <SelectGroup key={album}>
-                        <SelectLabel className="px-2 text-xs font-semibold text-white/50">
-                          {album}
-                        </SelectLabel>
-                        {tracks
-                          .sort((a, b) => (b.popularity || 0) - (a.popularity || 0))
-                          .map((track) => (
-                            <SelectItem key={track.id} value={track.id} className="focus:bg-white/10 focus:text-white">
-                              {truncateSongName(track.name)}
-                            </SelectItem>
-                          ))
-                        }
-                      </SelectGroup>
+                    sortedTracks.map((track) => (
+                      <SelectItem 
+                        key={track.id} 
+                        value={track.id} 
+                        className="focus:bg-white/10 focus:text-white data-[highlighted]:bg-white/10 data-[highlighted]:text-white"
+                      >
+                        {truncateSongName(track.name)}
+                      </SelectItem>
                     ))
                   )}
                 </SelectContent>
