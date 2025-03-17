@@ -11,6 +11,7 @@ import UpcomingShows from '@/components/artist/UpcomingShows';
 import ArtistDetailSkeleton from '@/components/artist/ArtistDetailSkeleton';
 import ArtistNotFound from '@/components/artist/ArtistNotFound';
 import PastSetlists from '@/components/artists/PastSetlists';
+import { useDocumentTitle } from '@/hooks/use-document-title';
 
 const ArtistDetail = () => {
   const { id } = useParams<{ id: string }>();
@@ -40,6 +41,12 @@ const ArtistDetail = () => {
     staleTime: 1000 * 60 * 10, // 10 minutes
     retry: 1
   });
+  
+  // Set document title
+  useDocumentTitle(
+    artist?.name || 'Artist',
+    artist?.name ? `View upcoming concerts and vote on setlists for ${artist.name}` : undefined
+  );
   
   const isLoading = artistLoading || showsLoading;
   const error = artistError || showsError;

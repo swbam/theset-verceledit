@@ -7,6 +7,7 @@ import SearchBar from '@/components/ui/SearchBar';
 import ArtistSearchResults from '@/components/artists/ArtistSearchResults';
 import FeaturedArtists from '@/components/home/FeaturedArtists';
 import GenreBrowser from '@/components/artists/GenreBrowser';
+import { useDocumentTitle } from '@/hooks/use-document-title';
 
 const Artists = () => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -20,6 +21,14 @@ const Artists = () => {
   
   // Set page title based on path
   const pageTitle = isShowsPage ? "Upcoming Shows" : "Discover Artists";
+  
+  // Set document title
+  useDocumentTitle(
+    pageTitle,
+    isShowsPage 
+      ? 'Find upcoming concerts and vote on what songs will be played'
+      : 'Discover artists with upcoming shows and influence their setlists'
+  );
 
   const handleSearch = async (query: string) => {
     setSearchQuery(query);

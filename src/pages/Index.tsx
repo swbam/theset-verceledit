@@ -8,8 +8,12 @@ import FeaturedArtists from '@/components/home/FeaturedArtists';
 import UpcomingShows from '@/components/home/UpcomingShows';
 import HowItWorks from '@/components/home/HowItWorks';
 import PersonalizedRecommendations from '@/components/home/PersonalizedRecommendations';
+import { useDocumentTitle } from '@/hooks/use-document-title';
 
 const Index = () => {
+  // Set document title for homepage
+  useDocumentTitle('', 'Join TheSet to vote on setlists for upcoming concerts and influence what your favorite artists will play live.');
+  
   return (
     <div className="min-h-screen flex flex-col bg-[#0A0A10]">
       <Navbar showSearch={false} />

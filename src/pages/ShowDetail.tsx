@@ -12,6 +12,7 @@ import ShowNotFound from '@/components/shows/ShowNotFound';
 import { useShowDetails } from '@/hooks/use-show-details';
 import { useArtistTracks } from '@/hooks/use-artist-tracks';
 import { useSongManagement } from '@/hooks/use-song-management';
+import { useDocumentTitle } from '@/hooks/use-document-title';
 
 const ShowDetail = () => {
   const { id } = useParams<{ id: string }>();
@@ -30,6 +31,37 @@ const ShowDetail = () => {
     showError, 
     spotifyArtistId 
   } = useShowDetails(id);
+  
+  // Set document title with appropriate format: "TheSet | ArtistName at VenueName in CityName,State | DateofShow"
+  useEffect(() => {
+    if (show && !isLoadingShow) {
+      const artistName = show.artist?.name || 'Artist';
+      const venueName = show.venue?.name || 'Venue';
+      const venueCity = show.venue?.city || '';
+      const venueState = show.venue?.state || '';
+      const venueLocation = venueCity && venueState ? `${venueCity}, ${venueState}` : (venueCity || venueState || 'Location');
+      
+      // Format date
+      const showDate = new Date(show.date);
+      const formattedDate = showDate.toLocaleDateString('en-US', {
+        weekday: 'short',
+        month: 'short', 
+        day: 'numeric', 
+        year: 'numeric'
+      });
+      
+      const title = `${artistName} at ${venueName} in ${venueLocation} | ${formattedDate}`;
+      const description = `Vote on ${artistName}'s setlist for their show at ${venueName} in ${venueLocation} on ${formattedDate}. Influence what songs they'll play live!`;
+      
+      document.title = `TheSet | ${title}`;
+      
+      // Update meta description
+      const metaDescription = document.querySelector('meta[name="description"]');
+      if (metaDescription) {
+        metaDescription.setAttribute('content', description);
+      }
+    }
+  }, [show, isLoadingShow]);
   
   // Handle navigation on error
   useEffect(() => {
