@@ -1,4 +1,3 @@
-
 import { getAccessToken } from './auth';
 import { saveTracksToDb, getStoredTracksFromDb } from './utils';
 import { SpotifyTrack, SpotifyTracksResponse } from './types';
@@ -70,85 +69,79 @@ export const getArtistAllTracks = async (artistId: string): Promise<SpotifyTrack
     );
     
     if (!albumsResponse.ok) {
-      throw new Error(`Failed to get albums: ${albumsResponse.statusText}`);
+      console.error(`Failed to get albums: ${albumsResponse.statusText}`);
+      // Continue with top tracks we already have instead of failing completely
+      console.log(`Continuing with ${allTracks.length} top tracks only`);
+      await saveTracksToDb(artistId, allTracks);
+      return { tracks: allTracks };
     }
     
     const albumsData = await albumsResponse.json();
     console.log(`Found ${albumsData.items.length} albums for artist ${artistId}`);
     
-    // For each album, get all tracks
-    for (const album of albumsData.items) {
-      console.log(`Processing album: ${album.name}`);
-      const tracksResponse = await fetch(
-        `${SPOTIFY_API_BASE}/albums/${album.id}/tracks?limit=50&market=US`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-      
-      if (!tracksResponse.ok) {
-        console.error(`Failed to get tracks for album ${album.id}: ${tracksResponse.statusText}`);
-        continue;
-      }
-      
-      const tracksData = await tracksResponse.json();
-      console.log(`Found ${tracksData.items.length} tracks in album ${album.name}`);
-      
-      // Get full track details for each track (for popularity score)
-      for (const track of tracksData.items) {
-        // Skip if we already have this track from top tracks
-        if (allTracks.some((t) => t.id === track.id)) {
-          continue;
+    // Use Promise.all to fetch all album tracks in parallel
+    const albumTrackPromises = albumsData.items.map(async (album: any) => {
+      try {
+        console.log(`Processing album: ${album.name}`);
+        const tracksResponse = await fetch(
+          `${SPOTIFY_API_BASE}/albums/${album.id}/tracks?limit=50&market=US`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+        
+        if (!tracksResponse.ok) {
+          console.error(`Failed to get tracks for album ${album.id}: ${tracksResponse.statusText}`);
+          return [];
         }
         
-        // Get full track details
-        try {
-          const trackResponse = await fetch(
-            `${SPOTIFY_API_BASE}/tracks/${track.id}?market=US`,
-            {
-              headers: {
-                Authorization: `Bearer ${token}`,
-              },
-            }
-          );
-          
-          if (!trackResponse.ok) {
-            continue;
-          }
-          
-          const trackData = await trackResponse.json();
-          
-          allTracks.push({
-            id: trackData.id,
-            name: trackData.name,
-            duration_ms: trackData.duration_ms,
-            popularity: trackData.popularity || 0,
-            preview_url: trackData.preview_url,
-            uri: trackData.uri,
-            album: album.name,
-            votes: 0
-          });
-        } catch (e) {
-          console.error(`Error fetching detail for track ${track.id}:`, e);
-        }
+        const tracksData = await tracksResponse.json();
+        console.log(`Found ${tracksData.items.length} tracks in album ${album.name}`);
+        
+        // Process all tracks from this album - no need to fetch each track individually
+        return tracksData.items.map((track: any) => ({
+          id: track.id,
+          name: track.name,
+          duration_ms: track.duration_ms || 0,
+          popularity: 50, // Default popularity if not available
+          preview_url: track.preview_url,
+          uri: track.uri,
+          album: album.name,
+          votes: 0
+        }));
+      } catch (error) {
+        console.error(`Error processing album ${album.name}:`, error);
+        return [];
+      }
+    });
+    
+    // Wait for all album track requests to complete
+    const albumTracksArrays = await Promise.all(albumTrackPromises);
+    
+    // Flatten the array of arrays and add all album tracks
+    const allAlbumTracks = albumTracksArrays.flat();
+    
+    // Add album tracks to the top tracks, excluding duplicates by ID
+    const existingTrackIds = new Set(allTracks.map(track => track.id));
+    
+    for (const track of allAlbumTracks) {
+      if (!existingTrackIds.has(track.id)) {
+        allTracks.push(track);
+        existingTrackIds.add(track.id);
       }
     }
     
     console.log(`Fetched ${allTracks.length} total tracks for artist ${artistId}`);
     
-    // Remove duplicates (based on ID)
-    const uniqueTracks = Array.from(
-      new Map(allTracks.map((track) => [track.id, track])).values()
-    );
-    
     // Store all tracks in the database
-    await saveTracksToDb(artistId, uniqueTracks);
+    await saveTracksToDb(artistId, allTracks);
     
-    return { tracks: uniqueTracks };
+    return { tracks: allTracks };
   } catch (error) {
     console.error('Error getting all artist tracks:', error);
+    // Return empty array on complete failure
     return { tracks: [] };
   }
 };

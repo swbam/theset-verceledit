@@ -78,7 +78,7 @@ const ShowSetlist = ({
     console.log("Sorting available tracks:", availableTracks?.length);
     if (!availableTracks || !Array.isArray(availableTracks)) return [];
     
-    // Filter out duplicates by name (case-insensitive)
+    // Filter out duplicates by name (case-insensitive) and invalid tracks
     const uniqueNames = new Set();
     const uniqueTracks = availableTracks.filter(track => {
       if (!track || !track.name) return false;

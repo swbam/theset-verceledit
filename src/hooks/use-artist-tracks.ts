@@ -54,23 +54,14 @@ export function useArtistTracks(spotifyArtistId: string, isLoadingShow: boolean)
         return tracks;
       } catch (error) {
         console.error("Error fetching tracks:", error);
-        // Return some mock data if the API fails
-        return { 
-          tracks: [
-            { id: 'mock1', name: 'Track 1', popularity: 80 },
-            { id: 'mock2', name: 'Track 2', popularity: 75 },
-            { id: 'mock3', name: 'Track 3', popularity: 70 },
-            { id: 'mock4', name: 'Track 4', popularity: 65 },
-            { id: 'mock5', name: 'Track 5', popularity: 60 }
-          ] as SpotifyTrack[]
-        };
+        return { tracks: [] };
       }
     },
     enabled: !!spotifyArtistId && !isLoadingShow,
     retry: 2,
   });
 
-  // Fetch all tracks - make sure this prioritizes cached data
+  // Fetch all tracks - prioritize cached data
   const {
     data: allTracksData,
     isLoading: isLoadingAllTracks
@@ -86,37 +77,18 @@ export function useArtistTracks(spotifyArtistId: string, isLoadingShow: boolean)
       try {
         // First check if stored data is already available
         const storedTracks = await getStoredTracksFromDb(spotifyArtistId);
-        if (storedTracks && storedTracks.length > 0) {
+        if (storedTracks && storedTracks.length > 10) {
           console.log(`Using ${storedTracks.length} cached tracks from database`);
           return { tracks: storedTracks };
         }
         
-        // Otherwise fetch from Spotify API
+        // Otherwise fetch from Spotify API (this will also store the tracks in DB)
         const tracks = await getArtistAllTracks(spotifyArtistId);
         console.log(`Fetched ${tracks.tracks?.length || 0} tracks in total`);
         return tracks;
       } catch (error) {
         console.error("Error fetching all tracks:", error);
-        // Return more comprehensive mock data if the API fails
-        return { 
-          tracks: [
-            { id: 'mock1', name: 'A Hit Song 1', album: 'Album 1', popularity: 90 },
-            { id: 'mock2', name: 'B Hit Song 2', album: 'Album 1', popularity: 85 },
-            { id: 'mock3', name: 'C Hit Song 3', album: 'Album 2', popularity: 80 },
-            { id: 'mock4', name: 'D Deep Cut 1', album: 'Album 2', popularity: 60 },
-            { id: 'mock5', name: 'E Deep Cut 2', album: 'Album 3', popularity: 55 },
-            { id: 'mock6', name: 'F Acoustic Version', album: 'Album 3', popularity: 70 },
-            { id: 'mock7', name: 'G Live Version', album: 'Live Album', popularity: 75 },
-            { id: 'mock8', name: 'H Remix', album: 'Remix Album', popularity: 65 },
-            { id: 'mock9', name: 'I Extended Mix', album: 'Remix Album', popularity: 50 },
-            { id: 'mock10', name: 'J Collaboration Track', album: 'Featuring', popularity: 85 },
-            { id: 'mock11', name: 'K Rare B-Side', album: 'B-Sides', popularity: 40 },
-            { id: 'mock12', name: 'L Demo Version', album: 'Demos', popularity: 35 },
-            { id: 'mock13', name: 'M Unreleased Track', album: 'Unreleased', popularity: 30 },
-            { id: 'mock14', name: 'N Featured Artist Track', album: 'Collaborations', popularity: 75 },
-            { id: 'mock15', name: 'O Another Hit', album: 'Greatest Hits', popularity: 88 }
-          ] as SpotifyTrack[]
-        };
+        return { tracks: [] };
       }
     },
     enabled: !!spotifyArtistId && !isLoadingShow,
@@ -124,10 +96,23 @@ export function useArtistTracks(spotifyArtistId: string, isLoadingShow: boolean)
     staleTime: 1000 * 60 * 60, // 1 hour - keep data fresh for longer
   });
 
-  // Prepare initial songs from top tracks
+  // Prepare initial songs from top tracks or all tracks if top tracks not available
   const initialSongs = useMemo(() => {
     if (!topTracksData?.tracks || !Array.isArray(topTracksData.tracks) || topTracksData.tracks.length === 0) {
-      console.log("No top tracks data available or empty array");
+      if (allTracksData?.tracks && Array.isArray(allTracksData.tracks) && allTracksData.tracks.length > 0) {
+        // Use a slice of all tracks sorted by popularity if top tracks are unavailable
+        console.log("Using sorted all tracks instead of top tracks");
+        return [...allTracksData.tracks]
+          .sort((a, b) => (b.popularity || 0) - (a.popularity || 0))
+          .slice(0, 10)
+          .map((track: SpotifyTrack) => ({
+            id: track.id,
+            name: track.name,
+            votes: track.popularity ? Math.floor(track.popularity / 20) : 0,
+            userVoted: false
+          }));
+      }
+      console.log("No tracks data available");
       return [];
     }
     
@@ -139,7 +124,7 @@ export function useArtistTracks(spotifyArtistId: string, isLoadingShow: boolean)
       votes: track.popularity ? Math.floor(track.popularity / 20) : 0,
       userVoted: false
     }));
-  }, [topTracksData]);
+  }, [topTracksData, allTracksData]);
 
   // Filter available tracks (not in setlist)
   const getAvailableTracks = (setlist: any[]) => {
@@ -151,7 +136,7 @@ export function useArtistTracks(spotifyArtistId: string, isLoadingShow: boolean)
     const setlistIds = new Set(setlist.map(song => song.id));
     
     const filteredTracks = allTracksData.tracks
-      .filter((track: SpotifyTrack) => !setlistIds.has(track.id));
+      .filter((track: SpotifyTrack) => !setlistIds.has(track.id) && track.name);
     
     console.log(`${filteredTracks.length} tracks available after filtering out ${setlist.length} setlist tracks`);
     return filteredTracks;
