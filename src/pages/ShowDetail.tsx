@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -182,25 +183,24 @@ const ShowDetail = () => {
     songs: setlist,
     isConnected,
     voteForSong,
-    addSongToSetlist
+    addSongToSetlist,
+    anonymousVoteCount
   } = useRealtimeVotes({
     showId: id || '',
     initialSongs
   });
   
   const handleVote = (songId: string) => {
-    if (!isAuthenticated) {
-      toast.error("Please log in to vote on setlists", {
-        action: {
-          label: "Log in",
-          onClick: login
-        }
-      });
-      return;
-    }
+    const voteSuccess = voteForSong(songId, isAuthenticated);
     
-    voteForSong(songId);
-    toast.success("Your vote has been counted!");
+    if (voteSuccess) {
+      toast.success("Your vote has been counted!");
+    } else if (!isAuthenticated && anonymousVoteCount >= 3) {
+      // This will trigger a toast in the hook, but we also redirect to login
+      setTimeout(() => {
+        login();
+      }, 2000);
+    }
   };
 
   const handleAddSong = () => {
@@ -212,8 +212,8 @@ const ShowDetail = () => {
       addSongToSetlist({
         id: trackToAdd.id,
         name: trackToAdd.name,
-        votes: 1,
-        userVoted: true
+        votes: 0,
+        userVoted: false
       });
       
       setSelectedTrack('');
@@ -264,6 +264,7 @@ const ShowDetail = () => {
           selectedTrack={selectedTrack}
           setSelectedTrack={setSelectedTrack}
           handleAddSong={handleAddSong}
+          anonymousVoteCount={anonymousVoteCount}
         />
       </main>
       

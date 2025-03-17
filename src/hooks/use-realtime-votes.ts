@@ -19,15 +19,33 @@ export function useRealtimeVotes({ showId, initialSongs }: UseRealtimeVotesProps
   const [songs, setSongs] = useState<Song[]>(initialSongs);
   const [isConnected, setIsConnected] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [anonymousVoteCount, setAnonymousVoteCount] = useState<number>(() => {
+    // Initialize from localStorage if it exists
+    const stored = localStorage.getItem(`anonymousVotes-${showId}`);
+    return stored ? parseInt(stored, 10) : 0;
+  });
+  
+  // Store voted songs for anonymous users
+  const [anonymousVotedSongs, setAnonymousVotedSongs] = useState<string[]>(() => {
+    // Initialize from localStorage if it exists
+    const stored = localStorage.getItem(`anonymousVotedSongs-${showId}`);
+    return stored ? JSON.parse(stored) : [];
+  });
   
   // Initialize songs from initialSongs when they're available
   useEffect(() => {
     if (initialSongs.length > 0 && !isInitialized) {
-      setSongs(initialSongs);
+      // Restore user voted state from local storage for anonymous users
+      const songsWithLocalVotes = initialSongs.map(song => ({
+        ...song,
+        userVoted: anonymousVotedSongs.includes(song.id)
+      }));
+      
+      setSongs(songsWithLocalVotes);
       setIsInitialized(true);
       console.log("Initialized setlist with tracks:", initialSongs.length);
     }
-  }, [initialSongs, isInitialized]);
+  }, [initialSongs, isInitialized, anonymousVotedSongs]);
   
   // Setup real-time connection with Supabase
   useEffect(() => {
@@ -50,7 +68,22 @@ export function useRealtimeVotes({ showId, initialSongs }: UseRealtimeVotesProps
   }, [showId]);
   
   // Vote for a song
-  const voteForSong = useCallback((songId: string) => {
+  const voteForSong = useCallback((songId: string, isAuthenticated: boolean) => {
+    // Check if anonymous user has used all their votes
+    if (!isAuthenticated && anonymousVoteCount >= 3) {
+      console.log(`Anonymous user has used all ${anonymousVoteCount} votes`);
+      toast.info("You've used all your free votes. Log in to vote more!", {
+        style: { background: "#14141F", color: "#fff", border: "1px solid rgba(255,255,255,0.1)" },
+        action: {
+          label: "Log in",
+          onClick: () => {
+            // The login action will be handled in the ShowDetail component
+          }
+        }
+      });
+      return false;
+    }
+    
     setSongs(currentSongs => 
       currentSongs.map(song => {
         // If this is the song to vote for
@@ -66,6 +99,19 @@ export function useRealtimeVotes({ showId, initialSongs }: UseRealtimeVotesProps
           
           // Add the vote
           console.log(`Voting for song: ${song.name}`);
+          
+          // If not authenticated, update anonymous vote count
+          if (!isAuthenticated) {
+            const newCount = anonymousVoteCount + 1;
+            setAnonymousVoteCount(newCount);
+            localStorage.setItem(`anonymousVotes-${showId}`, newCount.toString());
+            
+            // Store voted song ID in localStorage
+            const newVotedSongs = [...anonymousVotedSongs, songId];
+            setAnonymousVotedSongs(newVotedSongs);
+            localStorage.setItem(`anonymousVotedSongs-${showId}`, JSON.stringify(newVotedSongs));
+          }
+          
           return {
             ...song,
             votes: song.votes + 1,
@@ -77,7 +123,8 @@ export function useRealtimeVotes({ showId, initialSongs }: UseRealtimeVotesProps
     );
     
     console.log(`Vote registered for song ID: ${songId}`);
-  }, []);
+    return true;
+  }, [anonymousVoteCount, anonymousVotedSongs, showId]);
   
   // Add a new song to the setlist
   const addSongToSetlist = useCallback((newSong: Song) => {
@@ -107,6 +154,8 @@ export function useRealtimeVotes({ showId, initialSongs }: UseRealtimeVotesProps
     songs,
     isConnected,
     voteForSong,
-    addSongToSetlist
+    addSongToSetlist,
+    anonymousVoteCount,
+    anonymousVotedSongs
   };
 }

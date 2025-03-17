@@ -35,6 +35,7 @@ interface SetlistSectionProps {
   selectedTrack?: string;
   setSelectedTrack?: (trackId: string) => void;
   handleAddSong?: () => void;
+  anonymousVoteCount?: number;
 }
 
 const SetlistSection: React.FC<SetlistSectionProps> = ({ 
@@ -49,7 +50,8 @@ const SetlistSection: React.FC<SetlistSectionProps> = ({
   isLoadingAllTracks = false,
   selectedTrack = '',
   setSelectedTrack = () => {},
-  handleAddSong = () => {}
+  handleAddSong = () => {},
+  anonymousVoteCount = 0
 }) => {
   const { isAuthenticated, login } = useAuth();
   
@@ -92,7 +94,7 @@ const SetlistSection: React.FC<SetlistSectionProps> = ({
                       </Tooltip>
                     </TooltipProvider>
                     
-                    {isAuthenticated && (
+                    {(isAuthenticated || userVotedCount > 0) && (
                       <TooltipProvider>
                         <Tooltip>
                           <TooltipTrigger asChild>
@@ -103,6 +105,22 @@ const SetlistSection: React.FC<SetlistSectionProps> = ({
                           </TooltipTrigger>
                           <TooltipContent className="bg-[#0A0A0A] border-white/10 text-white">
                             <p>You've voted for {userVotedCount} songs</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    )}
+                    
+                    {!isAuthenticated && anonymousVoteCount > 0 && (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div className="text-xs bg-amber-500/20 text-amber-400 px-3 py-1.5 rounded-full font-medium flex items-center gap-1.5">
+                              <span>{anonymousVoteCount}/3</span>
+                              <span>free votes used</span>
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent className="bg-[#0A0A0A] border-white/10 text-white">
+                            <p>Log in to vote for unlimited songs</p>
                           </TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
@@ -157,14 +175,15 @@ const SetlistSection: React.FC<SetlistSectionProps> = ({
                       handleAddSong={handleAddSong}
                       isAuthenticated={isAuthenticated}
                       login={login}
+                      anonymousVoteCount={anonymousVoteCount}
                     />
                     
-                    {!isAuthenticated && (
+                    {!isAuthenticated && anonymousVoteCount >= 3 && (
                       <div className="p-4 mx-4 mb-4 mt-2">
                         <Alert variant="default" className="bg-white/5 border-white/10">
                           <AlertCircle className="h-4 w-4 text-white/70" />
                           <AlertDescription className="flex items-center justify-between">
-                            <span className="text-white/80">Log in with Spotify to vote for songs</span>
+                            <span className="text-white/80">You've used all your free votes. Log in with Spotify to vote more!</span>
                             <Button 
                               size="sm" 
                               onClick={login}
@@ -219,12 +238,32 @@ const SetlistSection: React.FC<SetlistSectionProps> = ({
                   </div>
                 </div>
                 
-                {isAuthenticated && (
+                {(isAuthenticated || userVotedCount > 0) && (
                   <div>
                     <p className="text-sm text-white/70 mb-1">Your Votes</p>
                     <div className="text-2xl font-bold text-white">{userVotedCount}</div>
                     <div className="w-full h-2 bg-white/10 rounded-full mt-1">
                       <div className="h-full bg-white/30 rounded-full" style={{ width: `${Math.min(100, (userVotedCount / 10) * 100)}%` }}></div>
+                    </div>
+                  </div>
+                )}
+                
+                {!isAuthenticated && anonymousVoteCount > 0 && (
+                  <div>
+                    <p className="text-sm text-white/70 mb-1">Free Votes Used</p>
+                    <div className="flex items-center gap-2">
+                      <div className="text-2xl font-bold text-white">{anonymousVoteCount}/3</div>
+                      <Button 
+                        size="sm" 
+                        onClick={login}
+                        variant="outline"
+                        className="text-xs h-7 mt-1 border-white/20 hover:bg-white/10"
+                      >
+                        Log in for more
+                      </Button>
+                    </div>
+                    <div className="w-full h-2 bg-white/10 rounded-full mt-1">
+                      <div className="h-full bg-amber-500/50 rounded-full" style={{ width: `${(anonymousVoteCount / 3) * 100}%` }}></div>
                     </div>
                   </div>
                 )}
@@ -255,8 +294,10 @@ const SetlistSection: React.FC<SetlistSectionProps> = ({
                   Vote for songs you want to hear at this show. The most voted songs rise to the top of the list.
                 </p>
                 <p>
-                  Artists and promoters can see these votes to help plan setlists. You can vote for multiple songs,
-                  but only once per song.
+                  Non-logged in users can vote for up to 3 songs. Create an account to vote for unlimited songs!
+                </p>
+                <p>
+                  Anyone can add songs to the setlist from the dropdown below. Artists and promoters can see these votes to help plan setlists.
                 </p>
                 <div className="flex items-center gap-2 text-white/50 mt-2 pt-2 border-t border-white/10">
                   <Clock size={14} />

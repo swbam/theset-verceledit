@@ -28,6 +28,7 @@ interface ShowSetlistProps {
   handleAddSong: () => void;
   isAuthenticated: boolean;
   login: () => void;
+  anonymousVoteCount?: number;
 }
 
 const ShowSetlist = ({
@@ -39,23 +40,14 @@ const ShowSetlist = ({
   setSelectedTrack,
   handleAddSong,
   isAuthenticated,
-  login
+  login,
+  anonymousVoteCount = 0
 }: ShowSetlistProps) => {
   const handleTrackSelect = (value: string) => {
     setSelectedTrack(value);
   };
   
   const handleAddTrack = () => {
-    if (!isAuthenticated) {
-      toast.error("Please log in to add songs to the setlist", {
-        action: {
-          label: "Log in",
-          onClick: login
-        }
-      });
-      return;
-    }
-    
     handleAddSong();
   };
   
@@ -70,6 +62,7 @@ const ShowSetlist = ({
         songs={setlist} 
         onVote={handleVote} 
         className="animate-fade-in"
+        anonymousVoteCount={anonymousVoteCount}
       />
       
       <div className="p-4 border-t border-white/10">

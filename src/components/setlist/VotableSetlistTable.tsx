@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { ArrowBigUp, Music, Trophy, Star, Crown } from 'lucide-react';
+import { ArrowBigUp, Music, Trophy, Star, Crown, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { 
   Table,
@@ -22,9 +22,10 @@ interface VotableSetlistTableProps {
   songs: Song[];
   onVote: (songId: string) => void;
   className?: string;
+  anonymousVoteCount?: number;
 }
 
-const VotableSetlistTable = ({ songs, onVote, className }: VotableSetlistTableProps) => {
+const VotableSetlistTable = ({ songs, onVote, className, anonymousVoteCount = 0 }: VotableSetlistTableProps) => {
   const [animatingSongId, setAnimatingSongId] = useState<string | null>(null);
   
   const handleVote = (songId: string) => {
@@ -42,6 +43,15 @@ const VotableSetlistTable = ({ songs, onVote, className }: VotableSetlistTablePr
   
   return (
     <div className={cn("w-full", className)}>
+      {anonymousVoteCount >= 3 && (
+        <div className="flex items-center gap-2 bg-black/50 border border-amber-500/20 p-3 mb-3 rounded-md text-amber-400">
+          <AlertCircle size={16} className="flex-shrink-0" />
+          <p className="text-sm">
+            You've used {anonymousVoteCount}/3 free votes. <span className="font-semibold">Log in to vote for more songs.</span>
+          </p>
+        </div>
+      )}
+      
       <Table>
         <TableHeader>
           <TableRow className="border-b border-white/10">
