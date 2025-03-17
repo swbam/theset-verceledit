@@ -1,6 +1,6 @@
 
 import { useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { fetchShowDetails } from '@/lib/ticketmaster';
 import { searchArtists } from '@/lib/spotify';
 
@@ -21,26 +21,6 @@ export function useShowDetails(id: string | undefined) {
         const showDetails = await fetchShowDetails(id);
         console.log("Show details fetched:", showDetails);
         
-        // Fix for Spotify artist ID - search by name instead of using Ticketmaster ID
-        if (showDetails?.artist?.name) {
-          try {
-            const artistResult = await searchArtists(showDetails.artist.name, 1);
-            if (artistResult?.artists?.items && artistResult.artists.items.length > 0) {
-              const spotifyId = artistResult.artists.items[0].id;
-              setSpotifyArtistId(spotifyId);
-              console.log(`Set Spotify artist ID from search: ${spotifyId}`);
-            } else {
-              console.log("No Spotify artist found with name:", showDetails.artist.name);
-              // Set mock ID to allow for mock data fallback
-              setSpotifyArtistId('mock-artist');
-            }
-          } catch (error) {
-            console.error("Error searching for artist by name:", error);
-            // Set mock ID to allow for mock data fallback
-            setSpotifyArtistId('mock-artist');
-          }
-        }
-        
         return showDetails;
       } catch (error) {
         console.error("Error fetching show details:", error);
@@ -50,6 +30,36 @@ export function useShowDetails(id: string | undefined) {
     enabled: !!id,
     retry: 1,
   });
+  
+  // Use an effect to search for the Spotify artist ID when show data is available
+  useEffect(() => {
+    const fetchSpotifyArtistId = async () => {
+      if (show?.artist?.name) {
+        try {
+          console.log("Searching for artist on Spotify:", show.artist.name);
+          const artistResult = await searchArtists(show.artist.name, 1);
+          
+          if (artistResult?.artists?.items && artistResult.artists.items.length > 0) {
+            const spotifyId = artistResult.artists.items[0].id;
+            console.log(`Found Spotify artist ID: ${spotifyId} for ${show.artist.name}`);
+            setSpotifyArtistId(spotifyId);
+          } else {
+            console.log("No Spotify artist found with name:", show.artist.name);
+            // Set mock ID to allow for mock data fallback
+            setSpotifyArtistId('mock-artist');
+          }
+        } catch (error) {
+          console.error("Error searching for artist by name:", error);
+          // Set mock ID to allow for mock data fallback
+          setSpotifyArtistId('mock-artist');
+        }
+      }
+    };
+    
+    if (show && !spotifyArtistId) {
+      fetchSpotifyArtistId();
+    }
+  }, [show, spotifyArtistId]);
 
   return {
     show,

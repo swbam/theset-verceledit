@@ -1,92 +1,84 @@
 
+import { SpotifyTrack } from './types';
 import { supabase } from '@/integrations/supabase/client';
-import { SpotifyTrack, SpotifyTracksResponse } from './types';
-import { Json } from '@/integrations/supabase/types';
 
-// Safely convert stored tracks from Json to SpotifyTrack[]
-export const convertStoredTracks = (storedTracks: Json | null): SpotifyTrack[] => {
+/**
+ * Safely converts stored tracks from database JSON to SpotifyTrack objects
+ */
+export const convertStoredTracks = (storedTracks: any): SpotifyTrack[] => {
   if (!storedTracks || !Array.isArray(storedTracks) || storedTracks.length === 0) {
     return [];
   }
-  return storedTracks as unknown as SpotifyTrack[];
+  
+  return storedTracks.map((track: any) => ({
+    id: track.id || `unknown-${Math.random().toString(36).substring(2, 9)}`,
+    name: track.name || 'Unknown Track',
+    duration_ms: track.duration_ms,
+    popularity: track.popularity || 50,
+    preview_url: track.preview_url,
+    uri: track.uri,
+    album: track.album || 'Unknown Album',
+    votes: track.votes || 0
+  }));
 };
 
-// Get stored tracks for an artist from database
+/**
+ * Save tracks to the database for future use
+ */
+export const saveTracksToDb = async (artistId: string, tracks: SpotifyTrack[]): Promise<void> => {
+  console.log(`Saving ${tracks.length} tracks to database for artist ${artistId}`);
+  
+  try {
+    const { error } = await supabase
+      .from('artists')
+      .upsert({
+        id: artistId,
+        stored_tracks: tracks,
+        updated_at: new Date().toISOString()
+      });
+    
+    if (error) {
+      console.error('Error saving tracks to database:', error);
+    } else {
+      console.log('Tracks saved successfully to database');
+    }
+  } catch (error) {
+    console.error('Error in saveTracksToDb:', error);
+  }
+};
+
+/**
+ * Get stored tracks from the database
+ */
 export const getStoredTracksFromDb = async (artistId: string): Promise<SpotifyTrack[] | null> => {
   try {
-    const { data: artistData, error } = await supabase
+    const { data, error } = await supabase
       .from('artists')
-      .select('stored_tracks')
+      .select('stored_tracks, updated_at')
       .eq('id', artistId)
       .maybeSingle();
     
     if (error) {
-      console.error(`Error fetching stored tracks for artist ${artistId}:`, error);
+      console.error('Error fetching stored tracks:', error);
       return null;
     }
     
-    if (!artistData || !artistData.stored_tracks) {
-      return null;
-    }
+    // Check if we have stored tracks and they're not too old
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
     
-    const tracks = convertStoredTracks(artistData.stored_tracks);
-    
-    // If we have tracks, log and return them
-    if (tracks.length > 0) {
-      console.log(`Retrieved ${tracks.length} stored tracks for artist ${artistId}`);
-      return tracks;
+    if (data && data.stored_tracks && 
+        Array.isArray(data.stored_tracks) && 
+        data.stored_tracks.length > 0 &&
+        new Date(data.updated_at) > sevenDaysAgo) {
+      
+      console.log(`Retrieved ${data.stored_tracks.length} tracks from database for artist ${artistId}`);
+      return convertStoredTracks(data.stored_tracks);
     }
     
     return null;
   } catch (error) {
-    console.error("Error directly accessing stored tracks:", error);
+    console.error('Error in getStoredTracksFromDb:', error);
     return null;
-  }
-};
-
-// Save tracks to database for an artist
-export const saveTracksToDb = async (artistId: string, tracks: SpotifyTrack[]): Promise<void> => {
-  try {
-    if (!tracks || !Array.isArray(tracks) || tracks.length === 0) {
-      console.warn(`No tracks to save for artist ${artistId}`);
-      return;
-    }
-    
-    // Convert tracks to a JSON-compatible format but maintain type safety
-    const tracksForStorage = tracks as unknown as Json;
-    
-    const { error } = await supabase
-      .from('artists')
-      .update({ 
-        stored_tracks: tracksForStorage,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', artistId);
-    
-    if (error) {
-      console.error(`Error saving tracks for artist ${artistId}:`, error);
-      
-      // Try to create the artist if update failed (might not exist yet)
-      const { error: insertError } = await supabase
-        .from('artists')
-        .insert({
-          id: artistId,
-          name: `Artist ${artistId}`, // Placeholder name
-          stored_tracks: tracksForStorage,
-          updated_at: new Date().toISOString()
-        });
-      
-      if (insertError) {
-        console.error(`Error creating artist ${artistId}:`, insertError);
-      } else {
-        console.log(`Created new artist ${artistId} with ${tracks.length} tracks`);
-      }
-      
-      return;
-    }
-    
-    console.log(`Stored ${tracks.length} tracks in database for artist ${artistId}`);
-  } catch (error) {
-    console.error(`Error saving tracks for artist ${artistId}:`, error);
   }
 };

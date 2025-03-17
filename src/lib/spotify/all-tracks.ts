@@ -11,36 +11,38 @@ import { fetchArtistAlbums } from './fetch-artist-albums';
  * First tries database cache, then Spotify API if needed
  */
 export const getArtistAllTracks = async (artistId: string): Promise<SpotifyTracksResponse> => {
+  console.log(`Getting all tracks for artist ID: ${artistId}`);
+  
   try {
+    // Skip mock artist IDs
+    if (artistId.includes('mock')) {
+      console.log('Using mock data for mock artist ID');
+      return generateMockTracks(artistId, 40);
+    }
+    
     // Check if we have stored tracks and they're less than 7 days old
-    const { data: artistData, error } = await supabase
-      .from('artists')
-      .select('stored_tracks, updated_at')
-      .eq('id', artistId)
-      .maybeSingle();
+    const storedTracks = await getStoredTracksFromDb(artistId);
     
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-    
-    // If we have stored tracks and they're recent, use them
-    if (!error && artistData && artistData.stored_tracks && 
-        Array.isArray(artistData.stored_tracks) && 
-        artistData.stored_tracks.length > 0 &&
-        new Date(artistData.updated_at) > sevenDaysAgo) {
-      console.log(`Using ${artistData.stored_tracks.length} stored tracks from database`);
-      // Properly cast the Json to SpotifyTrack[]
-      return { tracks: artistData.stored_tracks as unknown as SpotifyTrack[] };
+    // If we have stored tracks with sufficient quantity, use them
+    if (storedTracks && storedTracks.length > 10) {
+      console.log(`Using ${storedTracks.length} stored tracks from database`);
+      return { tracks: storedTracks };
     }
     
     // Otherwise fetch from Spotify API
     console.log(`Fetching complete track catalog for artist ID: ${artistId}`);
     const token = await getAccessToken();
     
+    if (!token) {
+      console.error('Failed to get Spotify access token');
+      return generateMockTracks(artistId, 40);
+    }
+    
     // First get the top tracks as a starting point
     const topTracks = await fetchArtistTopTracks(artistId, token);
     
     // If we got top tracks, proceed to get albums and more tracks
-    if (topTracks.length > 0) {
+    if (topTracks && topTracks.length > 0) {
       // Now fetch all albums and their tracks
       const allTracks = await fetchArtistAlbums(artistId, token, topTracks);
       
@@ -50,6 +52,12 @@ export const getArtistAllTracks = async (artistId: string): Promise<SpotifyTrack
       await saveTracksToDb(artistId, allTracks);
       
       return { tracks: allTracks };
+    }
+    
+    // If no tracks were fetched from top tracks, check if we have any stored tracks
+    if (storedTracks && storedTracks.length > 0) {
+      console.log(`Using ${storedTracks.length} stored tracks from database as fallback`);
+      return { tracks: storedTracks };
     }
     
     // If no tracks were fetched, return mock data

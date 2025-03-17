@@ -1,7 +1,8 @@
+
 import { useQuery } from '@tanstack/react-query';
 import { getArtistAllTracks, SpotifyTrack } from '@/lib/spotify';
 import { generateMockTracks } from './utils';
-import { getStoredTracksFromDb } from './use-stored-tracks';
+import { getStoredTracksFromDb } from '@/lib/spotify/utils';
 
 // Fetch all tracks query - prioritize cached data
 export function useAllTracks(spotifyArtistId: string, isLoadingShow: boolean) {
