@@ -7,7 +7,6 @@ import { toast } from 'sonner';
 import { 
   getSetlistSongs, 
   SetlistSong, 
-  voteForSong, 
   addSongToSetlist as dbAddSongToSetlist 
 } from '@/lib/api/db/setlist-utils';
 import { createSetlistForShow } from '@/lib/api/db/show-utils';
@@ -288,7 +287,7 @@ export function useRealtimeVotes(showId: string, spotifyArtistId: string, initia
   });
   
   // Handle adding a new song to the setlist
-  const handleAddSong = useCallback(async (): Promise<boolean> => {
+  const handleAddSong = useCallback(async () => {
     if (!setlistId || !selectedTrack) {
       console.error("Missing setlist ID or selected track");
       return false;
@@ -329,4 +328,83 @@ export function useRealtimeVotes(showId: string, spotifyArtistId: string, initia
     handleAddSong,
     anonymousVoteCount
   };
+}
+
+/**
+ * Helper function to vote for a song
+ */
+async function voteForSong(setlistId: string, songId: string, userId: string): Promise<boolean> {
+  try {
+    console.log(`Voting for song ${songId} in setlist ${setlistId} by user ${userId}`);
+    
+    // Check if the user has already voted for this song
+    const { data: existingVote, error: checkError } = await supabase
+      .from('votes')
+      .select('id')
+      .eq('setlist_song_id', songId)
+      .eq('user_id', userId)
+      .maybeSingle();
+    
+    if (checkError && checkError.code !== 'PGRST116') {
+      console.error("Error checking for existing vote:", checkError);
+      return false;
+    }
+    
+    if (existingVote) {
+      console.log("User has already voted for this song");
+      toast.info("You've already voted for this song!");
+      return false;
+    }
+    
+    // Add the vote to the votes table
+    const { error: voteError } = await supabase
+      .from('votes')
+      .insert({
+        setlist_song_id: songId,
+        user_id: userId
+      });
+    
+    if (voteError) {
+      console.error("Error adding vote:", voteError);
+      return false;
+    }
+    
+    // Increment the votes count in the setlist_songs table
+    const { error: updateError } = await supabase
+      .rpc('increment_votes', { song_id: songId });
+    
+    if (updateError) {
+      console.error("Error incrementing votes:", updateError);
+      
+      // Fallback: manually update the votes count
+      const { data: song, error: fetchError } = await supabase
+        .from('setlist_songs')
+        .select('votes')
+        .eq('id', songId)
+        .single();
+      
+      if (fetchError) {
+        console.error("Error fetching song votes:", fetchError);
+        return false;
+      }
+      
+      const newVoteCount = (typeof song.votes === 'number' ? song.votes : 0) + 1;
+      
+      const { error: manualUpdateError } = await supabase
+        .from('setlist_songs')
+        .update({ votes: newVoteCount })
+        .eq('id', songId);
+      
+      if (manualUpdateError) {
+        console.error("Error manually updating votes:", manualUpdateError);
+        return false;
+      }
+    }
+    
+    console.log(`Successfully voted for song ${songId}`);
+    return true;
+  } catch (error) {
+    console.error("Error in voteForSong:", error);
+    return false;
+  }
 }

@@ -12,7 +12,7 @@ export {
   getSetlistForShow 
 } from './db/setlist-utils';
 export type { SetlistSong } from './db/setlist-utils';
-// We're explicitly re-exporting voteForSong from vote-utils to avoid conflicts
+// We're explicitly re-exporting voteForSong with a different name to avoid conflicts
 export { voteForSong as voteSetlistSong } from './db/vote-utils';
 export * from './db/vote-utils';
 export * from './db/show-database-utils';

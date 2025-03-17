@@ -35,7 +35,7 @@ export const getSetlistSongs = async (setlistId: string, userId?: string): Promi
         .from('top_tracks')
         .select('id, name, album_name, album_image_url')
         .eq('id', song.track_id)
-        .single();
+        .maybeSingle();
       
       if (trackError && trackError.code !== 'PGRST116') {
         console.error('Error fetching track details:', trackError);
@@ -93,7 +93,7 @@ export const voteForSong = async (
       .select('id')
       .eq('setlist_song_id', songId)
       .eq('user_id', userId)
-      .single();
+      .maybeSingle();
 
     if (checkError && checkError.code !== 'PGRST116') {
       // PGRST116 means no rows returned, which is expected if user hasn't voted
@@ -132,7 +132,9 @@ export const voteForSong = async (
         
       if (getError) throw getError;
       
-      const newVoteCount = (currentVotes?.votes || 0) + 1;
+      // Get the current vote count as a number
+      const currentVoteCount = typeof currentVotes?.votes === 'number' ? currentVotes.votes : 0;
+      const newVoteCount = currentVoteCount + 1;
       
       const { error: manualUpdateError } = await supabase
         .from('setlist_songs')
@@ -165,7 +167,7 @@ export const addSongToSetlist = async (
       .select('id')
       .eq('setlist_id', setlistId)
       .eq('track_id', trackId)
-      .single();
+      .maybeSingle();
 
     if (checkError && checkError.code !== 'PGRST116') {
       throw checkError;
@@ -182,7 +184,7 @@ export const addSongToSetlist = async (
         .from('top_tracks')
         .select('name')
         .eq('id', trackId)
-        .single();
+        .maybeSingle();
       
       if (!trackError && trackData) {
         songName = trackData.name;
