@@ -90,19 +90,24 @@ export function useArtistTracks(spotifyArtistId: string, isLoadingShow: boolean)
         return tracks;
       } catch (error) {
         console.error("Error fetching all tracks:", error);
-        // Return some mock data if the API fails
+        // Return more comprehensive mock data if the API fails
         return { 
           tracks: [
-            { id: 'mock1', name: 'Hit Song 1', album: 'Album 1', popularity: 90 },
-            { id: 'mock2', name: 'Hit Song 2', album: 'Album 1', popularity: 85 },
-            { id: 'mock3', name: 'Hit Song 3', album: 'Album 2', popularity: 80 },
-            { id: 'mock4', name: 'Deep Cut 1', album: 'Album 2', popularity: 60 },
-            { id: 'mock5', name: 'Deep Cut 2', album: 'Album 3', popularity: 55 },
-            { id: 'mock6', name: 'Acoustic Version', album: 'Album 3', popularity: 70 },
-            { id: 'mock7', name: 'Live Version', album: 'Live Album', popularity: 75 },
-            { id: 'mock8', name: 'Remix', album: 'Remix Album', popularity: 65 },
-            { id: 'mock9', name: 'Extended Mix', album: 'Remix Album', popularity: 50 },
-            { id: 'mock10', name: 'Collaboration Track', album: 'Featuring', popularity: 85 }
+            { id: 'mock1', name: 'A Hit Song 1', album: 'Album 1', popularity: 90 },
+            { id: 'mock2', name: 'B Hit Song 2', album: 'Album 1', popularity: 85 },
+            { id: 'mock3', name: 'C Hit Song 3', album: 'Album 2', popularity: 80 },
+            { id: 'mock4', name: 'D Deep Cut 1', album: 'Album 2', popularity: 60 },
+            { id: 'mock5', name: 'E Deep Cut 2', album: 'Album 3', popularity: 55 },
+            { id: 'mock6', name: 'F Acoustic Version', album: 'Album 3', popularity: 70 },
+            { id: 'mock7', name: 'G Live Version', album: 'Live Album', popularity: 75 },
+            { id: 'mock8', name: 'H Remix', album: 'Remix Album', popularity: 65 },
+            { id: 'mock9', name: 'I Extended Mix', album: 'Remix Album', popularity: 50 },
+            { id: 'mock10', name: 'J Collaboration Track', album: 'Featuring', popularity: 85 },
+            { id: 'mock11', name: 'K Rare B-Side', album: 'B-Sides', popularity: 40 },
+            { id: 'mock12', name: 'L Demo Version', album: 'Demos', popularity: 35 },
+            { id: 'mock13', name: 'M Unreleased Track', album: 'Unreleased', popularity: 30 },
+            { id: 'mock14', name: 'N Featured Artist Track', album: 'Collaborations', popularity: 75 },
+            { id: 'mock15', name: 'O Another Hit', album: 'Greatest Hits', popularity: 88 }
           ] as SpotifyTrack[]
         };
       }

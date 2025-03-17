@@ -1,3 +1,4 @@
+
 import { getAccessToken } from './auth';
 import { saveTracksToDb, getStoredTracksFromDb } from './utils';
 import { SpotifyTrack, SpotifyTracksResponse } from './types';
@@ -58,9 +59,9 @@ export const getArtistAllTracks = async (artistId: string): Promise<SpotifyTrack
       votes: 0
     }));
     
-    // Now get albums
+    // Get all albums (increase limit to 50 to get more)
     const albumsResponse = await fetch(
-      `${SPOTIFY_API_BASE}/artists/${artistId}/albums?include_groups=album,single&limit=50&market=US`,
+      `${SPOTIFY_API_BASE}/artists/${artistId}/albums?include_groups=album,single,compilation&limit=50&market=US`,
       {
         headers: {
           Authorization: `Bearer ${token}`,

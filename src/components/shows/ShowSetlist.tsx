@@ -70,7 +70,7 @@ const ShowSetlist = ({
     return name.length > maxLength ? `${name.substring(0, maxLength)}...` : name;
   };
   
-  // Sort tracks by popularity
+  // Sort tracks alphabetically by name
   const sortedTracks = React.useMemo(() => {
     if (!availableTracks || !Array.isArray(availableTracks)) return [];
     
@@ -83,8 +83,8 @@ const ShowSetlist = ({
       return true;
     });
     
-    // Sort by popularity (higher first)
-    return [...uniqueTracks].sort((a, b) => (b.popularity || 0) - (a.popularity || 0));
+    // Sort alphabetically by name
+    return [...uniqueTracks].sort((a, b) => a.name.localeCompare(b.name));
   }, [availableTracks]);
   
   return (
