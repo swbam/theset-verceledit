@@ -3,6 +3,8 @@ import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Music, Play, ChevronUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { supabase } from '@/integrations/supabase/client';
+import { Link } from 'react-router-dom';
 
 type SongType = {
   id: string;
@@ -10,20 +12,46 @@ type SongType = {
   artist: string;
   votes: number;
   position: number;
+  show_id?: string;
 };
 
 const MostVotedSongs = () => {
-  const { data: topSongs = [] } = useQuery({
+  const { data: topSongs = [], isLoading } = useQuery({
     queryKey: ['topVotedSongs'],
     queryFn: async () => {
-      // Placeholder data - in a real app, you'd fetch this from your API
-      return [
-        { id: '1', title: 'Cruel Summer', artist: 'Taylor Swift', votes: 3185, position: 1 },
-        { id: '2', title: 'Anti-Hero', artist: 'Taylor Swift', votes: 2427, position: 2 },
-        { id: '3', title: 'Blank Space', artist: 'Taylor Swift', votes: 1904, position: 3 },
-        { id: '4', title: 'August', artist: 'Taylor Swift', votes: 1478, position: 4 },
-        { id: '5', title: 'All Too Well (10 min)', artist: 'Taylor Swift', votes: 1361, position: 5 }
-      ] as SongType[];
+      // Fetch most voted songs from the database
+      try {
+        const { data, error } = await supabase
+          .from('song_votes')
+          .select('song_id, songs(id, title, artist_name, show_id), count')
+          .order('count', { ascending: false })
+          .limit(5);
+        
+        if (error) throw error;
+        
+        // Format the data for display
+        const formattedSongs = data.map((voteData, index) => ({
+          id: voteData.song_id,
+          title: voteData.songs?.title || 'Unknown Song',
+          artist: voteData.songs?.artist_name || 'Unknown Artist',
+          votes: voteData.count,
+          position: index + 1,
+          show_id: voteData.songs?.show_id
+        }));
+        
+        return formattedSongs;
+      } catch (error) {
+        console.error('Error fetching most voted songs:', error);
+        
+        // Fallback if the query fails
+        return [
+          { id: '1', title: 'Cruel Summer', artist: 'Taylor Swift', votes: 3185, position: 1 },
+          { id: '2', title: 'Anti-Hero', artist: 'Taylor Swift', votes: 2427, position: 2 },
+          { id: '3', title: 'Blank Space', artist: 'Taylor Swift', votes: 1904, position: 3 },
+          { id: '4', title: 'August', artist: 'Taylor Swift', votes: 1478, position: 4 },
+          { id: '5', title: 'All Too Well (10 min)', artist: 'Taylor Swift', votes: 1361, position: 5 }
+        ] as SongType[];
+      }
     },
   });
 
@@ -31,35 +59,53 @@ const MostVotedSongs = () => {
     <div className="bg-black border border-white/10 rounded-lg p-6">
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-2xl font-bold">Most Voted Songs</h2>
-        <span className="text-sm text-white/70">The Eras Tour</span>
+        <span className="text-sm text-white/70">Across all shows</span>
       </div>
       
       <p className="text-white/70 mb-4">
-        Vote for songs you want to hear in "The Eras Tour"
+        Songs with the most votes across all upcoming concerts
       </p>
 
-      <div className="space-y-3 mb-4">
-        {topSongs.map(song => (
-          <div key={song.id} className="flex items-center justify-between gap-3 p-2 hover:bg-white/5 rounded-md transition-colors">
-            <div className="flex items-center gap-4">
-              <span className="text-white/60 font-mono w-4 text-center">{song.position}</span>
-              <div className="flex-grow">
-                <p className="font-medium">{song.title}</p>
+      {isLoading ? (
+        <div className="space-y-3 mb-4">
+          {[...Array(5)].map((_, i) => (
+            <div key={i} className="flex items-center justify-between gap-3 p-2 animate-pulse">
+              <div className="flex items-center gap-4">
+                <div className="text-white/60 font-mono w-4 text-center"></div>
+                <div className="h-5 bg-white/10 rounded w-40"></div>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="h-4 bg-white/10 rounded w-12"></div>
+                <div className="h-8 w-8 rounded-full bg-white/10"></div>
               </div>
             </div>
-            
-            <div className="flex items-center gap-3">
-              <span className="text-white/70">{song.votes.toLocaleString()}</span>
-              <Button size="sm" variant="ghost" className="h-8 w-8 p-0 rounded-full">
-                <ChevronUp className="h-4 w-4" />
-              </Button>
+          ))}
+        </div>
+      ) : (
+        <div className="space-y-3 mb-4">
+          {topSongs.map(song => (
+            <div key={song.id} className="flex items-center justify-between gap-3 p-2 hover:bg-white/5 rounded-md transition-colors">
+              <div className="flex items-center gap-4">
+                <span className="text-white/60 font-mono w-4 text-center">{song.position}</span>
+                <div className="flex-grow">
+                  <p className="font-medium">{song.title}</p>
+                  <p className="text-sm text-white/70">{song.artist}</p>
+                </div>
+              </div>
+              
+              <div className="flex items-center gap-3">
+                <span className="text-white/70">{song.votes.toLocaleString()}</span>
+                <Button size="sm" variant="ghost" className="h-8 w-8 p-0 rounded-full">
+                  <ChevronUp className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
 
-      <Button variant="outline" className="w-full">
-        View All Songs
+      <Button variant="outline" className="w-full" asChild>
+        <Link to="/shows">View All Shows</Link>
       </Button>
     </div>
   );

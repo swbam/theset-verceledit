@@ -11,20 +11,8 @@ const FeaturedArtists = () => {
   const { data: artistsData = [], isLoading, error } = useQuery({
     queryKey: ['featuredArtists'],
     queryFn: () => fetchFeaturedArtists(12),
+    staleTime: 5 * 60 * 1000, // 5 minutes
   });
-
-  // Mock data to match the design
-  const mockArtists = [
-    { id: "artist1", name: "Taylor Swift", image: "https://media.pitchfork.com/photos/61d4ca4cef233215262a2e2b/master/w_1600,c_limit/taylor-swift-bb13-2021-billboard-1548.jpg", upcoming_shows: 14, genres: ["Pop"] },
-    { id: "artist2", name: "Coldplay", image: "https://footprintuscoalition.com/wp-content/uploads/2023/05/pasted-image-0-2.png", upcoming_shows: 8, genres: ["Alternative"] },
-    { id: "artist3", name: "Beyoncé", image: "https://www.rollingstone.com/wp-content/uploads/2022/07/Beyonce-RENAISSANCE-album.jpg", upcoming_shows: 10, genres: ["R&B"] },
-    { id: "artist4", name: "Bad Bunny", image: "https://people.com/thmb/KU6lR4yLwSQYC_GYkJn68NlhG8Q=/1500x0/filters:no_upscale():max_bytes(150000):strip_icc():focal(969x659:971x661)/bad-bunny-most-waited-tour-081623-3-7c86c5a1af994b8984f1b1d19917f45b.jpg", upcoming_shows: 12, genres: ["Latin"] },
-    { id: "artist5", name: "Kendrick Lamar", image: "https://media.pitchfork.com/photos/6453af0a8cd4a45aea5f27f4/16:9/w_1280,c_limit/Kendrick-Lamar.jpg", upcoming_shows: 7, genres: ["Hip-Hop"] },
-    { id: "artist6", name: "Billie Eilish", image: "https://www.billboard.com/wp-content/uploads/2023/06/Billie-Eilish-press-2023-cr-Mason-Poole-billboard-1548.jpg", upcoming_shows: 9, genres: ["Pop"] }
-  ];
-
-  // Use mock data for display
-  const artists = mockArtists;
 
   return (
     <section className="py-12 md:py-16 px-4 bg-gradient-to-b from-[#0A0A10] to-[#0d0d15]">
@@ -57,7 +45,7 @@ const FeaturedArtists = () => {
               <p className="text-white/60">No featured artists found</p>
             </div>
           ) : (
-            artists.map((artist) => (
+            artistsData.slice(0, 6).map((artist) => (
               <Link 
                 key={artist.id}
                 to={`/artists/${artist.id}`}
