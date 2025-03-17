@@ -1,39 +1,8 @@
-
 import { SpotifyTrack, SpotifyApi } from './types';
+import { supabase } from '@/integrations/supabase/client';
 
-// Database operations for tracks
-export async function getStoredTracksFromDb(artistId: string): Promise<any[]> {
-  // This would normally fetch from a database
-  console.log(`Checking for stored tracks for artist ${artistId}`);
-  return []; // Return empty array to indicate no cached data
-}
-
-export function saveTracksToDb(artistId: string, tracks: SpotifyApi.TrackObjectSimplified[]) {
-  // Implementation for saving tracks to database
-  console.log(`Saving ${tracks.length} tracks for artist ${artistId} to database`);
-  // Database save logic would go here
-  return tracks;
-}
-
-export function convertStoredTracks(storedTracks: any[]) {
-  // Convert stored tracks from DB format to Spotify format
-  return {
-    tracks: storedTracks.map(track => ({
-      id: track.id,
-      name: track.name,
-      album: {
-        images: track.album_image ? [{ url: track.album_image }] : []
-      },
-      artists: [{ name: track.artist_name }],
-      uri: track.uri || `spotify:track:${track.id}`,
-      duration_ms: track.duration_ms || 0,
-      popularity: track.popularity || 0
-    }))
-  };
-}
-
-// Mock data generation
-export function generateMockTracks(count: number = 10): SpotifyTrack[] {
+// Mock tracks generator for testing
+export const generateMockTracks = (count: number = 10): SpotifyTrack[] => {
   const mockTracks: SpotifyTrack[] = [];
   const songNames = [
     "Bohemian Rhapsody", "Stairway to Heaven", "Hotel California", 
@@ -70,3 +39,107 @@ export function generateMockTracks(count: number = 10): SpotifyTrack[] {
   
   return mockTracks;
 }
+
+// Function to save tracks to database
+export async function saveTracksToDb(artistId: string, tracks: SpotifyTrack[]) {
+  if (!artistId || !tracks || !Array.isArray(tracks) || tracks.length === 0) {
+    console.error("Invalid parameters for saveTracksToDb");
+    return;
+  }
+  
+  try {
+    console.log(`Saving ${tracks.length} tracks for artist ${artistId} to database`);
+    
+    // Format tracks for database insertion
+    const tracksToInsert = tracks.map(track => ({
+      id: track.id,
+      artist_id: artistId,
+      name: track.name,
+      spotify_url: track.uri,
+      preview_url: track.preview_url,
+      album_name: track.album?.name || null,
+      album_image_url: track.album?.images && track.album.images.length > 0 ? track.album.images[0].url : null,
+      duration_ms: track.duration_ms || null,
+      popularity: track.popularity || null,
+      last_updated: new Date().toISOString()
+    }));
+    
+    // Insert tracks using upsert to avoid duplicates
+    const { data, error } = await supabase
+      .from('top_tracks')
+      .upsert(tracksToInsert, { 
+        onConflict: 'id',
+        ignoreDuplicates: false 
+      });
+    
+    if (error) {
+      console.error("Error saving tracks to database:", error);
+    } else {
+      console.log(`Successfully saved tracks to database for artist ${artistId}`);
+    }
+    
+    return data;
+  } catch (error) {
+    console.error("Error in saveTracksToDb:", error);
+    return null;
+  }
+}
+
+// Function to get stored tracks from database
+export async function getStoredTracksFromDb(artistId: string): Promise<SpotifyTrack[] | null> {
+  try {
+    if (!artistId) return null;
+    
+    const { data, error } = await supabase
+      .from('top_tracks')
+      .select('*')
+      .eq('artist_id', artistId);
+    
+    if (error) {
+      console.error("Error fetching stored tracks:", error);
+      return null;
+    }
+    
+    if (!data || data.length === 0) {
+      return null;
+    }
+    
+    // Convert database records to SpotifyTrack format
+    const tracks: SpotifyTrack[] = data.map(track => ({
+      id: track.id,
+      name: track.name,
+      popularity: track.popularity,
+      preview_url: track.preview_url,
+      uri: track.spotify_url,
+      album: {
+        name: track.album_name,
+        images: track.album_image_url ? [{ url: track.album_image_url }] : []
+      }
+    }));
+    
+    return tracks;
+  } catch (error) {
+    console.error("Error in getStoredTracksFromDb:", error);
+    return null;
+  }
+}
+
+// Convert stored tracks from database format to SpotifyTrack format
+export function convertStoredTracks(tracks: any[]): SpotifyTrack[] {
+  if (!tracks || !Array.isArray(tracks)) return [];
+  
+  return tracks.map(track => ({
+    id: track.id,
+    name: track.name,
+    popularity: track.popularity,
+    preview_url: track.preview_url,
+    uri: track.spotify_url,
+    album: {
+      name: track.album_name,
+      images: track.album_image_url ? [{ url: track.album_image_url }] : []
+    }
+  }));
+}
+
+// Export these functions from another file to avoid duplication
+export { generateMockTracks as mockTracks } from './mock-tracks';
