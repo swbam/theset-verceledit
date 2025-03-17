@@ -314,14 +314,19 @@ export function useRealtimeVotes({ showId, initialSongs }: UseRealtimeVotesProps
     } else {
       // For anonymous users, manually update the votes in the database
       // since they don't have a user ID for the votes table
-      const { error: updateError } = await supabase
-        .from('setlist_songs')
-        .update({ votes: supabase.rpc('increment_votes_by_one', { row_id: setlistSong.id }) })
-        .eq('id', setlistSong.id);
+      try {
+        // Direct update to setlist_songs table using the RPC function
+        const { error: updateError } = await supabase.rpc(
+          'increment_song_vote', 
+          { song_id: setlistSong.id }
+        );
         
-      if (updateError) {
-        console.error("Error updating votes for anonymous user:", updateError);
-        // We don't roll back the UI update for anonymous users to keep the experience smooth
+        if (updateError) {
+          console.error("Error updating votes for anonymous user:", updateError);
+          // We don't roll back the UI update for anonymous users to keep the experience smooth
+        }
+      } catch (error) {
+        console.error("Error calling increment_song_vote function:", error);
       }
     }
     
@@ -351,11 +356,10 @@ export function useRealtimeVotes({ showId, initialSongs }: UseRealtimeVotesProps
     // Optimistically update UI
     setSongs(currentSongs => [...currentSongs, newSong]);
     
-    // Send to server - only pass the two required arguments
-    const songId = await addSongToSetlistUtil(setlistId, newSong.id);
+    // Send to server
+    const result = await addSongToSetlistUtil(setlistId, newSong.id);
     
-    // Check if songId exists (returned null means failure)
-    if (songId === null) {
+    if (!result) {
       console.error("Failed to add song to setlist on server");
       // Rollback optimistic update
       setSongs(currentSongs => currentSongs.filter(song => song.id !== newSong.id));
@@ -363,7 +367,7 @@ export function useRealtimeVotes({ showId, initialSongs }: UseRealtimeVotesProps
       return;
     }
     
-    console.log(`Song ${newSong.name} added to setlist with ID ${songId}`);
+    console.log(`Song ${newSong.name} added to setlist with ID ${result}`);
   }, [setlistId, songs]);
   
   return {
