@@ -35,10 +35,7 @@ const ArtistDetail = () => {
   const {
     data: shows = [],
     isLoading: showsLoading,
-    error: showsError,
-    fetchNextPage,
-    hasNextPage,
-    isFetchingNextPage
+    error: showsError
   } = useQuery({
     queryKey: ['artistEvents', id, loadAllShows],
     queryFn: async () => {

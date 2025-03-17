@@ -1,13 +1,12 @@
 
-// Export all Spotify API functions from this index file
-export * from './auth';
-export * from './artist-search';
-export * from './types';
-export * from './top-tracks';
-export * from './all-tracks';
-export * from './user-recommendations';
-export * from './utils';
-export * from './mock-tracks';
-export * from './fetch-album-tracks';
-export * from './fetch-artist-albums';
-export * from './fetch-artist-top-tracks';
+// Export all Spotify API functions
+export { searchArtists } from './artist-search';
+export { getArtistTopTracks } from './top-tracks';
+export { getArtistAllTracks } from './all-tracks';
+export { getStoredTracksFromDb } from './utils';
+
+// Re-export utility functions (being careful not to duplicate)
+export { convertStoredTracks, saveTracksToDb } from './utils';
+
+// Only export mock-tracks from one place to avoid ambiguity
+export { generateMockTracks } from './mock-tracks';

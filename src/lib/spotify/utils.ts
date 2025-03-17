@@ -1,112 +1,74 @@
-import { createClient } from '@supabase/supabase-js';
-import { SpotifyTrack } from '@/lib/spotify/types';
+import { SpotifyTrack } from '@/types/spotify';
 
-// Utility function to store tracks in database for caching
-export async function storeTracksInDb(artistId: string, tracks: SpotifyTrack[]) {
-  try {
-    const supabase = createClient(
-      import.meta.env.VITE_SUPABASE_URL as string,
-      import.meta.env.VITE_SUPABASE_ANON_KEY as string
-    );
-    
-    // First, get the artist record
-    const { data: artist } = await supabase
-      .from('artists')
-      .select('*')
-      .eq('id', artistId)
-      .single();
-    
-    if (artist) {
-      // Convert tracks to serializable JSON format
-      const tracksJSON = tracks.map(track => ({
-        id: track.id,
-        name: track.name,
-        uri: track.uri,
-        popularity: track.popularity,
-        preview_url: track.preview_url,
-        album: track.album ? {
-          id: track.album.id,
-          name: track.album.name,
-          images: track.album.images
-        } : null
-      }));
-      
-      // Update the artist with the stored tracks
-      const { error } = await supabase
-        .from('artists')
-        .update({ 
-          stored_tracks: tracksJSON,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', artistId);
-      
-      if (error) {
-        console.error('Error storing tracks in DB:', error);
-      } else {
-        console.log(`Successfully stored ${tracks.length} tracks for artist ${artistId}`);
-      }
-    } else {
-      console.log(`Artist ${artistId} not found in database, not storing tracks`);
-    }
-  } catch (error) {
-    console.error('Error in storeTracksInDb:', error);
-  }
-}
-
-// Utility function to get stored tracks from database
-export async function getStoredTracksFromDb(artistId: string): Promise<SpotifyTrack[] | null> {
-  try {
-    const supabase = createClient(
-      import.meta.env.VITE_SUPABASE_URL as string,
-      import.meta.env.VITE_SUPABASE_ANON_KEY as string
-    );
-    
-    // Get the artist with stored tracks
-    const { data: artist } = await supabase
-      .from('artists')
-      .select('stored_tracks, updated_at')
-      .eq('id', artistId)
-      .single();
-    
-    if (artist?.stored_tracks) {
-      // Check if the cached data is recent (less than 7 days old)
-      const updatedAt = new Date(artist.updated_at);
-      const now = new Date();
-      const diffTime = Math.abs(now.getTime() - updatedAt.getTime());
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      
-      if (diffDays <= 7) {
-        // Convert the stored JSON tracks back to SpotifyTrack objects
-        return artist.stored_tracks as unknown as SpotifyTrack[];
-      } else {
-        console.log('Stored tracks are older than 7 days, fetching fresh data');
-        return null;
-      }
-    }
-    
-    return null;
-  } catch (error) {
-    console.error('Error in getStoredTracksFromDb:', error);
-    return null;
-  }
-}
-
-// Mock data generator for tracks
-export function generateMockTracks(count: number) {
-  const mockTracks = [];
+// Mock data generation
+export function generateMockTracks(count: number = 10): SpotifyTrack[] {
+  const mockTracks: SpotifyTrack[] = [];
+  const songNames = [
+    "Bohemian Rhapsody", "Stairway to Heaven", "Hotel California", 
+    "Sweet Child O' Mine", "Imagine", "Smells Like Teen Spirit", 
+    "Billie Jean", "Like a Rolling Stone", "Purple Haze", 
+    "Johnny B. Goode", "Hey Jude", "Born to Run", "Respect",
+    "Good Vibrations", "Yesterday", "London Calling", "Waterloo Sunset",
+    "God Save the Queen", "Gimme Shelter", "Superstition"
+  ];
+  
+  const artistNames = [
+    "Queen", "Led Zeppelin", "Eagles", "Guns N' Roses", "John Lennon",
+    "Nirvana", "Michael Jackson", "Bob Dylan", "Jimi Hendrix", "Chuck Berry",
+    "The Beatles", "Bruce Springsteen", "Aretha Franklin", "The Beach Boys",
+    "The Kinks", "Sex Pistols", "The Rolling Stones", "Stevie Wonder"
+  ];
+  
   for (let i = 0; i < count; i++) {
+    const randomSongIndex = Math.floor(Math.random() * songNames.length);
+    const randomArtistIndex = Math.floor(Math.random() * artistNames.length);
+    
     mockTracks.push({
       id: `mock-track-${i}`,
-      name: `Mock Track ${i}`,
-      artists: [{ name: 'Mock Artist' }],
+      name: songNames[randomSongIndex],
       album: {
-        name: 'Mock Album',
-        images: [{ url: 'https://via.placeholder.com/640x480' }]
+        images: [{ url: `https://picsum.photos/seed/${i}/300/300` }]
       },
+      artists: [{ name: artistNames[randomArtistIndex] }],
       uri: `spotify:track:mock-${i}`,
-      popularity: Math.floor(Math.random() * 100),
-      preview_url: null
+      duration_ms: Math.floor(Math.random() * 300000) + 120000, // 2-7 minutes
+      popularity: Math.floor(Math.random() * 100)
     });
   }
+  
   return mockTracks;
 }
+
+// Database operations for tracks
+export async function getStoredTracksFromDb(artistId: string): Promise<any[]> {
+  // This would normally fetch from a database
+  console.log(`Checking for stored tracks for artist ${artistId}`);
+  return []; // Return empty array to indicate no cached data
+}
+
+export function saveTracksToDb(artistId: string, tracks: SpotifyApi.TrackObjectSimplified[]) {
+  // Implementation for saving tracks to database
+  console.log(`Saving ${tracks.length} tracks for artist ${artistId} to database`);
+  // Database save logic would go here
+  return tracks;
+}
+
+export function convertStoredTracks(storedTracks: any[]) {
+  // Convert stored tracks from DB format to Spotify format
+  return {
+    tracks: storedTracks.map(track => ({
+      id: track.id,
+      name: track.name,
+      album: {
+        images: track.album_image ? [{ url: track.album_image }] : []
+      },
+      artists: [{ name: track.artist_name }],
+      uri: track.uri || `spotify:track:${track.id}`,
+      duration_ms: track.duration_ms || 0,
+      popularity: track.popularity || 0
+    }))
+  };
+}
+
+// Ensure we're not duplicating exports
+export { generateMockTracks } from './mock-tracks';
