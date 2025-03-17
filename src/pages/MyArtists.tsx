@@ -10,6 +10,15 @@ import { Button } from '@/components/ui/button';
 import { Loader2, Music } from 'lucide-react';
 import { getMyTopArtists } from '@/lib/spotify';
 
+// Define the artist type for better type safety
+interface SpotifyArtist {
+  id: string;
+  name: string;
+  images?: { url: string }[];
+  genres?: string[];
+  followers?: { total: number };
+}
+
 const MyArtists = () => {
   const { user, isAuthenticated, profile, loginWithSpotify } = useAuth();
   const navigate = useNavigate();
@@ -26,7 +35,7 @@ const MyArtists = () => {
     data: topArtists, 
     isLoading, 
     error 
-  } = useQuery({
+  } = useQuery<SpotifyArtist[]>({
     queryKey: ['myTopArtists', user?.id],
     queryFn: getMyTopArtists,
     enabled: !!isAuthenticated && !!user,
@@ -78,9 +87,9 @@ const MyArtists = () => {
             </p>
             <Button onClick={handleConnectSpotify}>Connect Spotify</Button>
           </div>
-        ) : topArtists?.length ? (
+        ) : topArtists && topArtists.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {topArtists.map((artist: any) => (
+            {topArtists.map((artist: SpotifyArtist) => (
               <ArtistCard key={artist.id} artist={artist} />
             ))}
           </div>
