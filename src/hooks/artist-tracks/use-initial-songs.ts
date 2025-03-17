@@ -3,7 +3,15 @@ import { useMemo } from 'react';
 import { SpotifyTrack } from '@/lib/spotify/types';
 import { generateMockSongs } from './utils';
 
-// Prepare initial songs from top tracks or all tracks
+// Helper function to get random tracks from an array
+const getRandomTracks = (tracks: SpotifyTrack[], count: number) => {
+  if (!tracks || tracks.length <= count) return tracks;
+  
+  const shuffled = [...tracks].sort(() => 0.5 - Math.random());
+  return shuffled.slice(0, count);
+};
+
+// Prepare initial songs from a random selection of tracks
 export function useInitialSongs(
   topTracksData: { tracks?: SpotifyTrack[] } | undefined, 
   allTracksData: { tracks?: SpotifyTrack[] } | undefined
@@ -12,43 +20,42 @@ export function useInitialSongs(
     console.log("Calculating initial songs. Top tracks:", 
       topTracksData?.tracks?.length, "All tracks:", allTracksData?.tracks?.length);
     
-    // First try to use top tracks
-    if (topTracksData?.tracks && Array.isArray(topTracksData.tracks) && topTracksData.tracks.length > 0) {
-      console.log(`Using ${topTracksData.tracks.length} top tracks for initial setlist`);
+    // First try to use all tracks for a better random selection
+    if (allTracksData?.tracks && Array.isArray(allTracksData.tracks) && allTracksData.tracks.length > 0) {
+      console.log(`Selecting 5 random tracks from ${allTracksData.tracks.length} tracks`);
       
-      // Sort by popularity just to be sure
-      const sortedTracks = [...topTracksData.tracks]
-        .filter(track => track && track.id && track.name)
-        .sort((a, b) => (b.popularity || 0) - (a.popularity || 0))
-        .slice(0, 5); // Only use the top 5 tracks
+      // Filter valid tracks and get 5 random ones
+      const validTracks = allTracksData.tracks.filter(track => track && track.id && track.name);
+      const randomTracks = getRandomTracks(validTracks, 5);
       
-      // Initialize with 0 votes for each song (system will handle votes separately)
-      return sortedTracks.map((track: SpotifyTrack) => ({
+      // Initialize with 0 votes for each song
+      return randomTracks.map((track: SpotifyTrack) => ({
         id: track.id,
         name: track.name,
-        votes: 0, // Start with 0 votes for clean initial state
+        votes: 0,
         userVoted: false
       }));
     }
     
-    // If no top tracks, try all tracks
-    if (allTracksData?.tracks && Array.isArray(allTracksData.tracks) && allTracksData.tracks.length > 0) {
-      console.log(`Using sorted all tracks for initial setlist instead of top tracks`);
+    // Fallback to top tracks if all tracks aren't available
+    if (topTracksData?.tracks && Array.isArray(topTracksData.tracks) && topTracksData.tracks.length > 0) {
+      console.log(`Selecting 5 random tracks from ${topTracksData.tracks.length} top tracks`);
       
-      return [...allTracksData.tracks]
-        .filter(track => track && track.id && track.name)
-        .sort((a, b) => (b.popularity || 0) - (a.popularity || 0))
-        .slice(0, 5) // Only use the top 5 tracks
-        .map((track: SpotifyTrack) => ({
-          id: track.id,
-          name: track.name,
-          votes: 0, // Start with 0 votes
-          userVoted: false
-        }));
+      // Filter valid tracks and get 5 random ones
+      const validTracks = topTracksData.tracks.filter(track => track && track.id && track.name);
+      const randomTracks = getRandomTracks(validTracks, 5);
+      
+      // Initialize with 0 votes for each song
+      return randomTracks.map((track: SpotifyTrack) => ({
+        id: track.id,
+        name: track.name,
+        votes: 0,
+        userVoted: false
+      }));
     }
     
     // Always ensure we have at least mock data if no real tracks are available
     console.log("No real tracks available for initial songs, using mock data");
-    return generateMockSongs(5); // Reduce to 5 songs to match our requirement
+    return generateMockSongs(5);
   }, [topTracksData, allTracksData]);
 }
