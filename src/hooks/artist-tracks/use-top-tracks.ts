@@ -16,8 +16,9 @@ export function useTopTracks(spotifyArtistId: string, isLoadingShow: boolean) {
       }
       
       try {
-        // Directly call our top tracks API function
-        const tracksResponse = await getArtistTopTracks(spotifyArtistId, 5);
+        // Directly call our top tracks API function, requesting 10 instead of 5
+        // to have more options if some tracks don't have all the required data
+        const tracksResponse = await getArtistTopTracks(spotifyArtistId, 10);
         console.log(`Fetched top tracks result:`, tracksResponse);
         
         // We should always get an object with tracks property
@@ -25,11 +26,12 @@ export function useTopTracks(spotifyArtistId: string, isLoadingShow: boolean) {
           console.log(`Received ${tracksResponse.tracks.length} tracks`);
           
           // Return tracks sorted by popularity to ensure we get true top tracks
-          const sortedTracks = [...tracksResponse.tracks].sort((a, b) => 
-            (b.popularity || 0) - (a.popularity || 0)
-          );
+          const sortedTracks = [...tracksResponse.tracks]
+            .filter(track => track && track.name) // Filter out invalid tracks
+            .sort((a, b) => (b.popularity || 0) - (a.popularity || 0)); // Sort by popularity
           
-          return { tracks: sortedTracks };
+          // Return the top 5 tracks
+          return { tracks: sortedTracks.slice(0, 5) };
         }
         
         // Otherwise return mock data

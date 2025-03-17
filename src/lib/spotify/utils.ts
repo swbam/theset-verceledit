@@ -1,3 +1,4 @@
+
 import { SpotifyTrack } from './types';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -80,13 +81,17 @@ export async function saveTracksToDb(artistId: string, tracks: SpotifyTrack[]) {
       console.log(`Successfully saved ${tracksToInsert.length} tracks to database for artist ${artistId}`);
       
       // Update the artist's last track update timestamp
-      await supabase
+      const { error: updateError } = await supabase
         .from('artists')
         .update({ 
           updated_at: new Date().toISOString(),
           tracks_last_updated: new Date().toISOString()
         })
         .eq('id', artistId);
+        
+      if (updateError) {
+        console.error("Error updating artist tracks timestamp:", updateError);
+      }
     }
     
     return data;

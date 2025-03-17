@@ -26,7 +26,7 @@ export async function saveArtistToDatabase(artist: any) {
     
     // If artist exists and was updated in the last 7 days, don't update
     if (existingArtist) {
-      const lastUpdated = new Date(existingArtist.updated_at);
+      const lastUpdated = new Date(existingArtist.updated_at || new Date());
       const now = new Date();
       const daysSinceUpdate = (now.getTime() - lastUpdated.getTime()) / (1000 * 60 * 60 * 24);
       
@@ -98,12 +98,17 @@ export async function importArtistTracks(artistId: string) {
     console.log(`Imported ${tracks.length} tracks for artist ${artistId}`);
     
     // Update artist record to note that tracks were imported
-    await supabase
+    const { error } = await supabase
       .from('artists')
       .update({ 
+        updated_at: new Date().toISOString(),
         tracks_last_updated: new Date().toISOString()
       })
       .eq('id', artistId);
+      
+    if (error) {
+      console.error("Error updating artist tracks_last_updated:", error);
+    }
     
   } catch (error) {
     console.error("Error importing artist tracks:", error);

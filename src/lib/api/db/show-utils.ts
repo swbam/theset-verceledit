@@ -23,7 +23,7 @@ export async function saveShowToDatabase(show: any) {
     
     // If show exists and was updated recently, don't update
     if (existingShow) {
-      const lastUpdated = new Date(existingShow.updated_at);
+      const lastUpdated = new Date(existingShow.updated_at || new Date());
       const now = new Date();
       const hoursSinceUpdate = (now.getTime() - lastUpdated.getTime()) / (1000 * 60 * 60);
       
@@ -52,9 +52,15 @@ export async function saveShowToDatabase(show: any) {
     if (error) {
       console.error("Error saving show to database:", error);
     } else {
+      console.log("Show saved successfully, now creating/updating setlist");
+      
       // If it's a new show or we're updating an existing one, ensure it has a setlist
       // Pass the artist_id so we can auto-populate the setlist with top tracks
-      await getOrCreateSetlistForShow(show.id, show.artist_id);
+      if (show.artist_id) {
+        await getOrCreateSetlistForShow(show.id, show.artist_id);
+      } else {
+        console.warn("No artist_id provided for show, cannot auto-populate setlist");
+      }
     }
     
     return existingShow || show;
