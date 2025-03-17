@@ -1,9 +1,9 @@
 
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Calendar, MapPin, Music } from 'lucide-react';
+import { Calendar, MapPin, Music, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 import { formatDate } from '@/lib/api/mock-service';
 
 interface UpcomingShowsProps {
@@ -38,7 +38,7 @@ const UpcomingShows = ({
     );
   }
 
-  // All shows should be displayed in the card layout
+  // Display shows in a grid layout
   return (
     <section className="px-6 md:px-8 lg:px-12 py-12 app-gradient bg-gray-950">
       <div className="max-w-7xl mx-auto">
@@ -48,61 +48,64 @@ const UpcomingShows = ({
             <p className="text-white/70 mt-1">Vote on setlists for upcoming shows</p>
           </div>
           
-          {shows.length > 5 && (
+          {shows.length > 4 && (
             <Button variant="ghost" className="mt-4 md:mt-0 group text-white hover:text-white hover:bg-white/5" asChild>
               <Link to={`/shows?artist=${encodeURIComponent(artistName)}`} className="flex items-center">
                 See all {shows.length} shows
-                <span className="ml-1 transition-transform group-hover:translate-x-1">→</span>
+                <ArrowRight className="ml-1.5 h-4 w-4 transition-transform group-hover:translate-x-1" />
               </Link>
             </Button>
           )}
         </div>
         
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {shows.map((show) => (
-            <Card 
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+          {shows.slice(0, 8).map((show) => (
+            <Link 
               key={show.id} 
-              className="border-white/10 bg-black/30 overflow-hidden hover:border-white/30 transition-all"
+              to={`/shows/${show.id}`}
+              className="block group"
             >
-              <CardContent className="p-0">
-                <div className="p-4">
-                  <div className="flex items-center gap-2 mb-3">
-                    <Calendar className="h-4 w-4 text-white/60" />
-                    <span className="font-medium text-white">{formatDate(show.date, false)}</span>
+              <Card className="border-white/10 bg-black/30 hover:bg-black/40 hover:border-white/20 transition-all h-full">
+                <div className="p-5 flex flex-col h-full">
+                  <div className="flex items-center mb-3">
+                    <Calendar className="h-5 w-5 text-white/70 mr-2" />
+                    <span className="text-white font-medium">
+                      {formatDate(show.date, false)}
+                    </span>
                   </div>
                   
-                  <h3 className="font-medium text-white mb-2 line-clamp-1">
+                  <h3 className="font-bold text-white text-lg mb-2 line-clamp-1">
                     {show.venue?.name || "Venue TBA"}
                   </h3>
                   
-                  <div className="flex items-center gap-2 text-white/60 mb-4">
-                    <MapPin className="h-4 w-4" />
-                    <span className="line-clamp-1">
+                  <div className="flex items-start mb-auto text-white/70 pb-3">
+                    <MapPin className="h-5 w-5 mr-2 mt-0.5 flex-shrink-0" />
+                    <span>
                       {show.venue?.city || ""}
                       {show.venue?.state && show.venue?.city ? `, ${show.venue.state}` : show.venue?.state || ""}
                     </span>
                   </div>
                   
-                  <div className="flex flex-wrap items-center gap-2 mt-auto">
-                    <Button variant="outline" size="sm" className="border-white/10 bg-white/5 text-white hover:bg-white/10 w-full" asChild>
-                      <Link to={`/shows/${show.id}`} className="flex items-center justify-center gap-1.5">
-                        <Music className="h-4 w-4" />
-                        View Setlist
-                      </Link>
-                    </Button>
-                  </div>
+                  <Button 
+                    variant="outline" 
+                    className="w-full border-white/10 bg-white/5 text-white hover:bg-white/10 group-hover:border-white/20 mt-2"
+                  >
+                    <Music className="h-4 w-4 mr-2" />
+                    View Setlist
+                  </Button>
                 </div>
-              </CardContent>
-            </Card>
+              </Card>
+            </Link>
           ))}
         </div>
         
-        {shows.length > 4 && (
+        {shows.length > 8 && (
           <div className="mt-6 text-center">
             <Button variant="outline" className="border-white/10 bg-white/5 text-white hover:bg-white/10" asChild>
               <Link to={`/shows?artist=${encodeURIComponent(artistName)}`} className="flex items-center gap-2 mx-auto w-fit">
                 <Calendar size={16} />
-                View all {shows.length} upcoming shows
+                See all {shows.length} shows
+                <ArrowRight className="ml-1 h-4 w-4" />
               </Link>
             </Button>
           </div>
