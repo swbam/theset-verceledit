@@ -5,7 +5,7 @@ import { convertStoredTracks } from './utils';
 import { getStoredTracksFromDb } from './utils';
 import { SpotifyTrack } from './types';
 
-export async function getArtistTopTracks(artistId: string, limit: number = 10) {
+export async function getArtistTopTracks(artistId: string, limit: number = 10): Promise<{ tracks: SpotifyTrack[] }> {
   try {
     console.log(`Fetching top ${limit} tracks for artist ID: ${artistId}`);
     
@@ -14,7 +14,7 @@ export async function getArtistTopTracks(artistId: string, limit: number = 10) {
     if (storedTracks && storedTracks.length > 0) {
       console.log(`Found ${storedTracks.length} stored tracks for artist ${artistId}`);
       const tracks = storedTracks.slice(0, limit);
-      return convertStoredTracks(tracks);
+      return { tracks: tracks };
     }
     
     // If no stored tracks, fetch from Spotify
