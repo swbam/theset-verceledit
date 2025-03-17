@@ -97,17 +97,20 @@ export async function importArtistTracks(artistId: string) {
     
     console.log(`Imported ${tracks.length} tracks for artist ${artistId}`);
     
-    // Update artist record to note that tracks were imported
+    // Store the tracks in the artist's stored_tracks column and update tracks_last_updated
     const { error } = await supabase
       .from('artists')
       .update({ 
+        stored_tracks: tracks,
         updated_at: new Date().toISOString(),
         tracks_last_updated: new Date().toISOString()
       })
       .eq('id', artistId);
       
     if (error) {
-      console.error("Error updating artist tracks_last_updated:", error);
+      console.error("Error updating artist stored_tracks:", error);
+    } else {
+      console.log(`Successfully stored ${tracks.length} tracks for artist ${artistId}`);
     }
     
   } catch (error) {

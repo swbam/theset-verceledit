@@ -33,7 +33,10 @@ export function useInitialSongs(
       
       // Initialize with varying votes (0-10) for each song to make it look realistic
       return randomTracks.map((track: SpotifyTrack, index: number) => {
-        const randomVotes = Math.floor(Math.random() * 10);
+        const artistName = track.artists && track.artists[0]?.name 
+          ? track.artists[0].name 
+          : 'Unknown Artist';
+          
         return {
           id: track.id,
           name: track.name,
@@ -42,7 +45,7 @@ export function useInitialSongs(
           // Add album and artist information if available
           albumName: track.album?.name,
           albumImageUrl: track.album?.images?.[0]?.url,
-          artistName: track.artists?.[0]?.name
+          artistName
         };
       }).sort((a, b) => b.votes - a.votes); // Sort by votes descending
     }
@@ -58,15 +61,21 @@ export function useInitialSongs(
       console.log(`Selected ${randomTracks.length} random tracks from top tracks`);
       
       // Initialize with varying votes for each song
-      return randomTracks.map((track: SpotifyTrack, index: number) => ({
-        id: track.id,
-        name: track.name,
-        votes: 10 - index, // Descending votes
-        userVoted: false,
-        albumName: track.album?.name,
-        albumImageUrl: track.album?.images?.[0]?.url,
-        artistName: track.artists?.[0]?.name
-      })).sort((a, b) => b.votes - a.votes); // Sort by votes
+      return randomTracks.map((track: SpotifyTrack, index: number) => {
+        const artistName = track.artists && track.artists[0]?.name 
+          ? track.artists[0].name 
+          : 'Unknown Artist';
+          
+        return {
+          id: track.id,
+          name: track.name,
+          votes: 10 - index, // Descending votes
+          userVoted: false,
+          albumName: track.album?.name,
+          albumImageUrl: track.album?.images?.[0]?.url,
+          artistName
+        };
+      }).sort((a, b) => b.votes - a.votes); // Sort by votes
     }
     
     // Always ensure we have at least mock data if no real tracks are available

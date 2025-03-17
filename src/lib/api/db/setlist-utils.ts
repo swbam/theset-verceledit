@@ -2,6 +2,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { getArtistTopTracksFromDb, getStoredTracksFromDb } from "@/lib/spotify/utils";
+import { SpotifyTrack } from "@/lib/spotify/types";
 
 /**
  * Create or get setlist for a show
@@ -58,11 +59,37 @@ export async function getOrCreateSetlistForShow(showId: string, artistId?: strin
 /**
  * Helper function to get random tracks from an array
  */
-function getRandomTracks(tracks, count = 5) {
+function getRandomTracks(tracks: any[], count = 5) {
   if (!tracks || tracks.length <= count) return tracks;
   
   const shuffled = [...tracks].sort(() => 0.5 - Math.random());
   return shuffled.slice(0, count);
+}
+
+/**
+ * Try to get tracks from the artist's stored_tracks first, then fall back to top_tracks table
+ */
+async function getTracksForArtist(artistId: string): Promise<SpotifyTrack[]> {
+  try {
+    // First try to get tracks from the artist's stored_tracks
+    const { data: artist, error: artistError } = await supabase
+      .from('artists')
+      .select('stored_tracks')
+      .eq('id', artistId)
+      .maybeSingle();
+    
+    if (!artistError && artist?.stored_tracks && Array.isArray(artist.stored_tracks) && artist.stored_tracks.length > 0) {
+      console.log(`Using ${artist.stored_tracks.length} tracks from artist.stored_tracks`);
+      return artist.stored_tracks;
+    }
+    
+    // Fallback to top_tracks table
+    console.log("No stored_tracks found, falling back to top_tracks table");
+    return await getStoredTracksFromDb(artistId);
+  } catch (error) {
+    console.error("Error getting tracks for artist:", error);
+    return [];
+  }
 }
 
 /**
@@ -72,14 +99,8 @@ export async function autoPopulateSetlistWithRandomTracks(setlistId: string, art
   try {
     console.log(`Auto-populating setlist ${setlistId} with random tracks for artist ${artistId}`);
     
-    // First try to get all tracks for a better random selection
-    let allTracks = await getStoredTracksFromDb(artistId);
-    
-    // Fallback to top tracks if all tracks aren't available
-    if (!allTracks || allTracks.length < 5) {
-      console.log(`Not enough tracks in full catalog, falling back to top tracks for artist ${artistId}`);
-      allTracks = await getArtistTopTracksFromDb(artistId, 20);
-    }
+    // Get tracks from artist's stored_tracks or top_tracks
+    const allTracks = await getTracksForArtist(artistId);
     
     if (!allTracks || allTracks.length === 0) {
       console.log(`No tracks found for artist ${artistId}, skipping auto-population`);
@@ -92,7 +113,9 @@ export async function autoPopulateSetlistWithRandomTracks(setlistId: string, art
     
     // Add each track to the setlist with 0 votes
     for (const track of randomTracks) {
-      await addSongToSetlist(setlistId, track.id);
+      if (track && track.id) {
+        await addSongToSetlist(setlistId, track.id);
+      }
     }
     
     console.log(`Successfully populated setlist ${setlistId} with ${randomTracks.length} random tracks`);
