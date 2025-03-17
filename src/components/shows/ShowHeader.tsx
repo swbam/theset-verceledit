@@ -77,44 +77,44 @@ const ShowHeader: React.FC<ShowHeaderProps> = ({ show }) => {
       style={{
         backgroundImage: show.image_url ? `linear-gradient(to bottom, rgba(0,0,0,0.8), rgba(0,0,0,0.7)), url(${show.image_url})` : undefined,
         height: 'auto',
-        maxHeight: isMobile ? '40vh' : 'auto',
+        maxHeight: isMobile ? '35vh' : 'auto',
       }}
     >
-      <div className={`px-6 md:px-8 lg:px-12 ${isMobile ? 'py-6' : 'py-12'} relative z-10`}>
+      <div className={`px-4 md:px-8 lg:px-12 ${isMobile ? 'py-4' : 'py-12'} relative z-10`}>
         <div className="max-w-7xl mx-auto">
-          {show.artist && (
-            <Link to={`/artists/${show.artist.id}`} className="text-white/80 hover:text-white inline-flex items-center mb-2 transition-colors">
-              <ArrowLeft size={18} className="mr-2" />
-              Back to artist
-            </Link>
-          )}
-          
-          <div className="mb-2">
-            <span className="inline-block bg-white/20 text-white text-xs px-3 py-1 rounded-full">
+          <div className="flex items-center justify-between mb-2">
+            {show.artist && (
+              <Link to={`/artists/${show.artist.id}`} className="text-white/80 hover:text-white inline-flex items-center transition-colors">
+                <ArrowLeft size={16} className="mr-1" />
+                <span className={`${isMobile ? 'text-xs' : 'text-sm'}`}>Back to artist</span>
+              </Link>
+            )}
+            
+            <span className="inline-block bg-white/20 text-white text-xs px-2 py-0.5 rounded-full">
               {new Date(show.date) > new Date() ? 'Upcoming' : 'Past'}
             </span>
           </div>
           
-          <h1 className={`${isMobile ? 'text-2xl' : 'text-3xl md:text-4xl lg:text-5xl'} font-bold text-white mb-1`}>{show.artist?.name}</h1>
+          <h1 className={`${isMobile ? 'text-xl' : 'text-3xl md:text-4xl lg:text-5xl'} font-bold text-white mb-1`}>{show.artist?.name}</h1>
           
-          {tourName && <p className={`${isMobile ? 'text-base' : 'text-xl'} text-white/90 mb-2`}>{tourName}</p>}
+          {tourName && <p className={`${isMobile ? 'text-sm' : 'text-xl'} text-white/90 mb-2`}>{tourName}</p>}
           
-          <div className={`flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6 mt-2`}>
-            <div className={`flex items-center text-white/80 ${isMobile ? 'text-sm' : ''}`}>
-              <Calendar size={isMobile ? 16 : 18} className="mr-2 text-white/60" />
+          <div className={`flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-6 mt-2`}>
+            <div className={`flex items-center text-white/80 ${isMobile ? 'text-xs' : ''}`}>
+              <Calendar size={isMobile ? 14 : 18} className="mr-1.5 text-white/60" />
               {formatDate(show.date)}
             </div>
             
             {show.venue && (
-              <div className={`flex items-center text-white/80 ${isMobile ? 'text-sm' : ''}`}>
-                <MapPin size={isMobile ? 16 : 18} className="mr-2 text-white/60" />
+              <div className={`flex items-center text-white/80 ${isMobile ? 'text-xs' : ''}`}>
+                <MapPin size={isMobile ? 14 : 18} className="mr-1.5 text-white/60" />
                 {show.venue.name}, {show.venue.city}, {show.venue.state}
               </div>
             )}
           </div>
           
           {show.ticket_url && (
-            <div className={`${isMobile ? 'mt-3' : 'mt-6'}`}>
+            <div className={`${isMobile ? 'mt-2' : 'mt-6'}`}>
               <Button asChild className="bg-white hover:bg-white/90 text-black" size={isMobile ? "sm" : "default"}>
                 <a 
                   href={show.ticket_url} 

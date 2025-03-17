@@ -68,12 +68,12 @@ const SetlistSection: React.FC<SetlistSectionProps> = ({
   console.log("Is loading tracks:", isLoadingAllTracks);
   
   return (
-    <section className={`${isMobile ? 'px-0' : 'px-6 md:px-8 lg:px-12'} py-8 bg-black`}>
+    <section className={`${isMobile ? 'px-0 pt-4' : 'px-6 md:px-8 lg:px-12 py-8'} bg-black`}>
       <div className={`${isMobile ? 'max-w-full' : 'max-w-6xl mx-auto'}`}>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
           <div className="lg:col-span-2">
             <Card className={`bg-[#0A0A0A] border-white/10 shadow-lg overflow-hidden ${isMobile ? 'rounded-none border-x-0' : ''}`}>
-              <CardHeader className="pb-0">
+              <CardHeader className={`${isMobile ? 'py-3 px-4' : 'pb-0'}`}>
                 <SetlistHeader 
                   isConnected={isConnected}
                   totalVotes={totalVotes}
@@ -84,11 +84,11 @@ const SetlistSection: React.FC<SetlistSectionProps> = ({
               </CardHeader>
               <CardContent className="p-0">
                 {isLoadingTracks ? (
-                  <div className="p-12 space-y-8 animate-pulse">
-                    <div className="h-8 bg-white/5 rounded w-full max-w-md"></div>
-                    <div className="h-8 bg-white/5 rounded w-full max-w-lg"></div>
-                    <div className="h-8 bg-white/5 rounded w-full max-w-sm"></div>
-                    <div className="h-8 bg-white/5 rounded w-full max-w-lg"></div>
+                  <div className="p-6 sm:p-12 space-y-6 sm:space-y-8 animate-pulse">
+                    <div className="h-6 sm:h-8 bg-white/5 rounded w-full max-w-md"></div>
+                    <div className="h-6 sm:h-8 bg-white/5 rounded w-full max-w-lg"></div>
+                    <div className="h-6 sm:h-8 bg-white/5 rounded w-full max-w-sm"></div>
+                    <div className="h-6 sm:h-8 bg-white/5 rounded w-full max-w-lg"></div>
                   </div>
                 ) : (
                   <>
@@ -106,11 +106,11 @@ const SetlistSection: React.FC<SetlistSectionProps> = ({
                     />
                     
                     {!isAuthenticated && anonymousVoteCount >= 3 && (
-                      <div className={`p-4 ${isMobile ? 'mx-2' : 'mx-4'} mb-4 mt-2`}>
+                      <div className={`p-3 ${isMobile ? 'mx-2' : 'mx-4'} mb-3 mt-2`}>
                         <Alert variant="default" className="bg-white/5 border-white/10">
                           <AlertCircle className="h-4 w-4 text-white/70" />
                           <AlertDescription className="flex items-center justify-between">
-                            <span className="text-white/80">
+                            <span className="text-white/80 text-xs sm:text-sm">
                               {isMobile 
                                 ? "Login to vote more!" 
                                 : "You've used all your free votes. Log in with Spotify to vote more!"}
@@ -118,7 +118,7 @@ const SetlistSection: React.FC<SetlistSectionProps> = ({
                             <Button 
                               size="sm" 
                               onClick={login}
-                              className="bg-white text-black hover:bg-white/90 ml-2 flex-shrink-0"
+                              className="bg-white text-black hover:bg-white/90 ml-2 flex-shrink-0 text-xs h-7"
                             >
                               Log In
                             </Button>
@@ -127,7 +127,7 @@ const SetlistSection: React.FC<SetlistSectionProps> = ({
                       </div>
                     )}
                     
-                    <div className={`p-4 border-t border-white/10 text-sm text-white/60 flex justify-between items-center`}>
+                    <div className={`p-3 border-t border-white/10 text-sm text-white/60 flex justify-between items-center`}>
                       <div className="flex items-center gap-1.5">
                         <p className={isMobile ? "text-xs" : ""}>
                           Last updated {formatDistanceToNow(new Date(), { addSuffix: true })}

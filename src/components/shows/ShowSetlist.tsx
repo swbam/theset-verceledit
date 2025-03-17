@@ -115,7 +115,7 @@ const ShowSetlist = ({
                 <SelectTrigger className="w-full bg-black border-white/10 text-white">
                   <SelectValue placeholder="Select a song" />
                 </SelectTrigger>
-                <SelectContent className="bg-black border-white/10 text-white z-50 max-h-80">
+                <SelectContent className="bg-[#0A0A16] border-white/10 text-white z-50 max-h-80 min-w-[200px]">
                   {isLoadingAllTracks ? (
                     <SelectItem value="loading" disabled className="text-white/60">Loading songs...</SelectItem>
                   ) : sortedTracks.length === 0 ? (
@@ -140,7 +140,7 @@ const ShowSetlist = ({
             </div>
             <Button 
               onClick={handleAddTrack}
-              disabled={isLoadingAllTracks || !availableTracks.length}
+              disabled={isLoadingAllTracks || !selectedTrack}
               className="mt-1 sm:mt-0 flex-shrink-0 bg-white text-[#0A0A16] hover:bg-white/90" 
               size={isMobile ? "sm" : "default"}
             >
