@@ -92,6 +92,24 @@ async function addTrackToSetlist(setlistId: string, trackId: string) {
   try {
     console.log(`Adding track ${trackId} to setlist ${setlistId}`);
     
+    // Check if track already exists in the setlist
+    const { data: existingTrack, error: checkError } = await supabase
+      .from('setlist_songs')
+      .select('id')
+      .eq('setlist_id', setlistId)
+      .eq('track_id', trackId)
+      .maybeSingle();
+      
+    if (checkError && checkError.code !== 'PGRST116') {
+      console.error("Error checking for existing track:", checkError);
+      return null;
+    }
+    
+    if (existingTrack) {
+      console.log(`Track ${trackId} already exists in setlist ${setlistId}`);
+      return existingTrack.id;
+    }
+    
     const { data, error } = await supabase
       .from('setlist_songs')
       .insert({
@@ -107,6 +125,7 @@ async function addTrackToSetlist(setlistId: string, trackId: string) {
       return null;
     }
     
+    console.log(`Successfully added track ${trackId} to setlist ${setlistId}`);
     return data.id;
   } catch (error) {
     console.error("Error in addTrackToSetlist:", error);

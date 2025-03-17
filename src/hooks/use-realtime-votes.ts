@@ -97,7 +97,8 @@ export function useRealtimeVotes(showId: string, spotifyArtistId: string, initia
   const { 
     data: dbSongs,
     isLoading: isLoadingDbSongs,
-    error: dbSongsError
+    error: dbSongsError,
+    refetch: refetchSongs
   } = useQuery({
     queryKey: ['setlistSongs', showId, setlistId],
     queryFn: async () => {
@@ -110,12 +111,16 @@ export function useRealtimeVotes(showId: string, spotifyArtistId: string, initia
     enabled: !!setlistId,
   });
   
-  // Get setlist ID when showId is available
+  // Get setlist ID when showId is available - IMMEDIATELY on component mount
   useEffect(() => {
     if (showId) {
+      console.log(`Initializing setlist for show: ${showId}`);
       getSetlistId(showId).then(id => {
         if (id) {
+          console.log(`Setting setlist ID: ${id}`);
           setSetlistId(id);
+        } else {
+          console.error(`Failed to get or create setlist for show: ${showId}`);
         }
       });
     }
@@ -291,14 +296,24 @@ export function useRealtimeVotes(showId: string, spotifyArtistId: string, initia
     try {
       if (!setlistId) {
         console.error("Missing setlist ID");
-        toast.error("Unable to add song: setlist not found");
-        return;
+        
+        // Try to get or create the setlist again
+        const id = await getSetlistId(showId);
+        if (!id) {
+          toast.error("Unable to add song: setlist not found");
+          return false;
+        }
+        
+        // Update the setlist ID
+        setSetlistId(id);
+        toast.info("Setlist reconnected, please try adding the song again");
+        return false;
       }
       
       if (!trackId) {
         console.error("Missing track ID");
         toast.error("Please select a song first");
-        return;
+        return false;
       }
       
       console.log(`Adding song ${trackId} (${trackName}) to setlist ${setlistId}`);
@@ -309,7 +324,7 @@ export function useRealtimeVotes(showId: string, spotifyArtistId: string, initia
       if (songExists) {
         console.log(`Song ${trackId} already exists in setlist`);
         toast.info(`"${trackName}" is already in the setlist!`);
-        return;
+        return false;
       }
       
       const songId = await dbAddSongToSetlist(setlistId, trackId, trackName);
@@ -317,16 +332,19 @@ export function useRealtimeVotes(showId: string, spotifyArtistId: string, initia
       if (songId) {
         console.log("Song added successfully with ID:", songId);
         // Refresh the songs list
-        queryClient.invalidateQueries({ queryKey: ['setlistSongs', showId, setlistId] });
+        refetchSongs();
+        return true;
       } else {
         console.error("Failed to add song");
         toast.error("Failed to add song to setlist");
+        return false;
       }
     } catch (error) {
       console.error("Error adding song:", error);
       toast.error("Error adding song to setlist");
+      return false;
     }
-  }, [setlistId, showId, queryClient, setlist]);
+  }, [setlistId, showId, getSetlistId, setlist, refetchSongs]);
   
   return {
     setlist,
@@ -419,3 +437,4 @@ async function voteForSong(setlistId: string, songId: string, userId: string): P
     return false;
   }
 }
+

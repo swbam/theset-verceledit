@@ -105,7 +105,7 @@ const ShowDetail = () => {
   }, [allTracksData, setlist, getAvailableTracks]);
   
   // Handle song addition
-  const handleAddSongClick = () => {
+  const handleAddSongClick = async () => {
     console.log("Add song clicked, passing all tracks data:", allTracksData?.tracks?.length);
     if (!selectedTrack) {
       toast.error("Please select a song first");
@@ -116,7 +116,10 @@ const ShowDetail = () => {
     const trackToAdd = allTracksData?.tracks?.find((track: any) => track.id === selectedTrack);
     
     if (trackToAdd) {
-      handleAddSong(allTracksData);
+      const success = await handleAddSong(allTracksData);
+      if (success) {
+        console.log(`Added song to setlist: ${trackToAdd.name}`, setlist.length + 1);
+      }
     } else {
       toast.error("Could not find the selected track");
     }

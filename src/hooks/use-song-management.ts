@@ -59,23 +59,31 @@ export function useSongManagement(showId: string, initialSongs: Song[], isAuthen
       }
       
       try {
-        // Pass the track information to the realtime handler
-        await realtimeHandleAddSong(trackToAdd.id, trackToAdd.name);
+        // Pass the track information to the realtime handler and await the result
+        const success = await realtimeHandleAddSong(trackToAdd.id, trackToAdd.name);
         
-        setSelectedTrack('');
-        toast.success(`"${trackToAdd.name}" added to setlist!`);
-        
-        // Log the update for debugging
-        console.log(`Added song to setlist: ${trackToAdd.name}`, setlist.length + 1);
-        return true;
+        if (success) {
+          setSelectedTrack('');
+          toast.success(`"${trackToAdd.name}" added to setlist!`);
+          
+          // Log the update for debugging
+          console.log(`Added song to setlist: ${trackToAdd.name}`, setlist.length + 1);
+          return true;
+        } else {
+          // If we got false from handleAddSong, it means there was an issue
+          console.error("Failed to add song to setlist");
+          // The hook already showed a toast to the user
+          return false;
+        }
       } catch (error) {
         console.error("Error adding song to setlist:", error);
         toast.error("Failed to add song to setlist");
         return false;
       }
+    } else {
+      toast.error("Could not find the selected track");
+      return false;
     }
-    
-    return false;
   };
 
   return {
