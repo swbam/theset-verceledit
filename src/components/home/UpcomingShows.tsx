@@ -2,14 +2,18 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Calendar, MapPin, ChevronRight, Music, Flame } from 'lucide-react';
+import { Calendar, MapPin, ChevronRight, Music, Flame, Stadium } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { fetchShowsByGenre, popularMusicGenres, fetchFeaturedShows } from '@/lib/ticketmaster';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { toast } from 'sonner';
+
+const STADIUM_ATTENDANCE_THRESHOLD = 20000;
 
 const UpcomingShows = () => {
   const [activeGenre, setActiveGenre] = useState("all");
+  const isMobile = useIsMobile();
   
   const { data: showsData = [], isLoading, error } = useQuery({
     queryKey: ['upcomingShows', activeGenre],
@@ -20,8 +24,8 @@ const UpcomingShows = () => {
         
         // Combine trending and upcoming shows for more variety
         const [upcomingShows, trendingShows] = await Promise.all([
-          fetchShowsByGenre(genreId, 15),
-          fetchFeaturedShows(15)
+          fetchShowsByGenre(genreId, 30),
+          fetchFeaturedShows(30)
         ]);
         
         // Merge both sets of shows
@@ -32,11 +36,21 @@ const UpcomingShows = () => {
           new Map(combinedShows.map(show => [show.id, show])).values()
         );
         
-        // Add popularity scores to make sorting consistent
+        // Add popularity scores to make sorting consistent and filter for stadium shows
         return uniqueShows.map(show => ({
           ...show,
           popularityScore: Math.floor(Math.random() * 8000) + 3000 // Simulating high attendance
-        }));
+        }))
+        .filter(show => {
+          // Filter for stadium shows and shows with high attendance
+          const isStadium = 
+            show.venue?.name?.toLowerCase().includes('stadium') || 
+            show.venue?.name?.toLowerCase().includes('arena') || 
+            show.venue?.name?.toLowerCase().includes('center') ||
+            show.venue?.name?.toLowerCase().includes('dome');
+          const highAttendance = show.popularityScore >= STADIUM_ATTENDANCE_THRESHOLD;
+          return isStadium || highAttendance;
+        });
       } catch (error) {
         console.error("Failed to fetch upcoming shows:", error);
         toast.error("Couldn't load upcoming shows");
@@ -90,32 +104,15 @@ const UpcomingShows = () => {
     }
   };
 
-  const formatTourName = (showName: string, artistName: string) => {
-    if (!showName) return 'Untitled Show';
-    
-    if (artistName && showName.startsWith(artistName)) {
-      let formatted = showName.substring(artistName.length).trim();
-      if (formatted.startsWith(':')) {
-        formatted = formatted.substring(1).trim();
-      }
-      return formatted || showName;
-    }
-    
-    const parts = showName.split(/[-:]/);
-    if (parts.length > 1) {
-      return parts[0].trim();
-    }
-    
-    return showName;
-  };
-
   return (
     <section className="py-12 md:py-16 px-4 bg-[#0A0A10]">
       <div className="container mx-auto max-w-7xl">
         <div className="flex justify-between items-center mb-6 md:mb-8">
           <div>
-            <h2 className="text-2xl md:text-3xl font-bold text-white">Upcoming Shows</h2>
-            <p className="text-sm md:text-base text-white/70 mt-1">Browse and vote on setlists for upcoming concerts</p>
+            <h2 className="text-2xl md:text-3xl font-bold text-white">Stadium Shows</h2>
+            <p className="text-sm md:text-base text-white/70 mt-1">
+              Big venues with 20k+ attendance
+            </p>
           </div>
           <Link to="/shows" className="text-white hover:text-white/80 font-medium flex items-center group">
             <span className="hidden sm:inline">View all</span> <ChevronRight size={16} className="ml-0 sm:ml-1 transition-transform group-hover:translate-x-1" />
@@ -170,18 +167,19 @@ const UpcomingShows = () => {
           </div>
         ) : error ? (
           <div className="text-center py-10 bg-black/20 rounded-lg border border-white/5">
-            <p className="text-white/60">No upcoming shows found</p>
+            <p className="text-white/60">No stadium shows found</p>
           </div>
         ) : shows.length === 0 ? (
           <div className="text-center py-10 bg-black/20 rounded-lg border border-white/5">
-            <p className="text-white/60">No upcoming shows found</p>
+            <p className="text-white/60">No stadium shows found</p>
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 md:gap-4">
             {shows.map((show) => {
               const genre = show.genre || show.artist?.genres?.[0] || 'Pop';
               const formattedDate = formatDate(show.date);
-              const tourName = formatTourName(show.name, show.artist?.name || '');
+              const artistName = show.artist?.name || 'Unknown Artist';
+              const tourName = show.name || 'Upcoming Show';
               
               return (
                 <Link 
@@ -193,7 +191,7 @@ const UpcomingShows = () => {
                     {show.image_url ? (
                       <img 
                         src={show.image_url} 
-                        alt={show.name} 
+                        alt={artistName} 
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                       />
                     ) : (
@@ -218,12 +216,15 @@ const UpcomingShows = () => {
                     </div>
                   </div>
                   <div className="p-3">
+                    {/* Mobile shows artist name as primary headline, desktop can show more info */}
                     <h3 className="font-bold text-sm mb-0.5 line-clamp-1">
-                      {tourName || 'Upcoming Show'}
+                      {artistName}
                     </h3>
-                    <p className="text-white/80 text-xs mb-2 line-clamp-1">
-                      {show.artist?.name || 'Unknown Artist'}
-                    </p>
+                    {!isMobile && (
+                      <p className="text-white/80 text-xs mb-2 line-clamp-1">
+                        {tourName}
+                      </p>
+                    )}
                     <div className="flex flex-col space-y-1 text-[10px] md:text-xs text-white/60">
                       <div className="flex items-center">
                         <Calendar size={12} className="mr-1.5 opacity-70 flex-shrink-0" />
@@ -231,9 +232,9 @@ const UpcomingShows = () => {
                       </div>
                       {show.venue && (
                         <div className="flex items-start">
-                          <MapPin size={12} className="mr-1.5 mt-0.5 opacity-70 flex-shrink-0" />
+                          <Stadium size={12} className="mr-1.5 mt-0.5 opacity-70 flex-shrink-0" />
                           <span className="line-clamp-1">
-                            {show.venue?.name ? `${show.venue.name}, ${show.venue.city || ''}` : 'Venue TBA'}
+                            {show.venue?.name ? `${show.venue.name}, ${show.venue.city || ''}` : 'Stadium TBA'}
                           </span>
                         </div>
                       )}
