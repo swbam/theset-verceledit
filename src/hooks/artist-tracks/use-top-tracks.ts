@@ -12,12 +12,12 @@ export function useTopTracks(spotifyArtistId: string, isLoadingShow: boolean) {
       console.log(`Fetching top tracks for artist ID: ${spotifyArtistId}`);
       if (!spotifyArtistId) {
         console.error("No valid Spotify artist ID available");
-        return { tracks: generateMockTracks(10) };
+        return { tracks: generateMockTracks(5) };
       }
       
       try {
         // Directly call our top tracks API function
-        const tracksResponse = await getArtistTopTracks(spotifyArtistId, 10);
+        const tracksResponse = await getArtistTopTracks(spotifyArtistId, 5);
         console.log(`Fetched top tracks result:`, tracksResponse);
         
         // We should always get an object with tracks property
@@ -34,10 +34,10 @@ export function useTopTracks(spotifyArtistId: string, isLoadingShow: boolean) {
         
         // Otherwise return mock data
         console.log("No tracks returned from getArtistTopTracks, using mock data");
-        return { tracks: generateMockTracks(10) };
+        return { tracks: generateMockTracks(5) };
       } catch (error) {
         console.error("Error fetching tracks:", error);
-        return { tracks: generateMockTracks(10) };
+        return { tracks: generateMockTracks(5) };
       }
     },
     enabled: !!spotifyArtistId && !isLoadingShow,

@@ -20,12 +20,13 @@ export function useInitialSongs(
       const sortedTracks = [...topTracksData.tracks]
         .filter(track => track && track.id && track.name)
         .sort((a, b) => (b.popularity || 0) - (a.popularity || 0))
-        .slice(0, 10);
+        .slice(0, 5); // Only use the top 5 tracks
       
+      // Initialize with 0 votes for each song (system will handle votes separately)
       return sortedTracks.map((track: SpotifyTrack) => ({
         id: track.id,
         name: track.name,
-        votes: Math.max(1, track.popularity ? Math.floor(track.popularity / 10) : 1), // Ensure non-zero initial votes
+        votes: 0, // Start with 0 votes for clean initial state
         userVoted: false
       }));
     }
@@ -37,17 +38,17 @@ export function useInitialSongs(
       return [...allTracksData.tracks]
         .filter(track => track && track.id && track.name)
         .sort((a, b) => (b.popularity || 0) - (a.popularity || 0))
-        .slice(0, 10)
+        .slice(0, 5) // Only use the top 5 tracks
         .map((track: SpotifyTrack) => ({
           id: track.id,
           name: track.name,
-          votes: Math.max(1, track.popularity ? Math.floor(track.popularity / 10) : 1), // Ensure non-zero initial votes
+          votes: 0, // Start with 0 votes
           userVoted: false
         }));
     }
     
     // Always ensure we have at least mock data if no real tracks are available
     console.log("No real tracks available for initial songs, using mock data");
-    return generateMockSongs(10);
+    return generateMockSongs(5); // Reduce to 5 songs to match our requirement
   }, [topTracksData, allTracksData]);
 }

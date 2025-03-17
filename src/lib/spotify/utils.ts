@@ -1,4 +1,3 @@
-
 import { SpotifyTrack } from './types';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -79,6 +78,15 @@ export async function saveTracksToDb(artistId: string, tracks: SpotifyTrack[]) {
       console.error("Error saving tracks to database:", error);
     } else {
       console.log(`Successfully saved ${tracksToInsert.length} tracks to database for artist ${artistId}`);
+      
+      // Update the artist's last track update timestamp
+      await supabase
+        .from('artists')
+        .update({ 
+          updated_at: new Date().toISOString(),
+          tracks_last_updated: new Date().toISOString()
+        })
+        .eq('id', artistId);
     }
     
     return data;
@@ -134,6 +142,86 @@ export async function getStoredTracksFromDb(artistId: string): Promise<SpotifyTr
   } catch (error) {
     console.error("Error in getStoredTracksFromDb:", error);
     return null;
+  }
+}
+
+// Function to get top tracks for an artist from the database
+export async function getArtistTopTracksFromDb(artistId: string, limit: number = 5): Promise<SpotifyTrack[] | null> {
+  try {
+    if (!artistId) {
+      console.log("No artist ID provided for getArtistTopTracksFromDb");
+      return null;
+    }
+    
+    console.log(`Fetching top ${limit} tracks for artist ${artistId} from database`);
+    
+    const { data, error } = await supabase
+      .from('top_tracks')
+      .select('*')
+      .eq('artist_id', artistId)
+      .order('popularity', { ascending: false })
+      .limit(limit);
+    
+    if (error) {
+      console.error("Error fetching top tracks:", error);
+      return null;
+    }
+    
+    if (!data || data.length === 0) {
+      console.log(`No top tracks found for artist ${artistId}`);
+      return null;
+    }
+    
+    console.log(`Found ${data.length} top tracks for artist ${artistId}`);
+    
+    // Convert database records to SpotifyTrack format
+    const tracks: SpotifyTrack[] = data.map(track => ({
+      id: track.id,
+      name: track.name,
+      popularity: track.popularity || 50,
+      preview_url: track.preview_url,
+      uri: track.spotify_url,
+      album: {
+        name: track.album_name,
+        images: track.album_image_url ? [{ url: track.album_image_url }] : []
+      },
+      artists: [{ name: 'Artist' }]
+    }));
+    
+    return tracks;
+  } catch (error) {
+    console.error("Error in getArtistTopTracksFromDb:", error);
+    return null;
+  }
+}
+
+// Check if artist tracks need updating
+export async function checkArtistTracksNeedUpdate(artistId: string): Promise<boolean> {
+  try {
+    const { data, error } = await supabase
+      .from('artists')
+      .select('tracks_last_updated')
+      .eq('id', artistId)
+      .single();
+    
+    if (error || !data) {
+      console.log(`No track update info found for artist ${artistId}, assuming update needed`);
+      return true;
+    }
+    
+    if (!data.tracks_last_updated) {
+      return true;
+    }
+    
+    // Check if last update was more than 7 days ago
+    const lastUpdate = new Date(data.tracks_last_updated);
+    const now = new Date();
+    const daysSinceUpdate = (now.getTime() - lastUpdate.getTime()) / (1000 * 60 * 60 * 24);
+    
+    return daysSinceUpdate > 7;
+  } catch (error) {
+    console.error("Error checking if artist tracks need update:", error);
+    return true; // Default to update needed if there's an error
   }
 }
 

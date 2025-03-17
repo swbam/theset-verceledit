@@ -1,5 +1,6 @@
 
 import { supabase } from "@/integrations/supabase/client";
+import { getOrCreateSetlistForShow } from "./setlist-utils";
 
 /**
  * Save show to database
@@ -50,6 +51,10 @@ export async function saveShowToDatabase(show: any) {
     
     if (error) {
       console.error("Error saving show to database:", error);
+    } else {
+      // If it's a new show or we're updating an existing one, ensure it has a setlist
+      // Pass the artist_id so we can auto-populate the setlist with top tracks
+      await getOrCreateSetlistForShow(show.id, show.artist_id);
     }
     
     return existingShow || show;

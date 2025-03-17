@@ -1,6 +1,6 @@
 
 import { getAccessToken } from './auth';
-import { saveTracksToDb, getStoredTracksFromDb } from './utils';
+import { saveTracksToDb, getStoredTracksFromDb, checkArtistTracksNeedUpdate } from './utils';
 import { generateMockTracks } from './utils';
 import { SpotifyTrack } from './types';
 
@@ -22,10 +22,15 @@ export async function getArtistAllTracks(artistId: string): Promise<{ tracks: Sp
     
     // First check if we already have stored tracks for this artist
     const storedTracks = await getStoredTracksFromDb(artistId);
-    if (storedTracks && storedTracks.length > 10) {
+    const needsUpdate = await checkArtistTracksNeedUpdate(artistId);
+    
+    if (storedTracks && storedTracks.length > 10 && !needsUpdate) {
       console.log(`Using ${storedTracks.length} cached tracks from database for all tracks`);
       return { tracks: storedTracks };
     }
+    
+    // If we need to update or don't have enough tracks, fetch from Spotify
+    console.log(`Fetching fresh catalog from Spotify for artist ${artistId}`);
     
     // Get access token
     const token = await getAccessToken();

@@ -1,11 +1,12 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { getArtistTopTracksFromDb } from "@/lib/spotify/utils";
 
 /**
  * Create or get setlist for a show
  */
-export async function getOrCreateSetlistForShow(showId: string) {
+export async function getOrCreateSetlistForShow(showId: string, artistId?: string) {
   try {
     if (!showId) return null;
     
@@ -42,10 +43,43 @@ export async function getOrCreateSetlistForShow(showId: string) {
       return null;
     }
     
+    // If we have an artist ID, auto-populate the setlist with top 5 tracks
+    if (artistId) {
+      await autoPopulateSetlistWithTopTracks(newSetlist.id, artistId);
+    }
+    
     return newSetlist.id;
   } catch (error) {
     console.error("Error in getOrCreateSetlistForShow:", error);
     return null;
+  }
+}
+
+/**
+ * Auto-populate a setlist with the artist's top 5 tracks
+ */
+export async function autoPopulateSetlistWithTopTracks(setlistId: string, artistId: string) {
+  try {
+    console.log(`Auto-populating setlist ${setlistId} with top tracks for artist ${artistId}`);
+    
+    // Get artist's top 5 tracks from database
+    const topTracks = await getArtistTopTracksFromDb(artistId, 5);
+    
+    if (!topTracks || topTracks.length === 0) {
+      console.log(`No top tracks found for artist ${artistId}, skipping auto-population`);
+      return;
+    }
+    
+    console.log(`Found ${topTracks.length} top tracks for artist ${artistId}`);
+    
+    // Add each track to the setlist with 0 votes
+    for (const track of topTracks) {
+      await addSongToSetlist(setlistId, track.id);
+    }
+    
+    console.log(`Successfully populated setlist ${setlistId} with ${topTracks.length} tracks`);
+  } catch (error) {
+    console.error("Error auto-populating setlist:", error);
   }
 }
 
