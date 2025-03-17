@@ -1,11 +1,10 @@
-
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import ArtistCard from '@/components/artist/ArtistCard';
 import { useQuery } from '@tanstack/react-query';
-import { fetchFeaturedArtists } from '@/lib/ticketmaster';
+import { fetchFeaturedArtists } from '@/lib/api/artist';
 
 interface ArtistGridProps {
   title?: string;

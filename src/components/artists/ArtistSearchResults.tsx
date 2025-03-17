@@ -2,7 +2,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { searchArtistsWithEvents } from '@/lib/ticketmaster';
+import { searchArtistsWithEvents } from '@/lib/api/artist';
 import { Avatar } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 

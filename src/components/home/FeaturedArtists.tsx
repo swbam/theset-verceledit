@@ -5,7 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Music, ChevronRight } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
-import { fetchFeaturedArtists } from '@/lib/ticketmaster';
+import { fetchFeaturedArtists } from '@/lib/api/artist';
 import { getMyTopArtists } from '@/lib/spotify/user-recommendations';
 
 const FeaturedArtists = () => {
