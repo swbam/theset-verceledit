@@ -1,8 +1,9 @@
 
 import { fetchArtistAlbums } from './fetch-artist-albums';
 import { saveTracksToDb } from './utils';
-import { generateMockTracks } from './mock-tracks';
+import { generateMockTracks } from './utils';
 import { fetchAlbumTracks } from './fetch-album-tracks';
+import { SpotifyTrack, SpotifyApi } from './types';
 
 export async function getArtistAllTracks(artistId: string) {
   try {

@@ -1,6 +1,6 @@
 
 import { useMemo } from 'react';
-import { SpotifyTrack } from '@/lib/spotify';
+import { SpotifyTrack } from '@/lib/spotify/types';
 import { generateMockSongs } from './utils';
 
 // Prepare initial songs from top tracks or all tracks

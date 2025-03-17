@@ -1,5 +1,5 @@
 
-import { SpotifyTrack } from '@/lib/spotify';
+import { SpotifyTrack } from '@/lib/spotify/types';
 
 // Generate mock tracks for fallback scenarios
 export function generateMockTracks(count: number): SpotifyTrack[] {
@@ -8,7 +8,9 @@ export function generateMockTracks(count: number): SpotifyTrack[] {
     id: `mock-track-${i}`,
     name: `Song ${i + 1}`,
     popularity: 80 - (i * 3),
-    album: i % 2 === 0 ? 'Album 1' : 'Album 2'
+    album: {
+      name: i % 2 === 0 ? 'Album 1' : 'Album 2'
+    }
   }));
 }
 

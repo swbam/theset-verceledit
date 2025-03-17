@@ -1,8 +1,7 @@
-
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Calendar, MapPin, ChevronRight, Music, Flame, Stadium } from 'lucide-react';
+import { Calendar, MapPin, ChevronRight, Music, Flame } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { fetchShowsByGenre, popularMusicGenres, fetchFeaturedShows } from '@/lib/ticketmaster';
@@ -19,30 +18,24 @@ const UpcomingShows = () => {
     queryKey: ['upcomingShows', activeGenre],
     queryFn: async () => {
       try {
-        // Fetch more shows initially to ensure we have enough after filtering
         let genreId = activeGenre === "all" ? popularMusicGenres[0].id : activeGenre;
         
-        // Combine trending and upcoming shows for more variety
         const [upcomingShows, trendingShows] = await Promise.all([
           fetchShowsByGenre(genreId, 30),
           fetchFeaturedShows(30)
         ]);
         
-        // Merge both sets of shows
         let combinedShows = [...upcomingShows, ...trendingShows];
         
-        // Deduplicate by show ID
         const uniqueShows = Array.from(
           new Map(combinedShows.map(show => [show.id, show])).values()
         );
         
-        // Add popularity scores to make sorting consistent and filter for stadium shows
         return uniqueShows.map(show => ({
           ...show,
-          popularityScore: Math.floor(Math.random() * 8000) + 3000 // Simulating high attendance
+          popularityScore: Math.floor(Math.random() * 8000) + 3000
         }))
         .filter(show => {
-          // Filter for stadium shows and shows with high attendance
           const isStadium = 
             show.venue?.name?.toLowerCase().includes('stadium') || 
             show.venue?.name?.toLowerCase().includes('arena') || 
@@ -62,23 +55,18 @@ const UpcomingShows = () => {
   const shows = React.useMemo(() => {
     if (!showsData.length) return [];
     
-    // Ensure unique artists
     const seenArtists = new Set();
     const uniqueByArtist = [];
     
-    // Sort by popularity and then date
     const sorted = [...showsData].sort((a, b) => {
-      // First sort by popularity score (descending)
       const popularityDiff = (b.popularityScore || 0) - (a.popularityScore || 0);
       if (popularityDiff !== 0) return popularityDiff;
       
-      // Then by date (ascending)
       if (!a.date) return 1;
       if (!b.date) return -1;
       return new Date(a.date).getTime() - new Date(b.date).getTime();
     });
     
-    // Get unique artists, take at most 8 for a nice grid
     for (const show of sorted) {
       const artistId = show.artist?.id || show.artist?.name;
       if (artistId && !seenArtists.has(artistId)) {
@@ -216,7 +204,6 @@ const UpcomingShows = () => {
                     </div>
                   </div>
                   <div className="p-3">
-                    {/* Mobile shows artist name as primary headline, desktop can show more info */}
                     <h3 className="font-bold text-sm mb-0.5 line-clamp-1">
                       {artistName}
                     </h3>
@@ -232,7 +219,7 @@ const UpcomingShows = () => {
                       </div>
                       {show.venue && (
                         <div className="flex items-start">
-                          <Stadium size={12} className="mr-1.5 mt-0.5 opacity-70 flex-shrink-0" />
+                          <MapPin size={12} className="mr-1.5 mt-0.5 opacity-70 flex-shrink-0" />
                           <span className="line-clamp-1">
                             {show.venue?.name ? `${show.venue.name}, ${show.venue.city || ''}` : 'Stadium TBA'}
                           </span>

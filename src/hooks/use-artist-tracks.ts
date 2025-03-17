@@ -1,9 +1,10 @@
 
-import { useStoredArtistData } from './artist-tracks/use-stored-tracks';
+import { useStoredTracks, useStoredArtistData } from './artist-tracks/use-stored-tracks';
 import { useTopTracks } from './artist-tracks/use-top-tracks';
 import { useAllTracks } from './artist-tracks/use-all-tracks';
 import { useInitialSongs } from './artist-tracks/use-initial-songs';
 import { getAvailableTracks } from './artist-tracks/utils';
+import { SpotifyTrack } from '@/lib/spotify/types';
 
 export function useArtistTracks(spotifyArtistId: string, isLoadingShow: boolean) {
   // Fetch stored artist data
@@ -23,11 +24,14 @@ export function useArtistTracks(spotifyArtistId: string, isLoadingShow: boolean)
   } = useAllTracks(spotifyArtistId, isLoadingShow);
   
   // Prepare initial songs from top tracks or all tracks
-  const initialSongs = useInitialSongs(topTracksData, allTracksData);
+  const initialSongs = useInitialSongs(
+    topTracksData as { tracks?: SpotifyTrack[] },
+    allTracksData as { tracks?: SpotifyTrack[] }
+  );
   
   // Function to get available tracks for the dropdown
   const getAvailableTracksForSetlist = (setlist: any[]) => {
-    return getAvailableTracks(allTracksData, setlist);
+    return getAvailableTracks(allTracksData as { tracks?: SpotifyTrack[] }, setlist);
   };
   
   return {

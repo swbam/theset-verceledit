@@ -20,3 +20,14 @@ export function useStoredTracks(artistId: string) {
     staleTime: 1000 * 60 * 10, // 10 minutes
   });
 }
+
+// Add this function for backwards compatibility
+export function useStoredArtistData(artistId: string, isLoading: boolean) {
+  return useQuery({
+    queryKey: ['storedArtistData', artistId],
+    queryFn: async () => {
+      return { data: {} };
+    },
+    enabled: !!artistId && !isLoading
+  });
+}

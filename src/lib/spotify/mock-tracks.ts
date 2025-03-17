@@ -1,25 +1,43 @@
 
-import { SpotifyTrack, SpotifyTracksResponse } from './types';
+import { SpotifyTrack } from './types';
 
-/**
- * Generates mock track data when Spotify API is unavailable
- */
-export const generateMockTracks = (artistId: string, count = 40): SpotifyTracksResponse => {
-  console.log(`Generating ${count} mock tracks for artist ${artistId}`);
+// Mock data generation with artistId support
+export function generateMockTracks(artistIdOrCount: string | number, count?: number): { tracks: SpotifyTrack[] } {
+  // Handle the case where the first parameter is the artist ID
+  const actualCount = typeof artistIdOrCount === 'number' 
+    ? artistIdOrCount 
+    : (count || 10);
   
-  const tracks = Array.from({ length: count }, (_, i) => {
-    const popularity = Math.max(10, 100 - i * 2); // Higher indices get lower popularity
-    return {
-      id: `mock-${artistId}-${i}`,
-      name: `${i < 10 ? 'Top Hit' : 'Song'} ${i + 1}`,
-      duration_ms: 180000 + Math.floor(Math.random() * 120000),
-      popularity: popularity,
-      preview_url: null,
-      uri: `spotify:track:mock-${artistId}-${i}`,
-      album: i < 15 ? 'Greatest Hits' : `Album ${Math.floor(i / 5) + 1}`,
-      votes: 0
-    };
-  });
+  const artistName = typeof artistIdOrCount === 'string' && !artistIdOrCount.startsWith('mock')
+    ? `Artist ${artistIdOrCount.substring(0, 5)}`
+    : 'Mock Artist';
+
+  console.log(`Generating ${actualCount} mock tracks for ${artistName}`);
   
-  return { tracks };
-};
+  const mockTracks: SpotifyTrack[] = [];
+  const songNames = [
+    "Bohemian Rhapsody", "Stairway to Heaven", "Hotel California", 
+    "Sweet Child O' Mine", "Imagine", "Smells Like Teen Spirit", 
+    "Billie Jean", "Like a Rolling Stone", "Purple Haze", 
+    "Johnny B. Goode", "Hey Jude", "Born to Run", "Respect",
+    "Good Vibrations", "Yesterday", "London Calling", "Waterloo Sunset",
+    "God Save the Queen", "Gimme Shelter", "Superstition"
+  ];
+  
+  for (let i = 0; i < actualCount; i++) {
+    const index = Math.min(i, songNames.length - 1);
+    mockTracks.push({
+      id: `mock-track-${i}`,
+      name: songNames[index],
+      album: {
+        images: [{ url: `https://picsum.photos/seed/${i}/300/300` }]
+      },
+      artists: [{ name: artistName }],
+      uri: `spotify:track:mock-${i}`,
+      duration_ms: Math.floor(Math.random() * 300000) + 120000, // 2-7 minutes
+      popularity: Math.floor(Math.random() * 100)
+    });
+  }
+  
+  return { tracks: mockTracks };
+}
