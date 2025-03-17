@@ -5,6 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { getSetlistSongs } from '@/lib/api/db/setlist-utils';
 import { createSetlistForShow } from '@/lib/api/database-utils';
 import { Song } from './types';
+import { toast } from 'sonner';
 
 /**
  * Hook for managing setlist data and realtime subscriptions
@@ -14,6 +15,7 @@ export function useSetlist(showId: string, initialSongs: Song[], userId?: string
   const [isConnected, setIsConnected] = useState(false);
   const [setlist, setSetlist] = useState<Song[]>([]);
   const [setlistId, setSetlistId] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
   
   // Function to get or create setlist ID for this show
   const getSetlistId = useCallback(async (showId: string) => {
@@ -57,15 +59,45 @@ export function useSetlist(showId: string, initialSongs: Song[], userId?: string
       
       console.log(`Found artist_id ${showData.artist_id} for show ${showId}, creating setlist`);
       
-      // Create the setlist in the database
+      // Create the setlist in the database with direct approach
+      try {
+        // Insert the setlist directly
+        const { data: newSetlist, error: insertError } = await supabase
+          .from('setlists')
+          .insert({
+            show_id: showId,
+            last_updated: new Date().toISOString()
+          })
+          .select('id')
+          .single();
+        
+        if (insertError) {
+          console.error("Error creating setlist:", insertError);
+          return null;
+        }
+        
+        if (newSetlist?.id) {
+          console.log(`Created new setlist: ${newSetlist.id}`);
+          
+          // If we have an artist ID, fetch and add initial tracks
+          if (showData.artist_id) {
+            // We'll let the useEffect in the main hook handle adding initial tracks
+            return newSetlist.id;
+          }
+        }
+      } catch (createError) {
+        console.error("Error in direct setlist creation:", createError);
+      }
+      
+      // Fallback to the original creation method if direct approach fails
       const newSetlistId = await createSetlistForShow({ id: showId, artist_id: showData.artist_id });
       
       if (!newSetlistId) {
-        console.error("Failed to create setlist");
+        console.error("Failed to create setlist with utility function");
         return null;
       }
       
-      console.log(`Created new setlist: ${newSetlistId}`);
+      console.log(`Created new setlist (fallback): ${newSetlistId}`);
       return newSetlistId;
     } catch (error) {
       console.error("Error in getSetlistId:", error);
@@ -99,12 +131,23 @@ export function useSetlist(showId: string, initialSongs: Song[], userId?: string
         if (id) {
           console.log(`Setting setlist ID: ${id}`);
           setSetlistId(id);
+          setRetryCount(0); // Reset retry count on success
         } else {
           console.error(`Failed to get or create setlist for show: ${showId}`);
+          // Implement retry logic
+          if (retryCount < 3) {
+            console.log(`Retrying setlist creation (attempt ${retryCount + 1}/3)...`);
+            setTimeout(() => {
+              setRetryCount(prev => prev + 1);
+            }, 2000); // Retry after 2 seconds
+          } else if (retryCount === 3) {
+            toast.error("Unable to create setlist. Please refresh the page.");
+            setRetryCount(prev => prev + 1); // Prevent more toasts
+          }
         }
       });
     }
-  }, [showId, getSetlistId]);
+  }, [showId, getSetlistId, retryCount]);
   
   // Set up realtime updates for votes
   useEffect(() => {

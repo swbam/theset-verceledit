@@ -1,170 +1,61 @@
+
 import React from 'react';
-import { AlertCircle, Info } from 'lucide-react';
-import { formatDistanceToNow } from 'date-fns';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/auth/AuthContext';
-import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
-import { useIsMobile } from '@/hooks/use-mobile';
-import SetlistHeader from './SetlistHeader';
-import { ShowSetlist } from './setlist';
-import VotingStats from './VotingStats';
-import HowItWorksCard from './HowItWorksCard';
-
-interface Song {
-  id: string;
-  name: string;
-  votes: number;
-  userVoted: boolean;
-}
-
-interface Track {
-  id: string;
-  name: string;
-}
+import { useArtistTracks, useInitialSongs } from '@/hooks/artist-tracks';
+import { useRealtimeVotes } from '@/hooks/use-realtime-votes';
+import { LoadingIndicator } from '@/components/ui/loading';
+import ShowSetlist from '@/components/shows/setlist/ShowSetlist';
 
 interface SetlistSectionProps {
-  setlist: Song[];
-  isConnected: boolean;
-  isLoadingTracks: boolean;
-  handleVote: (songId: string) => void;
-  showId?: string;
-  showName?: string;
-  artistName?: string;
-  availableTracks?: Track[];
-  isLoadingAllTracks?: boolean;
-  selectedTrack?: string;
-  setSelectedTrack?: (trackId: string) => void;
-  handleAddSong?: () => void;
-  anonymousVoteCount?: number;
+  showId: string;
+  spotifyArtistId: string;
 }
 
-const SetlistSection: React.FC<SetlistSectionProps> = ({ 
-  setlist, 
-  isConnected, 
-  isLoadingTracks, 
-  handleVote,
-  showId = '',
-  showName = 'Concert',
-  artistName = 'Artist',
-  availableTracks = [],
-  isLoadingAllTracks = false,
-  selectedTrack = '',
-  setSelectedTrack = () => {},
-  handleAddSong = () => {},
-  anonymousVoteCount = 0
-}) => {
+const SetlistSection = ({ showId, spotifyArtistId }: SetlistSectionProps) => {
   const { isAuthenticated, login } = useAuth();
-  const isMobile = useIsMobile();
   
-  const totalVotes = setlist.reduce((acc, song) => acc + song.votes, 0);
-  const userVotedCount = setlist.filter(song => song.userVoted).length;
+  // Get initial songs and artist tracks for the setlist
+  const { initialSongs, isLoadingInitialSongs } = useInitialSongs(spotifyArtistId);
+  const { tracksData, isLoadingTracks, isLoadingAllTracks, availableTracks } = useArtistTracks(
+    spotifyArtistId, 
+    initialSongs
+  );
   
-  console.log("Available tracks:", availableTracks.length);
-  console.log("Selected track:", selectedTrack);
-  console.log("Is loading tracks:", isLoadingAllTracks);
+  // Use the realtime voting hook
+  const { 
+    setlist, 
+    isLoadingSetlist, 
+    vote, 
+    selectedTrack, 
+    setSelectedTrack, 
+    handleAddSong,
+    anonymousVoteCount,
+    setlistId
+  } = useRealtimeVotes(showId, spotifyArtistId, initialSongs);
+  
+  // Show loading indicator if we're loading either tracks or the setlist
+  if (isLoadingInitialSongs || isLoadingTracks) {
+    return (
+      <div className="flex justify-center p-8">
+        <LoadingIndicator size="lg" message="Loading setlist..." />
+      </div>
+    );
+  }
   
   return (
-    <section className={`${isMobile ? 'px-0 pt-4' : 'px-6 md:px-8 lg:px-12 py-8'} bg-black`}>
-      <div className={`${isMobile ? 'max-w-full' : 'max-w-6xl mx-auto'}`}>
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
-          <div className="lg:col-span-2">
-            <Card className={`bg-[#0A0A0A] border-white/10 shadow-lg overflow-hidden ${isMobile ? 'rounded-none border-x-0' : ''}`}>
-              <CardHeader className={`${isMobile ? 'py-3 px-4' : 'pb-0'}`}>
-                <SetlistHeader 
-                  isConnected={isConnected}
-                  totalVotes={totalVotes}
-                  showId={showId}
-                  showName={showName}
-                  artistName={artistName}
-                />
-              </CardHeader>
-              <CardContent className="p-0">
-                {isLoadingTracks ? (
-                  <div className="p-6 sm:p-12 space-y-6 sm:space-y-8 animate-pulse">
-                    <div className="h-6 sm:h-8 bg-white/5 rounded w-full max-w-md"></div>
-                    <div className="h-6 sm:h-8 bg-white/5 rounded w-full max-w-lg"></div>
-                    <div className="h-6 sm:h-8 bg-white/5 rounded w-full max-w-sm"></div>
-                    <div className="h-6 sm:h-8 bg-white/5 rounded w-full max-w-lg"></div>
-                  </div>
-                ) : (
-                  <>
-                    <ShowSetlist 
-                      setlist={setlist}
-                      handleVote={handleVote}
-                      availableTracks={availableTracks}
-                      isLoadingAllTracks={isLoadingAllTracks}
-                      selectedTrack={selectedTrack}
-                      setSelectedTrack={setSelectedTrack}
-                      handleAddSong={handleAddSong}
-                      isAuthenticated={isAuthenticated}
-                      login={login}
-                      anonymousVoteCount={anonymousVoteCount}
-                    />
-                    
-                    {!isAuthenticated && anonymousVoteCount >= 3 && (
-                      <div className={`p-3 ${isMobile ? 'mx-2' : 'mx-4'} mb-3 mt-2`}>
-                        <Alert variant="default" className="bg-white/5 border-white/10">
-                          <AlertCircle className="h-4 w-4 text-white/70" />
-                          <AlertDescription className="flex items-center justify-between">
-                            <span className="text-white/80 text-xs sm:text-sm">
-                              {isMobile 
-                                ? "Login to vote more!" 
-                                : "You've used all your free votes. Log in with Spotify to vote more!"}
-                            </span>
-                            <Button 
-                              size="sm" 
-                              onClick={login}
-                              className="bg-white text-black hover:bg-white/90 ml-2 flex-shrink-0 text-xs h-7"
-                            >
-                              Log In
-                            </Button>
-                          </AlertDescription>
-                        </Alert>
-                      </div>
-                    )}
-                    
-                    <div className={`p-3 border-t border-white/10 text-sm text-white/60 flex justify-between items-center`}>
-                      <div className="flex items-center gap-1.5">
-                        <p className={isMobile ? "text-xs" : ""}>
-                          Last updated {formatDistanceToNow(new Date(), { addSuffix: true })}
-                        </p>
-                      </div>
-                      
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger>
-                            <Info className="h-4 w-4 text-white/40" />
-                          </TooltipTrigger>
-                          <TooltipContent side="top" className="bg-[#0A0A0A] border-white/10 text-white">
-                            <p>Votes are updated automatically</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    </div>
-                  </>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-          
-          {!isMobile && (
-            <div className="space-y-6">
-              <VotingStats
-                totalVotes={totalVotes}
-                userVotedCount={userVotedCount}
-                anonymousVoteCount={anonymousVoteCount}
-                isAuthenticated={isAuthenticated}
-                login={login}
-              />
-              
-              <HowItWorksCard />
-            </div>
-          )}
-        </div>
-      </div>
-    </section>
+    <ShowSetlist 
+      setlist={setlist}
+      handleVote={vote}
+      availableTracks={availableTracks}
+      isLoadingAllTracks={isLoadingAllTracks}
+      selectedTrack={selectedTrack}
+      setSelectedTrack={setSelectedTrack}
+      handleAddSong={() => handleAddSong(selectedTrack, '')}
+      isAuthenticated={isAuthenticated}
+      login={login}
+      anonymousVoteCount={anonymousVoteCount}
+      setlistId={setlistId}
+    />
   );
 };
 

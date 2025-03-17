@@ -15,6 +15,7 @@ interface ShowSetlistProps {
   isAuthenticated: boolean;
   login: () => void;
   anonymousVoteCount?: number;
+  setlistId: string | null; // Add setlistId to props
 }
 
 const ShowSetlist = ({
@@ -27,7 +28,8 @@ const ShowSetlist = ({
   handleAddSong,
   isAuthenticated,
   login,
-  anonymousVoteCount = 0
+  anonymousVoteCount = 0,
+  setlistId
 }: ShowSetlistProps) => {
   // Process setlist items to ensure they have proper names
   const processedSetlist = React.useMemo(() => {
@@ -54,6 +56,13 @@ const ShowSetlist = ({
   
   return (
     <div className="flex flex-col">
+      {/* Display setlist creation status if needed */}
+      {!setlistId && (
+        <div className="p-4 text-amber-400 bg-amber-900/30 border border-amber-700 rounded-md mb-4">
+          Creating setlist... This may take a moment.
+        </div>
+      )}
+      
       {/* Song selection form at the top */}
       <SetlistAddSongForm
         availableTracks={availableTracks}

@@ -2,6 +2,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import { getArtistTopTracks } from '@/lib/spotify';
 import { saveTracksToDb } from '@/lib/spotify/utils';
+import { toast } from 'sonner';
 
 /**
  * Create a setlist for a show if it doesn't exist
@@ -33,8 +34,10 @@ export async function createSetlistForShow(show: any) {
       return existingSetlist.id;
     }
     
-    // Create a new setlist
+    // Create a new setlist with direct insert
     console.log(`Creating new setlist for show ${show.id}`);
+    
+    // First try direct insert approach
     const { data: newSetlist, error: createError } = await supabase
       .from('setlists')
       .insert({
@@ -45,8 +48,27 @@ export async function createSetlistForShow(show: any) {
       .single();
     
     if (createError) {
-      console.error("Error creating setlist:", createError);
+      console.error("Error creating setlist with direct insert:", createError);
       console.error("Show data:", show);
+      
+      // Try alternative approach - use RPC call if available
+      try {
+        const { data: rpcResult, error: rpcError } = await supabase
+          .rpc('create_setlist_for_show', { show_id: show.id });
+          
+        if (rpcError) {
+          console.error("Error creating setlist via RPC:", rpcError);
+          return null;
+        }
+        
+        if (rpcResult) {
+          console.log(`Created setlist via RPC: ${rpcResult}`);
+          return rpcResult;
+        }
+      } catch (rpcError) {
+        console.error("Error in RPC fallback:", rpcError);
+      }
+      
       return null;
     }
     
@@ -74,6 +96,7 @@ export async function createSetlistForShow(show: any) {
         }
       } catch (error) {
         console.error("Error adding initial tracks to setlist:", error);
+        toast.error("Failed to add initial tracks to setlist");
         // Continue anyway, the setlist is created
       }
     }
@@ -122,7 +145,27 @@ async function addTrackToSetlist(setlistId: string, trackId: string) {
     
     if (error) {
       console.error("Error adding track to setlist:", error);
-      return null;
+      
+      // Try alternative approach with delay
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      const { data: retryData, error: retryError } = await supabase
+        .from('setlist_songs')
+        .insert({
+          setlist_id: setlistId,
+          track_id: trackId,
+          votes: 0
+        })
+        .select('id')
+        .single();
+        
+      if (retryError) {
+        console.error("Error in retry adding track to setlist:", retryError);
+        return null;
+      }
+      
+      console.log(`Successfully added track ${trackId} to setlist ${setlistId} on retry`);
+      return retryData?.id || null;
     }
     
     console.log(`Successfully added track ${trackId} to setlist ${setlistId}`);
