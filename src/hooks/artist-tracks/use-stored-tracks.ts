@@ -23,7 +23,8 @@ export function useStoredTracks(artistId: string, enabled: boolean = true) {
         
         if (artist?.stored_tracks && Array.isArray(artist.stored_tracks)) {
           console.log(`Found ${artist.stored_tracks.length} stored tracks in artist record`);
-          return artist.stored_tracks as SpotifyTrack[];
+          // Cast the JSON to SpotifyTrack[] with an intermediate unknown cast for type safety
+          return artist.stored_tracks as unknown as SpotifyTrack[];
         }
         
         // Fallback to top_tracks table if stored_tracks is empty

@@ -11,6 +11,8 @@ export async function getOrCreateSetlistForShow(showId: string, artistId?: strin
   try {
     if (!showId) return null;
     
+    console.log(`Getting or creating setlist for show ${showId} with artist ${artistId || 'unknown'}`);
+    
     // Check if setlist exists
     const { data: existingSetlist, error: checkError } = await supabase
       .from('setlists')
@@ -25,10 +27,12 @@ export async function getOrCreateSetlistForShow(showId: string, artistId?: strin
     
     // If setlist exists, return it
     if (existingSetlist) {
+      console.log(`Found existing setlist ${existingSetlist.id} for show ${showId}`);
       return existingSetlist.id;
     }
     
     // Create new setlist
+    console.log(`Creating new setlist for show ${showId}`);
     const { data: newSetlist, error: createError } = await supabase
       .from('setlists')
       .insert({
@@ -44,9 +48,13 @@ export async function getOrCreateSetlistForShow(showId: string, artistId?: strin
       return null;
     }
     
+    console.log(`Created new setlist ${newSetlist.id} for show ${showId}`);
+    
     // If we have an artist ID, auto-populate the setlist with random tracks
     if (artistId) {
       await autoPopulateSetlistWithRandomTracks(newSetlist.id, artistId);
+    } else {
+      console.warn("No artist_id provided for setlist creation, cannot auto-populate with tracks");
     }
     
     return newSetlist.id;
@@ -80,7 +88,8 @@ async function getTracksForArtist(artistId: string): Promise<SpotifyTrack[]> {
     
     if (!artistError && artist?.stored_tracks && Array.isArray(artist.stored_tracks) && artist.stored_tracks.length > 0) {
       console.log(`Using ${artist.stored_tracks.length} tracks from artist.stored_tracks`);
-      return artist.stored_tracks;
+      // Cast the JSON to SpotifyTrack[] with an intermediate unknown cast for type safety
+      return artist.stored_tracks as unknown as SpotifyTrack[];
     }
     
     // Fallback to top_tracks table

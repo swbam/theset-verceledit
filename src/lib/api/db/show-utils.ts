@@ -9,6 +9,8 @@ export async function saveShowToDatabase(show: any) {
   try {
     if (!show || !show.id) return;
     
+    console.log(`Saving show to database: ${show.id} - ${show.name}`);
+    
     // Check if show already exists
     const { data: existingShow, error: checkError } = await supabase
       .from('shows')
@@ -29,6 +31,14 @@ export async function saveShowToDatabase(show: any) {
       
       // Only update if it's been more than 24 hours
       if (hoursSinceUpdate < 24) {
+        console.log(`Show ${show.id} was updated recently (${hoursSinceUpdate.toFixed(2)} hours ago), skipping update`);
+        
+        // Still ensure it has a setlist even if we don't update the show
+        if (show.artist_id) {
+          console.log(`Ensuring show ${show.id} has a setlist for artist ${show.artist_id}`);
+          await getOrCreateSetlistForShow(show.id, show.artist_id);
+        }
+        
         return existingShow;
       }
     }
@@ -57,6 +67,7 @@ export async function saveShowToDatabase(show: any) {
       // If it's a new show or we're updating an existing one, ensure it has a setlist
       // Pass the artist_id so we can auto-populate the setlist with top tracks
       if (show.artist_id) {
+        console.log(`Creating setlist for show ${show.id} with artist ${show.artist_id}`);
         await getOrCreateSetlistForShow(show.id, show.artist_id);
       } else {
         console.warn("No artist_id provided for show, cannot auto-populate setlist");
