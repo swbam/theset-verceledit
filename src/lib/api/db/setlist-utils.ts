@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
@@ -116,7 +115,8 @@ export const voteForSong = async (
 
     if (voteError) throw voteError;
 
-    // Increment the vote count for the song
+    // Use the correctly named RPC function to increment votes
+    // This was created in the SQL migration
     const { error: updateError } = await supabase
       .rpc('increment_votes', { song_id: songId });
 
@@ -126,7 +126,7 @@ export const voteForSong = async (
       // Fallback method if the RPC fails
       const { error: manualUpdateError } = await supabase
         .from('setlist_songs')
-        .update({ votes: supabase.rpc('increment', { value: 1 }) })
+        .update({ votes: supabase.rpc('increment', { value: 1 }).data })
         .eq('id', songId);
         
       if (manualUpdateError) throw manualUpdateError;
@@ -140,7 +140,6 @@ export const voteForSong = async (
   }
 };
 
-// Alias for compatibility with other code
 export const voteForSetlistSong = voteForSong;
 
 export const addSongToSetlist = async (
