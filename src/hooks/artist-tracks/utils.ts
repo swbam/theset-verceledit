@@ -6,11 +6,15 @@ export function generateMockTracks(count: number): SpotifyTrack[] {
   console.log(`Generating ${count} mock tracks in hook utils`);
   return Array.from({ length: count }, (_, i) => ({
     id: `mock-track-${i}`,
-    name: `Song ${i + 1}`,
-    popularity: 80 - (i * 3),
+    name: `Popular Song ${i + 1}`,
+    popularity: 100 - (i * 5), // Decreasing popularity 
     album: {
-      name: i % 2 === 0 ? 'Album 1' : 'Album 2'
-    }
+      name: i % 2 === 0 ? 'Greatest Hits' : 'Best Album',
+      images: [{ url: `https://picsum.photos/seed/${i}/300/300` }]
+    },
+    artists: [{ name: 'Mock Artist' }],
+    uri: `spotify:track:mock-${i}`,
+    duration_ms: 180000 + (i * 10000)
   }));
 }
 
@@ -62,5 +66,6 @@ export const getAvailableTracks = (allTracksData: { tracks?: SpotifyTrack[] } | 
     return generateMockTracks(15);
   }
   
-  return filteredTracks;
+  // Sort by name for easy browsing in dropdown
+  return filteredTracks.sort((a, b) => a.name.localeCompare(b.name));
 };

@@ -1,3 +1,4 @@
+
 import { useQuery } from '@tanstack/react-query';
 import { getArtistAllTracks } from '@/lib/spotify';
 import { generateMockTracks } from './utils';
@@ -15,15 +16,9 @@ export function useAllTracks(spotifyArtistId: string, isLoadingShow: boolean) {
       }
       
       console.log(`Fetching all tracks for artist ID: ${spotifyArtistId}`);
+      
       try {
-        // First check if stored data is already available
-        const storedTracks = await getStoredTracksFromDb(spotifyArtistId);
-        if (storedTracks && storedTracks.length > 0) {
-          console.log(`Using ${storedTracks.length} cached tracks from database`);
-          return { tracks: storedTracks };
-        }
-        
-        // Otherwise fetch from Spotify API (this will also store the tracks in DB)
+        // Directly fetch from database or API with one consolidated function
         const tracksResponse = await getArtistAllTracks(spotifyArtistId);
         console.log(`Fetched all tracks result:`, tracksResponse);
         

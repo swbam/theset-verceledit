@@ -1,4 +1,5 @@
-import { SpotifyTrack, SpotifyApi } from './types';
+
+import { SpotifyTrack } from './types';
 import { supabase } from '@/integrations/supabase/client';
 
 // Mock tracks generator for testing
@@ -33,7 +34,7 @@ export const generateMockTracks = (count: number = 10): SpotifyTrack[] => {
       artists: [{ name: artistNames[randomArtistIndex] }],
       uri: `spotify:track:mock-${i}`,
       duration_ms: Math.floor(Math.random() * 300000) + 120000, // 2-7 minutes
-      popularity: Math.floor(Math.random() * 100)
+      popularity: 100 - (i * 5) // Higher popularity for first items
     });
   }
   
@@ -51,18 +52,20 @@ export async function saveTracksToDb(artistId: string, tracks: SpotifyTrack[]) {
     console.log(`Saving ${tracks.length} tracks for artist ${artistId} to database`);
     
     // Format tracks for database insertion
-    const tracksToInsert = tracks.map(track => ({
-      id: track.id,
-      artist_id: artistId,
-      name: track.name,
-      spotify_url: track.uri,
-      preview_url: track.preview_url,
-      album_name: track.album?.name || null,
-      album_image_url: track.album?.images && track.album.images.length > 0 ? track.album.images[0].url : null,
-      duration_ms: track.duration_ms || null,
-      popularity: track.popularity || null,
-      last_updated: new Date().toISOString()
-    }));
+    const tracksToInsert = tracks
+      .filter(track => track && track.id && track.name) // Ensure valid tracks only
+      .map(track => ({
+        id: track.id,
+        artist_id: artistId,
+        name: track.name,
+        spotify_url: track.uri,
+        preview_url: track.preview_url,
+        album_name: track.album?.name || null,
+        album_image_url: track.album?.images && track.album.images.length > 0 ? track.album.images[0].url : null,
+        duration_ms: track.duration_ms || null,
+        popularity: track.popularity || null,
+        last_updated: new Date().toISOString()
+      }));
     
     // Insert tracks using upsert to avoid duplicates
     const { data, error } = await supabase
@@ -117,13 +120,14 @@ export async function getStoredTracksFromDb(artistId: string): Promise<SpotifyTr
     const tracks: SpotifyTrack[] = data.map(track => ({
       id: track.id,
       name: track.name,
-      popularity: track.popularity,
+      popularity: track.popularity || 50, // Default to medium popularity if not set
       preview_url: track.preview_url,
       uri: track.spotify_url,
       album: {
         name: track.album_name,
         images: track.album_image_url ? [{ url: track.album_image_url }] : []
-      }
+      },
+      artists: [{ name: 'Artist' }] // We don't store artist details per track in the DB
     }));
     
     return tracks;
@@ -140,13 +144,14 @@ export function convertStoredTracks(tracks: any[]): SpotifyTrack[] {
   return tracks.map(track => ({
     id: track.id,
     name: track.name,
-    popularity: track.popularity,
+    popularity: track.popularity || 50,
     preview_url: track.preview_url,
     uri: track.spotify_url,
     album: {
       name: track.album_name,
       images: track.album_image_url ? [{ url: track.album_image_url }] : []
-    }
+    },
+    artists: [{ name: 'Artist' }]
   }));
 }
 

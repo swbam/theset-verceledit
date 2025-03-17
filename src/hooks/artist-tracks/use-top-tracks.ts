@@ -1,3 +1,4 @@
+
 import { useQuery } from '@tanstack/react-query';
 import { getArtistTopTracks } from '@/lib/spotify';
 import { generateMockTracks } from './utils';
@@ -20,9 +21,15 @@ export function useTopTracks(spotifyArtistId: string, isLoadingShow: boolean) {
         console.log(`Fetched top tracks result:`, tracksResponse);
         
         // We should always get an object with tracks property
-        if (tracksResponse.tracks && tracksResponse.tracks.length > 0) {
+        if (tracksResponse && tracksResponse.tracks && tracksResponse.tracks.length > 0) {
           console.log(`Received ${tracksResponse.tracks.length} tracks`);
-          return tracksResponse;
+          
+          // Return tracks sorted by popularity to ensure we get true top tracks
+          const sortedTracks = [...tracksResponse.tracks].sort((a, b) => 
+            (b.popularity || 0) - (a.popularity || 0)
+          );
+          
+          return { tracks: sortedTracks };
         }
         
         // Otherwise return mock data

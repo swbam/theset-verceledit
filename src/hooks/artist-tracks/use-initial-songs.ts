@@ -25,7 +25,7 @@ export function useInitialSongs(
       return sortedTracks.map((track: SpotifyTrack) => ({
         id: track.id,
         name: track.name,
-        votes: track.popularity ? Math.floor(track.popularity / 20) : 0,
+        votes: Math.max(1, track.popularity ? Math.floor(track.popularity / 10) : 1), // Ensure non-zero initial votes
         userVoted: false
       }));
     }
@@ -41,13 +41,13 @@ export function useInitialSongs(
         .map((track: SpotifyTrack) => ({
           id: track.id,
           name: track.name,
-          votes: track.popularity ? Math.floor(track.popularity / 20) : 0,
+          votes: Math.max(1, track.popularity ? Math.floor(track.popularity / 10) : 1), // Ensure non-zero initial votes
           userVoted: false
         }));
     }
     
     // Always ensure we have at least mock data if no real tracks are available
     console.log("No real tracks available for initial songs, using mock data");
-    return generateMockSongs(5);
+    return generateMockSongs(10);
   }, [topTracksData, allTracksData]);
 }

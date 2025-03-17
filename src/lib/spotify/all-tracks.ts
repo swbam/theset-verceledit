@@ -1,6 +1,6 @@
 
 import { getAccessToken } from './auth';
-import { saveTracksToDb } from './utils';
+import { saveTracksToDb, getStoredTracksFromDb } from './utils';
 import { generateMockTracks } from './utils';
 import { SpotifyTrack } from './types';
 
@@ -16,9 +16,16 @@ interface SpotifyAlbumTracksResponse {
   items: SpotifyTrack[];
 }
 
-export async function getArtistAllTracks(artistId: string) {
+export async function getArtistAllTracks(artistId: string): Promise<{ tracks: SpotifyTrack[] }> {
   try {
     console.log(`Fetching all tracks for artist ID: ${artistId}`);
+    
+    // First check if we already have stored tracks for this artist
+    const storedTracks = await getStoredTracksFromDb(artistId);
+    if (storedTracks && storedTracks.length > 10) {
+      console.log(`Using ${storedTracks.length} cached tracks from database for all tracks`);
+      return { tracks: storedTracks };
+    }
     
     // Get access token
     const token = await getAccessToken();
@@ -35,13 +42,21 @@ export async function getArtistAllTracks(artistId: string) {
     
     if (!albumsResponse.ok) {
       console.error(`Failed to fetch albums for artist ${artistId}: ${albumsResponse.statusText}`);
+      
+      // If we have some stored tracks, better return those than mock data
+      if (storedTracks && storedTracks.length > 0) {
+        return { tracks: storedTracks };
+      }
       return { tracks: generateMockTracks(20) };
     }
     
     const albums = await albumsResponse.json() as SpotifyAlbumsResponse;
     
     if (!albums || !albums.items || albums.items.length === 0) {
-      console.log("No albums found for artist, using mock data");
+      console.log("No albums found for artist, using mock data or stored tracks");
+      if (storedTracks && storedTracks.length > 0) {
+        return { tracks: storedTracks };
+      }
       return { tracks: generateMockTracks(20) };
     }
     
@@ -51,7 +66,7 @@ export async function getArtistAllTracks(artistId: string) {
     let allTracks: SpotifyTrack[] = [];
     const trackIds = new Set<string>();
     
-    for (const album of albums.items) {
+    for (const album of albums.items.slice(0, 10)) { // Limit to 10 albums to avoid rate limiting
       try {
         const trackResponse = await fetch(
           `https://api.spotify.com/v1/albums/${album.id}/tracks?limit=50&market=US`,
@@ -69,12 +84,50 @@ export async function getArtistAllTracks(artistId: string) {
         
         const albumTracks = await trackResponse.json() as SpotifyAlbumTracksResponse;
         
-        // Add unique tracks to our collection
+        // Additional request to get track details including popularity
         if (albumTracks && albumTracks.items) {
-          for (const track of albumTracks.items) {
-            if (!trackIds.has(track.id)) {
-              trackIds.add(track.id);
-              allTracks.push(track);
+          // Get track IDs for this album
+          const albumTrackIds = albumTracks.items.map(track => track.id).filter(id => !trackIds.has(id));
+          
+          // Split into chunks of 50 for the API limit
+          for (let i = 0; i < albumTrackIds.length; i += 50) {
+            const idChunk = albumTrackIds.slice(i, i + 50);
+            if (idChunk.length === 0) continue;
+            
+            // Get detailed track info including popularity
+            const detailsResponse = await fetch(
+              `https://api.spotify.com/v1/tracks?ids=${idChunk.join(',')}&market=US`,
+              {
+                headers: {
+                  Authorization: `Bearer ${token}`,
+                },
+              }
+            );
+            
+            if (detailsResponse.ok) {
+              const trackDetails = await detailsResponse.json();
+              
+              if (trackDetails && trackDetails.tracks) {
+                // Add unique tracks to our collection
+                for (const track of trackDetails.tracks) {
+                  if (!trackIds.has(track.id)) {
+                    trackIds.add(track.id);
+                    allTracks.push({
+                      id: track.id,
+                      name: track.name,
+                      album: {
+                        name: track.album?.name,
+                        images: track.album?.images || []
+                      },
+                      artists: track.artists,
+                      uri: track.uri,
+                      duration_ms: track.duration_ms,
+                      popularity: track.popularity,
+                      preview_url: track.preview_url
+                    });
+                  }
+                }
+              }
             }
           }
         }
@@ -87,7 +140,7 @@ export async function getArtistAllTracks(artistId: string) {
     
     // Save tracks to database for future use
     if (allTracks.length > 0) {
-      saveTracksToDb(artistId, allTracks);
+      await saveTracksToDb(artistId, allTracks);
     }
     
     return { tracks: allTracks };
