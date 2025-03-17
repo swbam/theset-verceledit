@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { PlusCircle, Music, Disc3 } from 'lucide-react';
+import { PlusCircle, Disc3 } from 'lucide-react';
 import { toast } from 'sonner';
 import VotableSetlistTable from '@/components/setlist/VotableSetlistTable';
 import { Button } from '@/components/ui/button';
@@ -134,10 +134,7 @@ const ShowSetlist = ({
                           .sort((a, b) => (b.popularity || 0) - (a.popularity || 0))
                           .map((track) => (
                             <SelectItem key={track.id} value={track.id} className="focus:bg-white/10 focus:text-white">
-                              <div className="flex items-center">
-                                <Music size={14} className="mr-2 text-white/60" />
-                                {truncateSongName(track.name)}
-                              </div>
+                              {truncateSongName(track.name)}
                             </SelectItem>
                           ))
                         }
