@@ -62,7 +62,10 @@ const ShowSetlist = ({
       });
       return;
     }
+    
+    // Call the handleAddSong function from the parent component
     handleAddSong();
+    console.log("Add song triggered with track:", selectedTrack);
   };
   
   // Truncate long song names

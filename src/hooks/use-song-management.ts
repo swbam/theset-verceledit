@@ -38,11 +38,24 @@ export function useSongManagement(showId: string, initialSongs: Song[], isAuthen
   };
 
   const handleAddSong = (allTracksData: any) => {
-    if (!selectedTrack) return;
+    if (!selectedTrack) {
+      toast.error("Please select a song first");
+      return;
+    }
 
+    // Find the selected track in the available tracks
     const trackToAdd = allTracksData?.tracks?.find((track: any) => track.id === selectedTrack);
     
     if (trackToAdd) {
+      // Check if the song already exists in the setlist
+      const songExists = setlist.some(song => song.id === trackToAdd.id);
+      
+      if (songExists) {
+        toast.info(`"${trackToAdd.name}" is already in the setlist!`);
+        return;
+      }
+      
+      // Add the song to the setlist
       addSongToSetlist({
         id: trackToAdd.id,
         name: trackToAdd.name,
@@ -52,6 +65,9 @@ export function useSongManagement(showId: string, initialSongs: Song[], isAuthen
       
       setSelectedTrack('');
       toast.success(`"${trackToAdd.name}" added to setlist!`);
+      
+      // Log the update for debugging
+      console.log(`Added song to setlist: ${trackToAdd.name}`, setlist.length + 1);
     }
   };
 

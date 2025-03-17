@@ -128,8 +128,10 @@ export function useRealtimeVotes({ showId, initialSongs }: UseRealtimeVotesProps
   
   // Add a new song to the setlist
   const addSongToSetlist = useCallback((newSong: Song) => {
+    console.log("Adding song to setlist:", newSong);
+    
     setSongs(currentSongs => {
-      // Check if song already exists in the setlist
+      // Check if song already exists in the setlist by ID
       const songExists = currentSongs.some(song => song.id === newSong.id);
       
       if (songExists) {
@@ -140,14 +142,13 @@ export function useRealtimeVotes({ showId, initialSongs }: UseRealtimeVotesProps
         return currentSongs;
       }
       
+      // Add new song to setlist
       console.log(`Adding new song to setlist: ${newSong.name}`);
-      toast.success(`"${newSong.name}" added to setlist`, {
-        style: { background: "#14141F", color: "#fff", border: "1px solid rgba(255,255,255,0.1)" }
-      });
-      return [...currentSongs, newSong];
+      const updatedSongs = [...currentSongs, newSong];
+      console.log("Updated setlist size:", updatedSongs.length);
+      
+      return updatedSongs;
     });
-    
-    console.log(`New song added to setlist: ${newSong.name}`);
   }, []);
   
   return {

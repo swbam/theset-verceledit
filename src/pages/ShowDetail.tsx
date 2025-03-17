@@ -32,7 +32,7 @@ const ShowDetail = () => {
     spotifyArtistId 
   } = useShowDetails(id);
   
-  // Set document title with appropriate format: "TheSet | ArtistName at VenueName in CityName,State | DateofShow"
+  // Set document title with appropriate format
   useEffect(() => {
     if (show && !isLoadingShow) {
       const artistName = show.artist?.name || 'Artist';
@@ -91,13 +91,20 @@ const ShowDetail = () => {
     anonymousVoteCount
   } = useSongManagement(id || '', initialSongs, isAuthenticated, login);
   
+  console.log("Current setlist length:", setlist.length);
+  console.log("Is loading tracks:", isLoadingTracks);
+  console.log("Initial songs length:", initialSongs.length);
+  
   // Calculate available tracks for dropdown
   const availableTracks = React.useMemo(() => {
+    // Log the current state to debug
+    console.log("Calculating available tracks. Current setlist:", setlist.length, "All tracks data:", allTracksData?.tracks?.length);
     return getAvailableTracks(setlist);
   }, [allTracksData, setlist, getAvailableTracks]);
   
   // Handle song addition
   const handleAddSongClick = () => {
+    console.log("Add song clicked, passing all tracks data:", allTracksData?.tracks?.length);
     handleAddSong(allTracksData);
   };
   
