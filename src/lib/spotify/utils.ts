@@ -13,31 +13,80 @@ export const convertStoredTracks = (storedTracks: Json | null): SpotifyTrack[] =
 
 // Get stored tracks for an artist from database
 export const getStoredTracksFromDb = async (artistId: string): Promise<SpotifyTrack[] | null> => {
-  const { data: artistData, error } = await supabase
-    .from('artists')
-    .select('stored_tracks')
-    .eq('id', artistId)
-    .maybeSingle();
-  
-  if (error || !artistData || !artistData.stored_tracks) {
+  try {
+    const { data: artistData, error } = await supabase
+      .from('artists')
+      .select('stored_tracks')
+      .eq('id', artistId)
+      .maybeSingle();
+    
+    if (error) {
+      console.error(`Error fetching stored tracks for artist ${artistId}:`, error);
+      return null;
+    }
+    
+    if (!artistData || !artistData.stored_tracks) {
+      return null;
+    }
+    
+    const tracks = convertStoredTracks(artistData.stored_tracks);
+    
+    // If we have tracks, log and return them
+    if (tracks.length > 0) {
+      console.log(`Retrieved ${tracks.length} stored tracks for artist ${artistId}`);
+      return tracks;
+    }
+    
+    return null;
+  } catch (error) {
+    console.error("Error directly accessing stored tracks:", error);
     return null;
   }
-  
-  return convertStoredTracks(artistData.stored_tracks);
 };
 
 // Save tracks to database for an artist
 export const saveTracksToDb = async (artistId: string, tracks: SpotifyTrack[]): Promise<void> => {
-  // Convert tracks to a JSON-compatible format but maintain type safety
-  const tracksForStorage = tracks as unknown as Json;
-  
-  await supabase
-    .from('artists')
-    .update({ 
-      stored_tracks: tracksForStorage,
-      updated_at: new Date().toISOString()
-    })
-    .eq('id', artistId);
-  
-  console.log(`Stored ${tracks.length} tracks in database for artist ${artistId}`);
+  try {
+    if (!tracks || !Array.isArray(tracks) || tracks.length === 0) {
+      console.warn(`No tracks to save for artist ${artistId}`);
+      return;
+    }
+    
+    // Convert tracks to a JSON-compatible format but maintain type safety
+    const tracksForStorage = tracks as unknown as Json;
+    
+    const { error } = await supabase
+      .from('artists')
+      .update({ 
+        stored_tracks: tracksForStorage,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', artistId);
+    
+    if (error) {
+      console.error(`Error saving tracks for artist ${artistId}:`, error);
+      
+      // Try to create the artist if update failed (might not exist yet)
+      const { error: insertError } = await supabase
+        .from('artists')
+        .insert({
+          id: artistId,
+          name: `Artist ${artistId}`, // Placeholder name
+          stored_tracks: tracksForStorage,
+          updated_at: new Date().toISOString()
+        });
+      
+      if (insertError) {
+        console.error(`Error creating artist ${artistId}:`, insertError);
+      } else {
+        console.log(`Created new artist ${artistId} with ${tracks.length} tracks`);
+      }
+      
+      return;
+    }
+    
+    console.log(`Stored ${tracks.length} tracks in database for artist ${artistId}`);
+  } catch (error) {
+    console.error(`Error saving tracks for artist ${artistId}:`, error);
+  }
 };
