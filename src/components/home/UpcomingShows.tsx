@@ -1,10 +1,11 @@
+
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Calendar, MapPin, ChevronRight, Music, Flame } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
-import { fetchShowsByGenre, popularMusicGenres } from '@/lib/ticketmaster';
+import { fetchShowsByGenre, popularMusicGenres, fetchFeaturedShows } from '@/lib/ticketmaster';
 import { toast } from 'sonner';
 
 const UpcomingShows = () => {
@@ -14,10 +15,28 @@ const UpcomingShows = () => {
     queryKey: ['upcomingShows', activeGenre],
     queryFn: async () => {
       try {
-        if (activeGenre === "all") {
-          return fetchShowsByGenre(popularMusicGenres[0].id, 10);
-        }
-        return fetchShowsByGenre(activeGenre, 10);
+        // Fetch more shows initially to ensure we have enough after filtering
+        let genreId = activeGenre === "all" ? popularMusicGenres[0].id : activeGenre;
+        
+        // Combine trending and upcoming shows for more variety
+        const [upcomingShows, trendingShows] = await Promise.all([
+          fetchShowsByGenre(genreId, 15),
+          fetchFeaturedShows(15)
+        ]);
+        
+        // Merge both sets of shows
+        let combinedShows = [...upcomingShows, ...trendingShows];
+        
+        // Deduplicate by show ID
+        const uniqueShows = Array.from(
+          new Map(combinedShows.map(show => [show.id, show])).values()
+        );
+        
+        // Add popularity scores to make sorting consistent
+        return uniqueShows.map(show => ({
+          ...show,
+          popularityScore: Math.floor(Math.random() * 8000) + 3000 // Simulating high attendance
+        }));
       } catch (error) {
         console.error("Failed to fetch upcoming shows:", error);
         toast.error("Couldn't load upcoming shows");
@@ -29,22 +48,30 @@ const UpcomingShows = () => {
   const shows = React.useMemo(() => {
     if (!showsData.length) return [];
     
+    // Ensure unique artists
     const seenArtists = new Set();
     const uniqueByArtist = [];
     
+    // Sort by popularity and then date
     const sorted = [...showsData].sort((a, b) => {
+      // First sort by popularity score (descending)
+      const popularityDiff = (b.popularityScore || 0) - (a.popularityScore || 0);
+      if (popularityDiff !== 0) return popularityDiff;
+      
+      // Then by date (ascending)
       if (!a.date) return 1;
       if (!b.date) return -1;
       return new Date(a.date).getTime() - new Date(b.date).getTime();
     });
     
+    // Get unique artists, take at most 8 for a nice grid
     for (const show of sorted) {
       const artistId = show.artist?.id || show.artist?.name;
       if (artistId && !seenArtists.has(artistId)) {
         seenArtists.add(artistId);
         uniqueByArtist.push(show);
         
-        if (uniqueByArtist.length >= 3) break;
+        if (uniqueByArtist.length >= 8) break;
       }
     }
     
@@ -122,20 +149,20 @@ const UpcomingShows = () => {
         </div>
         
         {isLoading ? (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
-            {[...Array(3)].map((_, index) => (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 md:gap-4">
+            {[...Array(8)].map((_, index) => (
               <div key={index} className="bg-black/40 rounded-lg overflow-hidden border border-white/10">
                 <Skeleton className="aspect-[4/3] w-full" />
-                <div className="p-4">
-                  <Skeleton className="h-5 w-3/4 mb-2" />
-                  <Skeleton className="h-4 w-1/2 mb-3" />
-                  <div className="flex items-center mb-2">
-                    <Skeleton className="h-4 w-4 rounded-full mr-2" />
-                    <Skeleton className="h-3 w-24" />
+                <div className="p-3">
+                  <Skeleton className="h-4 w-3/4 mb-2" />
+                  <Skeleton className="h-3 w-1/2 mb-2" />
+                  <div className="flex items-center mb-1.5">
+                    <Skeleton className="h-3 w-3 rounded-full mr-2" />
+                    <Skeleton className="h-2.5 w-24" />
                   </div>
                   <div className="flex items-center">
-                    <Skeleton className="h-4 w-4 rounded-full mr-2" />
-                    <Skeleton className="h-3 w-20" />
+                    <Skeleton className="h-3 w-3 rounded-full mr-2" />
+                    <Skeleton className="h-2.5 w-20" />
                   </div>
                 </div>
               </div>
@@ -150,7 +177,7 @@ const UpcomingShows = () => {
             <p className="text-white/60">No upcoming shows found</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 md:gap-4">
             {shows.map((show) => {
               const genre = show.genre || show.artist?.genres?.[0] || 'Pop';
               const formattedDate = formatDate(show.date);
@@ -171,40 +198,40 @@ const UpcomingShows = () => {
                       />
                     ) : (
                       <div className="bg-[#111]/80 w-full h-full flex items-center justify-center">
-                        <Music className="h-8 w-8 text-white/40" />
+                        <Music className="h-6 w-6 text-white/40" />
                       </div>
                     )}
                     <Badge 
-                      className="absolute top-3 right-3 bg-black/60 hover:bg-black/60 text-white"
+                      className="absolute top-2 right-2 bg-black/60 hover:bg-black/60 text-white text-xs py-0.5"
                     >
                       {genre}
                     </Badge>
-                    <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black to-transparent pt-10 pb-4">
-                      <div className="flex items-center justify-end px-3">
-                        <div className="flex items-center gap-1 bg-white/10 backdrop-blur-sm rounded-full px-2 py-0.5">
-                          <Flame className="h-3 w-3 text-orange-400" />
+                    <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black to-transparent pt-8 pb-2">
+                      <div className="flex items-center justify-end px-2">
+                        <div className="flex items-center gap-1 bg-white/10 backdrop-blur-sm rounded-full px-1.5 py-0.5">
+                          <Flame className="h-2.5 w-2.5 text-orange-400" />
                           <span className="text-white text-xs font-medium">
-                            {Math.floor(Math.random() * 2000) + 1000}
+                            {show.popularityScore?.toLocaleString() || Math.floor(Math.random() * 5000) + 3000}
                           </span>
                         </div>
                       </div>
                     </div>
                   </div>
-                  <div className="p-4">
-                    <h3 className="font-bold text-base md:text-lg mb-1 line-clamp-1">
+                  <div className="p-3">
+                    <h3 className="font-bold text-sm mb-0.5 line-clamp-1">
                       {tourName || 'Upcoming Show'}
                     </h3>
-                    <p className="text-white/80 text-sm mb-3 line-clamp-1">
+                    <p className="text-white/80 text-xs mb-2 line-clamp-1">
                       {show.artist?.name || 'Unknown Artist'}
                     </p>
-                    <div className="flex flex-col space-y-2 text-xs md:text-sm text-white/60">
+                    <div className="flex flex-col space-y-1 text-[10px] md:text-xs text-white/60">
                       <div className="flex items-center">
-                        <Calendar size={14} className="mr-2 opacity-70 flex-shrink-0" />
-                        <span>{formattedDate}</span>
+                        <Calendar size={12} className="mr-1.5 opacity-70 flex-shrink-0" />
+                        <span className="truncate">{formattedDate}</span>
                       </div>
                       {show.venue && (
                         <div className="flex items-start">
-                          <MapPin size={14} className="mr-2 mt-0.5 opacity-70 flex-shrink-0" />
+                          <MapPin size={12} className="mr-1.5 mt-0.5 opacity-70 flex-shrink-0" />
                           <span className="line-clamp-1">
                             {show.venue?.name ? `${show.venue.name}, ${show.venue.city || ''}` : 'Venue TBA'}
                           </span>

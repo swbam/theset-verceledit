@@ -3,7 +3,6 @@ import React from 'react';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
 import Hero from '@/components/home/Hero';
-import TrendingShows from '@/components/home/TrendingShows';
 import FeaturedArtists from '@/components/home/FeaturedArtists';
 import UpcomingShows from '@/components/home/UpcomingShows';
 import HowItWorks from '@/components/home/HowItWorks';
@@ -20,9 +19,8 @@ const Index = () => {
       
       <main className="flex-grow">
         <Hero />
-        <TrendingShows />
-        <FeaturedArtists />
         <UpcomingShows />
+        <FeaturedArtists />
         <PersonalizedRecommendations />
         <HowItWorks />
       </main>
