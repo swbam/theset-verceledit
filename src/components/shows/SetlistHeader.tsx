@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Music, Users, Info } from 'lucide-react';
+import { Users, Info } from 'lucide-react';
 import { CardTitle, CardDescription } from '@/components/ui/card';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import ShareSetlistButton from '@/components/setlist/ShareSetlistButton';
@@ -18,11 +18,7 @@ const SetlistHeader = ({ isConnected, totalVotes, showId, showName, artistName }
     <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 pb-4 border-b border-white/10">
       <div>
         <CardTitle className="text-2xl font-bold flex items-center gap-2 text-white">
-          <Music className="h-5 w-5 text-white/70" />
-          Setlist Voting
-          <span className="inline-flex items-center ml-2 text-xs bg-white/10 text-white/90 px-2 py-0.5 rounded-full">
-            Live
-          </span>
+          What do you want to hear?
         </CardTitle>
         <CardDescription className="mt-1.5 text-white/70">
           Vote for songs you want to hear at this show
@@ -43,27 +39,6 @@ const SetlistHeader = ({ isConnected, totalVotes, showId, showName, artistName }
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
-        
-        {isConnected ? (
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div className="text-xs bg-green-500/10 text-green-400 px-3 py-1.5 rounded-full font-medium flex items-center gap-1.5">
-                  <span className="inline-block w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-                  <span>Live updates</span>
-                </div>
-              </TooltipTrigger>
-              <TooltipContent className="bg-[#0A0A0A] border-white/10 text-white">
-                <p>You're seeing votes in real time</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        ) : (
-          <div className="text-xs bg-yellow-500/10 text-yellow-400 px-3 py-1.5 rounded-full font-medium flex items-center gap-1.5">
-            <span className="inline-block w-2 h-2 bg-yellow-500 rounded-full"></span>
-            <span>Offline mode</span>
-          </div>
-        )}
         
         <ShareSetlistButton 
           showId={showId}
