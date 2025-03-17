@@ -14,6 +14,16 @@ const FeaturedArtists = () => {
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
 
+  // Filter out duplicate artists by ID
+  const uniqueArtists = artistsData.reduce((acc, current) => {
+    const x = acc.find(item => item.id === current.id);
+    if (!x) {
+      return acc.concat([current]);
+    } else {
+      return acc;
+    }
+  }, []);
+
   return (
     <section className="py-12 md:py-16 px-4 bg-gradient-to-b from-[#0A0A10] to-[#0d0d15]">
       <div className="container mx-auto max-w-7xl">
@@ -45,7 +55,7 @@ const FeaturedArtists = () => {
               <p className="text-white/60">No featured artists found</p>
             </div>
           ) : (
-            artistsData.slice(0, 6).map((artist) => (
+            uniqueArtists.slice(0, 6).map((artist) => (
               <Link 
                 key={artist.id}
                 to={`/artists/${artist.id}`}

@@ -22,21 +22,21 @@ const MostVotedSongs = () => {
       // Fetch most voted songs from the database
       try {
         const { data, error } = await supabase
-          .from('song_votes')
-          .select('song_id, songs(id, title, artist_name, show_id), count')
-          .order('count', { ascending: false })
+          .from('setlist_songs')
+          .select('id, track_id, votes, setlists!inner(show_id)')
+          .order('votes', { ascending: false })
           .limit(5);
         
         if (error) throw error;
         
         // Format the data for display
-        const formattedSongs = data.map((voteData, index) => ({
-          id: voteData.song_id,
-          title: voteData.songs?.title || 'Unknown Song',
-          artist: voteData.songs?.artist_name || 'Unknown Artist',
-          votes: voteData.count,
+        const formattedSongs = data.map((song, index) => ({
+          id: song.id,
+          title: `Song ${index + 1}`, // Placeholder
+          artist: 'Artist Name',      // Placeholder
+          votes: song.votes,
           position: index + 1,
-          show_id: voteData.songs?.show_id
+          show_id: song.setlists?.show_id
         }));
         
         return formattedSongs;

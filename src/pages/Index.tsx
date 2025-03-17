@@ -8,8 +8,6 @@ import UpcomingShows from '@/components/home/UpcomingShows';
 import HowItWorks from '@/components/home/HowItWorks';
 import PersonalizedRecommendations from '@/components/home/PersonalizedRecommendations';
 import TrendingShows from '@/components/home/TrendingShows';
-import LiveVotingSection from '@/components/home/LiveVotingSection';
-import MostVotedSongs from '@/components/home/MostVotedSongs';
 import { useDocumentTitle } from '@/hooks/use-document-title';
 
 const Index = () => {
@@ -26,10 +24,6 @@ const Index = () => {
         <FeaturedArtists />
         <UpcomingShows />
         <HowItWorks />
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 px-4 py-12 max-w-7xl mx-auto">
-          <LiveVotingSection />
-          <MostVotedSongs />
-        </div>
       </main>
       
       <Footer />
