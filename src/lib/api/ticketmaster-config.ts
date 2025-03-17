@@ -40,13 +40,15 @@ export async function callTicketmasterApi(endpoint: string, params: Record<strin
  * - Sorts by popularity (highest relevance score)
  * - Includes only music events
  * - Filters by date range (upcoming events)
+ * - Size parameter allows pagination
  */
-export async function getTrendingConcerts(size = 20) {
+export async function getTrendingConcerts(size = 20, page = 0) {
   try {
     const params = {
       classificationName: 'music',
       sort: 'relevance,desc',
       size: size.toString(),
+      page: page.toString(),
       startDateTime: new Date().toISOString().slice(0, 19) + 'Z'
     };
     
@@ -54,6 +56,7 @@ export async function getTrendingConcerts(size = 20) {
     return data._embedded?.events || [];
   } catch (error) {
     console.error('Error fetching trending concerts:', error);
+    toast.error('Failed to load concerts');
     return [];
   }
 }
