@@ -4,5 +4,7 @@ export * from './db/artist-utils';
 export * from './db/venue-utils';
 export * from './db/show-utils';
 export * from './db/setlist-utils';
+// We're explicitly re-exporting voteForSong from vote-utils to avoid conflicts
+export { voteForSong as voteSetlistSong } from './db/vote-utils';
 export * from './db/vote-utils';
 export * from './db/show-database-utils';

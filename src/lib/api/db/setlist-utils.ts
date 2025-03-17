@@ -118,11 +118,19 @@ export const voteForSong = async (
 
     // Increment the vote count for the song
     const { error: updateError } = await supabase
-      .from('setlist_songs')
-      .update({ votes: supabase.rpc('increment', { value: 1 }) })
-      .eq('id', songId);
+      .rpc('increment_votes', { song_id: songId });
 
-    if (updateError) throw updateError;
+    if (updateError) {
+      console.error('Error incrementing votes:', updateError);
+      
+      // Fallback method if the RPC fails
+      const { error: manualUpdateError } = await supabase
+        .from('setlist_songs')
+        .update({ votes: supabase.rpc('increment', { value: 1 }) })
+        .eq('id', songId);
+        
+      if (manualUpdateError) throw manualUpdateError;
+    }
 
     return true;
   } catch (error) {

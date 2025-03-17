@@ -221,8 +221,8 @@ export function useRealtimeVotes(showId: string, spotifyArtistId: string, initia
         // Find the song to get its setlistSongId
         const song = dbSongs?.find(s => s.id === songId);
         
-        if (!song) {
-          console.error("Song not found in database:", songId);
+        if (!song || !song.setlistSongId) {
+          console.error("Song not found in database or missing setlistSongId:", songId);
           return false;
         }
         
@@ -253,10 +253,10 @@ export function useRealtimeVotes(showId: string, spotifyArtistId: string, initia
           return true;
         } else {
           // Logged-in user vote
-          console.log("Authenticated vote for song:", songId);
+          console.log("Authenticated vote for song:", songId, "with setlistSongId:", song.setlistSongId);
           
           // Call the vote function with the setlistSongId
-          const success = await voteForSong(setlistId, song.setlistSongId || '', user!.id);
+          const success = await voteForSong(setlistId, song.setlistSongId, user!.id);
           
           if (success) {
             // Optimistically update the UI
@@ -288,7 +288,7 @@ export function useRealtimeVotes(showId: string, spotifyArtistId: string, initia
   });
   
   // Handle adding a new song to the setlist
-  const handleAddSong = useCallback(async () => {
+  const handleAddSong = useCallback(async (): Promise<boolean> => {
     if (!setlistId || !selectedTrack) {
       console.error("Missing setlist ID or selected track");
       return false;

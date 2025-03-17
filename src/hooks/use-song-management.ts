@@ -43,7 +43,7 @@ export function useSongManagement(showId: string, initialSongs: Song[], isAuthen
   const handleAddSong = async (allTracksData: any) => {
     if (!selectedTrack) {
       toast.error("Please select a song first");
-      return;
+      return false;
     }
 
     // Find the selected track in the available tracks
@@ -55,7 +55,7 @@ export function useSongManagement(showId: string, initialSongs: Song[], isAuthen
       
       if (songExists) {
         toast.info(`"${trackToAdd.name}" is already in the setlist!`);
-        return;
+        return false;
       }
       
       // Add the song to the setlist using the handleAddSong from useRealtimeVotes
@@ -67,8 +67,11 @@ export function useSongManagement(showId: string, initialSongs: Song[], isAuthen
         
         // Log the update for debugging
         console.log(`Added song to setlist: ${trackToAdd.name}`, setlist.length + 1);
+        return true;
       }
     }
+    
+    return false;
   };
 
   return {
