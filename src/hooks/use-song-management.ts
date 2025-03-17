@@ -25,16 +25,21 @@ export function useSongManagement(showId: string, initialSongs: Song[], isAuthen
   });
   
   const handleVote = (songId: string) => {
-    const voteSuccess = voteForSong(songId, isAuthenticated);
-    
-    if (voteSuccess) {
-      toast.success("Your vote has been counted!");
-    } else if (!isAuthenticated && anonymousVoteCount >= 3) {
-      // This will trigger a toast in the hook, but we also redirect to login
-      setTimeout(() => {
-        login();
-      }, 2000);
-    }
+    voteForSong(songId, isAuthenticated)
+      .then((success) => {
+        if (success) {
+          toast.success("Your vote has been counted!");
+        } else if (!isAuthenticated && anonymousVoteCount >= 3) {
+          // This will trigger a toast in the hook, but we also redirect to login
+          setTimeout(() => {
+            login();
+          }, 2000);
+        }
+      })
+      .catch(error => {
+        console.error("Error voting for song:", error);
+        toast.error("Something went wrong while voting");
+      });
   };
 
   const handleAddSong = (allTracksData: any) => {

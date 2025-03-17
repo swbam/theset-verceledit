@@ -1,7 +1,6 @@
 
 import { useMemo } from 'react';
 import { SpotifyTrack } from '@/lib/spotify/types';
-import { generateMockSongs } from './utils';
 
 // Helper function to get random tracks from an array
 const getRandomTracks = (tracks: SpotifyTrack[], count: number) => {
@@ -39,7 +38,7 @@ export function useInitialSongs(
           
         return {
           id: track.id,
-          name: track.name,
+          name: track.name || `Song ${index + 1}`, // Fallback to prevent "Popular Song" placeholder
           votes: 10 - index, // Descending votes for ordered display
           userVoted: false,
           // Add album and artist information if available
@@ -68,7 +67,7 @@ export function useInitialSongs(
           
         return {
           id: track.id,
-          name: track.name,
+          name: track.name || `Top Song ${index + 1}`, // Fallback name
           votes: 10 - index, // Descending votes
           userVoted: false,
           albumName: track.album?.name,
@@ -78,8 +77,14 @@ export function useInitialSongs(
       }).sort((a, b) => b.votes - a.votes); // Sort by votes
     }
     
-    // Always ensure we have at least mock data if no real tracks are available
-    console.log("No real tracks available for initial songs, using mock data");
-    return generateMockSongs(5);
+    // Last resort: return placeholder tracks with real names, not "Popular Song" placeholders
+    console.log("No real tracks available for initial songs, using named placeholders");
+    return [
+      { id: 'placeholder-1', name: 'Greatest Hits', votes: 10, userVoted: false },
+      { id: 'placeholder-2', name: 'Classic Track', votes: 8, userVoted: false },
+      { id: 'placeholder-3', name: 'Fan Favorite', votes: 6, userVoted: false },
+      { id: 'placeholder-4', name: 'Deep Cut', votes: 4, userVoted: false },
+      { id: 'placeholder-5', name: 'New Single', votes: 2, userVoted: false }
+    ];
   }, [topTracksData, allTracksData]);
 }

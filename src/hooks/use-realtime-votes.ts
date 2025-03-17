@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -57,7 +56,7 @@ export function useRealtimeVotes({ showId, initialSongs }: UseRealtimeVotesProps
         console.log(`Found setlist ${data.id} for show ${showId}`);
         setSetlistId(data.id);
       } else {
-        console.warn(`No setlist found for show ${showId}, will create one`);
+        console.warn(`No setlist found for show ${showId}, will fetch artist_id to create one`);
         // Try to get artist_id to create a setlist
         const { data: showData } = await supabase
           .from('shows')
@@ -66,19 +65,45 @@ export function useRealtimeVotes({ showId, initialSongs }: UseRealtimeVotesProps
           .maybeSingle();
           
         if (showData?.artist_id) {
-          console.log(`Found artist_id ${showData.artist_id} for show ${showId}`);
-          // Create setlist (this is a simplified version)
-          const { data: setlist, error: setlistError } = await supabase
+          console.log(`Found artist_id ${showData.artist_id} for show ${showId}, creating setlist`);
+          // Create setlist
+          const { data: newSetlist, error: setlistError } = await supabase
             .from('setlists')
-            .insert({ show_id: showId, last_updated: new Date().toISOString() })
+            .insert({ 
+              show_id: showId, 
+              last_updated: new Date().toISOString() 
+            })
             .select('id')
             .single();
             
           if (setlistError) {
             console.error("Error creating setlist:", setlistError);
-          } else if (setlist) {
-            console.log(`Created setlist ${setlist.id} for show ${showId}`);
-            setSetlistId(setlist.id);
+          } else if (newSetlist) {
+            console.log(`Created setlist ${newSetlist.id} for show ${showId}`);
+            setSetlistId(newSetlist.id);
+            
+            // Populate with initial songs if we have them
+            if (initialSongs.length > 0) {
+              console.log(`Auto-populating new setlist with ${initialSongs.length} initial songs`);
+              
+              // Prepare songs for insertion
+              const songsToInsert = initialSongs.map(song => ({
+                setlist_id: newSetlist.id,
+                track_id: song.id,
+                votes: song.votes || 0
+              }));
+              
+              // Insert into setlist_songs
+              const { error: insertError } = await supabase
+                .from('setlist_songs')
+                .insert(songsToInsert);
+                
+              if (insertError) {
+                console.error("Error inserting initial songs:", insertError);
+              } else {
+                console.log("Successfully inserted initial songs into new setlist");
+              }
+            }
           }
         } else {
           console.error(`No artist_id found for show ${showId}, cannot create setlist`);
@@ -87,11 +112,13 @@ export function useRealtimeVotes({ showId, initialSongs }: UseRealtimeVotesProps
     };
     
     getSetlistId();
-  }, [showId]);
+  }, [showId, initialSongs]);
   
   // Initialize songs from initialSongs when they're available
   useEffect(() => {
     if (initialSongs.length > 0 && !isInitialized) {
+      console.log("Initializing songs from initialSongs:", initialSongs.length);
+      
       // Restore user voted state from local storage for anonymous users
       const songsWithLocalVotes = initialSongs.map(song => ({
         ...song,
@@ -100,7 +127,6 @@ export function useRealtimeVotes({ showId, initialSongs }: UseRealtimeVotesProps
       
       setSongs(songsWithLocalVotes);
       setIsInitialized(true);
-      console.log("Initialized setlist with tracks:", initialSongs.length);
     }
   }, [initialSongs, isInitialized, anonymousVotedSongs]);
   
@@ -110,9 +136,18 @@ export function useRealtimeVotes({ showId, initialSongs }: UseRealtimeVotesProps
     
     console.log(`Setting up real-time voting for show: ${showId} and setlist: ${setlistId}`);
     
-    // Create a real Supabase Realtime connection for votes
+    // First, enable realtime on the setlist_songs table
+    supabase
+      .from('setlist_songs')
+      .select('*')
+      .eq('setlist_id', setlistId)
+      .then(({ data }) => {
+        console.log(`Initial fetch of setlist songs: ${data?.length || 0} songs`);
+      });
+    
+    // Create Supabase Realtime channel for votes
     const channel = supabase
-      .channel('schema-db-changes')
+      .channel('setlist-votes')
       .on('postgres_changes', 
         {
           event: 'UPDATE',
@@ -145,6 +180,7 @@ export function useRealtimeVotes({ showId, initialSongs }: UseRealtimeVotesProps
         },
         (payload) => {
           console.log("New song added to setlist:", payload);
+          
           // We need to fetch the song details from the top_tracks table
           supabase
             .from('top_tracks')
@@ -173,16 +209,18 @@ export function useRealtimeVotes({ showId, initialSongs }: UseRealtimeVotesProps
             });
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log("Realtime subscription status:", status);
+        if (status === 'SUBSCRIBED') {
+          setIsConnected(true);
+        }
+      });
       
-    setIsConnected(true);
-    console.log("Real-time connection established");
-    
     // Cleanup on unmount
     return () => {
+      console.log("Cleaning up realtime connection");
       supabase.removeChannel(channel);
       setIsConnected(false);
-      console.log("Real-time connection closed");
     };
   }, [showId, setlistId]);
   
@@ -273,6 +311,18 @@ export function useRealtimeVotes({ showId, initialSongs }: UseRealtimeVotesProps
         toast.error("Vote could not be processed");
         return false;
       }
+    } else {
+      // For anonymous users, manually update the votes in the database
+      // since they don't have a user ID for the votes table
+      const { error: updateError } = await supabase
+        .from('setlist_songs')
+        .update({ votes: supabase.rpc('increment_votes_by_one', { row_id: setlistSong.id }) })
+        .eq('id', setlistSong.id);
+        
+      if (updateError) {
+        console.error("Error updating votes for anonymous user:", updateError);
+        // We don't roll back the UI update for anonymous users to keep the experience smooth
+      }
     }
     
     console.log(`Vote registered for song ID: ${songId}`);
@@ -301,12 +351,10 @@ export function useRealtimeVotes({ showId, initialSongs }: UseRealtimeVotesProps
     // Optimistically update UI
     setSongs(currentSongs => [...currentSongs, newSong]);
     
-    // Send to server
-    const userId = user?.id || null;
-    // Fix: only pass two arguments to addSongToSetlistUtil
+    // Send to server - only pass the two required arguments
     const songId = await addSongToSetlistUtil(setlistId, newSong.id);
     
-    // Fix: Check if songId exists instead of checking truthiness of void
+    // Check if songId exists (returned null means failure)
     if (songId === null) {
       console.error("Failed to add song to setlist on server");
       // Rollback optimistic update
@@ -316,7 +364,7 @@ export function useRealtimeVotes({ showId, initialSongs }: UseRealtimeVotesProps
     }
     
     console.log(`Song ${newSong.name} added to setlist with ID ${songId}`);
-  }, [setlistId, songs, user]);
+  }, [setlistId, songs]);
   
   return {
     songs,

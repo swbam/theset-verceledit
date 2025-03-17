@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { SpotifyTrack } from "@/lib/spotify/types";
 import { Json } from "@/integrations/supabase/types";
@@ -170,6 +171,7 @@ export async function getSetlistSongs(setlistId: string) {
     
     console.log(`Getting all songs in setlist ${setlistId}`);
     
+    // Join setlist_songs with top_tracks to get complete track information
     const { data, error } = await supabase
       .from('setlist_songs')
       .select(`
@@ -177,13 +179,7 @@ export async function getSetlistSongs(setlistId: string) {
         track_id,
         votes,
         suggested_by,
-        top_tracks (
-          name,
-          spotify_url,
-          preview_url,
-          album_name,
-          album_image_url
-        )
+        tracks:top_tracks!inner(*)
       `)
       .eq('setlist_id', setlistId);
     
@@ -201,17 +197,17 @@ export async function getSetlistSongs(setlistId: string) {
     
     // Map the data to the SpotifyTrack interface
     const songs: SpotifyTrack[] = data.map(item => {
-      const track = item.top_tracks as any;
+      const track = item.tracks;
       return {
         id: item.track_id,
-        name: track?.name || 'Unknown',
-        uri: track?.spotify_url || null,
-        preview_url: track?.preview_url || null,
+        name: track.name || 'Unknown',
+        uri: track.spotify_url || null,
+        preview_url: track.preview_url || null,
         album: {
-          name: track?.album_name || 'Unknown',
-          images: track?.album_image_url ? [{ url: track.album_image_url }] : []
+          name: track.album_name || 'Unknown',
+          images: track.album_image_url ? [{ url: track.album_image_url }] : []
         },
-        artists: [{ name: 'Unknown' }], // Artist info not directly available,
+        artists: [{ name: 'Unknown' }],
         votes: item.votes,
         setlist_song_id: item.id,
         suggested_by: item.suggested_by
@@ -329,9 +325,7 @@ export async function voteForSetlistSong(setlistSongId: string, userId: string) 
     
     // Increment the vote count on the setlist_songs table
     const { error: incrementError } = await supabase
-      .from('setlist_songs')
-      .update({ votes: 1 }) // Use explicit number value instead of a function
-      .eq('id', setlistSongId);
+      .rpc('increment_song_vote', { song_id: setlistSongId });
     
     if (incrementError) {
       console.error("Error incrementing vote count:", incrementError);

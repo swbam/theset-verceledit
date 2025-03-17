@@ -18,12 +18,19 @@ interface Song {
   name: string;
   votes: number;
   userVoted: boolean;
+  albumName?: string;
+  albumImageUrl?: string;
+  artistName?: string;
 }
 
 interface Track {
   id: string;
   name: string;
-  album?: string;
+  album?: {
+    name?: string;
+    images?: { url: string }[];
+  };
+  artists?: { name: string }[];
   popularity?: number;
 }
 
@@ -73,7 +80,7 @@ const ShowSetlist = ({
   
   // Truncate long song names
   const truncateSongName = (name: string, maxLength = 50) => {
-    return name.length > maxLength ? `${name.substring(0, maxLength)}...` : name;
+    return name && name.length > maxLength ? `${name.substring(0, maxLength)}...` : (name || 'Unknown Track');
   };
   
   // Sort tracks alphabetically by name and filter duplicates
@@ -99,9 +106,32 @@ const ShowSetlist = ({
     
     // Sort alphabetically by name
     return [...uniqueTracks].sort((a, b) => 
-      a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
+      (a.name || '').localeCompare((b.name || ''), undefined, { sensitivity: 'base' })
     );
   }, [availableTracks]);
+  
+  // Process setlist items to ensure they have proper names
+  const processedSetlist = React.useMemo(() => {
+    return setlist.map(song => {
+      // Ensure song has a proper name, not "Popular Song X"
+      if (!song.name || song.name.startsWith('Popular Song')) {
+        // Find the matching track in availableTracks if possible
+        const matchingTrack = availableTracks?.find(track => track.id === song.id);
+        if (matchingTrack?.name) {
+          return {
+            ...song,
+            name: matchingTrack.name
+          };
+        }
+        // Provide a better fallback name
+        return {
+          ...song,
+          name: `Track ${song.id.substring(0, 6)}`
+        };
+      }
+      return song;
+    });
+  }, [setlist, availableTracks]);
   
   return (
     <div className="flex flex-col">
@@ -158,7 +188,7 @@ const ShowSetlist = ({
       </div>
       
       <VotableSetlistTable 
-        songs={setlist} 
+        songs={processedSetlist} 
         onVote={handleVote} 
         className="animate-fade-in"
         anonymousVoteCount={anonymousVoteCount}
