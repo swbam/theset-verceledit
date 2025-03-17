@@ -2,27 +2,7 @@
 import React from 'react';
 import VotableSetlistTable from '@/components/setlist/VotableSetlistTable';
 import { SetlistAddSongForm } from './index';
-
-interface Song {
-  id: string;
-  name: string;
-  votes: number;
-  userVoted: boolean;
-  albumName?: string;
-  albumImageUrl?: string;
-  artistName?: string;
-}
-
-interface Track {
-  id: string;
-  name: string;
-  album?: {
-    name?: string;
-    images?: { url: string }[];
-  };
-  artists?: { name: string }[];
-  popularity?: number;
-}
+import { Song, Track } from '@/hooks/realtime/types';
 
 interface ShowSetlistProps {
   setlist: Song[];

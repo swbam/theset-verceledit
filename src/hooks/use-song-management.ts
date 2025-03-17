@@ -2,13 +2,7 @@
 import { useState } from 'react';
 import { useRealtimeVotes } from '@/hooks/use-realtime-votes';
 import { toast } from 'sonner';
-
-export interface Song {
-  id: string;
-  name: string;
-  votes: number;
-  userVoted: boolean;
-}
+import { Song } from './realtime/types';
 
 export function useSongManagement(showId: string, initialSongs: Song[], isAuthenticated: boolean, login: () => void) {
   const [selectedTrack, setSelectedTrack] = useState<string>('');
@@ -59,7 +53,7 @@ export function useSongManagement(showId: string, initialSongs: Song[], isAuthen
       }
       
       try {
-        // Call realtimeHandleAddSong directly without checking its return value
+        // Call realtimeHandleAddSong without checking its return value
         await realtimeHandleAddSong(trackToAdd.id, trackToAdd.name);
         
         // Reset the selected track

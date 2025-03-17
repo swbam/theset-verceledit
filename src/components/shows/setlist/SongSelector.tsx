@@ -7,17 +7,7 @@ import {
   SelectTrigger, 
   SelectValue,
 } from '@/components/ui/select';
-
-interface Track {
-  id: string;
-  name: string;
-  album?: {
-    name?: string;
-    images?: { url: string }[];
-  };
-  artists?: { name: string }[];
-  popularity?: number;
-}
+import { Track } from '@/hooks/realtime/types';
 
 interface SongSelectorProps {
   tracks: Track[];

@@ -13,6 +13,17 @@ export interface Song {
   setlistSongId?: string;
 }
 
+export interface Track {
+  id: string;
+  name: string;
+  album?: {
+    name?: string;
+    images?: { url: string }[];
+  };
+  artists?: { name: string }[];
+  popularity?: number;
+}
+
 export interface SetlistData {
   setlist: Song[];
   isConnected: boolean;

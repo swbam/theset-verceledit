@@ -5,17 +5,7 @@ import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { useIsMobile } from '@/hooks/use-mobile';
 import SongSelector from './SongSelector';
-
-interface Track {
-  id: string;
-  name: string;
-  album?: {
-    name?: string;
-    images?: { url: string }[];
-  };
-  artists?: { name: string }[];
-  popularity?: number;
-}
+import { Track } from '@/hooks/realtime/types';
 
 interface SetlistAddSongFormProps {
   availableTracks: Track[];
