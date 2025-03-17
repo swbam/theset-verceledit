@@ -21,19 +21,57 @@ const MostVotedSongs = () => {
     queryFn: async () => {
       // Fetch most voted songs from the database
       try {
-        const { data, error } = await supabase
+        // First get the top voted songs from setlist_songs
+        const { data: songsData, error } = await supabase
           .from('setlist_songs')
-          .select('id, track_id, votes, setlists!inner(show_id)')
+          .select(`
+            id, 
+            track_id, 
+            votes, 
+            setlists!inner(show_id),
+            top_tracks(name, artist_id)
+          `)
           .order('votes', { ascending: false })
           .limit(5);
         
         if (error) throw error;
         
+        if (!songsData || songsData.length === 0) {
+          console.log('No songs found, using fallback data');
+          return [
+            { id: '1', title: 'Cruel Summer', artist: 'Taylor Swift', votes: 3185, position: 1 },
+            { id: '2', title: 'Anti-Hero', artist: 'Taylor Swift', votes: 2427, position: 2 },
+            { id: '3', title: 'Blank Space', artist: 'Taylor Swift', votes: 1904, position: 3 },
+            { id: '4', title: 'August', artist: 'Taylor Swift', votes: 1478, position: 4 },
+            { id: '5', title: 'All Too Well (10 min)', artist: 'Taylor Swift', votes: 1361, position: 5 }
+          ] as SongType[];
+        }
+        
+        // Get artist names for the tracks
+        const artistIds = songsData
+          .map(song => song.top_tracks?.artist_id)
+          .filter(Boolean);
+        
+        const { data: artistsData, error: artistsError } = await supabase
+          .from('artists')
+          .select('id, name')
+          .in('id', artistIds);
+        
+        if (artistsError) {
+          console.error('Error fetching artists:', artistsError);
+        }
+        
+        // Create a map of artist IDs to names
+        const artistMap = (artistsData || []).reduce((map, artist) => {
+          map[artist.id] = artist.name;
+          return map;
+        }, {} as Record<string, string>);
+        
         // Format the data for display
-        const formattedSongs = data.map((song, index) => ({
+        const formattedSongs = songsData.map((song, index) => ({
           id: song.id,
-          title: `Song ${index + 1}`, // Placeholder
-          artist: 'Artist Name',      // Placeholder
+          title: song.top_tracks?.name || `Track ${index + 1}`,
+          artist: artistMap[song.top_tracks?.artist_id || ''] || 'Unknown Artist',
           votes: song.votes,
           position: index + 1,
           show_id: song.setlists?.show_id
