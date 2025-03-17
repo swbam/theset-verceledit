@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -14,7 +13,7 @@ const TrendingShows = () => {
     queryFn: async () => {
       try {
         // Fetch more shows to filter out the highest quality ones
-        const shows = await fetchFeaturedShows(12);
+        const shows = await fetchFeaturedShows(20);
         
         // Sort shows by a popularity metric (voting activity)
         return shows
@@ -22,9 +21,7 @@ const TrendingShows = () => {
             ...show,
             // Generate a weighted popularity score for each show
             popularityScore: Math.floor(Math.random() * 5000) + 2000 // Simulating for demo purposes
-          }))
-          .sort((a, b) => b.popularityScore - a.popularityScore)
-          .slice(0, 4); // Take only the top 4 trending shows
+          }));
       } catch (error) {
         console.error("Failed to fetch trending shows:", error);
         toast.error("Couldn't load trending shows");
@@ -36,29 +33,67 @@ const TrendingShows = () => {
   // Format date helper function
   const formatDate = (dateString: string) => {
     try {
-      const date = new Date(dateString);
-      return {
-        day: date.getDate(),
-        month: date.toLocaleDateString('en-US', { month: 'short' }),
-        year: date.getFullYear()
-      };
+      return new Date(dateString).toLocaleDateString('en-US', { 
+        month: 'short',
+        day: 'numeric', 
+        year: 'numeric'
+      });
     } catch (error) {
-      return { day: "TBA", month: "", year: "" };
+      return "TBA";
     }
   };
 
-  // Ensure unique shows by ID and only use the top 4
+  // Ensure unique shows by artist (no duplicates) and sort by popularity
   const uniqueShows = React.useMemo(() => {
-    const uniqueMap = new Map();
+    if (!showsData.length) return [];
     
-    showsData.forEach(show => {
-      if (!uniqueMap.has(show.id)) {
-        uniqueMap.set(show.id, show);
+    // Keep track of seen artists
+    const seenArtists = new Set();
+    const uniqueByArtist = [];
+    
+    // Sort by popularity first
+    const sorted = [...showsData].sort((a, b) => 
+      (b.popularityScore || 0) - (a.popularityScore || 0)
+    );
+    
+    // Filter to keep only the highest popularity show per artist
+    for (const show of sorted) {
+      const artistId = show.artist?.id || show.artist?.name;
+      if (artistId && !seenArtists.has(artistId)) {
+        seenArtists.add(artistId);
+        uniqueByArtist.push(show);
+        
+        // Once we have 4 unique artist shows, stop
+        if (uniqueByArtist.length >= 4) break;
       }
-    });
-
-    return Array.from(uniqueMap.values());
+    }
+    
+    return uniqueByArtist;
   }, [showsData]);
+
+  // Format show name to get tour name without artist
+  const formatTourName = (showName: string, artistName: string) => {
+    if (!showName) return 'Untitled Show';
+    
+    // Remove the artist name if it appears at the beginning
+    if (artistName && showName.startsWith(artistName)) {
+      let formatted = showName.substring(artistName.length).trim();
+      // Remove any colon at the beginning
+      if (formatted.startsWith(':')) {
+        formatted = formatted.substring(1).trim();
+      }
+      // If there's still content, return it, otherwise return the original show name
+      return formatted || showName;
+    }
+    
+    // If no artist name match, try to get the first part before any delimiter
+    const parts = showName.split(/[-:]/);
+    if (parts.length > 1) {
+      return parts[0].trim();
+    }
+    
+    return showName;
+  };
 
   return (
     <section className="py-12 md:py-16 px-4 bg-[#0A0A10]">
@@ -107,8 +142,9 @@ const TrendingShows = () => {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
             {uniqueShows.map((show) => {
-              const formattedDate = formatDate(show.date);
               const genre = show.genre || show.artist?.genres?.[0] || 'Pop';
+              const formattedDate = formatDate(show.date);
+              const tourName = formatTourName(show.name, show.artist?.name || '');
               
               return (
                 <Link 
@@ -146,19 +182,15 @@ const TrendingShows = () => {
                   </div>
                   <div className="p-4">
                     <h3 className="font-bold text-base md:text-lg mb-1 line-clamp-1">
-                      {show.name?.split(' - ')[0] || 'Untitled Show'}
+                      {tourName || 'Upcoming Show'}
                     </h3>
-                    <p className="text-white/70 text-sm mb-3 line-clamp-1">
+                    <p className="text-white/80 text-sm mb-3 line-clamp-1">
                       {show.artist?.name || 'Unknown Artist'}
                     </p>
                     <div className="flex flex-col space-y-2 text-xs md:text-sm text-white/60">
                       <div className="flex items-center">
                         <Calendar size={14} className="mr-2 opacity-70 flex-shrink-0" />
-                        <span>
-                          {typeof formattedDate === 'object' 
-                            ? `${formattedDate.month} ${formattedDate.day}, ${formattedDate.year}` 
-                            : formattedDate}
-                        </span>
+                        <span>{formattedDate}</span>
                       </div>
                       {show.venue && (
                         <div className="flex items-start">
