@@ -229,6 +229,26 @@ export const createSetlist = async (
   createdBy: string
 ): Promise<string | null> => {
   try {
+    console.log(`Creating setlist for show ID: ${showId}`);
+    
+    // Check if a setlist already exists for this show
+    const { data: existingSetlist, error: checkError } = await supabase
+      .from('setlists')
+      .select('id')
+      .eq('show_id', showId)
+      .maybeSingle();
+    
+    if (checkError) {
+      console.error('Error checking for existing setlist:', checkError);
+      return null;
+    }
+    
+    if (existingSetlist?.id) {
+      console.log(`Found existing setlist: ${existingSetlist.id}`);
+      return existingSetlist.id;
+    }
+    
+    // Create a new setlist
     const { data, error } = await supabase
       .from('setlists')
       .insert({
@@ -238,7 +258,12 @@ export const createSetlist = async (
       .select('id')
       .single();
 
-    if (error) throw error;
+    if (error) {
+      console.error('Error creating setlist:', error);
+      throw error;
+    }
+    
+    console.log(`Created new setlist: ${data.id}`);
     return data.id;
   } catch (error) {
     console.error('Error creating setlist:', error);

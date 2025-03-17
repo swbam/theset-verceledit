@@ -11,7 +11,7 @@ export async function saveShowToDatabase(show: any) {
       return null;
     }
     
-    console.log(`Saving show ${show.id} to database`);
+    console.log(`Saving show ${show.id} to database with data:`, JSON.stringify(show));
     
     // Check if show already exists
     const { data: existingShow, error: checkError } = await supabase
@@ -25,23 +25,27 @@ export async function saveShowToDatabase(show: any) {
       return null;
     }
     
+    // Make sure required fields are present
+    const showData = {
+      id: show.id,
+      name: show.name || `Show ${show.id}`,
+      date: show.date || null,
+      artist_id: show.artist_id || null,
+      venue_id: show.venue_id || null,
+      ticket_url: show.ticket_url || null,
+      image_url: show.image_url || null,
+      popularity: show.popularity || 0,
+      genre_ids: Array.isArray(show.genre_ids) ? show.genre_ids : [],
+      updated_at: new Date().toISOString()
+    };
+    
     // Update or insert show
     if (existingShow) {
       console.log(`Updating existing show ${show.id}`);
       
       const { error: updateError } = await supabase
         .from('shows')
-        .update({
-          name: show.name,
-          date: show.date,
-          artist_id: show.artist_id,
-          venue_id: show.venue_id,
-          ticket_url: show.ticket_url,
-          image_url: show.image_url,
-          popularity: show.popularity || 0,
-          genre_ids: show.genre_ids || [],
-          updated_at: new Date().toISOString()
-        })
+        .update(showData)
         .eq('id', show.id);
       
       if (updateError) {
@@ -49,35 +53,32 @@ export async function saveShowToDatabase(show: any) {
         return null;
       }
       
+      console.log(`Successfully updated show ${show.id}`);
       return show.id;
     } else {
       console.log(`Inserting new show ${show.id}`);
       
-      const { error: insertError } = await supabase
+      const { data, error: insertError } = await supabase
         .from('shows')
         .insert({
-          id: show.id,
-          name: show.name,
-          date: show.date,
-          artist_id: show.artist_id,
-          venue_id: show.venue_id,
-          ticket_url: show.ticket_url,
-          image_url: show.image_url,
-          popularity: show.popularity || 0,
-          genre_ids: show.genre_ids || [],
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        });
+          ...showData,
+          created_at: new Date().toISOString()
+        })
+        .select('id')
+        .single();
       
       if (insertError) {
         console.error("Error inserting show:", insertError);
+        console.error("Show data:", showData);
         return null;
       }
       
+      console.log(`Successfully inserted new show ${show.id}`);
       return show.id;
     }
   } catch (error) {
     console.error("Error in saveShowToDatabase:", error);
+    console.error("Show data:", show);
     return null;
   }
 }
