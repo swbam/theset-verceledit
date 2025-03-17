@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { AlertCircle, Info } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
@@ -9,7 +8,7 @@ import { useAuth } from '@/contexts/auth/AuthContext';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { useIsMobile } from '@/hooks/use-mobile';
 import SetlistHeader from './SetlistHeader';
-import ShowSetlist from './ShowSetlist';
+import { ShowSetlist } from './setlist';
 import VotingStats from './VotingStats';
 import HowItWorksCard from './HowItWorksCard';
 
@@ -62,7 +61,6 @@ const SetlistSection: React.FC<SetlistSectionProps> = ({
   const totalVotes = setlist.reduce((acc, song) => acc + song.votes, 0);
   const userVotedCount = setlist.filter(song => song.userVoted).length;
   
-  // For debugging
   console.log("Available tracks:", availableTracks.length);
   console.log("Selected track:", selectedTrack);
   console.log("Is loading tracks:", isLoadingAllTracks);

@@ -23,22 +23,21 @@ export function useSongManagement(showId: string, initialSongs: Song[], isAuthen
     anonymousVoteCount
   } = useRealtimeVotes(showId, '', initialSongs);
   
-  const handleVote = (songId: string) => {
-    vote(songId)
-      .then((success) => {
-        if (success) {
-          toast.success("Your vote has been counted!");
-        } else if (!isAuthenticated && anonymousVoteCount >= 3) {
-          // This will trigger a toast in the hook, but we also redirect to login
-          setTimeout(() => {
-            login();
-          }, 2000);
-        }
-      })
-      .catch(error => {
-        console.error("Error voting for song:", error);
-        toast.error("Something went wrong while voting");
-      });
+  const handleVote = async (songId: string) => {
+    try {
+      const success = await vote(songId);
+      if (success) {
+        toast.success("Your vote has been counted!");
+      } else if (!isAuthenticated && anonymousVoteCount >= 3) {
+        // This will trigger a toast in the hook, but we also redirect to login
+        setTimeout(() => {
+          login();
+        }, 2000);
+      }
+    } catch (error) {
+      console.error("Error voting for song:", error);
+      toast.error("Something went wrong while voting");
+    }
   };
 
   const handleAddSong = (allTracksData: any) => {
