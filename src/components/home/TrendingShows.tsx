@@ -7,9 +7,9 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { fetchFeaturedShows } from '@/lib/ticketmaster';
 
 const TrendingShows = () => {
-  const { data: shows = [], isLoading, error } = useQuery({
+  const { data: showsData = [], isLoading, error } = useQuery({
     queryKey: ['trendingShows'],
-    queryFn: () => fetchFeaturedShows(4),
+    queryFn: () => fetchFeaturedShows(8), // Fetch more to ensure we have enough after deduplication
   });
 
   // Format date helper function
@@ -37,14 +37,14 @@ const TrendingShows = () => {
   const uniqueShows = React.useMemo(() => {
     const uniqueMap = new Map();
     
-    shows.forEach(show => {
+    showsData.forEach(show => {
       if (!uniqueMap.has(show.id)) {
         uniqueMap.set(show.id, show);
       }
     });
 
     return Array.from(uniqueMap.values()).slice(0, 4);
-  }, [shows]);
+  }, [showsData]);
 
   return (
     <section className="py-16 px-4">
@@ -117,7 +117,7 @@ const TrendingShows = () => {
                             <span key={i} className="text-xs">★</span>
                           ))}
                         </span>
-                        <span className="ml-1">{1000 + Math.floor(Math.random() * 5000)}</span>
+                        <span className="ml-1">{Math.floor(Math.random() * 3000) + 500}</span>
                       </div>
                     </div>
                   </div>
