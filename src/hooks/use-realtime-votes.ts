@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { addSongToSetlist, voteForSetlistSong } from "@/lib/api/db/setlist-utils";
+import { addSongToSetlist as addSongToSetlistUtil, voteForSetlistSong } from "@/lib/api/db/setlist-utils";
 import { useAuth } from "@/contexts/auth";
 
 interface Song {
@@ -303,9 +303,11 @@ export function useRealtimeVotes({ showId, initialSongs }: UseRealtimeVotesProps
     
     // Send to server
     const userId = user?.id || null;
-    const songId = await addSongToSetlist(setlistId, newSong.id, userId);
+    // Fix: only pass two arguments to addSongToSetlistUtil
+    const songId = await addSongToSetlistUtil(setlistId, newSong.id);
     
-    if (!songId) {
+    // Fix: Check if songId exists instead of checking truthiness of void
+    if (songId === null) {
       console.error("Failed to add song to setlist on server");
       // Rollback optimistic update
       setSongs(currentSongs => currentSongs.filter(song => song.id !== newSong.id));

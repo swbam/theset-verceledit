@@ -9,7 +9,7 @@ export async function saveShowToDatabase(show: any) {
   try {
     if (!show || !show.id) return;
     
-    console.log(`Saving show to database: ${showId} - ${show.name}`);
+    console.log(`Saving show to database: ${show.id} - ${show.name}`);
     
     // Check if show already exists
     const { data: existingShow, error: checkError } = await supabase

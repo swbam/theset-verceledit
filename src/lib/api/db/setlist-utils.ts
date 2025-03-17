@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { SpotifyTrack } from "@/lib/spotify/types";
 import { Json } from "@/integrations/supabase/types";
@@ -9,7 +8,10 @@ import { getArtistTopTracksFromDb } from "@/lib/spotify/utils";
  */
 export async function getOrCreateSetlistForShow(showId: string, artistId?: string): Promise<string | null> {
   try {
-    if (!showId) return null;
+    if (!showId) {
+      console.error("No showId provided to getOrCreateSetlistForShow");
+      return null;
+    }
     
     console.log(`Getting or creating setlist for show ${showId} with artist ${artistId || 'unknown'}`);
     
@@ -44,6 +46,11 @@ export async function getOrCreateSetlistForShow(showId: string, artistId?: strin
     
     if (createError) {
       console.error("Error creating setlist:", createError);
+      return null;
+    }
+    
+    if (!newSetlist || !newSetlist.id) {
+      console.error("Failed to create setlist - no ID returned");
       return null;
     }
     
@@ -221,7 +228,7 @@ export async function getSetlistSongs(setlistId: string) {
 /**
  * Add a song to a setlist
  */
-export async function addSongToSetlist(setlistId: string, trackId: string, userId?: string) {
+export async function addSongToSetlist(setlistId: string, trackId: string): Promise<string | null> {
   try {
     if (!setlistId || !trackId) {
       console.error("Invalid parameters for addSongToSetlist");
@@ -254,14 +261,18 @@ export async function addSongToSetlist(setlistId: string, trackId: string, userI
       .insert({
         setlist_id: setlistId,
         track_id: trackId,
-        votes: 0,
-        suggested_by: userId || null
+        votes: 0
       })
       .select('id')
       .single();
     
     if (insertError) {
       console.error("Error adding song to setlist:", insertError);
+      return null;
+    }
+    
+    if (!newSong) {
+      console.error("Failed to add song - no data returned");
       return null;
     }
     
