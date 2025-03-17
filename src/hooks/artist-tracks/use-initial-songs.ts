@@ -16,14 +16,18 @@ export function useInitialSongs(
     if (topTracksData?.tracks && Array.isArray(topTracksData.tracks) && topTracksData.tracks.length > 0) {
       console.log(`Using ${topTracksData.tracks.length} top tracks for initial setlist`);
       
-      return topTracksData.tracks
-        .filter(track => track && track.id && track.name) // Make sure tracks are valid
-        .map((track: SpotifyTrack) => ({
-          id: track.id,
-          name: track.name,
-          votes: track.popularity ? Math.floor(track.popularity / 20) : 0,
-          userVoted: false
-        }));
+      // Sort by popularity just to be sure
+      const sortedTracks = [...topTracksData.tracks]
+        .filter(track => track && track.id && track.name)
+        .sort((a, b) => (b.popularity || 0) - (a.popularity || 0))
+        .slice(0, 10);
+      
+      return sortedTracks.map((track: SpotifyTrack) => ({
+        id: track.id,
+        name: track.name,
+        votes: track.popularity ? Math.floor(track.popularity / 20) : 0,
+        userVoted: false
+      }));
     }
     
     // If no top tracks, try all tracks
@@ -31,7 +35,7 @@ export function useInitialSongs(
       console.log(`Using sorted all tracks for initial setlist instead of top tracks`);
       
       return [...allTracksData.tracks]
-        .filter(track => track && track.id && track.name) // Filter valid tracks
+        .filter(track => track && track.id && track.name)
         .sort((a, b) => (b.popularity || 0) - (a.popularity || 0))
         .slice(0, 10)
         .map((track: SpotifyTrack) => ({

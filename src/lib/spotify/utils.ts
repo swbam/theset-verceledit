@@ -75,7 +75,7 @@ export async function saveTracksToDb(artistId: string, tracks: SpotifyTrack[]) {
     if (error) {
       console.error("Error saving tracks to database:", error);
     } else {
-      console.log(`Successfully saved tracks to database for artist ${artistId}`);
+      console.log(`Successfully saved ${tracksToInsert.length} tracks to database for artist ${artistId}`);
     }
     
     return data;
@@ -88,12 +88,18 @@ export async function saveTracksToDb(artistId: string, tracks: SpotifyTrack[]) {
 // Function to get stored tracks from database
 export async function getStoredTracksFromDb(artistId: string): Promise<SpotifyTrack[] | null> {
   try {
-    if (!artistId) return null;
+    if (!artistId) {
+      console.log("No artist ID provided for getStoredTracksFromDb");
+      return null;
+    }
+    
+    console.log(`Fetching stored tracks for artist ${artistId} from database`);
     
     const { data, error } = await supabase
       .from('top_tracks')
       .select('*')
-      .eq('artist_id', artistId);
+      .eq('artist_id', artistId)
+      .order('popularity', { ascending: false });
     
     if (error) {
       console.error("Error fetching stored tracks:", error);
@@ -101,8 +107,11 @@ export async function getStoredTracksFromDb(artistId: string): Promise<SpotifyTr
     }
     
     if (!data || data.length === 0) {
+      console.log(`No stored tracks found for artist ${artistId}`);
       return null;
     }
+    
+    console.log(`Found ${data.length} stored tracks for artist ${artistId}`);
     
     // Convert database records to SpotifyTrack format
     const tracks: SpotifyTrack[] = data.map(track => ({

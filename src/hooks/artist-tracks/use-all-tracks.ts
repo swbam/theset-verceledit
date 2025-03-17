@@ -18,24 +18,23 @@ export function useAllTracks(spotifyArtistId: string, isLoadingShow: boolean) {
       try {
         // First check if stored data is already available
         const storedTracks = await getStoredTracksFromDb(spotifyArtistId);
-        if (storedTracks && storedTracks.length > 10) {
+        if (storedTracks && storedTracks.length > 0) {
           console.log(`Using ${storedTracks.length} cached tracks from database`);
-          return { tracks: storedTracks as SpotifyTrack[] };
+          return { tracks: storedTracks };
         }
         
         // Otherwise fetch from Spotify API (this will also store the tracks in DB)
         const tracksResponse = await getArtistAllTracks(spotifyArtistId);
-        const tracks = tracksResponse.tracks;
+        console.log(`Fetched all tracks result:`, tracksResponse);
         
-        console.log(`Fetched ${Array.isArray(tracks) ? tracks.length : 0} tracks in total`);
-        
-        // If we still don't have tracks, return mock data
-        if (!tracks || (Array.isArray(tracks) && tracks.length === 0)) {
-          console.log("No tracks returned from getArtistAllTracks, using mock data");
-          return { tracks: generateMockTracks(20) };
+        if (tracksResponse && tracksResponse.tracks && tracksResponse.tracks.length > 0) {
+          console.log(`Fetched ${tracksResponse.tracks.length} tracks in total`);
+          return tracksResponse;
         }
         
-        return { tracks: tracks as SpotifyTrack[] };
+        // If we still don't have tracks, return mock data
+        console.log("No tracks returned from getArtistAllTracks, using mock data");
+        return { tracks: generateMockTracks(20) };
       } catch (error) {
         console.error("Error fetching all tracks:", error);
         return { tracks: generateMockTracks(20) };

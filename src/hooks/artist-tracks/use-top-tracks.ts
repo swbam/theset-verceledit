@@ -1,4 +1,3 @@
-
 import { useQuery } from '@tanstack/react-query';
 import { getArtistTopTracks } from '@/lib/spotify';
 import { generateMockTracks } from './utils';
@@ -18,17 +17,11 @@ export function useTopTracks(spotifyArtistId: string, isLoadingShow: boolean) {
       try {
         // Directly call our top tracks API function
         const tracksResponse = await getArtistTopTracks(spotifyArtistId, 10);
-        console.log(`Fetched top tracks result`, tracksResponse);
+        console.log(`Fetched top tracks result:`, tracksResponse);
         
-        // Handle both response formats - array or object with tracks property
-        if (Array.isArray(tracksResponse)) {
-          console.log(`Received array of ${tracksResponse.length} tracks`);
-          return { tracks: tracksResponse };
-        }
-        
-        // If we have tracks in the object format, return them
+        // We should always get an object with tracks property
         if (tracksResponse.tracks && tracksResponse.tracks.length > 0) {
-          console.log(`Received ${tracksResponse.tracks.length} tracks in object format`);
+          console.log(`Received ${tracksResponse.tracks.length} tracks`);
           return tracksResponse;
         }
         

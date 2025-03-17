@@ -56,6 +56,8 @@ export async function addSongToSetlist(setlistId: string, trackId: string, userI
   try {
     if (!setlistId || !trackId) return null;
     
+    console.log(`Adding song ${trackId} to setlist ${setlistId}`);
+    
     // Check if song already exists in setlist
     const { data: existingSong, error: checkError } = await supabase
       .from('setlist_songs')
@@ -71,10 +73,12 @@ export async function addSongToSetlist(setlistId: string, trackId: string, userI
     
     // If song exists, return it
     if (existingSong) {
+      console.log(`Song ${trackId} already exists in setlist ${setlistId}`);
       return existingSong.id;
     }
     
     // Add new song to setlist
+    console.log(`Inserting new song ${trackId} to setlist ${setlistId}`);
     const { data: newSong, error: createError } = await supabase
       .from('setlist_songs')
       .insert({
@@ -92,6 +96,7 @@ export async function addSongToSetlist(setlistId: string, trackId: string, userI
       return null;
     }
     
+    console.log(`Successfully added song ${trackId} to setlist ${setlistId}`);
     return newSong.id;
   } catch (error) {
     console.error("Error in addSongToSetlist:", error);
@@ -106,6 +111,8 @@ export async function getSetlistSongsForShow(showId: string) {
   try {
     if (!showId) return [];
     
+    console.log(`Fetching setlist songs for show ${showId}`);
+    
     // Get setlist for show
     const { data: setlist, error: setlistError } = await supabase
       .from('setlists')
@@ -117,6 +124,8 @@ export async function getSetlistSongsForShow(showId: string) {
       console.error("Error getting setlist for show:", setlistError);
       return [];
     }
+    
+    console.log(`Found setlist ${setlist.id} for show ${showId}`);
     
     // Get setlist songs with related track info
     const { data: songs, error: songsError } = await supabase
@@ -131,17 +140,31 @@ export async function getSetlistSongsForShow(showId: string) {
           spotify_url,
           preview_url,
           album_name,
-          album_image_url
+          album_image_url,
+          popularity
         )
       `)
-      .eq('setlist_id', setlist.id);
+      .eq('setlist_id', setlist.id)
+      .order('votes', { ascending: false });
     
     if (songsError) {
       console.error("Error getting setlist songs:", songsError);
       return [];
     }
     
-    return songs;
+    console.log(`Found ${songs?.length || 0} songs for setlist ${setlist.id}`);
+    
+    return songs.map(song => ({
+      id: song.id,
+      trackId: song.track_id,
+      votes: song.votes,
+      name: song.top_tracks?.name || 'Unknown Song',
+      spotifyUrl: song.top_tracks?.spotify_url,
+      previewUrl: song.top_tracks?.preview_url,
+      albumName: song.top_tracks?.album_name,
+      albumImageUrl: song.top_tracks?.album_image_url,
+      popularity: song.top_tracks?.popularity
+    }));
   } catch (error) {
     console.error("Error in getSetlistSongsForShow:", error);
     return [];

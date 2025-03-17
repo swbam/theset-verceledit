@@ -1,7 +1,6 @@
 
 import { fetchArtistTopTracks } from './fetch-artist-top-tracks';
 import { generateMockTracks } from './utils';
-import { convertStoredTracks } from './utils';
 import { getStoredTracksFromDb } from './utils';
 import { SpotifyTrack } from './types';
 
@@ -18,10 +17,10 @@ export async function getArtistTopTracks(artistId: string, limit: number = 10): 
     }
     
     // If no stored tracks, fetch from Spotify
-    const tracks = await fetchArtistTopTracks(artistId);
-    if (tracks && tracks.length > 0) {
-      console.log(`Fetched ${tracks.length} top tracks from Spotify`);
-      return { tracks: tracks.slice(0, limit) };
+    const fetchedTracks = await fetchArtistTopTracks(artistId);
+    if (fetchedTracks && fetchedTracks.length > 0) {
+      console.log(`Fetched ${fetchedTracks.length} top tracks from Spotify`);
+      return { tracks: fetchedTracks.slice(0, limit) };
     }
     
     console.log("No tracks found in database or Spotify, using mock data");
