@@ -10,9 +10,6 @@ import SetlistSection from '@/components/shows/SetlistSection';
 import ShowDetailSkeleton from '@/components/shows/ShowDetailSkeleton';
 import ShowNotFound from '@/components/shows/ShowNotFound';
 import { useShowDetails } from '@/hooks/use-show-details';
-import { useArtistTracks } from '@/hooks/use-artist-tracks';
-import { useSongManagement } from '@/hooks/use-song-management';
-import { useDocumentTitle } from '@/hooks/use-document-title';
 
 const ShowDetail = () => {
   const { id } = useParams<{ id: string }>();
@@ -71,60 +68,6 @@ const ShowDetail = () => {
     }
   }, [show, isLoadingShow, isError, showError, navigate]);
   
-  // Fetch artist tracks - this will get both top tracks and all tracks
-  const { 
-    initialSongs, 
-    isLoadingTracks, 
-    isLoadingAllTracks, 
-    allTracksData,
-    getAvailableTracks
-  } = useArtistTracks(spotifyArtistId, isLoadingShow);
-  
-  // Manage songs and voting
-  const {
-    setlist,
-    isConnected,
-    selectedTrack,
-    setSelectedTrack,
-    handleVote,
-    handleAddSong,
-    anonymousVoteCount
-  } = useSongManagement(id || '', initialSongs, isAuthenticated, login);
-  
-  console.log("Current setlist length:", setlist.length);
-  console.log("Is loading tracks:", isLoadingTracks);
-  console.log("Is loading all tracks:", isLoadingAllTracks);
-  console.log("Initial songs length:", initialSongs.length);
-  console.log("All tracks data length:", allTracksData?.tracks?.length);
-  
-  // Calculate available tracks for dropdown
-  const availableTracks = React.useMemo(() => {
-    // Log the current state to debug
-    console.log("Calculating available tracks. Current setlist:", setlist.length, "All tracks data:", allTracksData?.tracks?.length);
-    return getAvailableTracks(setlist);
-  }, [allTracksData, setlist, getAvailableTracks]);
-  
-  // Handle song addition
-  const handleAddSongClick = async () => {
-    console.log("Add song clicked, passing all tracks data:", allTracksData?.tracks?.length);
-    if (!selectedTrack) {
-      toast.error("Please select a song first");
-      return;
-    }
-    
-    // Find the selected track in the available tracks
-    const trackToAdd = allTracksData?.tracks?.find((track: any) => track.id === selectedTrack);
-    
-    if (trackToAdd) {
-      const success = await handleAddSong(allTracksData);
-      if (success) {
-        console.log(`Added song to setlist: ${trackToAdd.name}`, setlist.length + 1);
-      }
-    } else {
-      toast.error("Could not find the selected track");
-    }
-  };
-  
   if (isLoadingShow) {
     return <ShowDetailSkeleton />;
   }
@@ -139,21 +82,12 @@ const ShowDetail = () => {
       
       <main className="flex-grow">
         <ShowHeader show={show} />
-        <SetlistSection 
-          setlist={setlist}
-          isConnected={isConnected}
-          isLoadingTracks={isLoadingTracks}
-          handleVote={handleVote}
-          showId={id}
-          showName={show.name}
-          artistName={show.artist?.name || 'Artist'}
-          availableTracks={availableTracks}
-          isLoadingAllTracks={isLoadingAllTracks}
-          selectedTrack={selectedTrack}
-          setSelectedTrack={setSelectedTrack}
-          handleAddSong={handleAddSongClick}
-          anonymousVoteCount={anonymousVoteCount}
-        />
+        {spotifyArtistId && (
+          <SetlistSection 
+            showId={id || ''}
+            spotifyArtistId={spotifyArtistId}
+          />
+        )}
       </main>
       
       <Footer />

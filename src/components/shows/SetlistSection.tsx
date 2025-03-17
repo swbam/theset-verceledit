@@ -1,8 +1,9 @@
 
 import React from 'react';
 import { useAuth } from '@/contexts/auth/AuthContext';
-import { useArtistTracks, useInitialSongs } from '@/hooks/artist-tracks';
-import { useRealtimeVotes } from '@/hooks/use-realtime-votes';
+import { useArtistTracks } from '@/hooks/artist-tracks';
+import { useInitialSongs } from '@/hooks/artist-tracks';
+import { useRealtimeVotes } from '@/hooks/realtime';
 import { LoadingIndicator } from '@/components/ui/loading';
 import ShowSetlist from '@/components/shows/setlist/ShowSetlist';
 

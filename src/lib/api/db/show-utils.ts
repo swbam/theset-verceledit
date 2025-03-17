@@ -1,296 +1,244 @@
-
 import { supabase } from '@/integrations/supabase/client';
-import { getArtistTopTracks } from '@/lib/spotify';
-import { saveTracksToDb } from '@/lib/spotify/utils';
 import { toast } from 'sonner';
 
-/**
- * Create a setlist for a show if it doesn't exist
- */
-export async function createSetlistForShow(show: any) {
+// Create a new show record in the database
+export async function createShow(showData) {
   try {
-    if (!show || !show.id) {
-      console.error("Invalid show data provided");
+    const { data: show, error } = await supabase
+      .from('shows')
+      .insert(showData)
+      .select()
+      .single();
+      
+    if (error) {
+      console.error('Error creating show:', error.message);
       return null;
     }
     
-    console.log(`Checking for existing setlist for show ${show.id}`);
+    return show;
+  } catch (error) {
+    console.error('Error creating show:', error);
+    return null;
+  }
+}
+
+// Create a setlist for a show
+export async function createSetlistForShow(showId, initialSongs = []) {
+  try {
+    console.log(`Creating setlist for show ${showId}`);
     
-    // Check if a setlist already exists for this show
-    const { data: existingSetlist, error: checkError } = await supabase
+    // First check if a setlist already exists for this show
+    const { data: existingSetlist, error: fetchError } = await supabase
       .from('setlists')
       .select('id')
-      .eq('show_id', show.id)
+      .eq('show_id', showId)
       .maybeSingle();
     
-    if (checkError) {
-      console.error("Error checking for existing setlist:", checkError);
+    if (fetchError) {
+      console.error('Error checking for existing setlist:', fetchError.message);
       return null;
     }
     
-    // If a setlist already exists, return it
-    if (existingSetlist) {
-      console.log(`Found existing setlist ${existingSetlist.id} for show ${show.id}`);
+    // If a setlist exists, return its ID
+    if (existingSetlist?.id) {
+      console.log(`Setlist already exists for show ${showId}, ID: ${existingSetlist.id}`);
       return existingSetlist.id;
     }
     
-    // Create a new setlist with direct insert
-    console.log(`Creating new setlist for show ${show.id}`);
+    // If we're here, we need to create a new setlist
+    // Try using the database function if available
+    try {
+      // Use a database function to create the setlist and return its ID
+      const { data, error } = await supabase
+        .rpc('create_setlist_for_show', { show_id: showId });
+        
+      if (error) {
+        console.error('Error using create_setlist_for_show RPC:', error.message);
+        // Fall back to manual creation below
+      } else if (data) {
+        console.log(`Created setlist via RPC, ID: ${data}`);
+        return data;
+      }
+    } catch (rpcError) {
+      console.error('RPC not available or failed:', rpcError);
+      // Fall back to manual creation below
+    }
     
-    // First try direct insert approach
-    const { data: newSetlist, error: createError } = await supabase
+    // Manual creation as fallback
+    const { data: newSetlist, error: insertError } = await supabase
       .from('setlists')
       .insert({
-        show_id: show.id,
-        last_updated: new Date().toISOString()
+        show_id: showId,
+        created_at: new Date().toISOString(),
       })
       .select('id')
       .single();
     
-    if (createError) {
-      console.error("Error creating setlist with direct insert:", createError);
-      console.error("Show data:", show);
-      
-      // Try alternative approach - use RPC call if available
-      try {
-        const { data: rpcResult, error: rpcError } = await supabase
-          .rpc('create_setlist_for_show', { show_id: show.id });
-          
-        if (rpcError) {
-          console.error("Error creating setlist via RPC:", rpcError);
-          return null;
-        }
-        
-        if (rpcResult) {
-          console.log(`Created setlist via RPC: ${rpcResult}`);
-          return rpcResult;
-        }
-      } catch (rpcError) {
-        console.error("Error in RPC fallback:", rpcError);
-      }
-      
+    if (insertError) {
+      console.error('Error creating setlist:', insertError.message);
+      toast.error("Could not create setlist");
       return null;
     }
     
-    console.log(`Created setlist ${newSetlist.id} for show ${show.id}`);
+    console.log(`Created new setlist manually, ID: ${newSetlist.id}`);
     
-    // If we have an artist ID, fetch and add initial tracks
-    if (show.artist_id) {
-      console.log(`Fetching initial tracks for artist ${show.artist_id}`);
-      try {
-        // Get artist's top tracks from Spotify
-        const { tracks } = await getArtistTopTracks(show.artist_id, 5);
-        
-        if (tracks && tracks.length > 0) {
-          console.log(`Adding ${tracks.length} initial tracks to setlist`);
-          
-          // Save tracks to database
-          await saveTracksToDb(show.artist_id, tracks);
-          
-          // Add tracks to setlist
-          for (const track of tracks) {
-            if (track.id && track.name) {
-              await addTrackToSetlist(newSetlist.id, track.id);
-            }
-          }
-        }
-      } catch (error) {
-        console.error("Error adding initial tracks to setlist:", error);
-        toast.error("Failed to add initial tracks to setlist");
-        // Continue anyway, the setlist is created
-      }
+    // If we have initial songs, add them to the setlist
+    if (initialSongs && initialSongs.length > 0) {
+      await addSongsToSetlist(newSetlist.id, initialSongs);
     }
     
     return newSetlist.id;
   } catch (error) {
-    console.error("Error in createSetlistForShow:", error);
+    console.error('Error in createSetlistForShow:', error);
     return null;
   }
 }
 
-/**
- * Add a track to a setlist
- */
-async function addTrackToSetlist(setlistId: string, trackId: string) {
+// Add songs to a setlist
+export async function addSongsToSetlist(setlistId, songs) {
   try {
-    console.log(`Adding track ${trackId} to setlist ${setlistId}`);
-    
-    // Check if track already exists in the setlist
-    const { data: existingTrack, error: checkError } = await supabase
-      .from('setlist_songs')
-      .select('id')
-      .eq('setlist_id', setlistId)
-      .eq('track_id', trackId)
-      .maybeSingle();
-      
-    if (checkError && checkError.code !== 'PGRST116') {
-      console.error("Error checking for existing track:", checkError);
-      return null;
+    if (!setlistId || !songs || !Array.isArray(songs) || songs.length === 0) {
+      console.log('No songs to add or invalid setlist ID');
+      return false;
     }
     
-    if (existingTrack) {
-      console.log(`Track ${trackId} already exists in setlist ${setlistId}`);
-      return existingTrack.id;
-    }
+    console.log(`Adding ${songs.length} songs to setlist ${setlistId}`);
     
+    // Prepare songs with setlist_id and initial votes
+    const songsToInsert = songs.map((song, index) => ({
+      setlist_id: setlistId,
+      song_id: song.id,
+      name: song.name || `Song ${index + 1}`,
+      votes: song.votes || 0,
+      album_name: song.albumName || null,
+      album_image_url: song.albumImageUrl || null,
+      artist_name: song.artistName || null,
+      created_at: new Date().toISOString()
+    }));
+    
+    // Insert all songs at once
     const { data, error } = await supabase
       .from('setlist_songs')
-      .insert({
-        setlist_id: setlistId,
-        track_id: trackId,
-        votes: 0
-      })
-      .select('id')
-      .single();
+      .insert(songsToInsert)
+      .select();
     
     if (error) {
-      console.error("Error adding track to setlist:", error);
-      
-      // Try alternative approach with delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      const { data: retryData, error: retryError } = await supabase
-        .from('setlist_songs')
-        .insert({
-          setlist_id: setlistId,
-          track_id: trackId,
-          votes: 0
-        })
-        .select('id')
-        .single();
-        
-      if (retryError) {
-        console.error("Error in retry adding track to setlist:", retryError);
-        return null;
-      }
-      
-      console.log(`Successfully added track ${trackId} to setlist ${setlistId} on retry`);
-      return retryData?.id || null;
+      console.error('Error adding songs to setlist:', error.message);
+      return false;
     }
     
-    console.log(`Successfully added track ${trackId} to setlist ${setlistId}`);
-    return data.id;
+    console.log(`Successfully added ${data.length} songs to setlist ${setlistId}`);
+    return true;
   } catch (error) {
-    console.error("Error in addTrackToSetlist:", error);
-    return null;
+    console.error('Error in addSongsToSetlist:', error);
+    return false;
   }
 }
 
-/**
- * Get all shows for an artist
- */
-export async function getShowsForArtist(artistId: string) {
+// Get a show by ID
+export async function getShowById(showId) {
   try {
-    const { data, error } = await supabase
+    if (!showId) return null;
+    
+    const { data: show, error } = await supabase
       .from('shows')
       .select(`
         *,
-        venue:venues (*)
+        artist:artist_id (*),
+        venue:venue_id (*)
       `)
-      .eq('artist_id', artistId)
-      .order('date', { ascending: true });
+      .eq('id', showId)
+      .single();
     
     if (error) {
-      console.error("Error fetching shows for artist:", error);
+      console.error('Error fetching show:', error.message);
+      return null;
+    }
+    
+    return show;
+  } catch (error) {
+    console.error('Error in getShowById:', error);
+    return null;
+  }
+}
+
+// Get shows for an artist
+export async function getShowsForArtist(artistId, limit = 10) {
+  try {
+    if (!artistId) return [];
+    
+    const { data: shows, error } = await supabase
+      .from('shows')
+      .select(`
+        *,
+        artist:artist_id (*),
+        venue:venue_id (*)
+      `)
+      .eq('artist_id', artistId)
+      .order('date', { ascending: true })
+      .limit(limit);
+    
+    if (error) {
+      console.error('Error fetching artist shows:', error.message);
       return [];
     }
     
-    return data || [];
+    return shows;
   } catch (error) {
-    console.error("Error in getShowsForArtist:", error);
+    console.error('Error in getShowsForArtist:', error);
     return [];
   }
 }
 
-/**
- * Save a show to the database
- */
-export async function saveShowToDatabase(show: any) {
+// Get recent shows
+export async function getRecentShows(limit = 10) {
   try {
-    if (!show || !show.id) {
-      console.error("Invalid show data provided");
-      return null;
-    }
-    
-    console.log(`Saving show ${show.id} to database with data:`, JSON.stringify(show));
-    
-    // Check if show already exists
-    const { data: existingShow, error: checkError } = await supabase
+    const { data: shows, error } = await supabase
       .from('shows')
-      .select('id')
-      .eq('id', show.id)
-      .maybeSingle();
+      .select(`
+        *,
+        artist:artist_id (*),
+        venue:venue_id (*)
+      `)
+      .order('created_at', { ascending: false })
+      .limit(limit);
     
-    if (checkError) {
-      console.error("Error checking for existing show:", checkError);
-      return null;
+    if (error) {
+      console.error('Error fetching recent shows:', error.message);
+      return [];
     }
     
-    // Make sure required fields are present
-    const showData = {
-      id: show.id,
-      name: show.name || `Show ${show.id}`,
-      date: show.date || null,
-      artist_id: show.artist_id || null,
-      venue_id: show.venue_id || null,
-      ticket_url: show.ticket_url || null,
-      image_url: show.image_url || null,
-      popularity: show.popularity || 0,
-      genre_ids: Array.isArray(show.genre_ids) ? show.genre_ids : [],
-      updated_at: new Date().toISOString()
-    };
-    
-    let result = null;
-    
-    // Update or insert show
-    if (existingShow) {
-      console.log(`Updating existing show ${show.id}`);
-      
-      const { data, error: updateError } = await supabase
-        .from('shows')
-        .update(showData)
-        .eq('id', show.id)
-        .select('id')
-        .single();
-      
-      if (updateError) {
-        console.error("Error updating show:", updateError);
-        return null;
-      }
-      
-      console.log(`Successfully updated show ${show.id}`);
-      result = data.id;
-    } else {
-      console.log(`Inserting new show ${show.id}`);
-      
-      const { data, error: insertError } = await supabase
-        .from('shows')
-        .insert({
-          ...showData,
-          created_at: new Date().toISOString()
-        })
-        .select('id')
-        .single();
-      
-      if (insertError) {
-        console.error("Error inserting show:", insertError);
-        console.error("Show data:", showData);
-        return null;
-      }
-      
-      console.log(`Successfully inserted new show ${show.id}`);
-      result = data.id;
-    }
-    
-    // After successfully saving the show, create a setlist for it if it doesn't exist
-    if (result) {
-      await createSetlistForShow(show);
-    }
-    
-    return result;
+    return shows;
   } catch (error) {
-    console.error("Error in saveShowToDatabase:", error);
-    console.error("Show data:", show);
-    return null;
+    console.error('Error in getRecentShows:', error);
+    return [];
+  }
+}
+
+// Get trending shows
+export async function getTrendingShows(limit = 10) {
+  try {
+    // This is a placeholder for actual trending logic
+    // In a real app, you might have a more complex query based on votes, views, etc.
+    const { data: shows, error } = await supabase
+      .from('shows')
+      .select(`
+        *,
+        artist:artist_id (*),
+        venue:venue_id (*)
+      `)
+      .order('date', { ascending: true })
+      .gte('date', new Date().toISOString())
+      .limit(limit);
+    
+    if (error) {
+      console.error('Error fetching trending shows:', error.message);
+      return [];
+    }
+    
+    return shows;
+  } catch (error) {
+    console.error('Error in getTrendingShows:', error);
+    return [];
   }
 }
