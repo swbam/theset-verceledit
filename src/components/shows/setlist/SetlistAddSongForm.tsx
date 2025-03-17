@@ -36,9 +36,10 @@ const SetlistAddSongForm = ({
       return;
     }
     
+    console.log("Triggering handleAddSong with track ID:", selectedTrack);
+    
     // Call the handleAddSong function from the parent component
     handleAddSong();
-    console.log("Add song triggered with track:", selectedTrack);
   };
 
   return (

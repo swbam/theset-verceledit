@@ -80,7 +80,8 @@ export function useRealtimeVotes(showId: string, spotifyArtistId: string, initia
     selectedTrack,
     setSelectedTrack,
     handleAddSong: async (trackId: string, trackName: string) => {
-      await handleAddSong(trackId, trackName);
+      console.log(`Handling add song: ${trackId} - ${trackName}`);
+      return await handleAddSong(trackId, trackName);
     },
     anonymousVoteCount,
     setlistId

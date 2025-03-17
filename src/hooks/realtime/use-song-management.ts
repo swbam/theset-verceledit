@@ -17,24 +17,27 @@ export function useSongManagement(
   // Handle adding a new song to the setlist
   const handleAddSong = useCallback(async (trackId: string, trackName: string) => {
     try {
-      if (!setlistId) {
-        console.error("Missing setlist ID");
-        
-        // Try to get or create the setlist again
-        const id = await getSetlistId(showId);
-        if (!id) {
-          toast.error("Unable to add song: setlist not found");
-          return;
-        }
-        
-        toast.info("Setlist reconnected, please try adding the song again");
-        return;
-      }
-      
       if (!trackId) {
         console.error("Missing track ID");
         toast.error("Please select a song first");
-        return;
+        return false;
+      }
+      
+      if (!setlistId) {
+        console.log("Setlist ID not available, attempting to get or create it");
+        
+        // Try to get or create the setlist
+        const newSetlistId = await getSetlistId(showId);
+        if (!newSetlistId) {
+          toast.error("Unable to add song: could not create setlist");
+          return false;
+        }
+        
+        // We have a new setlist ID, but since this function will be called again 
+        // after the setlistId state updates, we'll return here
+        console.log(`Created/found setlist ID: ${newSetlistId}, will retry adding song`);
+        toast.info("Preparing setlist, please try adding the song again");
+        return false;
       }
       
       console.log(`Adding song ${trackId} (${trackName}) to setlist ${setlistId}`);
@@ -45,7 +48,7 @@ export function useSongManagement(
       if (songExists) {
         console.log(`Song ${trackId} already exists in setlist`);
         toast.info(`"${trackName}" is already in the setlist!`);
-        return;
+        return false;
       }
       
       const songId = await dbAddSongToSetlist(setlistId, trackId, trackName);
@@ -54,13 +57,17 @@ export function useSongManagement(
         console.log("Song added successfully with ID:", songId);
         // Refresh the songs list
         refetchSongs();
+        toast.success(`"${trackName}" added to setlist!`);
+        return true;
       } else {
         console.error("Failed to add song");
         toast.error("Failed to add song to setlist");
+        return false;
       }
     } catch (error) {
       console.error("Error adding song:", error);
       toast.error("Error adding song to setlist");
+      return false;
     }
   }, [setlistId, showId, getSetlistId, setlist, refetchSongs]);
   
@@ -72,9 +79,11 @@ export function useSongManagement(
     
     // Add each song to the setlist
     for (const song of initialSongs) {
-      if (!song.id.startsWith('placeholder')) {
-        console.log(`Adding initial song to setlist: ${song.name}`);
+      try {
+        console.log(`Adding initial song to setlist: ${song.name} (${song.id})`);
         await dbAddSongToSetlist(setlistId, song.id, song.name);
+      } catch (err) {
+        console.error(`Error adding initial song ${song.id}:`, err);
       }
     }
     

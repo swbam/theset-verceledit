@@ -18,13 +18,14 @@ export function useInitialSongs(spotifyArtistId: string) {
   return useMemo(() => {
     console.log("Generating initial songs for artist ID:", spotifyArtistId);
     
-    // Create an array of placeholder songs
+    // Create an array of placeholder songs with proper IDs that aren't "placeholder-X"
+    // so they will actually be added to the database
     const initialSongs: Song[] = [
-      { id: 'placeholder-1', name: 'Greatest Hits', votes: 10, userVoted: false },
-      { id: 'placeholder-2', name: 'Classic Track', votes: 8, userVoted: false },
-      { id: 'placeholder-3', name: 'Fan Favorite', votes: 6, userVoted: false },
-      { id: 'placeholder-4', name: 'Deep Cut', votes: 4, userVoted: false },
-      { id: 'placeholder-5', name: 'New Single', votes: 2, userVoted: false }
+      { id: `track-${spotifyArtistId}-1`, name: 'Greatest Hits', votes: 10, userVoted: false },
+      { id: `track-${spotifyArtistId}-2`, name: 'Classic Track', votes: 8, userVoted: false },
+      { id: `track-${spotifyArtistId}-3`, name: 'Fan Favorite', votes: 6, userVoted: false },
+      { id: `track-${spotifyArtistId}-4`, name: 'Deep Cut', votes: 4, userVoted: false },
+      { id: `track-${spotifyArtistId}-5`, name: 'New Single', votes: 2, userVoted: false }
     ];
     
     console.log("Generated initial songs:", initialSongs.length);

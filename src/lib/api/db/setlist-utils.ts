@@ -161,6 +161,8 @@ export const addSongToSetlist = async (
   songName?: string
 ): Promise<string | null> => {
   try {
+    console.log(`Adding song to setlist: ${setlistId}, track: ${trackId}, name: ${songName}`);
+    
     // Check if the song already exists in the setlist
     const { data: existingSong, error: checkError } = await supabase
       .from('setlist_songs')
@@ -170,11 +172,13 @@ export const addSongToSetlist = async (
       .maybeSingle();
 
     if (checkError && checkError.code !== 'PGRST116') {
+      console.error("Error checking for existing song:", checkError);
       throw checkError;
     }
 
     if (existingSong) {
       // Song already exists in the setlist
+      console.log(`Song ${trackId} already exists in setlist ${setlistId}, ID: ${existingSong.id}`);
       return existingSong.id;
     }
 
@@ -188,9 +192,14 @@ export const addSongToSetlist = async (
       
       if (!trackError && trackData) {
         songName = trackData.name;
+      } else {
+        console.log("Could not find track name in database, using default");
+        songName = `Track ${trackId.substring(0, 8)}`;
       }
     }
 
+    console.log(`Inserting song "${songName}" (${trackId}) into setlist ${setlistId}`);
+    
     // Add the song to the setlist
     const { data, error: insertError } = await supabase
       .from('setlist_songs')
@@ -202,8 +211,12 @@ export const addSongToSetlist = async (
       .select('id')
       .single();
 
-    if (insertError) throw insertError;
+    if (insertError) {
+      console.error("Error inserting song:", insertError);
+      throw insertError;
+    }
 
+    console.log(`Successfully added song to setlist, ID: ${data?.id}`);
     return data?.id || null;
   } catch (error) {
     console.error('Error adding song to setlist:', error);

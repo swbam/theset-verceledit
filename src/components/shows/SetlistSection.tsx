@@ -46,6 +46,25 @@ const SetlistSection = ({ showId, spotifyArtistId }: SetlistSectionProps) => {
     );
   }
   
+  // Function to handle adding a song with the selected track
+  const onAddSong = async () => {
+    console.log("Adding song with track ID:", selectedTrack);
+    if (!selectedTrack) return;
+    
+    // Find the selected track in the available tracks
+    const trackToAdd = availableTracks.find(track => track.id === selectedTrack);
+    if (!trackToAdd) {
+      console.error("Selected track not found in available tracks");
+      return;
+    }
+    
+    // Call the handleAddSong function with the track ID and name
+    await handleAddSong(selectedTrack, trackToAdd.name || '');
+    
+    // Reset the selected track
+    setSelectedTrack('');
+  };
+  
   return (
     <ShowSetlist 
       setlist={setlist}
@@ -54,7 +73,7 @@ const SetlistSection = ({ showId, spotifyArtistId }: SetlistSectionProps) => {
       isLoadingAllTracks={isLoadingAllTracks}
       selectedTrack={selectedTrack}
       setSelectedTrack={setSelectedTrack}
-      handleAddSong={() => handleAddSong(selectedTrack, '')}
+      handleAddSong={onAddSong}
       isAuthenticated={isAuthenticated}
       login={login}
       anonymousVoteCount={anonymousVoteCount}
