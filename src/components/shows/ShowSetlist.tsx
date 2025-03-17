@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { PlusCircle, Disc3 } from 'lucide-react';
+import { PlusCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import VotableSetlistTable from '@/components/setlist/VotableSetlistTable';
 import { Button } from '@/components/ui/button';
@@ -128,7 +128,7 @@ const ShowSetlist = ({
                     Object.entries(tracksByAlbum).map(([album, tracks]) => (
                       <SelectGroup key={album}>
                         <SelectLabel className="px-2 text-xs font-semibold text-white/50">
-                          <Disc3 size={12} className="inline mr-1" /> {album}
+                          {album}
                         </SelectLabel>
                         {tracks
                           .sort((a, b) => (b.popularity || 0) - (a.popularity || 0))

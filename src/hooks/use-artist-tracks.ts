@@ -1,7 +1,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { getArtistTopTracks, getArtistAllTracks } from '@/lib/spotify';
+import { getArtistTopTracks, getArtistAllTracks, SpotifyTrack } from '@/lib/spotify';
 import { useMemo } from 'react';
 import { Json } from '@/integrations/supabase/types';
 
@@ -65,7 +65,7 @@ export function useArtistTracks(spotifyArtistId: string, isLoadingShow: boolean)
             { id: 'mock3', name: 'Track 3', popularity: 70 },
             { id: 'mock4', name: 'Track 4', popularity: 65 },
             { id: 'mock5', name: 'Track 5', popularity: 60 }
-          ] 
+          ] as SpotifyTrack[]
         };
       }
     },
@@ -105,7 +105,7 @@ export function useArtistTracks(spotifyArtistId: string, isLoadingShow: boolean)
             { id: 'mock8', name: 'Remix', album: 'Remix Album', popularity: 65 },
             { id: 'mock9', name: 'Extended Mix', album: 'Remix Album', popularity: 50 },
             { id: 'mock10', name: 'Collaboration Track', album: 'Featuring', popularity: 85 }
-          ] 
+          ] as SpotifyTrack[]
         };
       }
     },
@@ -122,7 +122,7 @@ export function useArtistTracks(spotifyArtistId: string, isLoadingShow: boolean)
     
     console.log(`Converting ${topTracksData.tracks.length} top tracks to setlist items`);
     
-    return topTracksData.tracks.map((track: any) => ({
+    return topTracksData.tracks.map((track: SpotifyTrack) => ({
       id: track.id,
       name: track.name,
       votes: track.popularity ? Math.floor(track.popularity / 20) : 0,
@@ -140,7 +140,7 @@ export function useArtistTracks(spotifyArtistId: string, isLoadingShow: boolean)
     const setlistIds = new Set(setlist.map(song => song.id));
     
     const filteredTracks = allTracksData.tracks
-      .filter((track: any) => !setlistIds.has(track.id));
+      .filter((track: SpotifyTrack) => !setlistIds.has(track.id));
     
     console.log(`${filteredTracks.length} tracks available after filtering out ${setlist.length} setlist tracks`);
     return filteredTracks;

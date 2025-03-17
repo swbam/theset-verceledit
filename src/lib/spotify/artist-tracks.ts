@@ -5,7 +5,7 @@ import { Json } from '@/integrations/supabase/types';
 const SPOTIFY_API_BASE = 'https://api.spotify.com/v1';
 
 // Track interface for type safety
-interface SpotifyTrack {
+export interface SpotifyTrack {
   id: string;
   name: string;
   duration_ms?: number;
@@ -31,7 +31,8 @@ export const getArtistTopTracks = async (artistId: string, limit = 10): Promise<
         artistData.stored_tracks.length > 0) {
       console.log("Using stored tracks from database");
       // Return top tracks sorted by popularity
-      const tracks = artistData.stored_tracks as SpotifyTrack[];
+      // Properly cast the Json to SpotifyTrack[]
+      const tracks = artistData.stored_tracks as unknown as SpotifyTrack[];
       return { 
         tracks: tracks
           .sort((a, b) => (b.popularity || 0) - (a.popularity || 0))
@@ -51,8 +52,8 @@ export const getArtistTopTracks = async (artistId: string, limit = 10): Promise<
       
     if (!refreshError && refreshedData && refreshedData.stored_tracks && 
         Array.isArray(refreshedData.stored_tracks)) {
-      // Return top tracks sorted by popularity
-      const tracks = refreshedData.stored_tracks as SpotifyTrack[];
+      // Properly cast the Json to SpotifyTrack[]
+      const tracks = refreshedData.stored_tracks as unknown as SpotifyTrack[];
       return { 
         tracks: tracks
           .sort((a, b) => (b.popularity || 0) - (a.popularity || 0))
@@ -89,7 +90,8 @@ export const getArtistAllTracks = async (artistId: string): Promise<{ tracks: Sp
         artistData.stored_tracks.length > 0 &&
         new Date(artistData.updated_at) > sevenDaysAgo) {
       console.log(`Using ${artistData.stored_tracks.length} stored tracks from database`);
-      return { tracks: artistData.stored_tracks as SpotifyTrack[] };
+      // Properly cast the Json to SpotifyTrack[]
+      return { tracks: artistData.stored_tracks as unknown as SpotifyTrack[] };
     }
     
     // Otherwise fetch from Spotify API
@@ -204,8 +206,8 @@ export const getArtistAllTracks = async (artistId: string): Promise<{ tracks: Sp
     );
     
     // Store all tracks in the database
-    // Convert tracks to a JSON-compatible format
-    const tracksForStorage: Json = uniqueTracks as unknown as Json;
+    // Convert tracks to a JSON-compatible format but maintain type safety
+    const tracksForStorage = uniqueTracks as unknown as Json;
     
     await supabase
       .from('artists')
