@@ -4,9 +4,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/auth/AuthContext';
 import { toast } from 'sonner';
-import { voteForSetlistSong, getSetlistSongs, SetlistSong } from '@/lib/api/db/setlist-utils';
+import { voteForSetlistSong, getSetlistSongs, SetlistSong, addSongToSetlist as dbAddSongToSetlist } from '@/lib/api/db/setlist-utils';
 import { createSetlistForShow } from '@/lib/api/db/show-utils';
-import { addSongToSetlist } from '@/lib/api/db/setlist-utils';
 
 interface Song {
   id: string;
@@ -135,7 +134,7 @@ export function useRealtimeVotes(showId: string, spotifyArtistId: string, initia
       for (const song of initialSongs) {
         if (!song.id.startsWith('placeholder')) {
           console.log(`Adding initial song to setlist: ${song.name}`);
-          await addSongToSetlist(setlistId, song.id);
+          await dbAddSongToSetlist(setlistId, song.id);
         }
       }
       
@@ -293,7 +292,7 @@ export function useRealtimeVotes(showId: string, spotifyArtistId: string, initia
     console.log(`Adding song ${selectedTrack} to setlist ${setlistId}`);
     
     try {
-      const songId = await addSongToSetlist(setlistId, selectedTrack);
+      const songId = await dbAddSongToSetlist(setlistId, selectedTrack);
       
       if (songId) {
         console.log("Song added successfully");

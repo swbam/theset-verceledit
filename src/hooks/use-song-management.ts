@@ -14,18 +14,17 @@ export function useSongManagement(showId: string, initialSongs: Song[], isAuthen
   const [selectedTrack, setSelectedTrack] = useState<string>('');
   
   const {
-    songs: setlist,
+    setlist,
     isConnected,
-    voteForSong,
-    addSongToSetlist,
+    vote,
+    selectedTrack: realtimeSelectedTrack,
+    setSelectedTrack: realtimeSetSelectedTrack,
+    handleAddSong: realtimeHandleAddSong,
     anonymousVoteCount
-  } = useRealtimeVotes({
-    showId: showId || '',
-    initialSongs
-  });
+  } = useRealtimeVotes(showId, '', initialSongs);
   
   const handleVote = (songId: string) => {
-    voteForSong(songId, isAuthenticated)
+    vote(songId)
       .then((success) => {
         if (success) {
           toast.success("Your vote has been counted!");
@@ -60,13 +59,8 @@ export function useSongManagement(showId: string, initialSongs: Song[], isAuthen
         return;
       }
       
-      // Add the song to the setlist
-      addSongToSetlist({
-        id: trackToAdd.id,
-        name: trackToAdd.name,
-        votes: 0,
-        userVoted: false
-      });
+      // Add the song to the setlist using the handleAddSong from useRealtimeVotes
+      realtimeHandleAddSong();
       
       setSelectedTrack('');
       toast.success(`"${trackToAdd.name}" added to setlist!`);
