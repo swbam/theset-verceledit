@@ -1,8 +1,9 @@
-
 import { toast } from "sonner";
 import { callTicketmasterApi } from "./ticketmaster-config";
 import { supabase } from "@/integrations/supabase/client";
-import { saveArtistToDatabase, saveShowToDatabase, saveVenueToDatabase } from "./database-utils";
+import { saveArtistToDatabase } from "./db/artist-utils";
+import { saveVenueToDatabase } from "./db/venue-utils";
+import { saveShowToDatabase } from "./db/show-database-utils";
 
 /**
  * Fetch upcoming shows for an artist

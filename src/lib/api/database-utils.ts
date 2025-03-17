@@ -5,3 +5,4 @@ export * from './db/venue-utils';
 export * from './db/show-utils';
 export * from './db/setlist-utils';
 export * from './db/vote-utils';
+export * from './db/show-database-utils';

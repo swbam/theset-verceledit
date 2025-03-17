@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -9,6 +10,10 @@ interface Song {
   name: string;
   votes: number;
   userVoted: boolean;
+  setlistSongId?: string;
+  artistId?: string;
+  albumName?: string;
+  albumImageUrl?: string;
 }
 
 interface UseRealtimeVotesProps {

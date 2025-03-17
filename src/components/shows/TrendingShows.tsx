@@ -4,7 +4,9 @@ import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { ChevronRight } from 'lucide-react';
 import { getTrendingConcerts } from '@/lib/ticketmaster';
-import { saveArtistToDatabase, saveShowToDatabase, saveVenueToDatabase } from '@/lib/api/database-utils';
+import { saveArtistToDatabase } from '@/lib/api/db/artist-utils';
+import { saveVenueToDatabase } from '@/lib/api/db/venue-utils';
+import { saveShowToDatabase } from '@/lib/api/db/show-database-utils';
 import StandardShowCard from '@/components/shows/StandardShowCard';
 
 const TrendingShows = () => {

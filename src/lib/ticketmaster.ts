@@ -19,10 +19,14 @@ export {
 
 // Export utility functions for saving data to the database
 export { 
-  saveArtistToDatabase,
-  saveShowToDatabase,
+  saveArtistToDatabase
+} from './api/db/artist-utils';
+export { 
+  saveShowToDatabase
+} from './api/db/show-database-utils';
+export { 
   saveVenueToDatabase
-} from './api/database-utils';
+} from './api/db/venue-utils';
 
 // Import supabase client
 import { supabase } from '@/integrations/supabase/client';

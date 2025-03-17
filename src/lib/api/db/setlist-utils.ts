@@ -134,10 +134,22 @@ export async function voteForSetlistSong(setlistSongId: string, userId: string) 
   }
 }
 
+// Interface for setlist songs to fix type issues
+interface SetlistSong {
+  id: string;
+  setlistSongId: string;
+  name: string;
+  votes: number;
+  userVoted: boolean;
+  artistId?: string;
+  albumName?: string;
+  albumImageUrl?: string;
+}
+
 /**
  * Get all songs for a setlist with vote counts
  */
-export async function getSetlistSongs(setlistId: string, userId?: string) {
+export async function getSetlistSongs(setlistId: string, userId?: string): Promise<SetlistSong[]> {
   try {
     console.log(`Getting songs for setlist ${setlistId}`);
     
@@ -189,7 +201,7 @@ export async function getSetlistSongs(setlistId: string, userId?: string) {
     }
     
     // Map the results to a clean format
-    return setlistSongs.map(song => {
+    const formattedSongs: SetlistSong[] = setlistSongs.map(song => {
       // Get track data, if available
       const trackData = song.top_tracks;
       
@@ -205,6 +217,8 @@ export async function getSetlistSongs(setlistId: string, userId?: string) {
         albumImageUrl: trackData ? trackData.album_image_url : undefined
       };
     });
+    
+    return formattedSongs;
   } catch (error) {
     console.error("Error in getSetlistSongs:", error);
     return [];
