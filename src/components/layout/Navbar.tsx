@@ -18,6 +18,7 @@ const Navbar = ({ showSearch = true }) => {
   const isMobile = useIsMobile();
   const navigate = useNavigate();
   const isHomePage = location.pathname === '/';
+  const isSearchPage = location.pathname === '/search';
 
   // Debounce search query
   useEffect(() => {
@@ -47,7 +48,10 @@ const Navbar = ({ showSearch = true }) => {
 
   const handleFullSearch = (query: string) => {
     if (query.trim()) {
-      navigate(`/search?q=${encodeURIComponent(query)}`);
+      // Only navigate if we're not already on the search page
+      if (!isSearchPage) {
+        navigate(`/search?q=${encodeURIComponent(query)}`);
+      }
       setSearchQuery('');
     }
   };
@@ -72,6 +76,7 @@ const Navbar = ({ showSearch = true }) => {
             isLoading={isLoading}
             handleFullSearch={handleFullSearch}
             handleNavigation={handleNavigation}
+            isSearchPage={isSearchPage}
           />
         )}
 
@@ -95,6 +100,7 @@ const Navbar = ({ showSearch = true }) => {
               handleFullSearch={handleFullSearch}
               handleNavigation={handleNavigation}
               closeMenu={closeMenu}
+              isSearchPage={isSearchPage}
             />
           </>
         ) : (

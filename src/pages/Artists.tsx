@@ -1,6 +1,6 @@
 
-import React, { useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useLocation, useSearchParams } from 'react-router-dom';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
 import SearchBar from '@/components/ui/SearchBar';
@@ -10,11 +10,14 @@ import GenreBrowser from '@/components/artists/GenreBrowser';
 import { useDocumentTitle } from '@/hooks/use-document-title';
 
 const Artists = () => {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [isSearching, setIsSearching] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [activeGenre, setActiveGenre] = useState<string | null>(null);
   const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const queryParam = searchParams.get('q') || '';
+  
+  const [searchQuery, setSearchQuery] = useState(queryParam);
+  const [isSearching, setIsSearching] = useState(!!queryParam);
+  const [isLoading, setIsLoading] = useState(false);
+  const [activeGenre, setActiveGenre] = useState<string | null>(searchParams.get('genre'));
   
   // Determine if we're on the /shows path
   const isShowsPage = location.pathname.startsWith('/shows');
@@ -30,15 +33,55 @@ const Artists = () => {
       : 'Discover artists with upcoming shows and influence their setlists'
   );
 
+  // Update search query when URL parameter changes
+  useEffect(() => {
+    if (queryParam !== searchQuery) {
+      setSearchQuery(queryParam);
+      setIsSearching(!!queryParam);
+    }
+  }, [queryParam]);
+
   const handleSearch = async (query: string) => {
     setSearchQuery(query);
-    setIsSearching(true);
+    setIsSearching(!!query);
     setIsLoading(true);
+
+    // Update URL with search query
+    if (query) {
+      setSearchParams(prev => {
+        prev.set('q', query);
+        if (activeGenre) prev.delete('genre');
+        return prev;
+      });
+    } else {
+      setSearchParams(prev => {
+        prev.delete('q');
+        return prev;
+      });
+    }
 
     // API call happens in the ArtistSearchResults component
     setTimeout(() => {
       setIsLoading(false);
     }, 500);
+  };
+
+  const handleGenreChange = (genre: string | null) => {
+    setActiveGenre(genre);
+    
+    // Update URL with genre parameter
+    setSearchParams(prev => {
+      if (genre) {
+        prev.set('genre', genre);
+        prev.delete('q');
+      } else {
+        prev.delete('genre');
+      }
+      return prev;
+    });
+    
+    setIsSearching(false);
+    setSearchQuery('');
   };
 
   return (
@@ -52,8 +95,11 @@ const Artists = () => {
             
             <SearchBar 
               onSearch={handleSearch}
+              onChange={handleSearch}
               placeholder={isShowsPage ? "Search for shows..." : "Search for artists..."}
               className="mb-8 max-w-2xl"
+              value={searchQuery}
+              disableRedirect={true}
             />
             
             {isSearching ? (
@@ -66,7 +112,7 @@ const Artists = () => {
                 
                 <GenreBrowser 
                   activeGenre={activeGenre}
-                  setActiveGenre={setActiveGenre}
+                  setActiveGenre={handleGenreChange}
                 />
               </div>
             )}

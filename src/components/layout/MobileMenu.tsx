@@ -16,6 +16,7 @@ interface MobileMenuProps {
   handleFullSearch: (query: string) => void;
   handleNavigation: (artistId: string) => void;
   closeMenu: () => void;
+  isSearchPage?: boolean;
 }
 
 const MobileMenu = ({
@@ -26,7 +27,8 @@ const MobileMenu = ({
   isLoading,
   handleFullSearch,
   handleNavigation,
-  closeMenu
+  closeMenu,
+  isSearchPage = false
 }: MobileMenuProps) => {
   const location = useLocation();
 
@@ -89,6 +91,7 @@ const MobileMenu = ({
               }}
               value={searchQuery}
               className="w-full"
+              disableRedirect={isSearchPage}
             >
               {searchQuery.length > 2 && (
                 <ArtistSearchResults

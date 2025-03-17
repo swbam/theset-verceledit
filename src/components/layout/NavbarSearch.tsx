@@ -10,6 +10,7 @@ interface NavbarSearchProps {
   isLoading: boolean;
   handleFullSearch: (query: string) => void;
   handleNavigation: (artistId: string) => void;
+  isSearchPage?: boolean;
 }
 
 const NavbarSearch = ({
@@ -18,7 +19,8 @@ const NavbarSearch = ({
   artists,
   isLoading,
   handleFullSearch,
-  handleNavigation
+  handleNavigation,
+  isSearchPage = false
 }: NavbarSearchProps) => {
   return (
     <div className="w-64 md:flex mx-4 relative">
@@ -28,6 +30,7 @@ const NavbarSearch = ({
         onSearch={handleFullSearch}
         value={searchQuery}
         className="w-full"
+        disableRedirect={isSearchPage}
       >
         {searchQuery.length > 2 && (
           <ArtistSearchResults

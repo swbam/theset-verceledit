@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { Search, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -12,6 +11,7 @@ interface SearchBarProps {
   autoFocus?: boolean;
   children?: React.ReactNode;
   value?: string;
+  disableRedirect?: boolean;
 }
 
 const SearchBar = ({ 
@@ -22,7 +22,8 @@ const SearchBar = ({
   isLoading = false,
   autoFocus = false,
   children,
-  value
+  value,
+  disableRedirect = false
 }: SearchBarProps) => {
   const [query, setQuery] = useState(value || '');
   const [isFocused, setIsFocused] = useState(false);
@@ -40,6 +41,10 @@ const SearchBar = ({
     e.preventDefault();
     if (onSearch && query.trim()) {
       onSearch(query.trim());
+    }
+    // Keep dropdown open if redirection is disabled
+    if (!disableRedirect) {
+      setIsFocused(false);
     }
   };
 
