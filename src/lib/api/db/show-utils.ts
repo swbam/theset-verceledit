@@ -46,25 +46,7 @@ export async function createSetlistForShow(showId, initialSongs = []) {
     }
     
     // If we're here, we need to create a new setlist
-    // Try using the database function if available
-    try {
-      // Use a database function to create the setlist and return its ID
-      const { data, error } = await supabase
-        .rpc('create_setlist_for_show', { show_id: showId });
-        
-      if (error) {
-        console.error('Error using create_setlist_for_show RPC:', error.message);
-        // Fall back to manual creation below
-      } else if (data) {
-        console.log(`Created setlist via RPC, ID: ${data}`);
-        return data;
-      }
-    } catch (rpcError) {
-      console.error('RPC not available or failed:', rpcError);
-      // Fall back to manual creation below
-    }
-    
-    // Manual creation as fallback
+    // We'll create it directly instead of using an RPC
     const { data: newSetlist, error: insertError } = await supabase
       .from('setlists')
       .insert({
@@ -107,12 +89,9 @@ export async function addSongsToSetlist(setlistId, songs) {
     // Prepare songs with setlist_id and initial votes
     const songsToInsert = songs.map((song, index) => ({
       setlist_id: setlistId,
-      song_id: song.id,
-      name: song.name || `Song ${index + 1}`,
+      track_id: song.id,
+      suggested_by: null,
       votes: song.votes || 0,
-      album_name: song.albumName || null,
-      album_image_url: song.albumImageUrl || null,
-      artist_name: song.artistName || null,
       created_at: new Date().toISOString()
     }));
     

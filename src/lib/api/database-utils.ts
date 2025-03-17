@@ -5,8 +5,7 @@ export * from './db/venue-utils';
 // Export specific functions from show-utils to avoid naming conflicts
 export {
   getShowsForArtist,
-  createSetlistForShow,
-  saveShowToDatabase
+  createSetlistForShow
 } from './db/show-utils';
 // Export specific functions from setlist-utils to avoid naming conflicts
 export { 

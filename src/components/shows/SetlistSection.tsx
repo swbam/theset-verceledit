@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { useAuth } from '@/contexts/auth/AuthContext';
-import { useArtistTracks } from '@/hooks/artist-tracks.ts';
+import { useArtistTracks } from '@/hooks/artist-tracks';
 import { useInitialSongs } from '@/hooks/artist-tracks/use-initial-songs';
 import { useRealtimeVotes } from '@/hooks/use-realtime-votes';
 import { LoadingIndicator } from '@/components/ui/loading';
@@ -16,14 +16,14 @@ const SetlistSection = ({ showId, spotifyArtistId }: SetlistSectionProps) => {
   const { isAuthenticated, login } = useAuth();
   
   // Get initial songs
-  const initialSongsResult = useInitialSongs(spotifyArtistId);
+  const initialSongs = useInitialSongs(spotifyArtistId);
   
   // Get artist tracks for the setlist
   const { 
     isLoadingTracks, 
     isLoadingAllTracks, 
     availableTracks 
-  } = useArtistTracks(spotifyArtistId, initialSongsResult);
+  } = useArtistTracks(spotifyArtistId, initialSongs);
   
   // Use the realtime voting hook
   const { 
@@ -35,7 +35,7 @@ const SetlistSection = ({ showId, spotifyArtistId }: SetlistSectionProps) => {
     handleAddSong,
     anonymousVoteCount,
     setlistId
-  } = useRealtimeVotes(showId, spotifyArtistId, initialSongsResult);
+  } = useRealtimeVotes(showId, spotifyArtistId, initialSongs);
   
   // Show loading indicator if we're loading tracks
   if (isLoadingTracks) {
