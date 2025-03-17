@@ -71,7 +71,7 @@ const ShowDetail = () => {
     }
   }, [show, isLoadingShow, isError, showError, navigate]);
   
-  // Fetch artist tracks
+  // Fetch artist tracks - this will get both top tracks and all tracks
   const { 
     initialSongs, 
     isLoadingTracks, 
@@ -93,7 +93,9 @@ const ShowDetail = () => {
   
   console.log("Current setlist length:", setlist.length);
   console.log("Is loading tracks:", isLoadingTracks);
+  console.log("Is loading all tracks:", isLoadingAllTracks);
   console.log("Initial songs length:", initialSongs.length);
+  console.log("All tracks data length:", allTracksData?.tracks?.length);
   
   // Calculate available tracks for dropdown
   const availableTracks = React.useMemo(() => {

@@ -1,4 +1,3 @@
-
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { getArtistTopTracks, getArtistAllTracks, SpotifyTrack, convertStoredTracks } from '@/lib/spotify';
@@ -71,7 +70,7 @@ export function useArtistTracks(spotifyArtistId: string, isLoadingShow: boolean)
     retry: 2,
   });
 
-  // Fetch all tracks
+  // Fetch all tracks - make sure this prioritizes cached data
   const {
     data: allTracksData,
     isLoading: isLoadingAllTracks
@@ -85,6 +84,14 @@ export function useArtistTracks(spotifyArtistId: string, isLoadingShow: boolean)
       
       console.log(`Fetching all tracks for artist ID: ${spotifyArtistId}`);
       try {
+        // First check if stored data is already available
+        const storedTracks = await getStoredTracksFromDb(spotifyArtistId);
+        if (storedTracks && storedTracks.length > 0) {
+          console.log(`Using ${storedTracks.length} cached tracks from database`);
+          return { tracks: storedTracks };
+        }
+        
+        // Otherwise fetch from Spotify API
         const tracks = await getArtistAllTracks(spotifyArtistId);
         console.log(`Fetched ${tracks.tracks?.length || 0} tracks in total`);
         return tracks;
@@ -114,6 +121,7 @@ export function useArtistTracks(spotifyArtistId: string, isLoadingShow: boolean)
     },
     enabled: !!spotifyArtistId && !isLoadingShow,
     retry: 2,
+    staleTime: 1000 * 60 * 60, // 1 hour - keep data fresh for longer
   });
 
   // Prepare initial songs from top tracks
@@ -158,4 +166,32 @@ export function useArtistTracks(spotifyArtistId: string, isLoadingShow: boolean)
     initialSongs,
     getAvailableTracks
   };
+}
+
+// Helper function to get tracks from DB directly
+async function getStoredTracksFromDb(artistId: string): Promise<SpotifyTrack[] | null> {
+  try {
+    const { data, error } = await supabase
+      .from('artists')
+      .select('stored_tracks, updated_at')
+      .eq('id', artistId)
+      .maybeSingle();
+    
+    // Check if the stored tracks exist and aren't too old
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    
+    if (!error && data && data.stored_tracks && 
+        Array.isArray(data.stored_tracks) && 
+        data.stored_tracks.length > 0 &&
+        new Date(data.updated_at) > sevenDaysAgo) {
+      
+      return data.stored_tracks as unknown as SpotifyTrack[];
+    }
+    
+    return null;
+  } catch (error) {
+    console.error("Error directly accessing stored tracks:", error);
+    return null;
+  }
 }
