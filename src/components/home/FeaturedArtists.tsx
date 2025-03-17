@@ -2,7 +2,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Music2, ChevronRight, Star } from 'lucide-react';
+import { Music2, ChevronRight, Star, Calendar } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { fetchFeaturedArtists } from '@/lib/api/artist';
