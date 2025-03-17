@@ -1,7 +1,7 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { getArtistTopTracksFromDb, getArtistAllTracksFromDb } from "@/lib/spotify/utils";
+import { getArtistTopTracksFromDb, getStoredTracksFromDb } from "@/lib/spotify/utils";
 
 /**
  * Create or get setlist for a show
@@ -73,7 +73,7 @@ export async function autoPopulateSetlistWithRandomTracks(setlistId: string, art
     console.log(`Auto-populating setlist ${setlistId} with random tracks for artist ${artistId}`);
     
     // First try to get all tracks for a better random selection
-    let allTracks = await getArtistAllTracksFromDb(artistId);
+    let allTracks = await getStoredTracksFromDb(artistId);
     
     // Fallback to top tracks if all tracks aren't available
     if (!allTracks || allTracks.length < 5) {
