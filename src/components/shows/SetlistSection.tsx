@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Music, AlertCircle, Users, Info, Clock, Trophy } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
@@ -93,38 +92,6 @@ const SetlistSection: React.FC<SetlistSectionProps> = ({
                         </TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
-                    
-                    {(isAuthenticated || userVotedCount > 0) && (
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <div className="text-xs bg-white/10 text-white px-3 py-1.5 rounded-full font-medium flex items-center gap-1.5">
-                              <span>{userVotedCount}</span>
-                              <span>songs voted</span>
-                            </div>
-                          </TooltipTrigger>
-                          <TooltipContent className="bg-[#0A0A0A] border-white/10 text-white">
-                            <p>You've voted for {userVotedCount} songs</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    )}
-                    
-                    {!isAuthenticated && anonymousVoteCount > 0 && (
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <div className="text-xs bg-amber-500/20 text-amber-400 px-3 py-1.5 rounded-full font-medium flex items-center gap-1.5">
-                              <span>{anonymousVoteCount}/3</span>
-                              <span>free votes used</span>
-                            </div>
-                          </TooltipTrigger>
-                          <TooltipContent className="bg-[#0A0A0A] border-white/10 text-white">
-                            <p>Log in to vote for unlimited songs</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    )}
                     
                     {isConnected ? (
                       <TooltipProvider>

@@ -58,14 +58,8 @@ const ShowSetlist = ({
   
   return (
     <div className="flex flex-col">
-      <VotableSetlistTable 
-        songs={setlist} 
-        onVote={handleVote} 
-        className="animate-fade-in"
-        anonymousVoteCount={anonymousVoteCount}
-      />
-      
-      <div className="p-4 border-t border-white/10">
+      {/* Song selection dropdown moved to the top */}
+      <div className="p-4 border-b border-white/10 mb-2">
         <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
           <div className="flex-grow w-full sm:w-auto">
             <p className="text-sm font-medium mb-1.5 text-white/80">Add a song to this setlist:</p>
@@ -106,6 +100,13 @@ const ShowSetlist = ({
           </Button>
         </div>
       </div>
+      
+      <VotableSetlistTable 
+        songs={setlist} 
+        onVote={handleVote} 
+        className="animate-fade-in"
+        anonymousVoteCount={anonymousVoteCount}
+      />
     </div>
   );
 };

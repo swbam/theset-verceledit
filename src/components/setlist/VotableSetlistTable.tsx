@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { ArrowBigUp, Music, Trophy, Star, Crown, AlertCircle } from 'lucide-react';
+import { ArrowBigUp, Music, Trophy, Star, Crown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { 
   Table,
@@ -43,15 +43,6 @@ const VotableSetlistTable = ({ songs, onVote, className, anonymousVoteCount = 0 
   
   return (
     <div className={cn("w-full", className)}>
-      {anonymousVoteCount >= 3 && (
-        <div className="flex items-center gap-2 bg-black/50 border border-amber-500/20 p-3 mb-3 rounded-md text-amber-400">
-          <AlertCircle size={16} className="flex-shrink-0" />
-          <p className="text-sm">
-            You've used {anonymousVoteCount}/3 free votes. <span className="font-semibold">Log in to vote for more songs.</span>
-          </p>
-        </div>
-      )}
-      
       <Table>
         <TableHeader>
           <TableRow className="border-b border-white/10">
@@ -66,8 +57,8 @@ const VotableSetlistTable = ({ songs, onVote, className, anonymousVoteCount = 0 
         <TableBody>
           {sortedSongs.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={4} className="py-8 text-center text-white/60">
-                No songs in the setlist yet. Add some songs using the dropdown below.
+              <TableCell colSpan={4} className="py-16 text-center text-white/60">
+                No songs in the setlist yet. Add some songs using the dropdown above.
               </TableCell>
             </TableRow>
           ) : (
@@ -159,6 +150,14 @@ const VotableSetlistTable = ({ songs, onVote, className, anonymousVoteCount = 0 
           )}
         </TableBody>
       </Table>
+      
+      {anonymousVoteCount > 0 && anonymousVoteCount < 3 && (
+        <div className="flex justify-end p-3 text-xs text-amber-400">
+          <div className="flex items-center gap-1.5">
+            <span>You've used {anonymousVoteCount}/3 free votes</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
