@@ -89,7 +89,9 @@ const ShowSetlist = ({
     });
     
     // Sort alphabetically by name
-    return [...uniqueTracks].sort((a, b) => a.name.localeCompare(b.name));
+    return [...uniqueTracks].sort((a, b) => 
+      a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
+    );
   }, [availableTracks]);
   
   return (

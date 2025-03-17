@@ -1,3 +1,4 @@
+
 import { getAccessToken } from './auth';
 import { saveTracksToDb, getStoredTracksFromDb } from './utils';
 import { SpotifyTrack, SpotifyTracksResponse } from './types';
@@ -79,57 +80,69 @@ export const getArtistAllTracks = async (artistId: string): Promise<SpotifyTrack
     const albumsData = await albumsResponse.json();
     console.log(`Found ${albumsData.items.length} albums for artist ${artistId}`);
     
-    // Use Promise.all to fetch all album tracks in parallel
-    const albumTrackPromises = albumsData.items.map(async (album: any) => {
-      try {
-        console.log(`Processing album: ${album.name}`);
-        const tracksResponse = await fetch(
-          `${SPOTIFY_API_BASE}/albums/${album.id}/tracks?limit=50&market=US`,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
+    // Use Promise.all to fetch all album tracks in parallel with smaller batches
+    const batchSize = 5; // Process 5 albums at a time to avoid rate limiting
+    const albumBatches = [];
+    
+    for (let i = 0; i < albumsData.items.length; i += batchSize) {
+      albumBatches.push(albumsData.items.slice(i, i + batchSize));
+    }
+    
+    // Process album batches sequentially to avoid rate limiting
+    for (const batch of albumBatches) {
+      const batchResults = await Promise.all(
+        batch.map(async (album: any) => {
+          try {
+            console.log(`Processing album: ${album.name}`);
+            const tracksResponse = await fetch(
+              `${SPOTIFY_API_BASE}/albums/${album.id}/tracks?limit=50&market=US`,
+              {
+                headers: {
+                  Authorization: `Bearer ${token}`,
+                },
+              }
+            );
+            
+            if (!tracksResponse.ok) {
+              console.error(`Failed to get tracks for album ${album.id}: ${tracksResponse.statusText}`);
+              return [];
+            }
+            
+            const tracksData = await tracksResponse.json();
+            console.log(`Found ${tracksData.items.length} tracks in album ${album.name}`);
+            
+            // Process all tracks from this album - no need to fetch each track individually
+            return tracksData.items.map((track: any) => ({
+              id: track.id,
+              name: track.name,
+              duration_ms: track.duration_ms || 0,
+              popularity: 50, // Default popularity if not available
+              preview_url: track.preview_url,
+              uri: track.uri,
+              album: album.name,
+              votes: 0
+            }));
+          } catch (error) {
+            console.error(`Error processing album ${album.name}:`, error);
+            return [];
           }
-        );
-        
-        if (!tracksResponse.ok) {
-          console.error(`Failed to get tracks for album ${album.id}: ${tracksResponse.statusText}`);
-          return [];
+        })
+      );
+      
+      // Add all tracks from this batch to allTracks
+      const existingTrackIds = new Set(allTracks.map(track => track.id));
+      const batchTracks = batchResults.flat();
+      
+      for (const track of batchTracks) {
+        if (!existingTrackIds.has(track.id)) {
+          allTracks.push(track);
+          existingTrackIds.add(track.id);
         }
-        
-        const tracksData = await tracksResponse.json();
-        console.log(`Found ${tracksData.items.length} tracks in album ${album.name}`);
-        
-        // Process all tracks from this album - no need to fetch each track individually
-        return tracksData.items.map((track: any) => ({
-          id: track.id,
-          name: track.name,
-          duration_ms: track.duration_ms || 0,
-          popularity: 50, // Default popularity if not available
-          preview_url: track.preview_url,
-          uri: track.uri,
-          album: album.name,
-          votes: 0
-        }));
-      } catch (error) {
-        console.error(`Error processing album ${album.name}:`, error);
-        return [];
       }
-    });
-    
-    // Wait for all album track requests to complete
-    const albumTracksArrays = await Promise.all(albumTrackPromises);
-    
-    // Flatten the array of arrays and add all album tracks
-    const allAlbumTracks = albumTracksArrays.flat();
-    
-    // Add album tracks to the top tracks, excluding duplicates by ID
-    const existingTrackIds = new Set(allTracks.map(track => track.id));
-    
-    for (const track of allAlbumTracks) {
-      if (!existingTrackIds.has(track.id)) {
-        allTracks.push(track);
-        existingTrackIds.add(track.id);
+      
+      // Add a small delay between batches to avoid rate limiting
+      if (albumBatches.length > 1) {
+        await new Promise(resolve => setTimeout(resolve, 500));
       }
     }
     
