@@ -1,13 +1,12 @@
-
 import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
-import { getArtistTopTracksFromDb, getStoredTracksFromDb } from "@/lib/spotify/utils";
 import { SpotifyTrack } from "@/lib/spotify/types";
+import { Json } from "@/integrations/supabase/types";
+import { getArtistTopTracksFromDb } from "@/lib/spotify/utils";
 
 /**
- * Create or get setlist for a show
+ * Get or create a setlist for a show
  */
-export async function getOrCreateSetlistForShow(showId: string, artistId?: string) {
+export async function getOrCreateSetlistForShow(showId: string, artistId?: string): Promise<string | null> {
   try {
     if (!showId) return null;
     
@@ -21,7 +20,7 @@ export async function getOrCreateSetlistForShow(showId: string, artistId?: strin
       .maybeSingle();
     
     if (checkError) {
-      console.error("Error checking setlist in database:", checkError);
+      console.error("Error checking if setlist exists:", checkError);
       return null;
     }
     
@@ -37,7 +36,6 @@ export async function getOrCreateSetlistForShow(showId: string, artistId?: strin
       .from('setlists')
       .insert({
         show_id: showId,
-        created_at: new Date().toISOString(),
         last_updated: new Date().toISOString()
       })
       .select('id')
@@ -59,90 +57,179 @@ export async function getOrCreateSetlistForShow(showId: string, artistId?: strin
     
     return newSetlist.id;
   } catch (error) {
-    console.error("Error in getOrCreateSetlistForShow:", error);
+    console.error("Error in getOrCreateSetlist:", error);
     return null;
   }
 }
 
 /**
- * Helper function to get random tracks from an array
+ * Auto-populate a setlist with random tracks from an artist
  */
-function getRandomTracks(tracks: any[], count = 5) {
-  if (!tracks || tracks.length <= count) return tracks;
+async function autoPopulateSetlistWithRandomTracks(setlistId: string, artistId: string, trackCount: number = 5) {
+  try {
+    console.log(`Auto-populating setlist ${setlistId} with ${trackCount} tracks from artist ${artistId}`);
+    
+    // Get tracks for the artist
+    const tracks = await getTracksForArtist(artistId);
+    
+    if (!tracks || tracks.length === 0) {
+      console.error(`No tracks found for artist ${artistId}, cannot auto-populate setlist`);
+      return;
+    }
+    
+    console.log(`Found ${tracks.length} tracks for artist ${artistId}, selecting ${trackCount} random tracks`);
+    
+    // Randomly select tracks
+    const selectedTracks = selectRandomTracks(tracks, trackCount);
+    
+    // Add tracks to setlist
+    await addTracksToSetlist(setlistId, selectedTracks);
+    
+  } catch (error) {
+    console.error("Error in autoPopulateSetlistWithRandomTracks:", error);
+  }
+}
+
+/**
+ * Get tracks for an artist, first trying stored_tracks, then the top_tracks table
+ */
+async function getTracksForArtist(artistId: string): Promise<SpotifyTrack[]> {
+  // First check if the artist has stored_tracks in their record
+  const { data: artist, error: artistError } = await supabase
+    .from('artists')
+    .select('stored_tracks')
+    .eq('id', artistId)
+    .single();
+  
+  if (!artistError && artist?.stored_tracks && Array.isArray(artist.stored_tracks) && artist.stored_tracks.length > 0) {
+    console.log(`Using ${artist.stored_tracks.length} tracks from artist.stored_tracks`);
+    // Cast the JSON to SpotifyTrack[] with an intermediate unknown cast for type safety
+    return artist.stored_tracks as unknown as SpotifyTrack[];
+  }
+  
+  // Fallback to top_tracks table
+  console.log(`No stored_tracks found for artist ${artistId}, fetching from top_tracks table`);
+  return await getArtistTopTracksFromDb(artistId, 20);
+}
+
+/**
+ * Randomly select tracks from a list
+ */
+function selectRandomTracks(tracks: SpotifyTrack[], count: number): SpotifyTrack[] {
+  if (!tracks || tracks.length === 0) return [];
+  if (tracks.length <= count) return tracks;
   
   const shuffled = [...tracks].sort(() => 0.5 - Math.random());
   return shuffled.slice(0, count);
 }
 
 /**
- * Try to get tracks from the artist's stored_tracks first, then fall back to top_tracks table
+ * Add tracks to a setlist
  */
-async function getTracksForArtist(artistId: string): Promise<SpotifyTrack[]> {
+async function addTracksToSetlist(setlistId: string, tracks: SpotifyTrack[]) {
+  if (!tracks || tracks.length === 0) {
+    console.log("No tracks to add to setlist");
+    return;
+  }
+  
+  console.log(`Adding ${tracks.length} tracks to setlist ${setlistId}`);
+  
+  // Prepare tracks for insertion
+  const tracksToInsert = tracks.map(track => ({
+    setlist_id: setlistId,
+    track_id: track.id,
+    votes: 0
+  }));
+  
+  // Insert tracks into setlist_songs table
+  const { error } = await supabase
+    .from('setlist_songs')
+    .insert(tracksToInsert);
+  
+  if (error) {
+    console.error("Error adding tracks to setlist:", error);
+  } else {
+    console.log(`Successfully added ${tracks.length} tracks to setlist ${setlistId}`);
+  }
+}
+
+/**
+ * Get all songs in a setlist with their track details
+ */
+export async function getSetlistSongs(setlistId: string) {
   try {
-    // First try to get tracks from the artist's stored_tracks
-    const { data: artist, error: artistError } = await supabase
-      .from('artists')
-      .select('stored_tracks')
-      .eq('id', artistId)
-      .maybeSingle();
+    if (!setlistId) return [];
     
-    if (!artistError && artist?.stored_tracks && Array.isArray(artist.stored_tracks) && artist.stored_tracks.length > 0) {
-      console.log(`Using ${artist.stored_tracks.length} tracks from artist.stored_tracks`);
-      // Cast the JSON to SpotifyTrack[] with an intermediate unknown cast for type safety
-      return artist.stored_tracks as unknown as SpotifyTrack[];
+    console.log(`Getting all songs in setlist ${setlistId}`);
+    
+    const { data, error } = await supabase
+      .from('setlist_songs')
+      .select(`
+        id,
+        track_id,
+        votes,
+        suggested_by,
+        top_tracks (
+          name,
+          spotify_url,
+          preview_url,
+          album_name,
+          album_image_url
+        )
+      `)
+      .eq('setlist_id', setlistId);
+    
+    if (error) {
+      console.error("Error getting songs in setlist:", error);
+      return [];
     }
     
-    // Fallback to top_tracks table
-    console.log("No stored_tracks found, falling back to top_tracks table");
-    return await getStoredTracksFromDb(artistId);
+    if (!data || data.length === 0) {
+      console.log(`No songs found in setlist ${setlistId}`);
+      return [];
+    }
+    
+    console.log(`Found ${data.length} songs in setlist ${setlistId}`);
+    
+    // Map the data to the SpotifyTrack interface
+    const songs: SpotifyTrack[] = data.map(item => {
+      const track = item.top_tracks as any;
+      return {
+        id: item.track_id,
+        name: track?.name || 'Unknown',
+        uri: track?.spotify_url || null,
+        preview_url: track?.preview_url || null,
+        album: {
+          name: track?.album_name || 'Unknown',
+          images: track?.album_image_url ? [{ url: track.album_image_url }] : []
+        },
+        artists: [{ name: 'Unknown' }], // Artist info not directly available,
+        votes: item.votes,
+        setlist_song_id: item.id,
+        suggested_by: item.suggested_by
+      };
+    });
+    
+    return songs;
   } catch (error) {
-    console.error("Error getting tracks for artist:", error);
+    console.error("Error in getSetlistSongs:", error);
     return [];
   }
 }
 
 /**
- * Auto-populate a setlist with 5 random tracks from the artist's catalog
- */
-export async function autoPopulateSetlistWithRandomTracks(setlistId: string, artistId: string) {
-  try {
-    console.log(`Auto-populating setlist ${setlistId} with random tracks for artist ${artistId}`);
-    
-    // Get tracks from artist's stored_tracks or top_tracks
-    const allTracks = await getTracksForArtist(artistId);
-    
-    if (!allTracks || allTracks.length === 0) {
-      console.log(`No tracks found for artist ${artistId}, skipping auto-population`);
-      return;
-    }
-    
-    // Get 5 random tracks from the collection
-    const randomTracks = getRandomTracks(allTracks, 5);
-    console.log(`Selected ${randomTracks.length} random tracks from ${allTracks.length} available tracks`);
-    
-    // Add each track to the setlist with 0 votes
-    for (const track of randomTracks) {
-      if (track && track.id) {
-        await addSongToSetlist(setlistId, track.id);
-      }
-    }
-    
-    console.log(`Successfully populated setlist ${setlistId} with ${randomTracks.length} random tracks`);
-  } catch (error) {
-    console.error("Error auto-populating setlist:", error);
-  }
-}
-
-/**
- * Add song to setlist
+ * Add a song to a setlist
  */
 export async function addSongToSetlist(setlistId: string, trackId: string, userId?: string) {
   try {
-    if (!setlistId || !trackId) return null;
+    if (!setlistId || !trackId) {
+      console.error("Invalid parameters for addSongToSetlist");
+      return null;
+    }
     
     console.log(`Adding song ${trackId} to setlist ${setlistId}`);
     
-    // Check if song already exists in setlist
+    // Check if the song is already in the setlist
     const { data: existingSong, error: checkError } = await supabase
       .from('setlist_songs')
       .select('id')
@@ -151,32 +238,29 @@ export async function addSongToSetlist(setlistId: string, trackId: string, userI
       .maybeSingle();
     
     if (checkError) {
-      console.error("Error checking song in setlist:", checkError);
+      console.error("Error checking if song exists in setlist:", checkError);
       return null;
     }
     
-    // If song exists, return it
     if (existingSong) {
       console.log(`Song ${trackId} already exists in setlist ${setlistId}`);
       return existingSong.id;
     }
     
-    // Add new song to setlist
-    console.log(`Inserting new song ${trackId} to setlist ${setlistId}`);
-    const { data: newSong, error: createError } = await supabase
+    // Add the song to the setlist
+    const { data: newSong, error: insertError } = await supabase
       .from('setlist_songs')
       .insert({
         setlist_id: setlistId,
         track_id: trackId,
         votes: 0,
-        suggested_by: userId,
-        created_at: new Date().toISOString()
+        suggested_by: userId || null
       })
       .select('id')
       .single();
     
-    if (createError) {
-      console.error("Error adding song to setlist:", createError);
+    if (insertError) {
+      console.error("Error adding song to setlist:", insertError);
       return null;
     }
     
@@ -189,68 +273,63 @@ export async function addSongToSetlist(setlistId: string, trackId: string, userI
 }
 
 /**
- * Get setlist songs with vote counts for a specific show
+ * Vote for a song in a setlist
  */
-export async function getSetlistSongsForShow(showId: string) {
+export async function voteForSetlistSong(setlistSongId: string, userId: string) {
   try {
-    if (!showId) return [];
+    if (!setlistSongId || !userId) {
+      console.error("Invalid parameters for voteForSetlistSong");
+      return false;
+    }
     
-    console.log(`Fetching setlist songs for show ${showId}`);
+    console.log(`User ${userId} voting for song ${setlistSongId}`);
     
-    // Get setlist for show
-    const { data: setlist, error: setlistError } = await supabase
-      .from('setlists')
+    // Check if the user has already voted for this song
+    const { data: existingVote, error: checkError } = await supabase
+      .from('votes')
       .select('id')
-      .eq('show_id', showId)
+      .eq('setlist_song_id', setlistSongId)
+      .eq('user_id', userId)
       .maybeSingle();
     
-    if (setlistError || !setlist) {
-      console.error("Error getting setlist for show:", setlistError);
-      return [];
+    if (checkError) {
+      console.error("Error checking if user has already voted:", checkError);
+      return false;
     }
     
-    console.log(`Found setlist ${setlist.id} for show ${showId}`);
+    if (existingVote) {
+      console.log(`User ${userId} has already voted for song ${setlistSongId}`);
+      return false;
+    }
     
-    // Get setlist songs with related track info
-    const { data: songs, error: songsError } = await supabase
+    // Add the vote
+    const { error: voteError } = await supabase
+      .from('votes')
+      .insert({
+        setlist_song_id: setlistSongId,
+        user_id: userId
+      });
+    
+    if (voteError) {
+      console.error("Error adding vote:", voteError);
+      return false;
+    }
+    
+    // Increment the vote count on the setlist_songs table
+    const { error: incrementError } = await supabase
       .from('setlist_songs')
-      .select(`
-        id,
-        votes,
-        track_id,
-        top_tracks (
-          id,
-          name,
-          spotify_url,
-          preview_url,
-          album_name,
-          album_image_url,
-          popularity
-        )
-      `)
-      .eq('setlist_id', setlist.id)
-      .order('votes', { ascending: false });
+      .update({ votes: () => 'votes + 1' })
+      .eq('id', setlistSongId);
     
-    if (songsError) {
-      console.error("Error getting setlist songs:", songsError);
-      return [];
+    if (incrementError) {
+      console.error("Error incrementing vote count:", incrementError);
+      return false;
     }
     
-    console.log(`Found ${songs?.length || 0} songs for setlist ${setlist.id}`);
-    
-    return songs.map(song => ({
-      id: song.id,
-      trackId: song.track_id,
-      votes: song.votes,
-      name: song.top_tracks?.name || 'Unknown Song',
-      spotifyUrl: song.top_tracks?.spotify_url,
-      previewUrl: song.top_tracks?.preview_url,
-      albumName: song.top_tracks?.album_name,
-      albumImageUrl: song.top_tracks?.album_image_url,
-      popularity: song.top_tracks?.popularity
-    }));
+    console.log(`User ${userId} successfully voted for song ${setlistSongId}`);
+    return true;
   } catch (error) {
-    console.error("Error in getSetlistSongsForShow:", error);
-    return [];
+    console.error("Error in voteForSetlistSong:", error);
+    return false;
   }
 }

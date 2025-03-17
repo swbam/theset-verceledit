@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { getArtistAllTracks } from "@/lib/spotify/all-tracks";
 import { SpotifyTrack } from "@/lib/spotify/types";
+import { Json } from "@/integrations/supabase/types";
 
 /**
  * Save artist to database and import their tracks
@@ -99,11 +100,11 @@ export async function importArtistTracks(artistId: string) {
     console.log(`Imported ${tracks.length} tracks for artist ${artistId}`);
     
     // Store the tracks in the artist's stored_tracks column and update tracks_last_updated
-    // Convert SpotifyTrack[] to Json compatible format
+    // Properly cast tracks to Json type for Supabase
     const { error } = await supabase
       .from('artists')
       .update({ 
-        stored_tracks: tracks as unknown as object[],
+        stored_tracks: tracks as unknown as Json,
         updated_at: new Date().toISOString(),
         tracks_last_updated: new Date().toISOString()
       })
@@ -133,7 +134,7 @@ export async function updateArtistStoredTracks(artistId: string, tracks: any[]) 
     const { error } = await supabase
       .from('artists')
       .update({ 
-        stored_tracks: tracks as unknown as object[],
+        stored_tracks: tracks as unknown as Json,
         updated_at: new Date().toISOString()
       })
       .eq('id', artistId);
