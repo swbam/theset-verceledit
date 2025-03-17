@@ -9,7 +9,7 @@ import {
   SetlistSong, 
   addSongToSetlist as dbAddSongToSetlist 
 } from '@/lib/api/db/setlist-utils';
-import { createSetlistForShow } from '@/lib/api/db/show-utils';
+import { createSetlistForShow } from '@/lib/api/database-utils';
 
 interface Song {
   id: string;
@@ -287,35 +287,46 @@ export function useRealtimeVotes(showId: string, spotifyArtistId: string, initia
   });
   
   // Handle adding a new song to the setlist
-  const handleAddSong = useCallback(async () => {
-    if (!setlistId || !selectedTrack) {
-      console.error("Missing setlist ID or selected track");
-      return false;
-    }
-    
-    console.log(`Adding song ${selectedTrack} to setlist ${setlistId}`);
-    
+  const handleAddSong = useCallback(async (trackId: string, trackName: string) => {
     try {
-      const songId = await dbAddSongToSetlist(setlistId, selectedTrack);
+      if (!setlistId) {
+        console.error("Missing setlist ID");
+        toast.error("Unable to add song: setlist not found");
+        return;
+      }
+      
+      if (!trackId) {
+        console.error("Missing track ID");
+        toast.error("Please select a song first");
+        return;
+      }
+      
+      console.log(`Adding song ${trackId} (${trackName}) to setlist ${setlistId}`);
+      
+      // Check if song already exists in setlist
+      const songExists = setlist.some(song => song.id === trackId);
+      
+      if (songExists) {
+        console.log(`Song ${trackId} already exists in setlist`);
+        toast.info(`"${trackName}" is already in the setlist!`);
+        return;
+      }
+      
+      const songId = await dbAddSongToSetlist(setlistId, trackId, trackName);
       
       if (songId) {
-        console.log("Song added successfully");
-        toast.success("Song added to setlist!");
-        setSelectedTrack('');
+        console.log("Song added successfully with ID:", songId);
         // Refresh the songs list
         queryClient.invalidateQueries({ queryKey: ['setlistSongs', showId, setlistId] });
-        return true;
       } else {
         console.error("Failed to add song");
         toast.error("Failed to add song to setlist");
-        return false;
       }
     } catch (error) {
       console.error("Error adding song:", error);
       toast.error("Error adding song to setlist");
-      return false;
     }
-  }, [setlistId, selectedTrack, queryClient, showId]);
+  }, [setlistId, showId, queryClient, setlist]);
   
   return {
     setlist,

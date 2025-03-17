@@ -107,7 +107,19 @@ const ShowDetail = () => {
   // Handle song addition
   const handleAddSongClick = () => {
     console.log("Add song clicked, passing all tracks data:", allTracksData?.tracks?.length);
-    handleAddSong(allTracksData);
+    if (!selectedTrack) {
+      toast.error("Please select a song first");
+      return;
+    }
+    
+    // Find the selected track in the available tracks
+    const trackToAdd = allTracksData?.tracks?.find((track: any) => track.id === selectedTrack);
+    
+    if (trackToAdd) {
+      handleAddSong(allTracksData);
+    } else {
+      toast.error("Could not find the selected track");
+    }
   };
   
   if (isLoadingShow) {

@@ -59,9 +59,8 @@ export function useSongManagement(showId: string, initialSongs: Song[], isAuthen
       }
       
       try {
-        // Call realtimeHandleAddSong without checking its return value
-        // since it's a void function
-        await realtimeHandleAddSong();
+        // Pass the track information to the realtime handler
+        await realtimeHandleAddSong(trackToAdd.id, trackToAdd.name);
         
         setSelectedTrack('');
         toast.success(`"${trackToAdd.name}" added to setlist!`);

@@ -1,4 +1,3 @@
-
 // Re-export all functions from the different modules
 export { 
   popularMusicGenres,
@@ -23,7 +22,7 @@ export {
 } from './api/db/artist-utils';
 export { 
   saveShowToDatabase
-} from './api/db/show-database-utils';
+} from '@/lib/api/database-utils';
 export { 
   saveVenueToDatabase
 } from './api/db/venue-utils';
