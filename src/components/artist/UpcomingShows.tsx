@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Calendar, MapPin, Clock, Ticket, ArrowRight, Music } from 'lucide-react';
+import { Calendar, MapPin, Clock, Ticket, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { 
   Table,
@@ -129,22 +129,19 @@ const UpcomingShows = ({
           )}
         </div>
         
-        {/* Desktop view: Table for larger screens */}
+        {/* Desktop view: Simplified table for larger screens */}
         <div className="hidden md:block bg-white/5 border border-white/10 rounded-lg overflow-hidden">
           <Table>
             <TableHeader>
               <TableRow className="hover:bg-white/5 border-white/10">
-                <TableHead className="text-white/70 w-48">Date & Time</TableHead>
-                <TableHead className="text-white/70">Venue</TableHead>
-                <TableHead className="text-white/70 hidden lg:table-cell">Location</TableHead>
-                <TableHead className="text-white/70 hidden lg:table-cell">Event</TableHead>
-                <TableHead className="text-right"></TableHead>
+                <TableHead className="text-white/70 w-28">Date</TableHead>
+                <TableHead className="text-white/70">Venue & Location</TableHead>
+                <TableHead className="text-right w-32"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {shows.slice(0, 8).map((show, index) => {
                 const dateInfo = formatShowDate(show.date);
-                const tourName = show.name?.split(' - ')[0] || 'Concert';
                 
                 return (
                   <TableRow 
@@ -153,37 +150,28 @@ const UpcomingShows = ({
                   >
                     <TableCell className="font-medium">
                       <div className="flex items-center gap-3">
-                        <div className="flex-shrink-0 flex flex-col items-center justify-center w-12 h-12 bg-white/10 rounded-md text-center">
+                        <div className="flex-shrink-0 w-12 h-12 bg-white/10 rounded-md text-center flex flex-col justify-center">
                           <span className="text-xs text-white/70">{dateInfo.month}</span>
-                          <span className="text-lg font-bold leading-tight">{dateInfo.day}</span>
+                          <span className="text-lg font-bold">{dateInfo.day}</span>
                         </div>
-                        <div>
+                        <div className="text-sm">
                           <div className="font-medium">{dateInfo.dayOfWeek}</div>
-                          <div className="text-sm text-white/70">{dateInfo.time}</div>
+                          <div className="text-white/70">{dateInfo.time}</div>
                         </div>
                       </div>
                     </TableCell>
                     <TableCell>
                       <div className="font-medium text-white">{show.venue?.name || "Venue TBA"}</div>
-                    </TableCell>
-                    <TableCell className="hidden lg:table-cell">
-                      <div className="flex items-center text-white/70">
-                        <MapPin className="h-4 w-4 mr-2 flex-shrink-0" />
+                      <div className="flex items-center text-sm text-white/70 mt-1">
+                        <MapPin className="h-3.5 w-3.5 mr-1.5 flex-shrink-0" />
                         <span>
                           {show.venue?.city || ""}
                           {show.venue?.state && show.venue?.city ? `, ${show.venue.state}` : show.venue?.state || ""}
                         </span>
                       </div>
                     </TableCell>
-                    <TableCell className="hidden lg:table-cell">
-                      {tourName !== artistName && (
-                        <Badge variant="outline" className="bg-white/5 border-white/10">
-                          {tourName}
-                        </Badge>
-                      )}
-                    </TableCell>
                     <TableCell className="text-right">
-                      <Button className="bg-white text-[#0A0A16] hover:bg-white/90" size="sm" asChild>
+                      <Button size="sm" className="bg-white text-[#0A0A16] hover:bg-white/90" asChild>
                         <Link to={`/shows/${show.id}`}>
                           <Ticket className="h-4 w-4 mr-2" />
                           View Setlist
