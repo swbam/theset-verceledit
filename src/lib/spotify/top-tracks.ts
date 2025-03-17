@@ -1,10 +1,8 @@
-
 import { fetchArtistTopTracks } from './fetch-artist-top-tracks';
 import { generateMockTracks } from './utils';
 import { 
-  getStoredTracksFromDb, 
+  getArtistTopTracksFromDb, 
   saveTracksToDb, 
-  getArtistTopTracksFromDb,
   checkArtistTracksNeedUpdate
 } from './utils';
 import { SpotifyTrack } from './types';

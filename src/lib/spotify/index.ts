@@ -4,7 +4,7 @@ export { searchArtists, getArtistById, getArtistByName } from './artist-search';
 export { getArtistTopTracks } from './top-tracks';
 export { getArtistAllTracks } from './all-tracks';
 export { getMyTopArtists, getUserRecommendations } from './user-recommendations';
-export { getStoredTracksFromDb } from './utils';
+export { getStoredTracksFromDb, getArtistTopTracksFromDb } from './utils';
 
 // Re-export utility functions (being careful not to duplicate)
 export { convertStoredTracks, saveTracksToDb } from './utils';

@@ -2,7 +2,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { getArtistAllTracks } from '@/lib/spotify';
 import { generateMockTracks } from './utils';
-import { getStoredTracksFromDb } from '@/lib/spotify/utils';
+import { getStoredTracksFromDb } from '@/lib/spotify';
 import { SpotifyTrack } from '@/lib/spotify/types';
 
 // Fetch all tracks query - prioritize cached data

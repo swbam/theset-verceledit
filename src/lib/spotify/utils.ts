@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { SpotifyTrack } from './types';
 
@@ -26,7 +27,7 @@ export async function saveTracksToDb(artistId: string, tracks: SpotifyTrack[]) {
     
     // Use upsert to either insert new tracks or update existing ones
     const { error } = await supabase
-      .from('tracks')
+      .from('top_tracks')
       .upsert(tracksToInsert, { onConflict: 'id' });
     
     if (error) {
@@ -73,14 +74,14 @@ export async function getArtistTopTracksFromDb(artistId: string, limit = 10): Pr
 }
 
 // Function to retrieve all tracks from db
-export async function getArtistAllTracksFromDb(artistId: string): Promise<SpotifyTrack[]> {
+export async function getStoredTracksFromDb(artistId: string): Promise<SpotifyTrack[]> {
   try {
     if (!artistId) return [];
     
     console.log(`Retrieving all tracks for artist ${artistId} from database`);
     
     const { data, error } = await supabase
-      .from('tracks')
+      .from('top_tracks')
       .select('*')
       .eq('artist_id', artistId)
       .limit(100); // Increased limit to ensure we have a good selection
@@ -99,7 +100,7 @@ export async function getArtistAllTracksFromDb(artistId: string): Promise<Spotif
     
     return convertStoredTracks(data);
   } catch (error) {
-    console.error("Error in getArtistAllTracksFromDb:", error);
+    console.error("Error in getStoredTracksFromDb:", error);
     return [];
   }
 }
@@ -112,7 +113,7 @@ export async function checkArtistTracksNeedUpdate(artistId: string): Promise<boo
     // Check when the artist's tracks were last updated
     const { data, error } = await supabase
       .from('artists')
-      .select('last_updated')
+      .select('tracks_last_updated')
       .eq('id', artistId)
       .single();
     
@@ -121,13 +122,13 @@ export async function checkArtistTracksNeedUpdate(artistId: string): Promise<boo
       return false;
     }
     
-    if (!data || !data.last_updated) {
+    if (!data || !data.tracks_last_updated) {
       console.log("No last updated time found for artist, tracks need update");
       return true;
     }
     
     // If tracks were updated more than 30 days ago, update them
-    const lastUpdated = new Date(data.last_updated);
+    const lastUpdated = new Date(data.tracks_last_updated);
     const now = new Date();
     const diffInDays = (now.getTime() - lastUpdated.getTime()) / (1000 * 3600 * 24);
     
