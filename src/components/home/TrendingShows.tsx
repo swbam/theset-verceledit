@@ -2,14 +2,15 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { Calendar, MapPin } from 'lucide-react';
+import { Calendar, MapPin, Star } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Badge } from '@/components/ui/badge';
 import { fetchFeaturedShows } from '@/lib/ticketmaster';
 
 const TrendingShows = () => {
   const { data: showsData = [], isLoading, error } = useQuery({
     queryKey: ['trendingShows'],
-    queryFn: () => fetchFeaturedShows(8), // Fetch more to ensure we have enough after deduplication
+    queryFn: () => fetchFeaturedShows(8), // Fetch more to ensure we have enough after filtering
   });
 
   // Format date helper function
@@ -26,53 +27,65 @@ const TrendingShows = () => {
     }
   };
 
-  const getGenreLabel = (show: any) => {
-    if (show.artist?.genres?.length) {
-      return show.artist.genres[0];
-    }
-    return "Pop"; // Fallback genre
-  };
-
-  // Ensure unique shows by ID
+  // Ensure unique shows by ID and only use the top 4
   const uniqueShows = React.useMemo(() => {
     const uniqueMap = new Map();
     
     showsData.forEach(show => {
-      if (!uniqueMap.has(show.id)) {
+      if (!uniqueMap.has(show.id) && show.artist?.popularity >= 60) {
         uniqueMap.set(show.id, show);
       }
     });
 
-    return Array.from(uniqueMap.values()).slice(0, 4);
+    // Sort by popularity (descending)
+    return Array.from(uniqueMap.values())
+      .sort((a, b) => (b.artist?.popularity || 0) - (a.artist?.popularity || 0))
+      .slice(0, 4);
   }, [showsData]);
 
+  // Generate random vote count for demo purposes
+  const getRandomVotes = () => {
+    return Math.floor(Math.random() * 3000) + 500;
+  };
+
+  // Generate star rating element
+  const renderStarRating = (rating = 5) => {
+    return (
+      <div className="flex items-center">
+        {Array(rating).fill(0).map((_, i) => (
+          <Star key={i} size={14} className="fill-white text-white" />
+        ))}
+      </div>
+    );
+  };
+
   return (
-    <section className="py-16 px-4">
-      <div className="container mx-auto max-w-5xl">
-        <div className="section-header">
+    <section className="py-16 px-4 bg-gradient-to-b from-black/90 to-black">
+      <div className="container mx-auto max-w-7xl">
+        <div className="flex justify-between items-center mb-8">
           <div>
-            <h2 className="section-title">Trending Shows</h2>
-            <p className="section-subtitle">Shows with the most active voting right now</p>
+            <h2 className="text-3xl font-bold text-white">Trending Shows</h2>
+            <p className="text-base text-white/70 mt-1">Shows with the most active voting right now</p>
           </div>
-          <Link to="/shows" className="view-all-button">
-            View all →
+          <Link to="/shows" className="text-white hover:text-white/80 font-medium flex items-center group">
+            View all <span className="ml-1 transition-transform group-hover:translate-x-1">→</span>
           </Link>
         </div>
-
+        
         {isLoading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {[...Array(4)].map((_, index) => (
-              <div key={index} className="bg-black/20 border border-white/10 rounded-lg overflow-hidden">
-                <Skeleton className="aspect-square w-full" />
+              <div key={index} className="bg-black/40 rounded-xl overflow-hidden border border-white/10">
+                <Skeleton className="aspect-[4/3] w-full" />
                 <div className="p-4">
-                  <Skeleton className="h-4 w-3/4 mb-2" />
-                  <Skeleton className="h-3 w-1/2 mb-3" />
+                  <Skeleton className="h-5 w-3/4 mb-2" />
+                  <Skeleton className="h-4 w-1/2 mb-3" />
                   <div className="flex items-center mb-2">
-                    <Skeleton className="h-3 w-3 rounded-full mr-2" />
+                    <Skeleton className="h-4 w-4 rounded-full mr-2" />
                     <Skeleton className="h-3 w-24" />
                   </div>
                   <div className="flex items-center">
-                    <Skeleton className="h-3 w-3 rounded-full mr-2" />
+                    <Skeleton className="h-4 w-4 rounded-full mr-2" />
                     <Skeleton className="h-3 w-20" />
                   </div>
                 </div>
@@ -83,62 +96,70 @@ const TrendingShows = () => {
           <div className="text-center py-10">
             <p className="text-white/60">Unable to load trending shows</p>
           </div>
+        ) : uniqueShows.length === 0 ? (
+          <div className="text-center py-10">
+            <p className="text-white/60">No trending shows found</p>
+          </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {uniqueShows.map((show, index) => {
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {uniqueShows.map((show) => {
               const formattedDate = formatDate(show.date);
-              const genre = getGenreLabel(show);
+              const votes = getRandomVotes();
               
               return (
                 <Link 
                   key={show.id} 
                   to={`/shows/${show.id}`}
-                  className="bg-black/20 border border-white/10 rounded-lg overflow-hidden hover:border-white/30 transition-all hover:scale-[1.02]"
+                  className="bg-black/40 rounded-xl overflow-hidden border border-white/10 hover:border-white/30 transition-all hover:scale-[1.02] group"
                 >
-                  <div className="relative aspect-square overflow-hidden">
+                  <div className="relative aspect-[4/3] overflow-hidden">
                     {show.image_url ? (
                       <img 
                         src={show.image_url} 
                         alt={show.name} 
-                        className="object-cover w-full h-full"
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                       />
                     ) : (
                       <div className="bg-secondary/20 w-full h-full flex items-center justify-center">
                         <span className="text-white/40">No image</span>
                       </div>
                     )}
-                    <div className="absolute top-2 right-2 bg-black/60 px-2 py-1 rounded text-xs">
-                      {genre}
-                    </div>
-                    <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black to-transparent pt-10 pb-2 px-3">
-                      <div className="text-xs font-medium text-white/80 flex items-center">
-                        <span className="bg-white/20 text-white text-xs px-2 py-0.5 rounded">
-                          {Array.from({ length: 5 }).map((_, i) => (
-                            <span key={i} className="text-xs">★</span>
-                          ))}
-                        </span>
-                        <span className="ml-1">{Math.floor(Math.random() * 3000) + 500}</span>
+                    <Badge 
+                      className="absolute top-3 right-3 bg-black/60 hover:bg-black/60 text-white"
+                    >
+                      {show.genre || show.artist?.genres?.[0] || 'Pop'}
+                    </Badge>
+                    <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black to-transparent pt-16 pb-4 px-4">
+                      <div className="flex justify-between items-center">
+                        <div>{renderStarRating()}</div>
+                        <span className="text-white font-medium text-sm">{votes}</span>
                       </div>
                     </div>
                   </div>
                   <div className="p-4">
-                    <h3 className="font-bold text-sm text-left mb-1 line-clamp-1">{show.name}</h3>
-                    <p className="text-white/70 text-xs text-left mb-3 line-clamp-1">{show.artist?.name || 'Unknown Artist'}</p>
-                    <div className="flex items-center text-xs text-white/60 mb-2 text-left">
-                      <Calendar className="h-3 w-3 mr-2" />
-                      <span>
-                        {typeof formattedDate === 'object' 
-                          ? `${formattedDate.month} ${formattedDate.day}, ${formattedDate.year}` 
-                          : formattedDate}
-                      </span>
-                    </div>
-                    <div className="flex items-center text-xs text-white/60 text-left">
-                      <MapPin className="h-3 w-3 mr-2" />
-                      <span className="line-clamp-1">
-                        {show.venue 
-                          ? `${show.venue.name}, ${show.venue.city || ''}` 
-                          : 'Venue TBA'}
-                      </span>
+                    <h3 className="font-bold text-lg mb-1 line-clamp-1">
+                      {show.name?.split(' - ')[0]}
+                    </h3>
+                    <p className="text-white/70 text-sm mb-3 line-clamp-1">
+                      {show.artist?.name || 'Unknown Artist'}
+                    </p>
+                    <div className="flex flex-col space-y-2 text-sm text-white/60">
+                      <div className="flex items-center">
+                        <Calendar size={16} className="mr-2 opacity-70" />
+                        <span>
+                          {typeof formattedDate === 'object' 
+                            ? `${formattedDate.month} ${formattedDate.day}, ${formattedDate.year}` 
+                            : formattedDate}
+                        </span>
+                      </div>
+                      {show.venue && (
+                        <div className="flex items-start">
+                          <MapPin size={16} className="mr-2 mt-0.5 opacity-70" />
+                          <span className="line-clamp-1">
+                            {show.venue?.name ? `${show.venue.name}, ${show.venue.city || ''}` : 'Venue TBA'}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </Link>
