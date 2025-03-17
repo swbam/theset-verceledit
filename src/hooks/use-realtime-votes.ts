@@ -1,159 +1,163 @@
 
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
-import { addSongToSetlist as addSongToSetlistUtil, voteForSetlistSong } from "@/lib/api/db/setlist-utils";
-import { useAuth } from "@/contexts/auth";
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/auth/AuthContext';
+import { toast } from 'sonner';
+import { voteForSetlistSong, getSetlistSongs, SetlistSong } from '@/lib/api/db/setlist-utils';
+import { createSetlistForShow } from '@/lib/api/db/show-utils';
+import { addSongToSetlist } from '@/lib/api/db/setlist-utils';
 
 interface Song {
   id: string;
   name: string;
   votes: number;
   userVoted: boolean;
-  setlistSongId?: string;
-  artistId?: string;
   albumName?: string;
   albumImageUrl?: string;
+  artistName?: string;
+  setlistSongId?: string;
 }
 
-interface UseRealtimeVotesProps {
-  showId: string;
-  initialSongs: Song[];
-}
-
-export function useRealtimeVotes({ showId, initialSongs }: UseRealtimeVotesProps) {
-  const [songs, setSongs] = useState<Song[]>(initialSongs);
+export function useRealtimeVotes(showId: string, spotifyArtistId: string, initialSongs: Song[]) {
+  const queryClient = useQueryClient();
+  const { user, isAuthenticated } = useAuth();
   const [isConnected, setIsConnected] = useState(false);
-  const [isInitialized, setIsInitialized] = useState(false);
+  const [anonymousVoteCount, setAnonymousVoteCount] = useState(() => {
+    return parseInt(localStorage.getItem(`anonymous_votes_${showId}`) || '0', 10);
+  });
+  
+  // State for managing the songs shown on the current page
+  const [setlist, setSetlist] = useState<Song[]>([]);
+  const [selectedTrack, setSelectedTrack] = useState<string>('');
   const [setlistId, setSetlistId] = useState<string | null>(null);
-  const { user } = useAuth();
-  const [anonymousVoteCount, setAnonymousVoteCount] = useState<number>(() => {
-    // Initialize from localStorage if it exists
-    const stored = localStorage.getItem(`anonymousVotes-${showId}`);
-    return stored ? parseInt(stored, 10) : 0;
-  });
   
-  // Store voted songs for anonymous users
-  const [anonymousVotedSongs, setAnonymousVotedSongs] = useState<string[]>(() => {
-    // Initialize from localStorage if it exists
-    const stored = localStorage.getItem(`anonymousVotedSongs-${showId}`);
-    return stored ? JSON.parse(stored) : [];
-  });
-  
-  // Get setlist_id for this show
-  useEffect(() => {
-    if (!showId) return;
-    
-    const getSetlistId = async () => {
-      console.log("Getting setlist ID for show:", showId);
+  // Function to get or create setlist ID for this show
+  const getSetlistId = useCallback(async (showId: string) => {
+    try {
+      if (!showId) return null;
+      
+      console.log(`Getting setlist ID for show: ${showId}`);
+      
+      // Try to find existing setlist
       const { data, error } = await supabase
         .from('setlists')
         .select('id')
         .eq('show_id', showId)
         .maybeSingle();
-        
+      
       if (error) {
         console.error("Error fetching setlist:", error);
+        return null;
+      }
+      
+      // If setlist exists, return it
+      if (data?.id) {
+        console.log(`Found existing setlist: ${data.id}`);
+        return data.id;
+      }
+      
+      // If no setlist exists, we need to create one using the show's artist ID
+      console.warn(`No setlist found for show ${showId}, will fetch artist_id to create one`);
+      
+      // Get the artist ID from the show table
+      const { data: showData, error: showError } = await supabase
+        .from('shows')
+        .select('artist_id')
+        .eq('id', showId)
+        .maybeSingle();
+      
+      if (showError || !showData?.artist_id) {
+        console.error("Error fetching show data:", showError);
+        return null;
+      }
+      
+      console.log(`Found artist_id ${showData.artist_id} for show ${showId}, creating setlist`);
+      
+      // Create the setlist in the database
+      const newSetlistId = await createSetlistForShow({ id: showId, artist_id: showData.artist_id });
+      
+      if (!newSetlistId) {
+        console.error("Failed to create setlist");
+        return null;
+      }
+      
+      console.log(`Created new setlist: ${newSetlistId}`);
+      return newSetlistId;
+    } catch (error) {
+      console.error("Error in getSetlistId:", error);
+      return null;
+    }
+  }, []);
+  
+  // Fetch songs from database
+  const { 
+    data: dbSongs,
+    isLoading: isLoadingDbSongs,
+    error: dbSongsError
+  } = useQuery({
+    queryKey: ['setlistSongs', showId, setlistId],
+    queryFn: async () => {
+      if (!setlistId) return [];
+      console.log(`Fetching songs for setlist ${setlistId}`);
+      const songs = await getSetlistSongs(setlistId, user?.id);
+      console.log(`Fetched ${songs.length} songs from database`);
+      return songs;
+    },
+    enabled: !!setlistId,
+  });
+  
+  // Get setlist ID when showId is available
+  useEffect(() => {
+    if (showId) {
+      getSetlistId(showId).then(id => {
+        if (id) {
+          setSetlistId(id);
+        }
+      });
+    }
+  }, [showId, getSetlistId]);
+  
+  // Add initial songs to the database if none exist yet
+  useEffect(() => {
+    const addInitialSongs = async () => {
+      if (!setlistId || !initialSongs || initialSongs.length === 0) return;
+      
+      // If we have songs from the database, don't add initial songs
+      if (dbSongs && dbSongs.length > 0) {
+        console.log("Setlist already has songs, not adding initial ones");
         return;
       }
       
-      if (data?.id) {
-        console.log(`Found setlist ${data.id} for show ${showId}`);
-        setSetlistId(data.id);
-      } else {
-        console.warn(`No setlist found for show ${showId}, will fetch artist_id to create one`);
-        // Try to get artist_id to create a setlist
-        const { data: showData } = await supabase
-          .from('shows')
-          .select('artist_id')
-          .eq('id', showId)
-          .maybeSingle();
-          
-        if (showData?.artist_id) {
-          console.log(`Found artist_id ${showData.artist_id} for show ${showId}, creating setlist`);
-          // Create setlist
-          const { data: newSetlist, error: setlistError } = await supabase
-            .from('setlists')
-            .insert({ 
-              show_id: showId, 
-              last_updated: new Date().toISOString() 
-            })
-            .select('id')
-            .single();
-            
-          if (setlistError) {
-            console.error("Error creating setlist:", setlistError);
-          } else if (newSetlist) {
-            console.log(`Created setlist ${newSetlist.id} for show ${showId}`);
-            setSetlistId(newSetlist.id);
-            
-            // Populate with initial songs if we have them
-            if (initialSongs.length > 0) {
-              console.log(`Auto-populating new setlist with ${initialSongs.length} initial songs`);
-              
-              // Prepare songs for insertion
-              const songsToInsert = initialSongs.map(song => ({
-                setlist_id: newSetlist.id,
-                track_id: song.id,
-                votes: song.votes || 0
-              }));
-              
-              // Insert into setlist_songs
-              const { error: insertError } = await supabase
-                .from('setlist_songs')
-                .insert(songsToInsert);
-                
-              if (insertError) {
-                console.error("Error inserting initial songs:", insertError);
-              } else {
-                console.log("Successfully inserted initial songs into new setlist");
-              }
-            }
-          }
-        } else {
-          console.error(`No artist_id found for show ${showId}, cannot create setlist`);
+      console.log("No songs in database, adding initial ones:", initialSongs.length);
+      
+      // Add each song to the setlist
+      for (const song of initialSongs) {
+        if (!song.id.startsWith('placeholder')) {
+          console.log(`Adding initial song to setlist: ${song.name}`);
+          await addSongToSetlist(setlistId, song.id);
         }
       }
+      
+      // Invalidate the query to reload songs
+      queryClient.invalidateQueries({ queryKey: ['setlistSongs', showId, setlistId] });
     };
     
-    getSetlistId();
-  }, [showId, initialSongs]);
-  
-  // Initialize songs from initialSongs when they're available
-  useEffect(() => {
-    if (initialSongs.length > 0 && !isInitialized) {
-      console.log("Initializing songs from initialSongs:", initialSongs.length);
-      
-      // Restore user voted state from local storage for anonymous users
-      const songsWithLocalVotes = initialSongs.map(song => ({
-        ...song,
-        userVoted: anonymousVotedSongs.includes(song.id)
-      }));
-      
-      setSongs(songsWithLocalVotes);
-      setIsInitialized(true);
+    if (isLoadingDbSongs === false) {
+      addInitialSongs();
     }
-  }, [initialSongs, isInitialized, anonymousVotedSongs]);
+  }, [setlistId, initialSongs, dbSongs, isLoadingDbSongs, queryClient, showId]);
   
-  // Setup real-time connection with Supabase
+  // Set up realtime updates for votes
   useEffect(() => {
-    if (!showId || !setlistId) return;
+    if (!setlistId) return;
     
-    console.log(`Setting up real-time voting for show: ${showId} and setlist: ${setlistId}`);
+    console.log("Setting up realtime updates for setlist");
     
-    // First, enable realtime on the setlist_songs table
-    supabase
-      .from('setlist_songs')
-      .select('*')
-      .eq('setlist_id', setlistId)
-      .then(({ data }) => {
-        console.log(`Initial fetch of setlist songs: ${data?.length || 0} songs`);
-      });
-    
-    // Create Supabase Realtime channel for votes
     const channel = supabase
-      .channel('setlist-votes')
-      .on('postgres_changes', 
+      .channel('setlist-changes')
+      .on(
+        'postgres_changes',
         {
           event: 'UPDATE',
           schema: 'public',
@@ -161,226 +165,161 @@ export function useRealtimeVotes({ showId, initialSongs }: UseRealtimeVotesProps
           filter: `setlist_id=eq.${setlistId}`
         },
         (payload) => {
-          console.log("Setlist song updated:", payload);
-          // Update vote count for this song
-          setSongs(currentSongs => 
-            currentSongs.map(song => {
-              if (song.id === payload.new.track_id) {
-                return {
-                  ...song,
-                  votes: payload.new.votes
-                };
-              }
-              return song;
-            })
-          );
+          console.log("Received update for setlist song:", payload);
+          // Update the local state to reflect the changes
+          queryClient.invalidateQueries({ queryKey: ['setlistSongs', showId, setlistId] });
         }
       )
-      .on('postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'setlist_songs',
-          filter: `setlist_id=eq.${setlistId}`
-        },
-        (payload) => {
-          console.log("New song added to setlist:", payload);
-          
-          // We need to fetch the song details from the top_tracks table
-          supabase
-            .from('top_tracks')
-            .select('*')
-            .eq('id', payload.new.track_id)
-            .single()
-            .then(({ data: trackData, error }) => {
-              if (error) {
-                console.error("Error fetching new song details:", error);
-                return;
-              }
-              
-              if (trackData) {
-                console.log("Adding new song to UI:", trackData.name);
-                // Add the new song to the UI
-                setSongs(currentSongs => [
-                  ...currentSongs,
-                  {
-                    id: payload.new.track_id,
-                    name: trackData.name,
-                    votes: payload.new.votes || 0,
-                    userVoted: false
-                  }
-                ]);
-              }
-            });
-        }
-      )
-      .subscribe((status) => {
+      .subscribe(status => {
         console.log("Realtime subscription status:", status);
-        if (status === 'SUBSCRIBED') {
-          setIsConnected(true);
-        }
+        setIsConnected(status === 'SUBSCRIBED');
       });
-      
-    // Cleanup on unmount
+    
     return () => {
-      console.log("Cleaning up realtime connection");
+      console.log("Cleaning up realtime subscription");
       supabase.removeChannel(channel);
-      setIsConnected(false);
     };
-  }, [showId, setlistId]);
+  }, [setlistId, showId, queryClient]);
   
-  // Vote for a song
-  const voteForSong = useCallback(async (songId: string, isAuthenticated: boolean) => {
-    // Check if anonymous user has used all their votes
-    if (!isAuthenticated && anonymousVoteCount >= 3) {
-      console.log(`Anonymous user has used all ${anonymousVoteCount} votes`);
-      toast.info("You've used all your free votes. Log in to vote more!");
-      return false;
+  // Combine database songs with client-side state
+  useEffect(() => {
+    if (dbSongs) {
+      console.log(`Setting setlist with ${dbSongs.length} songs from database`);
+      // Map the DB songs to the format expected by the UI
+      setSetlist(dbSongs.map(song => ({
+        id: song.id,
+        name: song.name,
+        votes: song.votes,
+        userVoted: song.userVoted,
+        albumName: song.albumName,
+        albumImageUrl: song.albumImageUrl,
+        artistName: song.artistName,
+        setlistSongId: song.setlistSongId
+      })));
+    } else if (initialSongs.length > 0 && (!dbSongs || dbSongs.length === 0)) {
+      // If no DB songs yet, use initial songs
+      console.log(`Using ${initialSongs.length} initial songs`);
+      setSetlist(initialSongs);
     }
-    
-    // Check if we have a setlist ID
-    if (!setlistId) {
-      console.error("Cannot vote: No setlist ID available");
-      toast.error("Cannot vote right now, please try again later");
-      return false;
-    }
-    
-    // Find the setlist_song to vote for
-    const { data: setlistSong, error: findError } = await supabase
-      .from('setlist_songs')
-      .select('id')
-      .eq('setlist_id', setlistId)
-      .eq('track_id', songId)
-      .maybeSingle();
-      
-    if (findError || !setlistSong) {
-      console.error("Error finding setlist song:", findError);
-      toast.error("Could not find this song in the setlist");
-      return false;
-    }
-    
-    // Optimistically update UI
-    setSongs(currentSongs => 
-      currentSongs.map(song => {
-        // If this is the song to vote for
-        if (song.id === songId) {
-          // Check if user has already voted
-          if (song.userVoted) {
-            console.log(`Already voted for song: ${song.name}`);
-            toast.info("You've already voted for this song");
-            return song;
-          }
-          
-          console.log(`Voting for song: ${song.name}`);
-          
-          // If not authenticated, update anonymous vote count
-          if (!isAuthenticated) {
-            const newCount = anonymousVoteCount + 1;
-            setAnonymousVoteCount(newCount);
-            localStorage.setItem(`anonymousVotes-${showId}`, newCount.toString());
-            
-            // Store voted song ID in localStorage
-            const newVotedSongs = [...anonymousVotedSongs, songId];
-            setAnonymousVotedSongs(newVotedSongs);
-            localStorage.setItem(`anonymousVotedSongs-${showId}`, JSON.stringify(newVotedSongs));
-          }
-          
-          return {
-            ...song,
-            votes: song.votes + 1,
-            userVoted: true
-          };
-        }
-        return song;
-      })
-    );
-    
-    // Actually submit the vote to the server
-    if (isAuthenticated && user?.id) {
-      const success = await voteForSetlistSong(setlistSong.id, user.id);
-      if (!success) {
-        console.error("Server rejected vote");
-        // Rollback optimistic update
-        setSongs(currentSongs => 
-          currentSongs.map(song => {
-            if (song.id === songId) {
-              return {
-                ...song,
-                votes: song.votes - 1,
-                userVoted: false
-              };
-            }
-            return song;
-          })
-        );
-        toast.error("Vote could not be processed");
-        return false;
-      }
-    } else {
-      // For anonymous users, manually update the votes in the database
-      // since they don't have a user ID for the votes table
+  }, [dbSongs, initialSongs]);
+  
+  // Vote mutation
+  const { mutate: vote } = useMutation({
+    mutationFn: async (songId: string) => {
       try {
-        // Direct update to setlist_songs table using the RPC function
-        const { error: updateError } = await supabase.rpc(
-          'increment_song_vote', 
-          { song_id: setlistSong.id }
-        );
+        console.log("Voting for song:", songId);
         
-        if (updateError) {
-          console.error("Error updating votes for anonymous user:", updateError);
-          // We don't roll back the UI update for anonymous users to keep the experience smooth
+        if (!setlistId) {
+          console.error("No setlist ID available, can't vote");
+          return false;
+        }
+        
+        // Find the song to get its setlistSongId
+        const song = dbSongs?.find(s => s.id === songId);
+        
+        if (!song) {
+          console.error("Song not found in database:", songId);
+          return false;
+        }
+        
+        if (!isAuthenticated) {
+          // For anonymous voting, just track count locally
+          console.log("Anonymous vote for song:", songId);
+          
+          // Check if we've reached the limit for anonymous votes
+          if (anonymousVoteCount >= 3) {
+            toast.error("You've reached the maximum number of anonymous votes. Log in to vote more!");
+            return false;
+          }
+          
+          // Increment anonymous vote count and save to localStorage
+          const newCount = anonymousVoteCount + 1;
+          setAnonymousVoteCount(newCount);
+          localStorage.setItem(`anonymous_votes_${showId}`, newCount.toString());
+          
+          // Optimistically update the UI
+          setSetlist(prev => 
+            prev.map(s => 
+              s.id === songId 
+                ? { ...s, votes: s.votes + 1, userVoted: true } 
+                : s
+            ).sort((a, b) => b.votes - a.votes)
+          );
+          
+          return true;
+        } else {
+          // Logged-in user vote
+          console.log("Authenticated vote for song:", songId);
+          
+          // Call the vote function with the setlistSongId
+          const success = await voteForSetlistSong(song.setlistSongId, user!.id);
+          
+          if (success) {
+            // Optimistically update the UI
+            setSetlist(prev => 
+              prev.map(s => 
+                s.id === songId 
+                  ? { ...s, votes: s.votes + 1, userVoted: true } 
+                  : s
+              ).sort((a, b) => b.votes - a.votes)
+            );
+          }
+          
+          return success;
         }
       } catch (error) {
-        console.error("Error calling increment_song_vote function:", error);
+        console.error("Error voting for song:", error);
+        return false;
       }
+    },
+    onSuccess: (success, songId) => {
+      if (success) {
+        console.log("Vote recorded successfully for song:", songId);
+      }
+    },
+    onError: (error, songId) => {
+      console.error(`Error voting for song ${songId}:`, error);
+      toast.error("Error recording vote. Please try again.");
     }
-    
-    console.log(`Vote registered for song ID: ${songId}`);
-    return true;
-  }, [anonymousVoteCount, anonymousVotedSongs, showId, setlistId, user]);
+  });
   
-  // Add a new song to the setlist
-  const addSongToSetlist = useCallback(async (newSong: Song) => {
-    console.log("Adding song to setlist:", newSong);
-    
-    if (!setlistId) {
-      console.error("Cannot add song: No setlist ID available");
-      toast.error("Cannot add songs right now, please try again later");
+  // Handle adding a new song to the setlist
+  const handleAddSong = useCallback(async () => {
+    if (!setlistId || !selectedTrack) {
+      console.error("Missing setlist ID or selected track");
       return;
     }
     
-    // Check if song already exists in the setlist
-    const songExists = songs.some(song => song.id === newSong.id);
+    console.log(`Adding song ${selectedTrack} to setlist ${setlistId}`);
     
-    if (songExists) {
-      console.log(`Song already exists in setlist: ${newSong.name}`);
-      toast.info("This song is already in the setlist");
-      return;
+    try {
+      const songId = await addSongToSetlist(setlistId, selectedTrack);
+      
+      if (songId) {
+        console.log("Song added successfully");
+        toast.success("Song added to setlist!");
+        setSelectedTrack('');
+        // Refresh the songs list
+        queryClient.invalidateQueries({ queryKey: ['setlistSongs', showId, setlistId] });
+      } else {
+        console.error("Failed to add song");
+        toast.error("Failed to add song to setlist");
+      }
+    } catch (error) {
+      console.error("Error adding song:", error);
+      toast.error("Error adding song to setlist");
     }
-    
-    // Optimistically update UI
-    setSongs(currentSongs => [...currentSongs, newSong]);
-    
-    // Send to server
-    const result = await addSongToSetlistUtil(setlistId, newSong.id);
-    
-    if (!result) {
-      console.error("Failed to add song to setlist on server");
-      // Rollback optimistic update
-      setSongs(currentSongs => currentSongs.filter(song => song.id !== newSong.id));
-      toast.error("Could not add song to setlist");
-      return;
-    }
-    
-    console.log(`Song ${newSong.name} added to setlist with ID ${result}`);
-  }, [setlistId, songs]);
+  }, [setlistId, selectedTrack, queryClient, showId]);
   
   return {
-    songs,
+    setlist,
     isConnected,
-    voteForSong,
-    addSongToSetlist,
-    anonymousVoteCount,
-    anonymousVotedSongs
+    isLoadingSetlist: isLoadingDbSongs,
+    setlistError: dbSongsError,
+    vote,
+    selectedTrack,
+    setSelectedTrack,
+    handleAddSong,
+    anonymousVoteCount
   };
 }

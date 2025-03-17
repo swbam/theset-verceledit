@@ -19,66 +19,72 @@ export function useInitialSongs(
     console.log("Calculating initial songs. Top tracks:", 
       topTracksData?.tracks?.length, "All tracks:", allTracksData?.tracks?.length);
     
-    // First try to use all tracks for a better random selection
-    if (allTracksData?.tracks && Array.isArray(allTracksData.tracks) && allTracksData.tracks.length > 0) {
-      console.log(`Selecting random tracks from ${allTracksData.tracks.length} tracks`);
-      
-      // Filter valid tracks and get random ones (between 5-10 tracks for variety)
-      const validTracks = allTracksData.tracks.filter(track => track && track.id && track.name);
-      const randomCount = Math.min(Math.max(5, Math.floor(validTracks.length / 4)), 10);
-      const randomTracks = getRandomTracks(validTracks, randomCount);
-      
-      console.log(`Selected ${randomTracks.length} random tracks for initial songs`);
-      
-      // Initialize with varying votes (0-10) for each song to make it look realistic
-      return randomTracks.map((track: SpotifyTrack, index: number) => {
-        const artistName = track.artists && track.artists[0]?.name 
-          ? track.artists[0].name 
-          : 'Unknown Artist';
-          
-        return {
-          id: track.id,
-          name: track.name || `Song ${index + 1}`, // Fallback to prevent "Popular Song" placeholder
-          votes: 10 - index, // Descending votes for ordered display
-          userVoted: false,
-          // Add album and artist information if available
-          albumName: track.album?.name,
-          albumImageUrl: track.album?.images?.[0]?.url,
-          artistName
-        };
-      }).sort((a, b) => b.votes - a.votes); // Sort by votes descending
-    }
-    
-    // Fallback to top tracks if all tracks aren't available
+    // First try to use top tracks (these are most likely to be recognized)
     if (topTracksData?.tracks && Array.isArray(topTracksData.tracks) && topTracksData.tracks.length > 0) {
-      console.log(`Selecting random tracks from ${topTracksData.tracks.length} top tracks`);
+      console.log(`Using ${topTracksData.tracks.length} top tracks for initial songs`);
       
-      // Filter valid tracks and get random ones
-      const validTracks = topTracksData.tracks.filter(track => track && track.id && track.name);
-      const randomTracks = getRandomTracks(validTracks, 5);
+      // Filter valid tracks with actual names, not the ones with default placeholders
+      const validTracks = topTracksData.tracks.filter(track => 
+        track && track.id && track.name && !track.name.startsWith('Popular Song')
+      );
       
-      console.log(`Selected ${randomTracks.length} random tracks from top tracks`);
-      
-      // Initialize with varying votes for each song
-      return randomTracks.map((track: SpotifyTrack, index: number) => {
-        const artistName = track.artists && track.artists[0]?.name 
-          ? track.artists[0].name 
-          : 'Unknown Artist';
-          
-        return {
-          id: track.id,
-          name: track.name || `Top Song ${index + 1}`, // Fallback name
-          votes: 10 - index, // Descending votes
-          userVoted: false,
-          albumName: track.album?.name,
-          albumImageUrl: track.album?.images?.[0]?.url,
-          artistName
-        };
-      }).sort((a, b) => b.votes - a.votes); // Sort by votes
+      if (validTracks.length >= 5) {
+        console.log(`Found ${validTracks.length} valid top tracks, selecting 5`);
+        
+        // Get 5 tracks with varying votes
+        return validTracks.slice(0, 5).map((track: SpotifyTrack, index: number) => {
+          const artistName = track.artists && track.artists[0]?.name 
+            ? track.artists[0].name 
+            : 'Unknown Artist';
+            
+          return {
+            id: track.id,
+            name: track.name,
+            votes: 10 - index, // Descending votes for ordered display
+            userVoted: false,
+            albumName: track.album?.name,
+            albumImageUrl: track.album?.images?.[0]?.url,
+            artistName
+          };
+        }).sort((a, b) => b.votes - a.votes); // Sort by votes descending
+      }
     }
     
-    // Last resort: return placeholder tracks with real names, not "Popular Song" placeholders
-    console.log("No real tracks available for initial songs, using named placeholders");
+    // If top tracks wasn't enough, try all tracks
+    if (allTracksData?.tracks && Array.isArray(allTracksData.tracks) && allTracksData.tracks.length > 0) {
+      console.log(`Using ${allTracksData.tracks.length} tracks from full catalog`);
+      
+      // Filter valid tracks with real names
+      const validTracks = allTracksData.tracks.filter(track => 
+        track && track.id && track.name && !track.name.startsWith('Popular Song')
+      );
+      
+      if (validTracks.length > 0) {
+        console.log(`Found ${validTracks.length} valid tracks, selecting random 5`);
+        
+        // Get 5 random tracks with varying votes
+        const randomTracks = getRandomTracks(validTracks, 5);
+        
+        return randomTracks.map((track: SpotifyTrack, index: number) => {
+          const artistName = track.artists && track.artists[0]?.name 
+            ? track.artists[0].name 
+            : 'Unknown Artist';
+            
+          return {
+            id: track.id,
+            name: track.name,
+            votes: 10 - index, // Descending votes
+            userVoted: false,
+            albumName: track.album?.name,
+            albumImageUrl: track.album?.images?.[0]?.url,
+            artistName
+          };
+        }).sort((a, b) => b.votes - a.votes); // Sort by votes
+      }
+    }
+    
+    // Last resort: If we still don't have tracks with real names, return better named placeholders
+    console.log("No real tracks available for initial songs, using concrete placeholder names");
     return [
       { id: 'placeholder-1', name: 'Greatest Hits', votes: 10, userVoted: false },
       { id: 'placeholder-2', name: 'Classic Track', votes: 8, userVoted: false },

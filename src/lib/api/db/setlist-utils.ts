@@ -135,7 +135,7 @@ export async function voteForSetlistSong(setlistSongId: string, userId: string) 
 }
 
 // Interface for setlist songs to fix type issues
-interface SetlistSong {
+export interface SetlistSong {
   id: string;
   setlistSongId: string;
   name: string;
@@ -144,6 +144,7 @@ interface SetlistSong {
   artistId?: string;
   albumName?: string;
   albumImageUrl?: string;
+  artistName?: string;
 }
 
 /**
@@ -214,7 +215,8 @@ export async function getSetlistSongs(setlistId: string, userId?: string): Promi
         // Additional track data if available
         artistId: trackData ? trackData.artist_id : undefined,
         albumName: trackData ? trackData.album_name : undefined,
-        albumImageUrl: trackData ? trackData.album_image_url : undefined
+        albumImageUrl: trackData ? trackData.album_image_url : undefined,
+        artistName: trackData ? 'Unknown Artist' : undefined
       };
     });
     
