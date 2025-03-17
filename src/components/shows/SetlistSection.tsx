@@ -7,6 +7,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/auth/AuthContext';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
+import { useIsMobile } from '@/hooks/use-mobile';
 import SetlistHeader from './SetlistHeader';
 import ShowSetlist from './ShowSetlist';
 import VotingStats from './VotingStats';
@@ -56,6 +57,7 @@ const SetlistSection: React.FC<SetlistSectionProps> = ({
   anonymousVoteCount = 0
 }) => {
   const { isAuthenticated, login } = useAuth();
+  const isMobile = useIsMobile();
   
   const totalVotes = setlist.reduce((acc, song) => acc + song.votes, 0);
   const userVotedCount = setlist.filter(song => song.userVoted).length;
@@ -66,11 +68,11 @@ const SetlistSection: React.FC<SetlistSectionProps> = ({
   console.log("Is loading tracks:", isLoadingAllTracks);
   
   return (
-    <section className="px-6 md:px-8 lg:px-12 py-12 bg-black">
-      <div className="max-w-6xl mx-auto">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+    <section className={`${isMobile ? 'px-0' : 'px-6 md:px-8 lg:px-12'} py-8 bg-black`}>
+      <div className={`${isMobile ? 'max-w-full' : 'max-w-6xl mx-auto'}`}>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
           <div className="lg:col-span-2">
-            <Card className="bg-[#0A0A0A] border-white/10 shadow-lg overflow-hidden">
+            <Card className={`bg-[#0A0A0A] border-white/10 shadow-lg overflow-hidden ${isMobile ? 'rounded-none border-x-0' : ''}`}>
               <CardHeader className="pb-0">
                 <SetlistHeader 
                   isConnected={isConnected}
@@ -104,15 +106,19 @@ const SetlistSection: React.FC<SetlistSectionProps> = ({
                     />
                     
                     {!isAuthenticated && anonymousVoteCount >= 3 && (
-                      <div className="p-4 mx-4 mb-4 mt-2">
+                      <div className={`p-4 ${isMobile ? 'mx-2' : 'mx-4'} mb-4 mt-2`}>
                         <Alert variant="default" className="bg-white/5 border-white/10">
                           <AlertCircle className="h-4 w-4 text-white/70" />
                           <AlertDescription className="flex items-center justify-between">
-                            <span className="text-white/80">You've used all your free votes. Log in with Spotify to vote more!</span>
+                            <span className="text-white/80">
+                              {isMobile 
+                                ? "Login to vote more!" 
+                                : "You've used all your free votes. Log in with Spotify to vote more!"}
+                            </span>
                             <Button 
                               size="sm" 
                               onClick={login}
-                              className="bg-white text-black hover:bg-white/90"
+                              className="bg-white text-black hover:bg-white/90 ml-2 flex-shrink-0"
                             >
                               Log In
                             </Button>
@@ -121,9 +127,9 @@ const SetlistSection: React.FC<SetlistSectionProps> = ({
                       </div>
                     )}
                     
-                    <div className="p-5 border-t border-white/10 text-sm text-white/60 flex justify-between items-center">
+                    <div className={`p-4 border-t border-white/10 text-sm text-white/60 flex justify-between items-center`}>
                       <div className="flex items-center gap-1.5">
-                        <p>
+                        <p className={isMobile ? "text-xs" : ""}>
                           Last updated {formatDistanceToNow(new Date(), { addSuffix: true })}
                         </p>
                       </div>
@@ -145,17 +151,19 @@ const SetlistSection: React.FC<SetlistSectionProps> = ({
             </Card>
           </div>
           
-          <div className="space-y-6">
-            <VotingStats
-              totalVotes={totalVotes}
-              userVotedCount={userVotedCount}
-              anonymousVoteCount={anonymousVoteCount}
-              isAuthenticated={isAuthenticated}
-              login={login}
-            />
-            
-            <HowItWorksCard />
-          </div>
+          {!isMobile && (
+            <div className="space-y-6">
+              <VotingStats
+                totalVotes={totalVotes}
+                userVotedCount={userVotedCount}
+                anonymousVoteCount={anonymousVoteCount}
+                isAuthenticated={isAuthenticated}
+                login={login}
+              />
+              
+              <HowItWorksCard />
+            </div>
+          )}
         </div>
       </div>
     </section>

@@ -10,6 +10,7 @@ import {
   TableHeader,
   TableRow 
 } from '@/components/ui/table';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 interface Song {
   id: string;
@@ -27,6 +28,7 @@ interface VotableSetlistTableProps {
 
 const VotableSetlistTable = ({ songs, onVote, className, anonymousVoteCount = 0 }: VotableSetlistTableProps) => {
   const [animatingSongId, setAnimatingSongId] = useState<string | null>(null);
+  const isMobile = useIsMobile();
   
   const handleVote = (songId: string) => {
     setAnimatingSongId(songId);
@@ -46,7 +48,6 @@ const VotableSetlistTable = ({ songs, onVote, className, anonymousVoteCount = 0 
       <Table>
         <TableHeader>
           <TableRow className="border-b border-white/10">
-            <TableHead className="py-3 px-4 text-left text-xs font-medium text-white/60 uppercase tracking-wider">#</TableHead>
             <TableHead className="py-3 px-4 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Song</TableHead>
             <TableHead className="py-3 px-4 text-center text-xs font-medium text-white/60 uppercase tracking-wider hidden sm:table-cell">Votes</TableHead>
             <TableHead className="py-3 px-4 text-right text-xs font-medium text-white/60 uppercase tracking-wider">
@@ -57,7 +58,7 @@ const VotableSetlistTable = ({ songs, onVote, className, anonymousVoteCount = 0 
         <TableBody>
           {sortedSongs.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={4} className="py-16 text-center text-white/60">
+              <TableCell colSpan={3} className="py-16 text-center text-white/60">
                 No songs in the setlist yet. Add some songs using the dropdown above.
               </TableCell>
             </TableRow>
@@ -71,33 +72,24 @@ const VotableSetlistTable = ({ songs, onVote, className, anonymousVoteCount = 0 
                   song.userVoted && "bg-white/10 hover:bg-white/15",
                 )}
               >
-                <TableCell className="py-4 px-4 w-12">
-                  {index === 0 ? (
-                    <div className="flex items-center text-yellow-500">
-                      <Trophy size={16} className="mr-1.5" />
-                      <span className="font-medium">1</span>
-                    </div>
-                  ) : index === 1 ? (
-                    <div className="flex items-center text-gray-400">
-                      <Crown size={14} className="mr-1.5" />
-                      <span className="font-medium">2</span>
-                    </div>
-                  ) : index === 2 ? (
-                    <div className="flex items-center text-amber-700">
-                      <Star size={14} className="mr-1.5" />
-                      <span className="font-medium">3</span>
-                    </div>
-                  ) : (
-                    <span className="font-medium text-white/70">
-                      {index + 1}
-                    </span>
-                  )}
-                </TableCell>
                 <TableCell className="py-4 px-4">
                   <div className="flex items-center">
-                    <Music size={16} className="mr-2 text-white/40" />
+                    {/* Display rank icons only on mobile */}
+                    {isMobile && index <= 2 && (
+                      <>
+                        {index === 0 && <Trophy size={16} className="mr-2 text-yellow-500" />}
+                        {index === 1 && <Crown size={14} className="mr-2 text-gray-400" />}
+                        {index === 2 && <Star size={14} className="mr-2 text-amber-700" />}
+                      </>
+                    )}
+                    
+                    {/* Always show music icon for non-top songs or on desktop */}
+                    {(!isMobile || index > 2) && (
+                      <Music size={16} className="mr-2 text-white/40" />
+                    )}
+                    
                     <span className={cn(
-                      "font-medium truncate max-w-[150px] sm:max-w-[250px] md:max-w-full",
+                      "font-medium truncate max-w-[180px] sm:max-w-[250px] md:max-w-full",
                       index === 0 && "text-yellow-500", 
                       index === 1 && "text-gray-400",
                       index === 2 && "text-amber-700",
