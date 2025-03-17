@@ -29,14 +29,14 @@ const Hero = () => {
   ];
 
   return (
-    <section className="relative bg-black text-white py-16 md:py-20">
+    <section className="relative bg-black text-white py-16 md:py-24">
       <div className="container mx-auto px-4 md:px-6 max-w-5xl">
         <div className="text-center mb-8">
           <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-4">
             Vote on the setlists<br />
             you want to hear
           </h1>
-          <p className="text-lg text-white/80 max-w-2xl mx-auto">
+          <p className="text-lg text-white/80 max-w-2xl mx-auto mb-8">
             Discover upcoming concerts and help shape the perfect
             show by voting for your favorite songs.
           </p>
@@ -52,7 +52,7 @@ const Hero = () => {
               placeholder="Search for artists, venues, or cities..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 py-6 h-12 bg-black/40 border-white/10 text-white placeholder:text-white/60 rounded-md w-full focus-visible:ring-white/30"
+              className="pl-10 py-6 h-14 bg-black/40 border-white/10 text-white placeholder:text-white/60 rounded-md w-full focus-visible:ring-white/30"
             />
           </div>
         </form>

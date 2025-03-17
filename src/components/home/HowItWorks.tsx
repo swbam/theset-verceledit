@@ -1,66 +1,66 @@
 
 import React from 'react';
-import { Music, Vote, Headphones } from 'lucide-react';
+import { Search, Vote, Wand2 } from 'lucide-react';
 
 const HowItWorks = () => {
   return (
-    <section className="py-20 px-4 bg-[#0A0A12]">
-      <div className="container mx-auto max-w-5xl">
-        <div className="text-center mb-16">
-          <h2 className="text-3xl font-bold mb-2">How TheSet Works</h2>
+    <section className="py-16 px-4 bg-black">
+      <div className="container mx-auto max-w-7xl">
+        <div className="text-center mb-12">
+          <h2 className="text-3xl font-bold mb-4">How TheSet Works</h2>
           <p className="text-white/70 max-w-2xl mx-auto">
-            Shape the perfect concert experience by voting on setlists for your favorite artists' upcoming shows
+            Shape the perfect concert experience by voting on setlists for your favorite artists' upcoming shows.
           </p>
         </div>
         
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
-          {/* Step 1 */}
-          <div className="text-center">
-            <div className="relative">
-              <div className="h-12 w-12 rounded-full bg-primary/20 text-primary flex items-center justify-center mx-auto mb-4">
-                <span className="font-bold text-xl">1</span>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          <div className="flex flex-col items-center text-center">
+            <div className="bg-white/5 rounded-full h-16 w-16 flex items-center justify-center mb-4 border border-white/10">
+              <div className="bg-white/10 rounded-full h-12 w-12 flex items-center justify-center">
+                <span className="text-xl font-bold">1</span>
               </div>
-              <h3 className="text-xl font-bold mb-3">Find Your Artist</h3>
-              <p className="text-white/70">
-                Search for your favorite artists and discover their upcoming concerts near you.
-              </p>
-              
-              <div className="mt-6 bg-black/40 aspect-square max-w-[200px] mx-auto rounded-lg flex items-center justify-center">
-                <Music className="h-16 w-16 text-white/30" />
+            </div>
+            <h3 className="text-xl font-bold mb-2">Find Your Artist</h3>
+            <p className="text-white/70">
+              Search for your favorite artists and see their upcoming concerts near you.
+            </p>
+            <div className="mt-6 h-32 relative w-full max-w-[180px]">
+              <div className="bg-white/5 rounded-lg border border-white/10 w-full h-full flex items-center justify-center">
+                <Search className="w-10 h-10 text-white/30" />
               </div>
             </div>
           </div>
           
-          {/* Step 2 */}
-          <div className="text-center">
-            <div className="relative">
-              <div className="h-12 w-12 rounded-full bg-primary/20 text-primary flex items-center justify-center mx-auto mb-4">
-                <span className="font-bold text-xl">2</span>
+          <div className="flex flex-col items-center text-center">
+            <div className="bg-white/5 rounded-full h-16 w-16 flex items-center justify-center mb-4 border border-white/10">
+              <div className="bg-white/10 rounded-full h-12 w-12 flex items-center justify-center">
+                <span className="text-xl font-bold">2</span>
               </div>
-              <h3 className="text-xl font-bold mb-3">Vote on Songs</h3>
-              <p className="text-white/70">
-                Cast your votes on songs you want to hear at the show and see what others are voting for.
-              </p>
-              
-              <div className="mt-6 bg-black/40 aspect-square max-w-[200px] mx-auto rounded-lg flex items-center justify-center">
-                <Vote className="h-16 w-16 text-white/30" />
+            </div>
+            <h3 className="text-xl font-bold mb-2">Vote on Songs</h3>
+            <p className="text-white/70">
+              Cast your votes to shape the setlist and see what others want to hear.
+            </p>
+            <div className="mt-6 h-32 relative w-full max-w-[180px]">
+              <div className="bg-white/5 rounded-lg border border-white/10 w-full h-full flex items-center justify-center">
+                <Vote className="w-10 h-10 text-white/30" />
               </div>
             </div>
           </div>
           
-          {/* Step 3 */}
-          <div className="text-center">
-            <div className="relative">
-              <div className="h-12 w-12 rounded-full bg-primary/20 text-primary flex items-center justify-center mx-auto mb-4">
-                <span className="font-bold text-xl">3</span>
+          <div className="flex flex-col items-center text-center">
+            <div className="bg-white/5 rounded-full h-16 w-16 flex items-center justify-center mb-4 border border-white/10">
+              <div className="bg-white/10 rounded-full h-12 w-12 flex items-center justify-center">
+                <span className="text-xl font-bold">3</span>
               </div>
-              <h3 className="text-xl font-bold mb-3">Experience the Magic</h3>
-              <p className="text-white/70">
-                Attend concerts with setlists shaped by fan preferences and enjoy the music you love.
-              </p>
-              
-              <div className="mt-6 bg-black/40 aspect-square max-w-[200px] mx-auto rounded-lg flex items-center justify-center">
-                <Headphones className="h-16 w-16 text-white/30" />
+            </div>
+            <h3 className="text-xl font-bold mb-2">Experience the Magic</h3>
+            <p className="text-white/70">
+              Attend concerts with setlists shaped by fans for a more personal experience.
+            </p>
+            <div className="mt-6 h-32 relative w-full max-w-[180px]">
+              <div className="bg-white/5 rounded-lg border border-white/10 w-full h-full flex items-center justify-center">
+                <Wand2 className="w-10 h-10 text-white/30" />
               </div>
             </div>
           </div>

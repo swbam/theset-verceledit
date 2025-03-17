@@ -2,133 +2,105 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ChevronRight } from 'lucide-react';
-import { Skeleton } from '@/components/ui/skeleton';
-import { getTrendingConcerts, popularMusicGenres } from '@/lib/ticketmaster';
-import { toast } from 'sonner';
-import StandardShowCard from '@/components/shows/StandardShowCard';
-import { saveArtistToDatabase, saveShowToDatabase, saveVenueToDatabase } from '@/lib/api/database-utils';
+import { ChevronRight, MapPin, CalendarDays } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 
-interface UpcomingShowsProps {
-  preloadedShows?: any[];
-}
+// Mock data to match the design
+const GENRES = [
+  { id: "all", name: "All Genres" },
+  { id: "pop", name: "Pop" },
+  { id: "rock", name: "Rock" },
+  { id: "hip-hop", name: "Hip-Hop" },
+  { id: "electronic", name: "Electronic" },
+  { id: "r&b", name: "R&B" },
+  { id: "country", name: "Country" },
+  { id: "latin", name: "Latin" }
+];
 
-const UpcomingShows = ({ preloadedShows }: UpcomingShowsProps) => {
+const MOCK_SHOWS = [
+  {
+    id: "show1",
+    name: "The Eras Tour",
+    artist: { name: "Taylor Swift" },
+    date: "May 15, 2023",
+    venue: { name: "MetLife Stadium", city: "East Rutherford", state: "NJ" },
+    genres: ["Pop"],
+    image_url: "https://media.pitchfork.com/photos/61d4ca4cef233215262a2e2b/master/w_1600,c_limit/taylor-swift-bb13-2021-billboard-1548.jpg"
+  },
+  {
+    id: "show2",
+    name: "Hit Me Hard and Soft Tour",
+    artist: { name: "Billie Eilish" },
+    date: "May 31, 2023",
+    venue: { name: "Chicago United Center", city: "Chicago", state: "IL" },
+    genres: ["Pop", "Alternative"],
+    image_url: "https://www.billboard.com/wp-content/uploads/2023/06/Billie-Eilish-press-2023-cr-Mason-Poole-billboard-1548.jpg"
+  },
+  {
+    id: "show3",
+    name: "Music Of The Spheres Tour",
+    artist: { name: "Coldplay" },
+    date: "May 28, 2023",
+    venue: { name: "Sofi Stadium", city: "Inglewood", state: "CA" },
+    genres: ["Rock", "Alternative"],
+    image_url: "https://footprintuscoalition.com/wp-content/uploads/2023/05/pasted-image-0-2.png"
+  },
+  {
+    id: "show4",
+    name: "Radical Optimism Tour",
+    artist: { name: "Dua Lipa" },
+    date: "June 14, 2023",
+    venue: { name: "Madison Square Garden", city: "New York", state: "NY" },
+    genres: ["Pop", "Dance"],
+    image_url: "https://www.billboard.com/wp-content/uploads/2023/05/Dua-Lipa-cr-Tyrone-Lebon-bb05-2023-billboard-1548.jpg"
+  },
+  {
+    id: "show5",
+    name: "Renaissance World Tour",
+    artist: { name: "Beyoncé" },
+    date: "July 8, 2023",
+    venue: { name: "Mercedes-Benz Stadium", city: "Atlanta", state: "GA" },
+    genres: ["R&B", "Pop"],
+    image_url: "https://www.rollingstone.com/wp-content/uploads/2022/07/Beyonce-RENAISSANCE-album.jpg"
+  },
+  {
+    id: "show6",
+    name: "Everything or Nothing At All Tour",
+    artist: { name: "Sabrina Carpenter" },
+    date: "Oct. 20, 2023",
+    venue: { name: "Kia Forum", city: "Los Angeles", state: "CA" },
+    genres: ["Pop"],
+    image_url: "https://media.newyorker.com/photos/660c47ad3744c2a0df96c066/master/w_2560%2Cc_limit/Hajdu-Sabrina-Carpenter-Short-n-Sweet.jpg"
+  },
+  {
+    id: "show7",
+    name: "Utopia Tour",
+    artist: { name: "Travis Scott" },
+    date: "October 11, 2023",
+    venue: { name: "Crypto.com Arena", city: "Los Angeles", state: "CA" },
+    genres: ["Hip-Hop"],
+    image_url: "https://www.billboard.com/wp-content/uploads/2023/02/travis-scott-perform-2022-billboard-1548.jpg"
+  },
+  {
+    id: "show8",
+    name: "It's All A Blur Tour",
+    artist: { name: "Drake" },
+    date: "June 16, 2023",
+    venue: { name: "State Farm Arena", city: "Atlanta", state: "GA" },
+    genres: ["Hip-Hop"],
+    image_url: "https://media.pitchfork.com/photos/5c7d4c1b4101df3df85c41e5/master/w_1600%2Cc_limit/Drake.jpg"
+  }
+];
+
+const UpcomingShows = () => {
   const [activeGenre, setActiveGenre] = useState("all");
   
-  const { data: concerts = [], isLoading } = useQuery({
-    queryKey: ['trendingConcerts', activeGenre],
-    queryFn: async () => {
-      // If we have preloaded shows from the parent, use those instead
-      if (preloadedShows && preloadedShows.length > 0) {
-        return preloadedShows;
-      }
-      
-      try {
-        // Fetch trending concerts
-        const events = await getTrendingConcerts(20);
-        
-        // Process events to extract useful data
-        const processedShows = await Promise.all(events.map(async (event: any) => {
-          // Get artist from attractions if available
-          let artistName = '';
-          let artistId = '';
-          let artistData = null;
-          let genreName = 'Music';
-          
-          if (event._embedded?.attractions && event._embedded.attractions.length > 0) {
-            const attraction = event._embedded.attractions[0];
-            artistName = attraction.name;
-            artistId = attraction.id;
-            
-            // Get genre if available
-            if (event.classifications && event.classifications[0]) {
-              const classification = event.classifications[0];
-              genreName = classification.genre?.name || 
-                          classification.subGenre?.name || 
-                          classification.segment?.name || 
-                          'Music';
-            }
-            
-            // Create artist object
-            artistData = {
-              id: artistId,
-              name: artistName,
-              image: attraction.images?.find((img: any) => img.ratio === "16_9" && img.width > 500)?.url,
-              upcoming_shows: 1,
-              genres: [genreName].filter(Boolean)
-            };
-            
-            // Save artist to database
-            await saveArtistToDatabase(artistData);
-          } else {
-            // Fallback to extracting from event name
-            artistName = event.name.split(' at ')[0].split(' - ')[0].trim();
-            artistId = `tm-${encodeURIComponent(artistName.toLowerCase().replace(/\s+/g, '-'))}`;
-            
-            // Create minimal artist data
-            artistData = {
-              id: artistId,
-              name: artistName
-            };
-          }
-          
-          // Process venue
-          let venue = null;
-          let venueId = null;
-          if (event._embedded?.venues?.[0]) {
-            const venueData = event._embedded.venues[0];
-            venue = {
-              id: venueData.id,
-              name: venueData.name,
-              city: venueData.city?.name,
-              state: venueData.state?.name,
-              country: venueData.country?.name,
-            };
-            venueId = venueData.id;
-            
-            // Save venue to database
-            await saveVenueToDatabase(venue);
-          }
-          
-          // Create show object
-          const show = {
-            id: event.id,
-            name: event.name,
-            date: event.dates.start.dateTime || event.dates.start.localDate,
-            artist_id: artistId,
-            venue_id: venueId,
-            ticket_url: event.url,
-            image_url: event.images.find((img: any) => img.ratio === "16_9" && img.width > 500)?.url,
-            genre: genreName,
-            artist: artistData,
-            venue: venue,
-            popularity: Math.floor(Math.random() * 8000) + 3000 // Random popularity for now
-          };
-          
-          // Save show to database
-          await saveShowToDatabase(show);
-          
-          return show;
-        }));
-        
-        // If we want to filter by genre
-        if (activeGenre !== "all") {
-          const genreName = popularMusicGenres.find(g => g.id === activeGenre)?.name.toLowerCase() || '';
-          return processedShows.filter(show => 
-            show.genre?.toLowerCase().includes(genreName) || 
-            show.artist?.genres?.some((g: string) => g.toLowerCase().includes(genreName))
-          );
-        }
-        
-        return processedShows;
-      } catch (error) {
-        console.error("Failed to fetch trending concerts:", error);
-        toast.error("Couldn't load trending shows");
-        return [];
-      }
-    },
-  });
+  // Filter shows by selected genre
+  const filteredShows = MOCK_SHOWS.filter(show => 
+    activeGenre === "all" || show.genres.some(g => g.toLowerCase() === activeGenre.toLowerCase())
+  );
 
   return (
     <section className="py-12 md:py-16 px-4 bg-[#0A0A10]">
@@ -146,17 +118,7 @@ const UpcomingShows = ({ preloadedShows }: UpcomingShowsProps) => {
         </div>
         
         <div className="flex gap-2 mb-6 overflow-x-auto pb-2 scrollbar-hide">
-          <button
-            onClick={() => setActiveGenre("all")}
-            className={`whitespace-nowrap px-4 py-2 rounded-full text-sm ${
-              activeGenre === "all"
-                ? 'bg-white text-black font-medium'
-                : 'bg-white/10 text-white hover:bg-white/20'
-            }`}
-          >
-            All Genres
-          </button>
-          {popularMusicGenres.slice(0, 6).map(genre => (
+          {GENRES.map(genre => (
             <button
               key={genre.id}
               onClick={() => setActiveGenre(genre.id)}
@@ -171,37 +133,31 @@ const UpcomingShows = ({ preloadedShows }: UpcomingShowsProps) => {
           ))}
         </div>
         
-        {isLoading ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-            {[...Array(8)].map((_, index) => (
-              <div key={index} className="bg-black/40 rounded-lg overflow-hidden border border-white/10">
-                <Skeleton className="aspect-[3/2] w-full" />
-                <div className="p-4">
-                  <Skeleton className="h-5 w-3/4 mb-2" />
-                  <Skeleton className="h-4 w-1/2 mb-3" />
-                  <div className="flex items-center mb-2">
-                    <Skeleton className="h-4 w-4 rounded-full mr-2" />
-                    <Skeleton className="h-3 w-24" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+          {filteredShows.map(show => (
+            <Card key={show.id} className="bg-black/40 border-white/10 overflow-hidden hover:border-white/20 transition-all">
+              <Link to={`/shows/${show.id}`} className="block">
+                <div className="p-4 border-b border-white/10">
+                  <h3 className="font-bold text-lg mb-1">{show.name}</h3>
+                  <p className="text-sm text-white/80">{show.artist.name}</p>
+                </div>
+                <div className="p-4 space-y-2 text-sm">
+                  <div className="flex items-center">
+                    <CalendarDays className="h-4 w-4 mr-2 text-white/60" />
+                    <span className="text-white/80">{show.date}</span>
                   </div>
                   <div className="flex items-center">
-                    <Skeleton className="h-4 w-4 rounded-full mr-2" />
-                    <Skeleton className="h-3 w-20" />
+                    <MapPin className="h-4 w-4 mr-2 text-white/60" />
+                    <span className="text-white/80">{show.venue.name}, {show.venue.city}, {show.venue.state}</span>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        ) : concerts.length === 0 ? (
-          <div className="text-center py-10 bg-black/20 rounded-lg border border-white/5">
-            <p className="text-white/60">No upcoming shows found</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-            {concerts.slice(0, 8).map((show) => (
-              <StandardShowCard key={show.id} show={show} />
-            ))}
-          </div>
-        )}
+                <Button variant="outline" size="sm" className="m-4">
+                  View setlist
+                </Button>
+              </Link>
+            </Card>
+          ))}
+        </div>
       </div>
     </section>
   );
