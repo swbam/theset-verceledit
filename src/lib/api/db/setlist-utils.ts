@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
@@ -6,6 +7,10 @@ export interface SetlistSong {
   name: string;
   votes: number;
   userVoted?: boolean;
+  setlistSongId?: string;  // Added to store the database ID 
+  albumName?: string;      // Added these properties to match usage in other files
+  albumImageUrl?: string;
+  artistName?: string;
 }
 
 export const getSetlistSongs = async (setlistId: string, userId?: string): Promise<SetlistSong[]> => {
@@ -13,34 +18,63 @@ export const getSetlistSongs = async (setlistId: string, userId?: string): Promi
     // First get all songs in the setlist
     const { data: songs, error } = await supabase
       .from('setlist_songs')
-      .select('id, name, votes')
+      .select('id, setlist_id, track_id, votes')
       .eq('setlist_id', setlistId)
       .order('votes', { ascending: false });
 
     if (error) throw error;
+    
+    if (!songs) return [];
+
+    // Get the song details from top_tracks for each song
+    const songDetails = [];
+    
+    for (const song of songs) {
+      // Get track details from top_tracks table
+      const { data: trackData, error: trackError } = await supabase
+        .from('top_tracks')
+        .select('id, name, album_name, album_image_url')
+        .eq('id', song.track_id)
+        .single();
+      
+      if (trackError && trackError.code !== 'PGRST116') {
+        console.error('Error fetching track details:', trackError);
+        continue;
+      }
+
+      // Create a combined song object
+      songDetails.push({
+        id: song.track_id,             // Use track_id as the song ID
+        name: trackData?.name || `Track ${song.track_id.substring(0, 6)}`,
+        votes: song.votes,
+        userVoted: false,              // Will be updated below if user ID is provided
+        setlistSongId: song.id,        // Store the setlist_songs table ID
+        albumName: trackData?.album_name,
+        albumImageUrl: trackData?.album_image_url
+      });
+    }
 
     // If no user ID, just return the songs without user vote info
     if (!userId) {
-      return songs as SetlistSong[];
+      return songDetails;
     }
 
     // Get the user's votes for this setlist
     const { data: userVotes, error: votesError } = await supabase
-      .from('setlist_votes')
-      .select('song_id')
-      .eq('user_id', userId)
-      .eq('setlist_id', setlistId);
+      .from('votes')
+      .select('setlist_song_id')
+      .eq('user_id', userId);
 
     if (votesError) throw votesError;
 
     // Create a set of song IDs the user has voted for
-    const userVotedSongIds = new Set(userVotes.map(vote => vote.song_id));
+    const userVotedSongIds = new Set(userVotes?.map(vote => vote.setlist_song_id) || []);
 
     // Add the userVoted flag to each song
-    return songs.map(song => ({
+    return songDetails.map(song => ({
       ...song,
-      userVoted: userVotedSongIds.has(song.id)
-    })) as SetlistSong[];
+      userVoted: userVotedSongIds.has(song.setlistSongId || '')
+    }));
   } catch (error) {
     console.error('Error fetching setlist songs:', error);
     return [];
@@ -55,10 +89,9 @@ export const voteForSong = async (
   try {
     // Check if the user has already voted for this song
     const { data: existingVote, error: checkError } = await supabase
-      .from('setlist_votes')
+      .from('votes')
       .select('id')
-      .eq('setlist_id', setlistId)
-      .eq('song_id', songId)
+      .eq('setlist_song_id', songId)
       .eq('user_id', userId)
       .single();
 
@@ -75,20 +108,19 @@ export const voteForSong = async (
 
     // Add the vote
     const { error: voteError } = await supabase
-      .from('setlist_votes')
+      .from('votes')
       .insert({
-        setlist_id: setlistId,
-        song_id: songId,
+        setlist_song_id: songId,
         user_id: userId
       });
 
     if (voteError) throw voteError;
 
     // Increment the vote count for the song
-    const { error: updateError } = await supabase.rpc('increment_song_votes', {
-      p_setlist_id: setlistId,
-      p_song_id: songId
-    });
+    const { error: updateError } = await supabase
+      .from('setlist_songs')
+      .update({ votes: supabase.rpc('increment', { value: 1 }) })
+      .eq('id', songId);
 
     if (updateError) throw updateError;
 
@@ -100,18 +132,21 @@ export const voteForSong = async (
   }
 };
 
+// Alias for compatibility with other code
+export const voteForSetlistSong = voteForSong;
+
 export const addSongToSetlist = async (
   setlistId: string,
-  songId: string,
-  songName: string
-): Promise<boolean> => {
+  trackId: string,
+  songName?: string
+): Promise<string | null> => {
   try {
     // Check if the song already exists in the setlist
     const { data: existingSong, error: checkError } = await supabase
       .from('setlist_songs')
       .select('id')
       .eq('setlist_id', setlistId)
-      .eq('id', songId)
+      .eq('track_id', trackId)
       .single();
 
     if (checkError && checkError.code !== 'PGRST116') {
@@ -120,25 +155,39 @@ export const addSongToSetlist = async (
 
     if (existingSong) {
       // Song already exists in the setlist
-      return false;
+      return existingSong.id;
+    }
+
+    // Get track info if songName not provided
+    if (!songName) {
+      const { data: trackData, error: trackError } = await supabase
+        .from('top_tracks')
+        .select('name')
+        .eq('id', trackId)
+        .single();
+      
+      if (!trackError && trackData) {
+        songName = trackData.name;
+      }
     }
 
     // Add the song to the setlist
-    const { error: insertError } = await supabase
+    const { data, error: insertError } = await supabase
       .from('setlist_songs')
       .insert({
-        id: songId,
         setlist_id: setlistId,
-        name: songName,
+        track_id: trackId,
         votes: 0
-      });
+      })
+      .select('id')
+      .single();
 
     if (insertError) throw insertError;
 
-    return true;
+    return data?.id || null;
   } catch (error) {
     console.error('Error adding song to setlist:', error);
-    return false;
+    return null;
   }
 };
 
@@ -147,14 +196,9 @@ export const addTracksToSetlist = async (
   trackIds: string[]
 ): Promise<void> => {
   try {
-    // Fix for line 116 - ensure the array being pushed to accepts strings
-    const tracksToAdd: string[] = trackIds;
-    
     // Process each track ID
-    for (const trackId of tracksToAdd) {
-      // Fetch track details from Spotify API or your database
-      // Add the track to the setlist
-      await addSongToSetlist(setlistId, trackId, `Track ${trackId}`);
+    for (const trackId of trackIds) {
+      await addSongToSetlist(setlistId, trackId);
     }
   } catch (error) {
     console.error('Error adding tracks to setlist:', error);

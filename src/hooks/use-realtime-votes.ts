@@ -4,7 +4,12 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/auth/AuthContext';
 import { toast } from 'sonner';
-import { voteForSetlistSong, getSetlistSongs, SetlistSong, addSongToSetlist as dbAddSongToSetlist } from '@/lib/api/db/setlist-utils';
+import { 
+  getSetlistSongs, 
+  SetlistSong, 
+  voteForSong, 
+  addSongToSetlist as dbAddSongToSetlist 
+} from '@/lib/api/db/setlist-utils';
 import { createSetlistForShow } from '@/lib/api/db/show-utils';
 
 interface Song {
@@ -134,7 +139,7 @@ export function useRealtimeVotes(showId: string, spotifyArtistId: string, initia
       for (const song of initialSongs) {
         if (!song.id.startsWith('placeholder')) {
           console.log(`Adding initial song to setlist: ${song.name}`);
-          await dbAddSongToSetlist(setlistId, song.id);
+          await dbAddSongToSetlist(setlistId, song.id, song.name);
         }
       }
       
@@ -189,7 +194,7 @@ export function useRealtimeVotes(showId: string, spotifyArtistId: string, initia
         id: song.id,
         name: song.name,
         votes: song.votes,
-        userVoted: song.userVoted,
+        userVoted: !!song.userVoted,
         albumName: song.albumName,
         albumImageUrl: song.albumImageUrl,
         artistName: song.artistName,
@@ -251,7 +256,7 @@ export function useRealtimeVotes(showId: string, spotifyArtistId: string, initia
           console.log("Authenticated vote for song:", songId);
           
           // Call the vote function with the setlistSongId
-          const success = await voteForSetlistSong(song.setlistSongId, user!.id);
+          const success = await voteForSong(setlistId, song.setlistSongId || '', user!.id);
           
           if (success) {
             // Optimistically update the UI
@@ -286,7 +291,7 @@ export function useRealtimeVotes(showId: string, spotifyArtistId: string, initia
   const handleAddSong = useCallback(async () => {
     if (!setlistId || !selectedTrack) {
       console.error("Missing setlist ID or selected track");
-      return;
+      return false;
     }
     
     console.log(`Adding song ${selectedTrack} to setlist ${setlistId}`);
@@ -300,13 +305,16 @@ export function useRealtimeVotes(showId: string, spotifyArtistId: string, initia
         setSelectedTrack('');
         // Refresh the songs list
         queryClient.invalidateQueries({ queryKey: ['setlistSongs', showId, setlistId] });
+        return true;
       } else {
         console.error("Failed to add song");
         toast.error("Failed to add song to setlist");
+        return false;
       }
     } catch (error) {
       console.error("Error adding song:", error);
       toast.error("Error adding song to setlist");
+      return false;
     }
   }, [setlistId, selectedTrack, queryClient, showId]);
   
