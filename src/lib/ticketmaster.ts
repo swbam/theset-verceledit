@@ -5,7 +5,7 @@ export {
   searchArtistsWithEvents, 
   fetchFeaturedArtists,
   fetchArtistById
-} from './api/artist-api';
+} from './api/artist';  // Updated import path to use the index.ts in the artist folder
 export { 
   fetchArtistEvents, 
   fetchShowDetails, 
