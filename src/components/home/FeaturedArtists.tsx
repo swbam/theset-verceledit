@@ -2,62 +2,24 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Music, ChevronRight } from 'lucide-react';
+import { Music2, ChevronRight } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { fetchFeaturedArtists } from '@/lib/api/artist';
-import { getMyTopArtists } from '@/lib/spotify/user-recommendations';
 
 const FeaturedArtists = () => {
-  // Fetch featured artists from Ticketmaster
-  const { data: artistsData = [], isLoading: isArtistsLoading, error: artistsError } = useQuery({
+  const { data: artistsData = [], isLoading, error } = useQuery({
     queryKey: ['featuredArtists'],
-    queryFn: () => fetchFeaturedArtists(12), // Fetch more to ensure we have enough after filtering
+    queryFn: () => fetchFeaturedArtists(12),
   });
 
-  // Also fetch user recommendations if logged in
-  const { data: recommendedArtists = [], isLoading: isRecsLoading } = useQuery({
-    queryKey: ['recommendedArtists'],
-    queryFn: getMyTopArtists,
-    // Don't fail if the query errors (user might not be logged in)
-    retry: false,
-    enabled: false, // Only enable when needed
-  });
-
-  // Ensure we have unique artists by ID, prioritizing high popularity ones
-  const uniqueArtists = React.useMemo(() => {
-    const allArtists = [...artistsData, ...recommendedArtists];
-    const uniqueMap = new Map();
-    
-    // First pass: add all artists to map
-    allArtists.forEach(artist => {
-      if (!uniqueMap.has(artist.id)) {
-        uniqueMap.set(artist.id, {
-          ...artist,
-          // Default higher popularity for user recommendations
-          popularity: artist.popularity || (recommendedArtists.includes(artist) ? 90 : 50)
-        });
-      } else if (artist.popularity && artist.popularity > (uniqueMap.get(artist.id).popularity || 0)) {
-        // Update if the popularity is higher
-        const existingArtist = uniqueMap.get(artist.id);
-        uniqueMap.set(artist.id, {
-          ...existingArtist,
-          ...artist,
-          popularity: Math.max(artist.popularity, existingArtist.popularity || 0)
-        });
-      }
-    });
-
-    // Sort by popularity and take top 6
-    return Array.from(uniqueMap.values())
-      .sort((a, b) => (b.popularity || 0) - (a.popularity || 0))
-      .slice(0, 6);
-  }, [artistsData, recommendedArtists]);
-
-  const isLoading = isArtistsLoading || isRecsLoading;
+  // Filter and limit artists
+  const artists = React.useMemo(() => {
+    return artistsData.slice(0, 6);
+  }, [artistsData]);
 
   return (
-    <section className="py-16 px-4 bg-gradient-to-b from-[#0A0A12] to-black">
+    <section className="py-16 px-4 bg-[#0A0A10]">
       <div className="container mx-auto max-w-7xl">
         <div className="flex justify-between items-center mb-8">
           <div>
@@ -65,17 +27,17 @@ const FeaturedArtists = () => {
             <p className="text-base text-white/70 mt-1">Top artists with upcoming shows to vote on</p>
           </div>
           <Link to="/artists" className="text-white hover:text-white/80 font-medium flex items-center group">
-            View all <ChevronRight size={16} className="transition-transform group-hover:translate-x-1" />
+            View all <ChevronRight size={16} className="ml-1 transition-transform group-hover:translate-x-1" />
           </Link>
         </div>
         
         {isLoading ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-6">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6">
             {[...Array(6)].map((_, index) => (
-              <div key={index} className="bg-black/40 rounded-xl overflow-hidden border border-white/10">
+              <div key={index} className="bg-black/40 rounded-lg overflow-hidden border border-white/10">
                 <Skeleton className="aspect-square w-full" />
                 <div className="p-4">
-                  <Skeleton className="h-5 w-3/4 mb-1" />
+                  <Skeleton className="h-5 w-3/4 mb-2" />
                   <div className="flex gap-2 mt-3">
                     <Skeleton className="h-6 w-16 rounded-full" />
                   </div>
@@ -83,21 +45,21 @@ const FeaturedArtists = () => {
               </div>
             ))}
           </div>
-        ) : artistsError ? (
-          <div className="text-center py-10">
-            <p className="text-white/60">Unable to load featured artists</p>
+        ) : error ? (
+          <div className="text-center py-10 bg-black/20 rounded-lg border border-white/5">
+            <p className="text-white/60">No featured artists found</p>
           </div>
-        ) : uniqueArtists.length === 0 ? (
-          <div className="text-center py-10">
+        ) : artists.length === 0 ? (
+          <div className="text-center py-10 bg-black/20 rounded-lg border border-white/5">
             <p className="text-white/60">No featured artists found</p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-6">
-            {uniqueArtists.map(artist => (
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6">
+            {artists.map((artist) => (
               <Link 
                 key={artist.id}
                 to={`/artists/${artist.id}`}
-                className="bg-black/40 rounded-xl overflow-hidden border border-white/10 hover:border-white/30 transition-all hover:scale-[1.02] group"
+                className="bg-black/40 rounded-lg overflow-hidden border border-white/10 hover:border-white/30 transition-all hover:scale-[1.02] group"
               >
                 <div className="aspect-square overflow-hidden relative">
                   {artist.image ? (
@@ -107,16 +69,13 @@ const FeaturedArtists = () => {
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                     />
                   ) : (
-                    <div className="w-full h-full bg-secondary/20 flex items-center justify-center">
-                      <Music className="h-12 w-12 text-white/40" />
+                    <div className="w-full h-full bg-[#111]/80 flex items-center justify-center">
+                      <Music2 className="h-12 w-12 text-white/40" />
                     </div>
                   )}
-                  
-                  {/* Gradient overlay */}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                 </div>
                 <div className="p-4">
-                  <h3 className="font-bold text-base mb-2 line-clamp-1 group-hover:text-primary transition-colors">
+                  <h3 className="font-bold text-base mb-2 line-clamp-1">
                     {artist.name}
                   </h3>
                   

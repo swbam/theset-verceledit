@@ -2,7 +2,7 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { Calendar, MapPin, Star } from 'lucide-react';
+import { Calendar, MapPin, ChevronRight } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { fetchFeaturedShows } from '@/lib/ticketmaster';
@@ -10,7 +10,7 @@ import { fetchFeaturedShows } from '@/lib/ticketmaster';
 const TrendingShows = () => {
   const { data: showsData = [], isLoading, error } = useQuery({
     queryKey: ['trendingShows'],
-    queryFn: () => fetchFeaturedShows(8), // Fetch more to ensure we have enough after filtering
+    queryFn: () => fetchFeaturedShows(8),
   });
 
   // Format date helper function
@@ -32,35 +32,17 @@ const TrendingShows = () => {
     const uniqueMap = new Map();
     
     showsData.forEach(show => {
-      if (!uniqueMap.has(show.id) && show.artist?.popularity >= 60) {
+      if (!uniqueMap.has(show.id)) {
         uniqueMap.set(show.id, show);
       }
     });
 
-    // Sort by popularity (descending)
     return Array.from(uniqueMap.values())
-      .sort((a, b) => (b.artist?.popularity || 0) - (a.artist?.popularity || 0))
       .slice(0, 4);
   }, [showsData]);
 
-  // Generate random vote count for demo purposes
-  const getRandomVotes = () => {
-    return Math.floor(Math.random() * 3000) + 500;
-  };
-
-  // Generate star rating element
-  const renderStarRating = (rating = 5) => {
-    return (
-      <div className="flex items-center">
-        {Array(rating).fill(0).map((_, i) => (
-          <Star key={i} size={14} className="fill-white text-white" />
-        ))}
-      </div>
-    );
-  };
-
   return (
-    <section className="py-16 px-4 bg-gradient-to-b from-black/90 to-black">
+    <section className="py-16 px-4 bg-[#0A0A10]">
       <div className="container mx-auto max-w-7xl">
         <div className="flex justify-between items-center mb-8">
           <div>
@@ -68,14 +50,14 @@ const TrendingShows = () => {
             <p className="text-base text-white/70 mt-1">Shows with the most active voting right now</p>
           </div>
           <Link to="/shows" className="text-white hover:text-white/80 font-medium flex items-center group">
-            View all <span className="ml-1 transition-transform group-hover:translate-x-1">→</span>
+            View all <ChevronRight size={16} className="ml-1 transition-transform group-hover:translate-x-1" />
           </Link>
         </div>
         
         {isLoading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {[...Array(4)].map((_, index) => (
-              <div key={index} className="bg-black/40 rounded-xl overflow-hidden border border-white/10">
+              <div key={index} className="bg-black/40 rounded-lg overflow-hidden border border-white/10">
                 <Skeleton className="aspect-[4/3] w-full" />
                 <div className="p-4">
                   <Skeleton className="h-5 w-3/4 mb-2" />
@@ -93,24 +75,24 @@ const TrendingShows = () => {
             ))}
           </div>
         ) : error ? (
-          <div className="text-center py-10">
-            <p className="text-white/60">Unable to load trending shows</p>
+          <div className="text-center py-10 bg-black/20 rounded-lg border border-white/5">
+            <p className="text-white/60">No trending shows found</p>
           </div>
         ) : uniqueShows.length === 0 ? (
-          <div className="text-center py-10">
+          <div className="text-center py-10 bg-black/20 rounded-lg border border-white/5">
             <p className="text-white/60">No trending shows found</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {uniqueShows.map((show) => {
               const formattedDate = formatDate(show.date);
-              const votes = getRandomVotes();
+              const genre = show.genre || show.artist?.genres?.[0] || 'Pop';
               
               return (
                 <Link 
                   key={show.id} 
                   to={`/shows/${show.id}`}
-                  className="bg-black/40 rounded-xl overflow-hidden border border-white/10 hover:border-white/30 transition-all hover:scale-[1.02] group"
+                  className="bg-black/40 rounded-lg overflow-hidden border border-white/10 hover:border-white/30 transition-all hover:scale-[1.02] group"
                 >
                   <div className="relative aspect-[4/3] overflow-hidden">
                     {show.image_url ? (
@@ -120,19 +102,22 @@ const TrendingShows = () => {
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                       />
                     ) : (
-                      <div className="bg-secondary/20 w-full h-full flex items-center justify-center">
-                        <span className="text-white/40">No image</span>
+                      <div className="bg-[#111]/80 w-full h-full flex items-center justify-center">
+                        <Calendar className="h-8 w-8 text-white/40" />
                       </div>
                     )}
                     <Badge 
                       className="absolute top-3 right-3 bg-black/60 hover:bg-black/60 text-white"
                     >
-                      {show.genre || show.artist?.genres?.[0] || 'Pop'}
+                      {genre}
                     </Badge>
-                    <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black to-transparent pt-16 pb-4 px-4">
-                      <div className="flex justify-between items-center">
-                        <div>{renderStarRating()}</div>
-                        <span className="text-white font-medium text-sm">{votes}</span>
+                    <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black to-transparent pt-10 pb-4">
+                      <div className="flex items-center justify-end px-3">
+                        <div className="bg-white/10 rounded-full px-2 py-0.5">
+                          <span className="text-white text-xs font-medium">
+                            {Math.floor(Math.random() * 5000) + 500}
+                          </span>
+                        </div>
                       </div>
                     </div>
                   </div>
