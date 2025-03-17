@@ -126,6 +126,77 @@ export type Database = {
         }
         Relationships: []
       }
+      setlist_songs: {
+        Row: {
+          created_at: string
+          id: string
+          setlist_id: string
+          suggested_by: string | null
+          track_id: string
+          votes: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          setlist_id: string
+          suggested_by?: string | null
+          track_id: string
+          votes?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          setlist_id?: string
+          suggested_by?: string | null
+          track_id?: string
+          votes?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "setlist_songs_setlist_id_fkey"
+            columns: ["setlist_id"]
+            isOneToOne: false
+            referencedRelation: "setlists"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "setlist_songs_track_id_fkey"
+            columns: ["track_id"]
+            isOneToOne: false
+            referencedRelation: "top_tracks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      setlists: {
+        Row: {
+          created_at: string
+          id: string
+          last_updated: string
+          show_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          last_updated?: string
+          show_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          last_updated?: string
+          show_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "setlists_show_id_fkey"
+            columns: ["show_id"]
+            isOneToOne: true
+            referencedRelation: "shows"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       shows: {
         Row: {
           artist_id: string | null
@@ -183,6 +254,53 @@ export type Database = {
           },
         ]
       }
+      top_tracks: {
+        Row: {
+          album_image_url: string | null
+          album_name: string | null
+          artist_id: string
+          duration_ms: number | null
+          id: string
+          last_updated: string | null
+          name: string
+          popularity: number | null
+          preview_url: string | null
+          spotify_url: string | null
+        }
+        Insert: {
+          album_image_url?: string | null
+          album_name?: string | null
+          artist_id: string
+          duration_ms?: number | null
+          id: string
+          last_updated?: string | null
+          name: string
+          popularity?: number | null
+          preview_url?: string | null
+          spotify_url?: string | null
+        }
+        Update: {
+          album_image_url?: string | null
+          album_name?: string | null
+          artist_id?: string
+          duration_ms?: number | null
+          id?: string
+          last_updated?: string | null
+          name?: string
+          popularity?: number | null
+          preview_url?: string | null
+          spotify_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "top_tracks_artist_id_fkey"
+            columns: ["artist_id"]
+            isOneToOne: false
+            referencedRelation: "artists"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       venues: {
         Row: {
           address: string | null
@@ -221,6 +339,35 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: []
+      }
+      votes: {
+        Row: {
+          created_at: string
+          id: string
+          setlist_song_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          setlist_song_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          setlist_song_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "votes_setlist_song_id_fkey"
+            columns: ["setlist_song_id"]
+            isOneToOne: false
+            referencedRelation: "setlist_songs"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {

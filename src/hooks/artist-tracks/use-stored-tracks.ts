@@ -45,18 +45,32 @@ export function useStoredArtistData(artistId: string, isLoadingShow: boolean) {
     queryKey: ['storedArtistData', artistId],
     queryFn: async () => {
       // Check if we have the artist in database
-      const { data, error } = await supabase
+      const { data: artist, error: artistError } = await supabase
         .from('artists')
         .select('*')
         .eq('id', artistId)
         .single();
       
-      if (error) {
-        console.error('Error fetching stored artist data:', error);
+      if (artistError) {
+        console.error('Error fetching stored artist data:', artistError);
         return null;
       }
       
-      return data;
+      // Get track count for this artist
+      const { count, error: countError } = await supabase
+        .from('top_tracks')
+        .select('*', { count: 'exact', head: true })
+        .eq('artist_id', artistId);
+      
+      if (countError) {
+        console.error('Error fetching track count:', countError);
+      }
+      
+      // Return artist with track count
+      return {
+        ...artist,
+        trackCount: count || 0
+      };
     },
     enabled: !!artistId && !isLoadingShow,
     staleTime: 1000 * 60 * 60, // 1 hour
