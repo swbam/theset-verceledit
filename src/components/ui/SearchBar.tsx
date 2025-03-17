@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils';
 
 interface SearchBarProps {
   placeholder?: string;
-  onSearch?: (query: string) => void; // Updated to take a string parameter
+  onSearch?: (query: string) => void;
   onChange?: (query: string) => void;
   className?: string;
   isLoading?: boolean;
@@ -39,15 +39,12 @@ const SearchBar = ({
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (onSearch && query.trim()) {
-      onSearch(query.trim()); // Now passing string directly, not event
+      onSearch(query.trim());
     }
   };
 
   const clearSearch = () => {
     setQuery('');
-    if (onSearch) {
-      onSearch('');
-    }
     if (onChange) {
       onChange('');
     }
@@ -99,7 +96,11 @@ const SearchBar = ({
         "bg-background border border-border rounded-full",
         isFocused && "border-foreground/30 ring-2 ring-foreground/5"
       )}>
-        <div className="pl-4">
+        <button
+          type="submit"
+          className="pl-4"
+          aria-label="Search"
+        >
           <Search 
             size={18} 
             className={cn(
@@ -108,7 +109,7 @@ const SearchBar = ({
               isLoading && "animate-pulse"
             )} 
           />
-        </div>
+        </button>
         
         <input
           ref={inputRef}

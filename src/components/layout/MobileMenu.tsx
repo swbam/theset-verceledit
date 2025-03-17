@@ -41,6 +41,12 @@ const MobileMenu = ({
 
   if (!isOpen) return null;
 
+  const handleNavAndClose = (artistId: string) => {
+    handleNavigation(artistId);
+    setSearchQuery('');
+    closeMenu();
+  };
+
   return (
     <div className="fixed inset-0 top-16 z-50 bg-black animate-in slide-in-from-top-5">
       <nav className="container flex flex-col gap-6 p-6">
@@ -77,7 +83,10 @@ const MobileMenu = ({
             <SearchBar
               placeholder="Search artists..."
               onChange={(query) => setSearchQuery(query)}
-              onSearch={handleFullSearch}
+              onSearch={(query) => {
+                handleFullSearch(query);
+                closeMenu();
+              }}
               value={searchQuery}
               className="w-full"
             >
@@ -85,10 +94,7 @@ const MobileMenu = ({
                 <ArtistSearchResults
                   artists={artists}
                   isLoading={isLoading}
-                  onSelect={(artist) => {
-                    handleNavigation(artist.id);
-                    closeMenu();
-                  }}
+                  onSelect={(artist) => handleNavAndClose(artist.id)}
                 />
               )}
             </SearchBar>

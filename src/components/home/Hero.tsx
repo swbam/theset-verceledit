@@ -16,12 +16,16 @@ const Hero = () => {
     }
   };
 
+  const handlePopularSearch = (query: string) => {
+    navigate(`/search?q=${encodeURIComponent(query)}`);
+  };
+
   // Popular search terms from the design
   const popularSearches = [
-    { name: "Taylor Swift", path: "/search?q=Taylor+Swift" },
-    { name: "Coldplay", path: "/search?q=Coldplay" },
-    { name: "Bad Bunny", path: "/search?q=Bad+Bunny" },
-    { name: "New York", path: "/search?q=New+York" }
+    { name: "Taylor Swift", path: "Taylor Swift" },
+    { name: "Coldplay", path: "Coldplay" },
+    { name: "Bad Bunny", path: "Bad Bunny" },
+    { name: "New York", path: "New York" }
   ];
 
   return (
@@ -60,7 +64,7 @@ const Hero = () => {
               variant="secondary"
               size="sm"
               className="bg-white/10 hover:bg-white/20 border border-white/20 text-white rounded-full px-4 py-1"
-              onClick={() => navigate(search.path)}
+              onClick={() => handlePopularSearch(search.path)}
             >
               {search.name}
             </Button>

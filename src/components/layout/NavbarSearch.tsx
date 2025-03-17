@@ -33,7 +33,10 @@ const NavbarSearch = ({
           <ArtistSearchResults
             artists={artists}
             isLoading={isLoading}
-            onSelect={(artist) => handleNavigation(artist.id)}
+            onSelect={(artist) => {
+              handleNavigation(artist.id);
+              setSearchQuery('');
+            }}
           />
         )}
       </SearchBar>
