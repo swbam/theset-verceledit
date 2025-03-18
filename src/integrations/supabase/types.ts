@@ -78,11 +78,13 @@ export type Database = {
           genres: string[] | null
           id: string
           image_url: string | null
+          last_synced: string | null
           name: string
           popularity: number | null
           spotify_id: string | null
           spotify_url: string | null
           stored_tracks: Json | null
+          ticketmaster_id: string | null
           tracks_last_updated: string | null
           upcoming_shows: number | null
           updated_at: string | null
@@ -93,11 +95,13 @@ export type Database = {
           genres?: string[] | null
           id: string
           image_url?: string | null
+          last_synced?: string | null
           name: string
           popularity?: number | null
           spotify_id?: string | null
           spotify_url?: string | null
           stored_tracks?: Json | null
+          ticketmaster_id?: string | null
           tracks_last_updated?: string | null
           upcoming_shows?: number | null
           updated_at?: string | null
@@ -108,11 +112,13 @@ export type Database = {
           genres?: string[] | null
           id?: string
           image_url?: string | null
+          last_synced?: string | null
           name?: string
           popularity?: number | null
           spotify_id?: string | null
           spotify_url?: string | null
           stored_tracks?: Json | null
+          ticketmaster_id?: string | null
           tracks_last_updated?: string | null
           upcoming_shows?: number | null
           updated_at?: string | null
@@ -242,6 +248,7 @@ export type Database = {
           created_at: string | null
           full_name: string | null
           id: string
+          is_admin: boolean | null
           provider: string | null
           provider_id: string | null
           updated_at: string | null
@@ -252,6 +259,7 @@ export type Database = {
           created_at?: string | null
           full_name?: string | null
           id: string
+          is_admin?: boolean | null
           provider?: string | null
           provider_id?: string | null
           updated_at?: string | null
@@ -262,6 +270,7 @@ export type Database = {
           created_at?: string | null
           full_name?: string | null
           id?: string
+          is_admin?: boolean | null
           provider?: string | null
           provider_id?: string | null
           updated_at?: string | null
@@ -454,39 +463,51 @@ export type Database = {
       venues: {
         Row: {
           address: string | null
+          capacity: number | null
           city: string | null
           country: string | null
           created_at: string | null
           id: string
+          image_url: string | null
           location: Json | null
           name: string
           postal_code: string | null
           state: string | null
+          ticket_url: string | null
           updated_at: string | null
+          website: string | null
         }
         Insert: {
           address?: string | null
+          capacity?: number | null
           city?: string | null
           country?: string | null
           created_at?: string | null
           id: string
+          image_url?: string | null
           location?: Json | null
           name: string
           postal_code?: string | null
           state?: string | null
+          ticket_url?: string | null
           updated_at?: string | null
+          website?: string | null
         }
         Update: {
           address?: string | null
+          capacity?: number | null
           city?: string | null
           country?: string | null
           created_at?: string | null
           id?: string
+          image_url?: string | null
           location?: Json | null
           name?: string
           postal_code?: string | null
           state?: string | null
+          ticket_url?: string | null
           updated_at?: string | null
+          website?: string | null
         }
         Relationships: []
       }

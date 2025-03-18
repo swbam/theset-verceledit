@@ -1,46 +1,40 @@
 
 import React from 'react';
-import { Link as RouterLink } from 'react-router-dom';
+import { Link, LinkProps as ReactRouterLinkProps } from 'react-router-dom';
 
-// Basic mock for Next.js Link component for use with React Router
-const Link = ({
-  href,
-  as,
-  replace,
-  scroll,
-  shallow,
-  passHref,
-  prefetch,
-  locale,
-  children,
-  ...rest
-}: {
+interface NextLinkProps extends Omit<ReactRouterLinkProps, 'to'> {
   href: string;
   as?: string;
+  prefetch?: boolean;
   replace?: boolean;
-  scroll?: boolean;
   shallow?: boolean;
   passHref?: boolean;
-  prefetch?: boolean;
-  locale?: string;
+  className?: string;
   children: React.ReactNode;
-  [key: string]: any;
-}) => {
-  // External links should use a regular anchor tag
-  if (href.startsWith('http') || href.startsWith('mailto:') || href.startsWith('tel:')) {
-    return (
-      <a href={href} target="_blank" rel="noopener noreferrer" {...rest}>
-        {children}
-      </a>
-    );
-  }
+}
 
-  // Internal links use React Router's Link
+// Basic shim for Next.js Link component that wraps React Router's Link
+const NextLink = ({ 
+  href, 
+  as, 
+  prefetch, 
+  replace, 
+  shallow, 
+  passHref,
+  className,
+  children,
+  ...rest 
+}: NextLinkProps) => {
   return (
-    <RouterLink to={href} replace={replace} {...rest}>
+    <Link 
+      to={as || href} 
+      replace={replace} 
+      className={className}
+      {...rest}
+    >
       {children}
-    </RouterLink>
+    </Link>
   );
 };
 
-export default Link;
+export default NextLink;

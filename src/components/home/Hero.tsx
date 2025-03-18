@@ -1,17 +1,52 @@
-import React from 'react';
+
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Music, CalendarDays, ThumbsUp } from 'lucide-react';
+import { Search, Music, CalendarDays, ThumbsUp, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import ArtistSearchResults from '@/components/search/ArtistSearchResults';
+import { searchArtistsWithEvents } from '@/lib/api/ticketmaster/artists';
+import { useDebounce } from '@/hooks/use-debounce';
 
 const Hero = () => {
   const navigate = useNavigate();
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [artists, setArtists] = useState([]);
+  const [showResults, setShowResults] = useState(false);
+  const debouncedSearchQuery = useDebounce(searchQuery, 500);
   
-  const handleSearch = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const searchQuery = (e.target as any).elements.searchQuery.value;
-    if (searchQuery) {
-      navigate(`/search?q=${encodeURIComponent(searchQuery)}`);
-    }
+  // Search for artists when the debounced query changes
+  useEffect(() => {
+    const fetchArtists = async () => {
+      if (debouncedSearchQuery.length < 3) {
+        setArtists([]);
+        return;
+      }
+      
+      setIsLoading(true);
+      try {
+        const results = await searchArtistsWithEvents(debouncedSearchQuery);
+        setArtists(results.artists || []);
+        setShowResults(true);
+      } catch (error) {
+        console.error('Error searching for artists:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    fetchArtists();
+  }, [debouncedSearchQuery]);
+  
+  const handleSelectArtist = (artistId) => {
+    setSearchQuery('');
+    setShowResults(false);
+    navigate(`/artists/${artistId}`);
+  };
+  
+  const clearSearch = () => {
+    setSearchQuery('');
+    setShowResults(false);
   };
   
   return (
@@ -38,23 +73,56 @@ const Hero = () => {
             Help shape the perfect show by voting for your favorite songs. Join thousands of fans influencing what artists play live.
           </p>
           
-          <form onSubmit={handleSearch} className="relative mb-8 max-w-xl mx-auto">
+          <div className="relative mb-8 max-w-xl mx-auto">
             <div className="relative">
               <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-white/50 h-5 w-5" />
               <input
                 type="text"
-                name="searchQuery"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search for artists with upcoming shows..."
                 className="w-full bg-zinc-900 border border-zinc-800 rounded-full px-5 py-4 pl-12 text-white placeholder:text-white/50 focus:outline-none focus:ring-2 focus:ring-white/30 transition-all shadow-lg"
               />
-              <Button 
-                type="submit" 
-                className="absolute right-1.5 top-1/2 transform -translate-y-1/2 rounded-full bg-white text-black hover:bg-white/90 px-5 py-2 h-auto"
-              >
-                Search
-              </Button>
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={clearSearch}
+                  className="absolute right-4 top-1/2 transform -translate-y-1/2 text-white/50 hover:text-white transition-colors"
+                >
+                  <X size={20} />
+                </button>
+              )}
             </div>
-          </form>
+            
+            {/* Search results dropdown */}
+            {showResults && searchQuery.length >= 3 && (
+              <div className="absolute left-0 right-0 mt-2 z-10 max-h-80 overflow-y-auto">
+                <ArtistSearchResults
+                  artists={artists.map(artist => ({
+                    id: artist.id,
+                    name: artist.name,
+                    image: artist.imageUrl,
+                    upcomingShows: artist.hasEvents ? 1 : 0
+                  }))}
+                  isLoading={isLoading}
+                  onSelect={handleSelectArtist}
+                />
+                
+                {artists.length > 0 && (
+                  <div className="px-4 py-2 text-xs text-zinc-400 bg-zinc-900 border border-t-0 border-zinc-800 rounded-b-lg">
+                    <Button 
+                      variant="link" 
+                      size="sm" 
+                      className="text-white p-0 h-auto"
+                      onClick={() => navigate(`/search?q=${encodeURIComponent(searchQuery)}`)}
+                    >
+                      See all results
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
           
           <div className="flex flex-wrap justify-center gap-3 mb-12">
             <Button 
