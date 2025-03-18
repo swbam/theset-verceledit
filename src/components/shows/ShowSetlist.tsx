@@ -73,13 +73,15 @@ const ShowSetlist = ({
     return name.length > maxLength ? `${name.substring(0, maxLength)}...` : name;
   };
   
-  // Sort tracks alphabetically by name
+  // Sort tracks alphabetically by name and filter duplicates
   const sortedTracks = React.useMemo(() => {
+    console.log("Sorting available tracks:", availableTracks?.length);
     if (!availableTracks || !Array.isArray(availableTracks)) return [];
     
     // Filter out duplicates by name (case-insensitive)
     const uniqueNames = new Set();
     const uniqueTracks = availableTracks.filter(track => {
+      if (!track || !track.name) return false;
       const lowercaseName = track.name.toLowerCase();
       if (uniqueNames.has(lowercaseName)) return false;
       uniqueNames.add(lowercaseName);

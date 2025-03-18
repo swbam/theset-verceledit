@@ -74,9 +74,11 @@ export const getArtistAllTracks = async (artistId: string): Promise<SpotifyTrack
     }
     
     const albumsData = await albumsResponse.json();
+    console.log(`Found ${albumsData.items.length} albums for artist ${artistId}`);
     
     // For each album, get all tracks
     for (const album of albumsData.items) {
+      console.log(`Processing album: ${album.name}`);
       const tracksResponse = await fetch(
         `${SPOTIFY_API_BASE}/albums/${album.id}/tracks?limit=50&market=US`,
         {
@@ -92,6 +94,7 @@ export const getArtistAllTracks = async (artistId: string): Promise<SpotifyTrack
       }
       
       const tracksData = await tracksResponse.json();
+      console.log(`Found ${tracksData.items.length} tracks in album ${album.name}`);
       
       // Get full track details for each track (for popularity score)
       for (const track of tracksData.items) {

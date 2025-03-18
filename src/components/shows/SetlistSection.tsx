@@ -123,7 +123,6 @@ const SetlistSection: React.FC<SetlistSectionProps> = ({
                     
                     <div className="p-5 border-t border-white/10 text-sm text-white/60 flex justify-between items-center">
                       <div className="flex items-center gap-1.5">
-                        <span className="inline-block w-2 h-2 bg-green-500 rounded-full"></span>
                         <p>
                           Last updated {formatDistanceToNow(new Date(), { addSuffix: true })}
                         </p>
@@ -135,7 +134,7 @@ const SetlistSection: React.FC<SetlistSectionProps> = ({
                             <Info className="h-4 w-4 text-white/40" />
                           </TooltipTrigger>
                           <TooltipContent side="top" className="bg-[#0A0A0A] border-white/10 text-white">
-                            <p>Votes are updated in real time</p>
+                            <p>Votes are updated automatically</p>
                           </TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
