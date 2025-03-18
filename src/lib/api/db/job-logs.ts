@@ -7,7 +7,8 @@ export type JobLogType =
   | 'setlist_batch' 
   | 'homepage_init'
   | 'artist_sync'
-  | 'maintenance_run';
+  | 'maintenance_run'
+  | 'venue_shows_import';
 
 /**
  * Interface for job log data
@@ -145,4 +146,4 @@ async function createJobLogsTable(): Promise<void> {
   } catch (error) {
     console.error("Error in createJobLogsTable:", error);
   }
-} 
+}

@@ -73,6 +73,9 @@ const AuthCallback = () => {
                 // Continue with redirect even if this fails
               }
               
+              // Store the Spotify provider token in local storage for later use
+              localStorage.setItem('spotify_provider_token', session.provider_token || '');
+              
               // Delay navigation slightly to ensure database operations complete
               setTimeout(() => {
                 // Force a hard redirect to ensure clean state

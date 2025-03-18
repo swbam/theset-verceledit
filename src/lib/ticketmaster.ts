@@ -204,7 +204,7 @@ export {
 } from './api/artist';  // Updated import path to use the index.ts in the artist folder
 export { 
   fetchArtistEvents, 
-  fetchShowDetails, 
+  // Removing duplicate fetchShowDetails export
   fetchVenueDetails,
   fetchShowsByGenre,
   fetchFeaturedShows

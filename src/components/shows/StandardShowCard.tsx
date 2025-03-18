@@ -67,14 +67,20 @@ const StandardShowCard = ({ show }: StandardShowCardProps) => {
   return (
     <Link 
       to={`/shows/${show.id}`}
-      className="block rounded-lg overflow-hidden bg-black border border-white/10 hover:border-white/30 transition-all hover:scale-[1.02] group"
+      className="block rounded-[3px] overflow-hidden bg-black border border-white/10 hover:border-white/30 transition-all hover:scale-[1.02] group"
     >
-      <div className="relative aspect-[3/2] overflow-hidden">
+      <div className="relative aspect-[3/2] overflow-hidden rounded-t-[3px]">
         {show.image_url ? (
           <img 
             src={show.image_url} 
             alt={show.artist?.name || show.name} 
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+            loading="lazy"
+            onError={(e) => {
+              (e.target as HTMLImageElement).style.display = 'none';
+              (e.target as HTMLImageElement).parentElement!.classList.add('bg-[#222]');
+              (e.target as HTMLImageElement).parentElement!.innerHTML += '<div class="flex items-center justify-center h-full w-full"><svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-10 w-10 text-white/40"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg></div>';
+            }}
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center bg-[#111]"></div>

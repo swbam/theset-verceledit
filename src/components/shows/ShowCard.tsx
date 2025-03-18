@@ -41,13 +41,19 @@ const ShowCard = ({ show }: ShowCardProps) => {
   const genre = getShowGenre();
 
   return (
-    <Card className="bg-[#111111]/80 border-white/10 overflow-hidden hover:border-white/30 transition duration-300 hover:scale-[1.01]">
-      <div className="relative aspect-[3/2] overflow-hidden">
+    <Card className="bg-[#111111]/80 border-white/10 overflow-hidden hover:border-white/30 transition duration-300 hover:scale-[1.01] rounded-[3px]">
+      <div className="relative aspect-[3/2] overflow-hidden rounded-t-[3px]">
         {show.image_url ? (
           <img
             src={show.image_url}
             alt={show.artist?.name || show.name}
             className="w-full h-full object-cover transition-transform"
+            loading="lazy"
+            onError={(e) => {
+              (e.target as HTMLImageElement).style.display = 'none';
+              (e.target as HTMLImageElement).parentElement!.classList.add('bg-[#222]');
+              (e.target as HTMLImageElement).parentElement!.innerHTML += '<div class="flex items-center justify-center h-full w-full"><svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-10 w-10 text-white/40"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg></div>';
+            }}
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center bg-[#222]">

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import ArtistSearchResults from '@/components/search/ArtistSearchResults';
-import { searchArtistsWithEvents } from '@/lib/api/artist/search';
+import { searchArtistsWithEvents } from '@/lib/ticketmaster';
 import { useDebounce } from '@/hooks/use-debounce';
 import { useOnClickOutside } from '@/hooks/use-click-outside';
 
@@ -97,4 +97,4 @@ const NavbarSearch = () => {
   );
 };
 
-export default NavbarSearch; 
+export default NavbarSearch;

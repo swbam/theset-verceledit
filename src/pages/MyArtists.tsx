@@ -33,6 +33,12 @@ const MyArtists = () => {
       try {
         setIsLoading(true);
         
+        // Check if we have a Spotify provider token in local storage
+        const spotifyToken = localStorage.getItem('spotify_provider_token');
+        if (!spotifyToken) {
+          console.log('No Spotify token found, trying to fetch artists anyway');
+        }
+        
         // Fetch the user's top artists from Spotify
         console.log('Fetching Spotify top artists');
         const topArtistsData = await getSpotifyUserTopArtists();
@@ -53,6 +59,8 @@ const MyArtists = () => {
           );
           
           await Promise.allSettled(promises);
+        } else {
+          console.log('No top artists found or error fetching them');
         }
         
         if (followedArtistsData && followedArtistsData.length > 0) {
@@ -67,6 +75,14 @@ const MyArtists = () => {
           );
           
           await Promise.allSettled(promises);
+        } else {
+          console.log('No followed artists found or error fetching them');
+        }
+        
+        // If we couldn't get any artists, show an error
+        if ((!topArtistsData || topArtistsData.length === 0) && 
+            (!followedArtistsData || followedArtistsData.length === 0)) {
+          setFetchError('Could not load your Spotify artists. Please try logging in again.');
         }
       } catch (error) {
         console.error('Error fetching personalized artists:', error);

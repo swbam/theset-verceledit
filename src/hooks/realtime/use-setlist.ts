@@ -233,6 +233,31 @@ export function useSetlist(showId: string, initialSongs: Song[], userId?: string
           console.log(`Setting setlist ID: ${id}`);
           setSetlistId(id);
           setRetryCount(0); // Reset retry count on success
+          
+          // Check if this setlist has songs
+          supabase
+            .from('setlist_songs')
+            .select('id')
+            .eq('setlist_id', id)
+            .limit(1)
+            .then(({ data: songsData, error: songsError }) => {
+              if (!songsError && (!songsData || songsData.length === 0)) {
+                console.log(`Setlist ${id} exists but has no songs. Will populate with random songs.`);
+                
+                // Get the artist ID from the show
+                supabase
+                  .from('shows')
+                  .select('artist_id')
+                  .eq('id', showId)
+                  .single()
+                  .then(({ data: showData }) => {
+                    if (showData?.artist_id) {
+                      // Add random songs to the empty setlist
+                      populateSetlistWithRandomSongs(id, showData.artist_id);
+                    }
+                  });
+              }
+            });
         } else {
           console.error(`Failed to get or create setlist for show: ${showId}`);
           // Implement retry logic

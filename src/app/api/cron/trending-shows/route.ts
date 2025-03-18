@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { populateTrendingShowsSetlists } from '@/lib/cron/trending-shows';
+import { importTrendingShows } from '@/lib/cron/import-trending-shows';
 
 /**
- * Cron job handler to pre-populate setlists for trending/popular shows
- * This helps avoid the slow initialization when users first visit a show page
+ * Cron job handler to import trending shows from Ticketmaster and pre-populate setlists
+ * This helps avoid unnecessary API calls and slow initialization when users visit the site
  */
 export async function GET(request: NextRequest) {
   // Verify authorization token for security
@@ -17,11 +18,20 @@ export async function GET(request: NextRequest) {
   }
   
   try {
-    // Run the trending shows setlist population job
-    const result = await populateTrendingShowsSetlists();
+    // First import trending shows from Ticketmaster to our database
+    console.log('Starting trending shows import and population...');
+    const importResult = await importTrendingShows();
     
-    // Return the result
-    return NextResponse.json(result);
+    // Then run the trending shows setlist population job
+    // This will use the newly imported shows
+    const populateResult = await populateTrendingShowsSetlists();
+    
+    // Return the combined results
+    return NextResponse.json({
+      success: true,
+      import: importResult,
+      populate: populateResult
+    });
   } catch (error) {
     console.error('Error in trending shows cron job:', error);
     

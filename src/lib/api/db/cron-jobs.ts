@@ -2,6 +2,7 @@ import { batchCreateSetlistsForPopularShows } from './setlist-batch';
 import { queueArtistsForStatsSync } from './artist-utils';
 import { initializeHomepageShowSetlists } from './homepage-init';
 import { logJobRun } from './job-logs';
+import { importShowsFromTopVenues } from '@/lib/cron/import-venue-shows';
 
 /**
  * Main cron job handler for setlist creation and maintenance
@@ -89,6 +90,21 @@ export async function runMaintenanceJobs() {
     
     console.log(`Artist sync complete: updated ${syncedCount} artists`);
     
+    // Step 4: Import shows from top venues
+    console.log("Running venue-based show import");
+    const venueResults = await importShowsFromTopVenues(10, 5);
+    
+    // Log this step
+    await logJobRun({
+      job_type: 'venue_shows_import',
+      items_processed: venueResults.showsProcessed,
+      items_created: venueResults.showsCreated,
+      errors: venueResults.errors,
+      status: venueResults.errors.length === 0 ? 'success' : 'partial'
+    });
+    
+    console.log(`Venue show import complete: created ${venueResults.showsCreated} shows from ${venueResults.venuesProcessed} venues`);
+    
     // Set final timestamps
     const endTime = new Date();
     results.endTime = endTime.toISOString();
@@ -173,4 +189,4 @@ export async function shouldRunMaintenance(): Promise<boolean> {
   // This could check a database record for the last run time
   // For now, we'll just return true to always run
   return true;
-} 
+}

@@ -4,12 +4,13 @@ import { ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
-import { fetchTrendingShows } from '@/lib/ticketmaster';
+import { fetchTrendingShowsFromDB } from '@/lib/api/db/trending-shows';
+// This component displays trending shows that are populated by the venue-based import system
 
 const TrendingShows = () => {
   const { data: trendingShows = [], isLoading } = useQuery({
     queryKey: ['trendingShows'],
-    queryFn: () => fetchTrendingShows(),
+    queryFn: () => fetchTrendingShowsFromDB(),
     staleTime: 1000 * 60 * 5, // 5 minutes
   });
 
@@ -43,13 +44,19 @@ const TrendingShows = () => {
             ))
           ) : trendingShows.length > 0 ? (
             trendingShows.map((show) => (
-              <Card key={show.id} className="bg-zinc-900 border-zinc-800 overflow-hidden">
-                <div className="aspect-video relative overflow-hidden bg-zinc-800">
+              <Card key={show.id} className="bg-zinc-900 border-zinc-800 overflow-hidden rounded-[3px]">
+                <div className="aspect-video relative overflow-hidden bg-zinc-800 rounded-t-[3px]">
                   {show.image_url ? (
                     <img 
                       src={show.image_url} 
                       alt={show.name} 
                       className="w-full h-full object-cover"
+                      loading="lazy"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).style.display = 'none';
+                        (e.target as HTMLImageElement).parentElement!.classList.add('bg-[#222]');
+                        (e.target as HTMLImageElement).parentElement!.innerHTML += '<div class="flex items-center justify-center h-full w-full"><svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-10 w-10 text-white/40"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg></div>';
+                      }}
                     />
                   ) : (
                     <div className="absolute inset-0 flex items-center justify-center text-white/30 text-xs uppercase">
@@ -62,9 +69,11 @@ const TrendingShows = () => {
                 </div>
                 
                 <CardContent className="p-4">
-                  <h3 className="font-medium text-white truncate">{show.name}</h3>
-                  <p className="text-white/60 text-sm mb-3 truncate">
+                  <h3 className="font-bold text-lg mb-1 text-white truncate">
                     {show.artist?.name || 'Unknown Artist'}
+                  </h3>
+                  <p className="text-white/80 text-sm mb-3 truncate">
+                    {show.name}
                   </p>
                   
                   <Button asChild className="w-full" size="sm">
