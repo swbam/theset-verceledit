@@ -9,75 +9,218 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      artist_songs: {
+        Row: {
+          album_id: string | null
+          album_image_url: string | null
+          album_name: string | null
+          artist_id: string
+          duration_ms: number | null
+          explicit: boolean | null
+          id: string
+          is_top_track: boolean | null
+          last_updated: string | null
+          name: string
+          popularity: number | null
+          preview_url: string | null
+          release_date: string | null
+          spotify_url: string | null
+          track_number: number | null
+        }
+        Insert: {
+          album_id?: string | null
+          album_image_url?: string | null
+          album_name?: string | null
+          artist_id: string
+          duration_ms?: number | null
+          explicit?: boolean | null
+          id: string
+          is_top_track?: boolean | null
+          last_updated?: string | null
+          name: string
+          popularity?: number | null
+          preview_url?: string | null
+          release_date?: string | null
+          spotify_url?: string | null
+          track_number?: number | null
+        }
+        Update: {
+          album_id?: string | null
+          album_image_url?: string | null
+          album_name?: string | null
+          artist_id?: string
+          duration_ms?: number | null
+          explicit?: boolean | null
+          id?: string
+          is_top_track?: boolean | null
+          last_updated?: string | null
+          name?: string
+          popularity?: number | null
+          preview_url?: string | null
+          release_date?: string | null
+          spotify_url?: string | null
+          track_number?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "artist_songs_artist_id_fkey"
+            columns: ["artist_id"]
+            isOneToOne: false
+            referencedRelation: "artists"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       artists: {
         Row: {
           created_at: string | null
+          followers: number | null
           genres: string[] | null
           id: string
-          image: string | null
+          image_url: string | null
           name: string
           popularity: number | null
+          spotify_id: string | null
+          spotify_url: string | null
           stored_tracks: Json | null
+          ticketmaster_id: string | null
           tracks_last_updated: string | null
           upcoming_shows: number | null
           updated_at: string | null
         }
         Insert: {
           created_at?: string | null
+          followers?: number | null
           genres?: string[] | null
-          id: string
-          image?: string | null
+          id?: string
+          image_url?: string | null
           name: string
           popularity?: number | null
+          spotify_id?: string | null
+          spotify_url?: string | null
           stored_tracks?: Json | null
+          ticketmaster_id?: string | null
           tracks_last_updated?: string | null
           upcoming_shows?: number | null
           updated_at?: string | null
         }
         Update: {
           created_at?: string | null
+          followers?: number | null
           genres?: string[] | null
           id?: string
-          image?: string | null
+          image_url?: string | null
           name?: string
           popularity?: number | null
+          spotify_id?: string | null
+          spotify_url?: string | null
           stored_tracks?: Json | null
+          ticketmaster_id?: string | null
           tracks_last_updated?: string | null
           upcoming_shows?: number | null
           updated_at?: string | null
         }
         Relationships: []
       }
+      homepage_features: {
+        Row: {
+          created_at: string
+          end_date: string | null
+          feature_type: string
+          id: string
+          position: number | null
+          show_id: string
+          start_date: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          end_date?: string | null
+          feature_type: string
+          id?: string
+          position?: number | null
+          show_id: string
+          start_date?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          end_date?: string | null
+          feature_type?: string
+          id?: string
+          position?: number | null
+          show_id?: string
+          start_date?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      job_logs: {
+        Row: {
+          created_at: string
+          error_count: number
+          errors: string[] | null
+          id: string
+          items_created: number
+          items_processed: number
+          job_type: string
+          metadata: Json | null
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          error_count?: number
+          errors?: string[] | null
+          id?: string
+          items_created?: number
+          items_processed?: number
+          job_type: string
+          metadata?: Json | null
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          error_count?: number
+          errors?: string[] | null
+          id?: string
+          items_created?: number
+          items_processed?: number
+          job_type?: string
+          metadata?: Json | null
+          status?: string
+        }
+        Relationships: []
+      }
       past_setlists: {
         Row: {
           artist_id: string
-          created_at: string
+          created_at: string | null
           event_date: string
           id: string
           setlist_data: Json
           setlist_id: string
           show_id: string | null
-          updated_at: string
+          updated_at: string | null
         }
         Insert: {
           artist_id: string
-          created_at?: string
+          created_at?: string | null
           event_date: string
           id?: string
           setlist_data: Json
           setlist_id: string
           show_id?: string | null
-          updated_at?: string
+          updated_at?: string | null
         }
         Update: {
           artist_id?: string
-          created_at?: string
+          created_at?: string | null
           event_date?: string
           id?: string
           setlist_data?: Json
           setlist_id?: string
           show_id?: string | null
-          updated_at?: string
+          updated_at?: string | null
         }
         Relationships: [
           {
@@ -99,60 +242,60 @@ export type Database = {
       profiles: {
         Row: {
           avatar_url: string | null
-          created_at: string
+          created_at: string | null
           full_name: string | null
           id: string
           provider: string | null
           provider_id: string | null
-          updated_at: string
+          updated_at: string | null
           username: string | null
         }
         Insert: {
           avatar_url?: string | null
-          created_at?: string
-          full_name?: string | null
-          id: string
-          provider?: string | null
-          provider_id?: string | null
-          updated_at?: string
-          username?: string | null
-        }
-        Update: {
-          avatar_url?: string | null
-          created_at?: string
+          created_at?: string | null
           full_name?: string | null
           id?: string
           provider?: string | null
           provider_id?: string | null
-          updated_at?: string
+          updated_at?: string | null
+          username?: string | null
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string | null
+          full_name?: string | null
+          id?: string
+          provider?: string | null
+          provider_id?: string | null
+          updated_at?: string | null
           username?: string | null
         }
         Relationships: []
       }
       setlist_songs: {
         Row: {
-          created_at: string
+          created_at: string | null
           id: string
           setlist_id: string
           suggested_by: string | null
           track_id: string
-          votes: number
+          votes: number | null
         }
         Insert: {
-          created_at?: string
+          created_at?: string | null
           id?: string
           setlist_id: string
           suggested_by?: string | null
           track_id: string
-          votes?: number
+          votes?: number | null
         }
         Update: {
-          created_at?: string
+          created_at?: string | null
           id?: string
           setlist_id?: string
           suggested_by?: string | null
           track_id?: string
-          votes?: number
+          votes?: number | null
         }
         Relationships: [
           {
@@ -160,6 +303,13 @@ export type Database = {
             columns: ["setlist_id"]
             isOneToOne: false
             referencedRelation: "setlists"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "setlist_songs_suggested_by_fkey"
+            columns: ["suggested_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
           {
@@ -173,28 +323,28 @@ export type Database = {
       }
       setlists: {
         Row: {
-          created_at: string
+          created_at: string | null
           id: string
-          last_updated: string
+          last_updated: string | null
           show_id: string
         }
         Insert: {
-          created_at?: string
+          created_at?: string | null
           id?: string
-          last_updated?: string
+          last_updated?: string | null
           show_id: string
         }
         Update: {
-          created_at?: string
+          created_at?: string | null
           id?: string
-          last_updated?: string
+          last_updated?: string | null
           show_id?: string
         }
         Relationships: [
           {
             foreignKeyName: "setlists_show_id_fkey"
             columns: ["show_id"]
-            isOneToOne: true
+            isOneToOne: false
             referencedRelation: "shows"
             referencedColumns: ["id"]
           },
@@ -219,7 +369,7 @@ export type Database = {
           created_at?: string | null
           date?: string | null
           genre_ids?: string[] | null
-          id: string
+          id?: string
           image_url?: string | null
           name: string
           popularity?: number | null
@@ -307,57 +457,69 @@ export type Database = {
       venues: {
         Row: {
           address: string | null
+          capacity: number | null
           city: string | null
           country: string | null
           created_at: string | null
           id: string
+          image_url: string | null
           location: Json | null
           name: string
           postal_code: string | null
           state: string | null
+          ticket_url: string | null
           updated_at: string | null
+          website: string | null
         }
         Insert: {
           address?: string | null
-          city?: string | null
-          country?: string | null
-          created_at?: string | null
-          id: string
-          location?: Json | null
-          name: string
-          postal_code?: string | null
-          state?: string | null
-          updated_at?: string | null
-        }
-        Update: {
-          address?: string | null
+          capacity?: number | null
           city?: string | null
           country?: string | null
           created_at?: string | null
           id?: string
+          image_url?: string | null
+          location?: Json | null
+          name: string
+          postal_code?: string | null
+          state?: string | null
+          ticket_url?: string | null
+          updated_at?: string | null
+          website?: string | null
+        }
+        Update: {
+          address?: string | null
+          capacity?: number | null
+          city?: string | null
+          country?: string | null
+          created_at?: string | null
+          id?: string
+          image_url?: string | null
           location?: Json | null
           name?: string
           postal_code?: string | null
           state?: string | null
+          ticket_url?: string | null
           updated_at?: string | null
+          website?: string | null
         }
         Relationships: []
       }
       votes: {
         Row: {
-          created_at: string
+          created_at: string | null
           id: string
           setlist_song_id: string
           user_id: string
         }
         Insert: {
-          created_at?: string
+          created_at?: string | null
           id?: string
           setlist_song_id: string
           user_id: string
         }
         Update: {
-          created_at?: string
+          created_at?: string | null
           id?: string
           setlist_song_id?: string
           user_id?: string
@@ -370,6 +532,13 @@ export type Database = {
             referencedRelation: "setlist_songs"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "votes_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
         ]
       }
     }
@@ -377,9 +546,23 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      create_artist_songs_table: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
+      create_job_logs_table: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
       increment_votes: {
         Args: {
           song_id: string
+        }
+        Returns: undefined
+      }
+      run_migration_query: {
+        Args: {
+          query_text: string
         }
         Returns: undefined
       }

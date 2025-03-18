@@ -1,5 +1,33 @@
+
 -- Create extension for UUID generation if not exists
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+-- Check if job_logs table exists and create if it doesn't
+CREATE TABLE IF NOT EXISTS job_logs (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  job_type TEXT NOT NULL,
+  items_processed INTEGER NOT NULL DEFAULT 0,
+  items_created INTEGER NOT NULL DEFAULT 0,
+  error_count INTEGER NOT NULL DEFAULT 0,
+  errors TEXT[] DEFAULT array[]::TEXT[],
+  status TEXT NOT NULL DEFAULT 'success',
+  metadata JSONB,
+  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+
+-- Check if homepage_features table exists and create if it doesn't
+CREATE TABLE IF NOT EXISTS homepage_features (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  feature_type TEXT NOT NULL,
+  position INTEGER NOT NULL,
+  title TEXT,
+  description TEXT,
+  show_id TEXT REFERENCES shows(id) ON DELETE SET NULL,
+  artist_id TEXT REFERENCES artists(id) ON DELETE SET NULL,
+  is_active BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
 
 -- Check and update artists table
 DO $$
@@ -11,6 +39,59 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'artists' AND column_name = 'ticketmaster_id') THEN
         ALTER TABLE artists ADD COLUMN ticketmaster_id TEXT;
     END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'artists' AND column_name = 'last_synced') THEN
+        ALTER TABLE artists ADD COLUMN last_synced TIMESTAMP WITH TIME ZONE;
+    END IF;
+END
+$$;
+
+-- Update venue table with additional fields if they don't exist
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'venues' AND column_name = 'capacity') THEN
+        ALTER TABLE venues ADD COLUMN capacity INTEGER;
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'venues' AND column_name = 'image_url') THEN
+        ALTER TABLE venues ADD COLUMN image_url TEXT;
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'venues' AND column_name = 'ticket_url') THEN
+        ALTER TABLE venues ADD COLUMN ticket_url TEXT;
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'venues' AND column_name = 'website') THEN
+        ALTER TABLE venues ADD COLUMN website TEXT;
+    END IF;
+END
+$$;
+
+-- Fix venue location to use numeric values for latitude/longitude
+DO $$
+BEGIN
+    -- Update existing values first
+    UPDATE venues 
+    SET location = jsonb_set(
+        jsonb_set(
+            COALESCE(location, '{}'::jsonb),
+            '{latitude}',
+            (CASE 
+                WHEN location->>'latitude' ~ '^[0-9]+(\.[0-9]+)?$' THEN 
+                    to_jsonb((location->>'latitude')::numeric)
+                ELSE 
+                    to_jsonb(0::numeric)
+            END)
+        ),
+        '{longitude}',
+        (CASE 
+            WHEN location->>'longitude' ~ '^[0-9]+(\.[0-9]+)?$' THEN 
+                to_jsonb((location->>'longitude')::numeric)
+            ELSE 
+                to_jsonb(0::numeric)
+        END)
+    )
+    WHERE location IS NOT NULL;
 END
 $$;
 
@@ -45,25 +126,20 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_shows_date') THEN
         CREATE INDEX idx_shows_date ON shows(date) WHERE date IS NOT NULL;
     END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_job_logs_job_type') THEN
+        CREATE INDEX idx_job_logs_job_type ON job_logs(job_type);
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_homepage_features_feature_type') THEN
+        CREATE INDEX idx_homepage_features_feature_type ON homepage_features(feature_type);
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_homepage_features_position') THEN
+        CREATE INDEX idx_homepage_features_position ON homepage_features(position);
+    END IF;
 END
 $$;
-
--- Add venues table if it doesn't exist
-CREATE TABLE IF NOT EXISTS venues (
-  id TEXT PRIMARY KEY,
-  name TEXT NOT NULL,
-  city TEXT,
-  state TEXT,
-  country TEXT,
-  address TEXT,
-  postal_code TEXT,
-  location JSONB,
-  capacity INTEGER,
-  image_url TEXT,
-  ticket_url TEXT,
-  website TEXT,
-  last_updated TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
 
 -- Add foreign key for venue_id in shows table if it doesn't exist
 DO $$
@@ -77,48 +153,39 @@ BEGIN
 END
 $$;
 
--- Check for votes table and create if it doesn't exist
-CREATE TABLE IF NOT EXISTS votes (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  user_id UUID NOT NULL,
-  setlist_item_id UUID NOT NULL,
-  show_id TEXT NOT NULL,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  session_id TEXT
-);
-
--- Add constraints if they don't exist
+-- Fix votes table constraints if needed
 DO $$
 BEGIN
     IF NOT EXISTS (
         SELECT 1 FROM information_schema.table_constraints
-        WHERE constraint_name = 'votes_user_id_setlist_song_id_key'
+        WHERE constraint_name = 'votes_user_id_setlist_song_id_key' AND table_name = 'votes'
     ) THEN
-        ALTER TABLE votes ADD CONSTRAINT votes_user_id_setlist_song_id_key UNIQUE (user_id, setlist_song_id);
+        -- Check if the table has the columns first
+        IF EXISTS (
+            SELECT 1 FROM information_schema.columns 
+            WHERE table_name = 'votes' AND column_name = 'user_id'
+        ) AND EXISTS (
+            SELECT 1 FROM information_schema.columns 
+            WHERE table_name = 'votes' AND column_name = 'setlist_song_id'
+        ) THEN
+            ALTER TABLE votes ADD CONSTRAINT votes_user_id_setlist_song_id_key UNIQUE (user_id, setlist_song_id);
+        END IF;
     END IF;
     
     IF NOT EXISTS (
         SELECT 1 FROM information_schema.table_constraints
-        WHERE constraint_name = 'votes_session_id_setlist_song_id_key'
+        WHERE constraint_name = 'votes_session_id_setlist_song_id_key' AND table_name = 'votes'
     ) THEN
-        ALTER TABLE votes ADD CONSTRAINT votes_session_id_setlist_song_id_key UNIQUE (session_id, setlist_song_id);
+        -- Check if the table has the columns first
+        IF EXISTS (
+            SELECT 1 FROM information_schema.columns 
+            WHERE table_name = 'votes' AND column_name = 'session_id'
+        ) AND EXISTS (
+            SELECT 1 FROM information_schema.columns 
+            WHERE table_name = 'votes' AND column_name = 'setlist_song_id'
+        ) THEN
+            ALTER TABLE votes ADD CONSTRAINT votes_session_id_setlist_song_id_key UNIQUE (session_id, setlist_song_id);
+        END IF;
     END IF;
 END
 $$;
-
--- Add missing indexes
-DO $$
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_votes_user_id') THEN
-        CREATE INDEX idx_votes_user_id ON votes(user_id);
-    END IF;
-    
-    IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_votes_setlist_song_id') THEN
-        CREATE INDEX idx_votes_setlist_song_id ON votes(setlist_song_id);
-    END IF;
-    
-    IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_votes_show_id') THEN
-        CREATE INDEX idx_votes_show_id ON votes(show_id);
-    END IF;
-END
-$$; 

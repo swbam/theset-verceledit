@@ -1,3 +1,4 @@
+
 #!/bin/bash
 
 # Database connection from .env
@@ -7,4 +8,5 @@ echo "Syncing database schema to Supabase..."
 PGPASSWORD=$(echo $DB_URL | awk -F':' '{print $3}' | awk -F'@' '{print $1}') \
 psql "$DB_URL" -f supabase/migrations/update_schema.sql
 
-echo "Database schema sync complete!" 
+echo "Database schema sync complete!"
+echo "✅ Tables and indexes have been updated"
