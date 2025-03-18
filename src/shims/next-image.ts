@@ -1,3 +1,4 @@
+
 import React from 'react';
 
 // Basic mock for Next.js Image component for use with React Router
@@ -26,9 +27,9 @@ const NextImage = ({
   style?: React.CSSProperties;
   [key: string]: any;
 }) => {
-  const imgStyle = {
+  const imgStyle: React.CSSProperties = {
     objectFit: 'cover',
-    ...style,
+    ...(style || {})
   };
 
   // If fill is true, use position absolute styling
