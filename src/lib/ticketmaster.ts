@@ -112,6 +112,7 @@ export async function fetchUpcomingShows(genre?: string, limit: number = 10) {
         date: event.dates.start.dateTime,
         status: event.dates.status?.code,
         url: event.url,
+        ticket_url: event.url,
         image: event.images?.find(img => img.ratio === '16_9')?.url || event.images?.[0]?.url,
         venue: {
           id: venue.id,
@@ -130,6 +131,69 @@ export async function fetchUpcomingShows(genre?: string, limit: number = 10) {
   } catch (error) {
     console.error('Error fetching upcoming shows:', error);
     return [];
+  }
+}
+
+/**
+ * Fetch details for a specific show/event by ID
+ * @param eventId The Ticketmaster event ID
+ * @returns Show details
+ */
+export async function fetchShowDetails(eventId: string) {
+  try {
+    if (!eventId) {
+      throw new Error("Event ID is required");
+    }
+    
+    console.log(`Fetching details for show: ${eventId}`);
+    const apiKey = import.meta.env.VITE_TICKETMASTER_API_KEY || 'k8GrSAkbFaN0w7qDxGl7ohr8LwdAQm9b';
+    const url = `https://app.ticketmaster.com/discovery/v2/events/${eventId}.json?apikey=${apiKey}`;
+    
+    const response = await fetch(url);
+    
+    if (!response.ok) {
+      console.error(`Ticketmaster API error: ${response.status}`);
+      throw new Error(`Failed to fetch event details: ${response.statusText}`);
+    }
+    
+    const event = await response.json();
+    
+    if (!event) {
+      throw new Error("No event found");
+    }
+    
+    const venue = event._embedded?.venues?.[0] || {};
+    const attraction = event._embedded?.attractions?.[0] || {};
+    
+    return {
+      id: event.id,
+      name: event.name,
+      date: event.dates.start.dateTime,
+      status: event.dates.status?.code,
+      url: event.url,
+      ticket_url: event.url,
+      image: event.images?.find(img => img.ratio === '16_9')?.url || event.images?.[0]?.url,
+      venue: {
+        id: venue.id,
+        name: venue.name,
+        city: venue.city?.name,
+        state: venue.state?.name,
+        country: venue.country?.name,
+        address: venue.address?.line1,
+        location: {
+          latitude: venue.location?.latitude,
+          longitude: venue.location?.longitude,
+        },
+      },
+      artist: {
+        id: attraction.id,
+        name: attraction.name,
+        image: attraction.images?.find(img => img.ratio === '16_9')?.url || attraction.images?.[0]?.url,
+      }
+    };
+  } catch (error) {
+    console.error('Error fetching show details:', error);
+    throw error;
   }
 }
 
