@@ -2,9 +2,10 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { getArtistTopTracks, getArtistAllTracks, SpotifyTrack, convertStoredTracks } from '@/lib/spotify';
 import { useMemo } from 'react';
+import { getStoredTracksForArtist } from '@/lib/api/database-utils';
 
 export function useArtistTracks(spotifyArtistId: string, isLoadingShow: boolean) {
-  // Fetch stored artist data
+  // Fetch stored artist data - prioritize this over API calls
   const {
     data: storedArtistData,
     isLoading: isLoadingStoredData
@@ -13,6 +14,14 @@ export function useArtistTracks(spotifyArtistId: string, isLoadingShow: boolean)
     queryFn: async () => {
       if (!spotifyArtistId) return null;
       
+      // First, try to get tracks directly from our database
+      const storedTracks = await getStoredTracksForArtist(spotifyArtistId);
+      if (storedTracks && storedTracks.length > 0) {
+        console.log(`Using ${storedTracks.length} tracks directly from database for artist ${spotifyArtistId}`);
+        return { id: spotifyArtistId, stored_tracks: storedTracks };
+      }
+      
+      // If not found, fall back to standard query
       const { data, error } = await supabase
         .from('artists')
         .select('id, stored_tracks')
@@ -25,8 +34,8 @@ export function useArtistTracks(spotifyArtistId: string, isLoadingShow: boolean)
       }
       
       // Safely check if stored_tracks exists and is an array
-      const storedTracks = convertStoredTracks(data?.stored_tracks);
-      const tracksCount = storedTracks.length;
+      const convertedTracks = convertStoredTracks(data?.stored_tracks);
+      const tracksCount = convertedTracks.length;
       
       console.log(`Stored artist data for ${spotifyArtistId}:`, tracksCount, 'tracks');
       return data;
@@ -34,7 +43,7 @@ export function useArtistTracks(spotifyArtistId: string, isLoadingShow: boolean)
     enabled: !!spotifyArtistId && !isLoadingShow,
   });
   
-  // Fetch top tracks
+  // Fetch top tracks only if we don't have stored tracks
   const {
     data: topTracksData,
     isLoading: isLoadingTracks,
@@ -42,6 +51,16 @@ export function useArtistTracks(spotifyArtistId: string, isLoadingShow: boolean)
   } = useQuery({
     queryKey: ['artistTopTracks', spotifyArtistId],
     queryFn: async () => {
+      // If we already have stored tracks, use those instead of making an API call
+      if (storedArtistData?.stored_tracks && Array.isArray(storedArtistData.stored_tracks) && storedArtistData.stored_tracks.length > 0) {
+        console.log(`Using ${storedArtistData.stored_tracks.length} stored tracks instead of fetching top tracks`);
+        // Sort by popularity to get the top tracks
+        const sortedTracks = [...storedArtistData.stored_tracks]
+          .sort((a: any, b: any) => (b.popularity || 0) - (a.popularity || 0))
+          .slice(0, 10);
+        return { tracks: sortedTracks };
+      }
+      
       console.log(`Fetching top tracks for artist ID: ${spotifyArtistId}`);
       if (!spotifyArtistId) {
         console.error("No valid Spotify artist ID available");
@@ -66,11 +85,11 @@ export function useArtistTracks(spotifyArtistId: string, isLoadingShow: boolean)
         };
       }
     },
-    enabled: !!spotifyArtistId && !isLoadingShow,
+    enabled: !!spotifyArtistId && !isLoadingShow && !isLoadingStoredData,
     retry: 2,
   });
 
-  // Fetch all tracks - make sure this prioritizes cached data
+  // Fetch all tracks - prioritize stored tracks
   const {
     data: allTracksData,
     isLoading: isLoadingAllTracks
@@ -82,18 +101,24 @@ export function useArtistTracks(spotifyArtistId: string, isLoadingShow: boolean)
         return { tracks: [] };
       }
       
+      // First check if stored tracks are already available from the initial query
+      if (storedArtistData?.stored_tracks && Array.isArray(storedArtistData.stored_tracks) && storedArtistData.stored_tracks.length > 0) {
+        console.log(`Using ${storedArtistData.stored_tracks.length} stored tracks from initial query`);
+        return { tracks: storedArtistData.stored_tracks as unknown as SpotifyTrack[] };
+      }
+      
       console.log(`Fetching all tracks for artist ID: ${spotifyArtistId}`);
       try {
-        // First check if stored data is already available
-        const storedTracks = await getStoredTracksFromDb(spotifyArtistId);
+        // Get tracks from database first
+        const storedTracks = await getStoredTracksForArtist(spotifyArtistId);
         if (storedTracks && storedTracks.length > 0) {
-          console.log(`Using ${storedTracks.length} cached tracks from database`);
-          return { tracks: storedTracks };
+          console.log(`Using ${storedTracks.length} stored tracks from separate database query`);
+          return { tracks: storedTracks as SpotifyTrack[] };
         }
         
-        // Otherwise fetch from Spotify API
+        // Otherwise fetch from Spotify API and store them
         const tracks = await getArtistAllTracks(spotifyArtistId);
-        console.log(`Fetched ${tracks.tracks?.length || 0} tracks in total`);
+        console.log(`Fetched ${tracks.tracks?.length || 0} tracks in total from Spotify API`);
         return tracks;
       } catch (error) {
         console.error("Error fetching all tracks:", error);
@@ -124,8 +149,25 @@ export function useArtistTracks(spotifyArtistId: string, isLoadingShow: boolean)
     staleTime: 1000 * 60 * 60, // 1 hour - keep data fresh for longer
   });
 
-  // Prepare initial songs from top tracks
+  // Prepare initial songs from top tracks or stored tracks
   const initialSongs = useMemo(() => {
+    // If we have stored tracks, use those
+    if (storedArtistData?.stored_tracks && Array.isArray(storedArtistData.stored_tracks) && storedArtistData.stored_tracks.length > 0) {
+      const topStoredTracks = [...storedArtistData.stored_tracks]
+        .sort((a: any, b: any) => (b.popularity || 0) - (a.popularity || 0))
+        .slice(0, 10);
+      
+      console.log(`Converting ${topStoredTracks.length} top stored tracks to setlist items`);
+      
+      return topStoredTracks.map((track: any) => ({
+        id: track.id,
+        name: track.name,
+        votes: track.popularity ? Math.floor(track.popularity / 20) : 0,
+        userVoted: false
+      }));
+    }
+    
+    // Otherwise use top tracks from API
     if (!topTracksData?.tracks || !Array.isArray(topTracksData.tracks) || topTracksData.tracks.length === 0) {
       console.log("No top tracks data available or empty array");
       return [];
@@ -139,10 +181,22 @@ export function useArtistTracks(spotifyArtistId: string, isLoadingShow: boolean)
       votes: track.popularity ? Math.floor(track.popularity / 20) : 0,
       userVoted: false
     }));
-  }, [topTracksData]);
+  }, [topTracksData, storedArtistData]);
 
   // Filter available tracks (not in setlist)
   const getAvailableTracks = (setlist: any[]) => {
+    // First check if we have stored tracks
+    if (storedArtistData?.stored_tracks && Array.isArray(storedArtistData.stored_tracks) && storedArtistData.stored_tracks.length > 0) {
+      const setlistIds = new Set(setlist.map(song => song.id));
+      
+      const filteredTracks = storedArtistData.stored_tracks
+        .filter((track: any) => !setlistIds.has(track.id));
+      
+      console.log(`${filteredTracks.length} stored tracks available after filtering out ${setlist.length} setlist tracks`);
+      return filteredTracks;
+    }
+    
+    // Otherwise use all tracks from API
     if (!allTracksData?.tracks || !Array.isArray(allTracksData.tracks) || !setlist) {
       console.log("No tracks available for filtering");
       return [];
@@ -164,11 +218,12 @@ export function useArtistTracks(spotifyArtistId: string, isLoadingShow: boolean)
     isLoadingAllTracks,
     tracksError,
     initialSongs,
-    getAvailableTracks
+    getAvailableTracks,
+    storedTracksData: storedArtistData?.stored_tracks
   };
 }
 
-// Helper function to get tracks from DB directly
+// Helper function to get tracks from DB directly - Now moved to database-utils.ts
 async function getStoredTracksFromDb(artistId: string): Promise<SpotifyTrack[] | null> {
   try {
     const { data, error } = await supabase

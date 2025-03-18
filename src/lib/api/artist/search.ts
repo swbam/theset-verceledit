@@ -2,6 +2,7 @@
 import { toast } from "sonner";
 import { callTicketmasterApi } from "../ticketmaster-config";
 import { saveArtistToDatabase } from "../database-utils";
+import { getArtistByName, getArtistAllTracks } from "@/lib/spotify";
 
 /**
  * Search for artists with upcoming events
@@ -57,13 +58,35 @@ export async function searchArtistsWithEvents(query: string, limit = 10): Promis
       }
     });
     
-    // Save artists to database
+    // Process artists - save to database and fetch Spotify data
     const artists = Array.from(artistsMap.values());
+    const enrichedArtists = [];
+    
     for (const artist of artists) {
+      // Try to fetch Spotify data for this artist
+      try {
+        const spotifyArtist = await getArtistByName(artist.name);
+        if (spotifyArtist && spotifyArtist.id) {
+          console.log(`Found Spotify ID ${spotifyArtist.id} for artist ${artist.name}`);
+          artist.spotify_id = spotifyArtist.id;
+          
+          // Fetch and add tracks to the artist
+          const tracks = await getArtistAllTracks(spotifyArtist.id);
+          if (tracks && tracks.tracks && tracks.tracks.length > 0) {
+            console.log(`Found ${tracks.tracks.length} tracks for artist ${artist.name}`);
+            artist.stored_tracks = tracks.tracks;
+          }
+        }
+      } catch (spotifyError) {
+        console.error(`Error fetching Spotify details for ${artist.name}:`, spotifyError);
+      }
+      
+      // Save to database (with or without Spotify data)
       await saveArtistToDatabase(artist);
+      enrichedArtists.push(artist);
     }
     
-    return artists;
+    return enrichedArtists;
   } catch (error) {
     console.error("Ticketmaster artist search error:", error);
     toast.error("Failed to search for artists");

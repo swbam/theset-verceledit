@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { callTicketmasterApi } from "../ticketmaster-config";
 import { saveArtistToDatabase } from "../database-utils";
 import { searchArtistsWithEvents } from "./search";
+import { getArtistByName, getArtistAllTracks } from "@/lib/spotify";
 
 /**
  * Fetch artist details by ID
@@ -51,6 +52,24 @@ export async function fetchArtistById(artistId: string): Promise<any> {
           }
         }
         
+        // Look up Spotify ID by artist name
+        try {
+          const spotifyArtist = await getArtistByName(artistData.name);
+          if (spotifyArtist && spotifyArtist.id) {
+            console.log(`Found Spotify ID ${spotifyArtist.id} for artist ${artistData.name}`);
+            artistData.spotify_id = spotifyArtist.id;
+            
+            // Fetch and add tracks to the artist before saving
+            const tracks = await getArtistAllTracks(spotifyArtist.id);
+            if (tracks && tracks.tracks && tracks.tracks.length > 0) {
+              console.log(`Found ${tracks.tracks.length} tracks for artist ${artistData.name}`);
+              artistData.stored_tracks = tracks.tracks;
+            }
+          }
+        } catch (spotifyError) {
+          console.error(`Error fetching Spotify details for ${artistData.name}:`, spotifyError);
+        }
+        
         // Save to database
         await saveArtistToDatabase(artistData);
         
@@ -70,6 +89,27 @@ export async function fetchArtistById(artistId: string): Promise<any> {
     const artists = await searchArtistsWithEvents(searchTerm, 1);
     
     if (artists.length > 0) {
+      // Try to enrich with Spotify data
+      try {
+        const spotifyArtist = await getArtistByName(artists[0].name);
+        if (spotifyArtist && spotifyArtist.id) {
+          console.log(`Found Spotify ID ${spotifyArtist.id} for artist ${artists[0].name}`);
+          artists[0].spotify_id = spotifyArtist.id;
+          
+          // Fetch and add tracks to the artist
+          const tracks = await getArtistAllTracks(spotifyArtist.id);
+          if (tracks && tracks.tracks && tracks.tracks.length > 0) {
+            console.log(`Found ${tracks.tracks.length} tracks for artist ${artists[0].name}`);
+            artists[0].stored_tracks = tracks.tracks;
+            
+            // Save the enriched artist data to the database
+            await saveArtistToDatabase(artists[0]);
+          }
+        }
+      } catch (spotifyError) {
+        console.error(`Error fetching Spotify details for ${artists[0].name}:`, spotifyError);
+      }
+      
       return artists[0];
     }
     

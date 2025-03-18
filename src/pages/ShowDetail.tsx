@@ -1,4 +1,3 @@
-
 import React, { useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -71,13 +70,14 @@ const ShowDetail = () => {
     }
   }, [show, isLoadingShow, isError, showError, navigate]);
   
-  // Fetch artist tracks - this will get both top tracks and all tracks
+  // Fetch artist tracks - this will prioritize stored tracks before making API calls
   const { 
     initialSongs, 
     isLoadingTracks, 
     isLoadingAllTracks, 
     allTracksData,
-    getAvailableTracks
+    getAvailableTracks,
+    storedTracksData
   } = useArtistTracks(spotifyArtistId, isLoadingShow);
   
   // Manage songs and voting
@@ -96,18 +96,34 @@ const ShowDetail = () => {
   console.log("Is loading all tracks:", isLoadingAllTracks);
   console.log("Initial songs length:", initialSongs.length);
   console.log("All tracks data length:", allTracksData?.tracks?.length);
+  console.log("Stored tracks data length:", storedTracksData?.length);
   
-  // Calculate available tracks for dropdown
+  // Calculate available tracks for dropdown - prioritize stored tracks
   const availableTracks = React.useMemo(() => {
     // Log the current state to debug
-    console.log("Calculating available tracks. Current setlist:", setlist.length, "All tracks data:", allTracksData?.tracks?.length);
+    console.log("Calculating available tracks. Current setlist:", setlist.length);
+    
+    // If we have stored tracks, use those instead of allTracksData
+    if (storedTracksData && Array.isArray(storedTracksData) && storedTracksData.length > 0) {
+      console.log("Using stored tracks for available tracks list:", storedTracksData.length);
+      const setlistIds = new Set(setlist.map(song => song.id));
+      return storedTracksData.filter((track: any) => !setlistIds.has(track.id));
+    }
+    
+    // Otherwise use the standard function with allTracksData
     return getAvailableTracks(setlist);
-  }, [allTracksData, setlist, getAvailableTracks]);
+  }, [storedTracksData, allTracksData, setlist, getAvailableTracks]);
   
   // Handle song addition
   const handleAddSongClick = () => {
-    console.log("Add song clicked, passing all tracks data:", allTracksData?.tracks?.length);
-    handleAddSong(allTracksData);
+    // If we have stored tracks, wrap them in the expected format
+    if (storedTracksData && Array.isArray(storedTracksData) && storedTracksData.length > 0) {
+      console.log("Adding song using stored tracks data:", storedTracksData.length);
+      handleAddSong({ tracks: storedTracksData });
+    } else {
+      console.log("Add song clicked, passing all tracks data:", allTracksData?.tracks?.length);
+      handleAddSong(allTracksData);
+    }
   };
   
   if (isLoadingShow) {

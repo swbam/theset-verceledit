@@ -3,6 +3,7 @@ import { getAccessToken } from './auth';
 import { saveTracksToDb, getStoredTracksFromDb } from './utils';
 import { SpotifyTrack, SpotifyTracksResponse } from './types';
 import { supabase } from '@/integrations/supabase/client';
+import { updateArtistStoredTracks } from '@/lib/api/database-utils';
 
 const SPOTIFY_API_BASE = 'https://api.spotify.com/v1';
 
@@ -144,7 +145,7 @@ export const getArtistAllTracks = async (artistId: string): Promise<SpotifyTrack
     );
     
     // Store all tracks in the database
-    await saveTracksToDb(artistId, uniqueTracks);
+    await updateArtistStoredTracks(artistId, uniqueTracks);
     
     return { tracks: uniqueTracks };
   } catch (error) {

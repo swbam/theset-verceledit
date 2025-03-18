@@ -1,6 +1,8 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { getArtistAllTracks } from "@/lib/spotify";
+import { updateArtistStoredTracks } from "./database-utils";
 
 /**
  * Save artist to database
@@ -12,7 +14,7 @@ export async function saveArtistToDatabase(artist: any) {
     // Check if artist already exists
     const { data: existingArtist, error: checkError } = await supabase
       .from('artists')
-      .select('id, updated_at, stored_tracks')
+      .select('id, updated_at, stored_tracks, spotify_id')
       .eq('id', artist.id)
       .maybeSingle();
     
@@ -49,6 +51,30 @@ export async function saveArtistToDatabase(artist: any) {
     
     if (error) {
       console.error("Error saving artist to database:", error);
+    }
+
+    // After creating/updating the artist, if they don't have stored tracks, fetch them from Spotify
+    if (!existingArtist?.stored_tracks && !artist.stored_tracks) {
+      console.log(`No stored tracks found for artist ${artist.id}, fetching from Spotify...`);
+      
+      // Use the spotify_id if available, otherwise attempt to fetch by name
+      const spotifyId = existingArtist?.spotify_id || artist.spotify_id;
+      
+      if (spotifyId) {
+        try {
+          // Fetch all tracks for this artist from Spotify
+          const tracksData = await getArtistAllTracks(spotifyId);
+          
+          if (tracksData && tracksData.tracks && tracksData.tracks.length > 0) {
+            console.log(`Found ${tracksData.tracks.length} tracks for artist ${artist.id}, storing in database`);
+            
+            // Update the artist with the fetched tracks
+            await updateArtistStoredTracks(artist.id, tracksData.tracks);
+          }
+        } catch (trackError) {
+          console.error("Error fetching tracks for artist:", trackError);
+        }
+      }
     }
     
     return existingArtist || artist;
@@ -198,5 +224,33 @@ export async function updateArtistStoredTracks(artistId: string, tracks: any[]) 
     }
   } catch (error) {
     console.error("Error in updateArtistStoredTracks:", error);
+  }
+}
+
+/**
+ * Fetch stored tracks for an artist
+ */
+export async function getStoredTracksForArtist(artistId: string) {
+  try {
+    const { data: artist, error } = await supabase
+      .from('artists')
+      .select('stored_tracks')
+      .eq('id', artistId)
+      .maybeSingle();
+    
+    if (error) {
+      console.error("Error fetching stored tracks for artist:", error);
+      return null;
+    }
+    
+    if (artist && artist.stored_tracks && Array.isArray(artist.stored_tracks)) {
+      console.log(`Found ${artist.stored_tracks.length} stored tracks for artist ${artistId}`);
+      return artist.stored_tracks;
+    }
+    
+    return null;
+  } catch (error) {
+    console.error("Error in getStoredTracksForArtist:", error);
+    return null;
   }
 }
