@@ -1,21 +1,19 @@
 
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link as RouterLink } from 'react-router-dom';
 
-// This is a simplified shim for Next.js Link component
-// It provides basic compatibility for projects transitioning from Next.js to React Router
-const NextLink = ({ 
-  href, 
-  as, 
-  replace, 
-  scroll, 
-  shallow, 
-  passHref, 
-  prefetch, 
-  locale, 
+// Mock Next.js Link component for compatibility with React Router
+const NextLink = ({
+  href,
+  as,
+  replace,
+  scroll,
+  shallow,
+  passHref,
+  prefetch,
+  locale,
   children,
-  className,
-  ...props 
+  ...props
 }: {
   href: string;
   as?: string;
@@ -26,21 +24,15 @@ const NextLink = ({
   prefetch?: boolean;
   locale?: string;
   children: React.ReactNode;
-  className?: string;
   [key: string]: any;
 }) => {
-  // Convert Next.js dynamic routes to React Router format
-  const processedHref = href;
-  
+  // Convert Next.js paths to React Router format (remove base path if needed)
+  const to = href.startsWith('/') ? href : `/${href}`;
+
   return (
-    <Link 
-      to={processedHref} 
-      className={className}
-      replace={replace}
-      {...props}
-    >
+    <RouterLink to={to} replace={replace} {...props}>
       {children}
-    </Link>
+    </RouterLink>
   );
 };
 

@@ -1,18 +1,19 @@
 
 import React from 'react';
 
-// This is a simplified shim for Next.js Image component
-// It provides basic compatibility for projects transitioning from Next.js to React Router
-const NextImage = ({ 
-  src, 
-  alt, 
-  width, 
-  height, 
-  className, 
+// Mock Next.js Image component for compatibility
+const NextImage = ({
+  src,
+  alt,
+  width,
+  height,
+  className,
   style,
   priority,
   quality,
   loading,
+  unoptimized,
+  placeholder,
   ...props
 }: {
   src: string;
@@ -23,30 +24,30 @@ const NextImage = ({
   style?: React.CSSProperties;
   priority?: boolean;
   quality?: number;
-  loading?: 'lazy' | 'eager';
+  loading?: 'eager' | 'lazy';
+  unoptimized?: boolean;
+  placeholder?: 'blur' | 'empty' | 'data:image/...';
   [key: string]: any;
 }) => {
-  // Convert any relative URLs that would work in Next.js to standard format
-  const processedSrc = src.startsWith('/') ? src : src;
-  
+  const imgStyle = {
+    ...style,
+    maxWidth: '100%',
+    height: 'auto',
+    objectFit: style?.objectFit || 'contain'
+  };
+
   return (
     <img
-      src={processedSrc}
+      src={src}
       alt={alt}
       width={width}
       height={height}
       className={className}
-      style={style}
-      loading={priority ? 'eager' : loading || 'lazy'}
+      style={imgStyle}
+      loading={loading}
       {...props}
     />
   );
 };
 
-// Also create a placeholder component for next/future/image
-const FutureImage = (props: any) => {
-  return <NextImage {...props} />;
-};
-
-export { FutureImage };
 export default NextImage;

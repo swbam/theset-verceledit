@@ -44,6 +44,13 @@ const ArtistSearchResults = ({
     return null;
   }
 
+  const handleSelect = (artist: Artist) => {
+    if (onSelect) {
+      console.log(`Artist selected: ${artist.name} (ID: ${artist.id})`);
+      onSelect(artist);
+    }
+  };
+
   return (
     <div className={cn("py-1 bg-background border border-border rounded-lg shadow-lg divide-y divide-border", className)}>
       {artists.map((artist) => (
@@ -51,7 +58,7 @@ const ArtistSearchResults = ({
           key={artist.id}
           to={`/artists/${artist.id}`}
           className="flex items-center gap-3 px-3 py-2 hover:bg-secondary transition-colors"
-          onClick={() => onSelect?.(artist)}
+          onClick={() => handleSelect(artist)}
         >
           {artist.image ? (
             <img 
