@@ -1,5 +1,4 @@
 import { SpotifyTrack } from './types';
-import { generateMockTracks } from './utils';
 import { getAccessToken } from './auth';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -20,7 +19,8 @@ export async function getMyTopArtists() {
     const response = await fetch('https://api.spotify.com/v1/me/top/artists?time_range=medium_term&limit=10', {
       headers: {
         'Authorization': `Bearer ${session.provider_token}`
-      }
+      },
+      next: { revalidate: 3600 } // Cache for 1 hour
     });
     
     if (!response.ok) {
@@ -92,14 +92,14 @@ export async function getUserRecommendations() {
     
     if (!session?.provider_token) {
       console.warn("No Spotify provider token available");
-      return { tracks: generateMockTracks(10) };
+      return { tracks: [] };
     }
     
     // First get the user's top artists to use as seeds
     const topArtists = await getMyTopArtists();
     
     if (!topArtists || topArtists.length === 0) {
-      return { tracks: generateMockTracks(10) };
+      return { tracks: [] };
     }
     
     // Take up to 5 artist IDs to use as seeds
@@ -109,19 +109,20 @@ export async function getUserRecommendations() {
     const response = await fetch(`https://api.spotify.com/v1/recommendations?seed_artists=${artistSeeds}&limit=10`, {
       headers: {
         'Authorization': `Bearer ${session.provider_token}`
-      }
+      },
+      next: { revalidate: 3600 } // Cache for 1 hour
     });
     
     if (!response.ok) {
       console.error(`Error fetching recommendations: ${response.status} ${response.statusText}`);
-      return { tracks: generateMockTracks(10) };
+      return { tracks: [] };
     }
     
     const data = await response.json();
     
     if (!data.tracks || !Array.isArray(data.tracks)) {
       console.error("Invalid response format from Spotify API");
-      return { tracks: generateMockTracks(10) };
+      return { tracks: [] };
     }
     
     // Map the Spotify response to our expected format
@@ -139,6 +140,6 @@ export async function getUserRecommendations() {
     };
   } catch (error) {
     console.error("Error fetching recommendations:", error);
-    return { tracks: generateMockTracks(10) };
+    return { tracks: [] };
   }
 }

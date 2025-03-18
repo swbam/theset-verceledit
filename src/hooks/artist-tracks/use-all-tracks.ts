@@ -1,7 +1,5 @@
-
 import { useQuery } from '@tanstack/react-query';
 import { getArtistAllTracks } from '@/lib/spotify';
-import { generateMockTracks } from './utils';
 import { getStoredTracksFromDb } from '@/lib/spotify';
 import { SpotifyTrack } from '@/lib/spotify/types';
 
@@ -12,7 +10,7 @@ export function useAllTracks(spotifyArtistId: string, isLoadingShow: boolean) {
     queryFn: async () => {
       if (!spotifyArtistId) {
         console.error("No valid Spotify artist ID available");
-        return { tracks: generateMockTracks(20) };
+        return { tracks: [] };
       }
       
       console.log(`Fetching all tracks for artist ID: ${spotifyArtistId}`);
@@ -27,12 +25,12 @@ export function useAllTracks(spotifyArtistId: string, isLoadingShow: boolean) {
           return tracksResponse;
         }
         
-        // If we still don't have tracks, return mock data
-        console.log("No tracks returned from getArtistAllTracks, using mock data");
-        return { tracks: generateMockTracks(20) };
+        // Return empty tracks array if no tracks found
+        console.log("No tracks returned from getArtistAllTracks");
+        return { tracks: [] };
       } catch (error) {
         console.error("Error fetching all tracks:", error);
-        return { tracks: generateMockTracks(20) };
+        return { tracks: [] };
       }
     },
     enabled: !!spotifyArtistId && !isLoadingShow,

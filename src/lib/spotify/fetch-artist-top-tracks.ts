@@ -1,23 +1,15 @@
-
 import { getAccessToken } from './auth';
 import { SpotifyTrack } from './types';
-import { generateMockTracks } from './utils';
 
 const SPOTIFY_API_BASE = 'https://api.spotify.com/v1';
 
 /**
  * Fetches top tracks for an artist from Spotify API
  */
-export const fetchArtistTopTracks = async (
+export const fetchArtistTopTracksFromSpotify = async (
   artistId: string
 ): Promise<SpotifyTrack[]> => {
   try {
-    // Skip mock artist IDs
-    if (artistId.includes('mock')) {
-      console.log('Using mock data for mock artist ID in top tracks');
-      return generateMockTracks(10);
-    }
-    
     console.log(`Fetching real top tracks for artist ID: ${artistId}`);
     
     // Get access token
@@ -30,6 +22,7 @@ export const fetchArtistTopTracks = async (
         headers: {
           Authorization: `Bearer ${token}`,
         },
+        next: { revalidate: 86400 }, // Cache for 24 hours
       }
     );
     
@@ -58,7 +51,6 @@ export const fetchArtistTopTracks = async (
     return tracks;
   } catch (error) {
     console.error('Error fetching artist top tracks:', error);
-    console.log('Falling back to mock data for top tracks');
-    return generateMockTracks(10);
+    throw error; // Re-throw the error to be handled by the caller
   }
 };

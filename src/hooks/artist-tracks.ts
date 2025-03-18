@@ -4,35 +4,13 @@ import { SpotifyTrack } from '@/lib/spotify/types';
 import { Song } from '@/hooks/realtime/types';
 import { supabase } from "@/integrations/supabase/client";
 
-// Function to generate real song names for fallback instead of "Popular Song X"
-const generateMockTracks = (count: number): SpotifyTrack[] => {
-  // Use real song names for better user experience
-  const realSongNames = [
-    "Hotel California", "Bohemian Rhapsody", "Stairway to Heaven", 
-    "Sweet Child O' Mine", "Imagine", "Smells Like Teen Spirit",
-    "Billie Jean", "Like a Rolling Stone", "Hey Jude", "Purple Haze",
-    "Johnny B. Goode", "Respect", "Good Vibrations", "My Generation",
-    "Light My Fire", "What's Going On", "Born to Run", "Layla",
-    "Gimme Shelter", "London Calling", "I Want to Hold Your Hand",
-    "Superstition", "Waterloo Sunset", "God Only Knows", "Blowin' in the Wind"
-  ];
-  
-  return Array.from({ length: count }, (_, i) => ({
-    id: `real-track-${i}`,
-    name: realSongNames[i % realSongNames.length],
-    popularity: 100 - (i * 5),
-    album: {
-      name: i % 2 === 0 ? 'Greatest Hits' : 'Best Album',
-      images: [{ url: `https://picsum.photos/seed/${i}/300/300` }]
-    },
-    artists: [{ name: 'Artist' }],
-    uri: `spotify:track:real-${i}`,
-    duration_ms: 180000 + (i * 10000)
-  }));
-};
+// Custom interface that extends SpotifyTrack with additional properties
+interface ExtendedSpotifyTrack extends SpotifyTrack {
+  is_top_track?: boolean;
+}
 
 // Function to get available tracks that aren't already in the setlist
-export function getAvailableTracks(allTracksData: { tracks: SpotifyTrack[] } | undefined, existingSongs: Song[]) {
+export function getAvailableTracks(allTracksData: { tracks: ExtendedSpotifyTrack[] } | undefined, existingSongs: Song[]) {
   if (!allTracksData || !allTracksData.tracks) {
     return [];
   }
@@ -44,13 +22,17 @@ export function getAvailableTracks(allTracksData: { tracks: SpotifyTrack[] } | u
   return allTracksData.tracks
     .filter(track => track && track.name && !existingSongIds.has(track.id))
     .sort((a, b) => {
+      // Check if tracks have the is_top_track property (our database tracks do)
+      const aIsTop = a.is_top_track === true;
+      const bIsTop = b.is_top_track === true;
+      
       // First sort by popular/top tracks
-      if ((a.is_top_track && b.is_top_track) || (!a.is_top_track && !b.is_top_track)) {
+      if ((aIsTop && bIsTop) || (!aIsTop && !bIsTop)) {
         // If both are or aren't top tracks, sort by popularity
         return (b.popularity || 0) - (a.popularity || 0);
       }
       // Otherwise, prioritize top tracks
-      return a.is_top_track ? -1 : 1;
+      return aIsTop ? -1 : 1;
     });
 }
 
@@ -60,12 +42,12 @@ export function useArtistTracks(artistId: string, initialSongs: Song[]) {
     data: allTracksData,
     isLoading: isLoadingAllTracks,
     error: allTracksError
-  } = useQuery({
+  } = useQuery<{ tracks: ExtendedSpotifyTrack[] }>({
     queryKey: ['artistSongs', artistId],
     queryFn: async () => {
       try {
         if (!artistId) {
-          return { tracks: generateMockTracks(20) };
+          return { tracks: [] };
         }
         
         console.log(`Fetching songs for artist ID: ${artistId}`);
@@ -79,14 +61,14 @@ export function useArtistTracks(artistId: string, initialSongs: Song[]) {
           
         if (error) {
           console.error("Error fetching artist songs from database:", error);
-          return { tracks: generateMockTracks(20) };
+          return { tracks: [] };
         }
         
         if (songs && songs.length > 0) {
           console.log(`Found ${songs.length} songs in artist_songs table for artist ${artistId}`);
           
           // Transform to match SpotifyTrack interface
-          const tracks: SpotifyTrack[] = songs.map(song => ({
+          const tracks: ExtendedSpotifyTrack[] = songs.map(song => ({
             id: song.id,
             name: song.name,
             popularity: song.popularity,
@@ -110,14 +92,14 @@ export function useArtistTracks(artistId: string, initialSongs: Song[]) {
         const tracksResponse = await getArtistAllTracks(artistId);
         
         if (tracksResponse && tracksResponse.tracks && tracksResponse.tracks.length > 0) {
-          return tracksResponse;
+          return { tracks: tracksResponse.tracks as ExtendedSpotifyTrack[] };
         }
         
-        // Last resort - mock tracks
-        return { tracks: generateMockTracks(20) };
+        // Return empty array if no tracks found
+        return { tracks: [] };
       } catch (error) {
         console.error("Error fetching artist songs:", error);
-        return { tracks: generateMockTracks(20) };
+        return { tracks: [] };
       }
     },
     enabled: !!artistId,

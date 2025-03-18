@@ -1,42 +1,16 @@
-
 import { SpotifyTrack } from '@/lib/spotify/types';
 
-// Generate mock tracks for fallback scenarios
-export function generateMockTracks(count: number): SpotifyTrack[] {
-  console.log(`Generating ${count} mock tracks in hook utils`);
-  return Array.from({ length: count }, (_, i) => ({
-    id: `mock-track-${i}`,
-    name: `Popular Song ${i + 1}`,
-    popularity: 100 - (i * 5), // Decreasing popularity 
-    album: {
-      name: i % 2 === 0 ? 'Greatest Hits' : 'Best Album',
-      images: [{ url: `https://picsum.photos/seed/${i}/300/300` }]
-    },
-    artists: [{ name: 'Mock Artist' }],
-    uri: `spotify:track:mock-${i}`,
-    duration_ms: 180000 + (i * 10000)
-  }));
-}
-
-// Generate mock songs for initial setlist
-export function generateMockSongs(count: number) {
-  console.log(`Generating ${count} mock songs for initial setlist`);
-  return Array.from({ length: count }, (_, i) => ({
-    id: `mock-song-${i}`,
-    name: `Popular Song ${i + 1}`,
-    votes: 10 - i,
-    userVoted: false
-  }));
-}
-
 // Filter available tracks (not in setlist)
-export const getAvailableTracks = (allTracksData: { tracks?: SpotifyTrack[] } | undefined, setlist: any[]) => {
+export const getAvailableTracks = (
+  allTracksData: { tracks?: SpotifyTrack[] } | undefined, 
+  setlist: any[]
+) => {
   console.log("Getting available tracks. All tracks data:", 
     allTracksData?.tracks?.length, "Setlist length:", setlist?.length);
   
   if (!allTracksData?.tracks || !Array.isArray(allTracksData.tracks)) {
     console.log("No all tracks data available");
-    return generateMockTracks(15);
+    return [];
   }
   
   // Make sure tracks are valid
@@ -45,7 +19,7 @@ export const getAvailableTracks = (allTracksData: { tracks?: SpotifyTrack[] } | 
   console.log(`Valid tracks: ${validTracks.length} out of ${allTracksData.tracks.length}`);
   
   if (validTracks.length === 0) {
-    return generateMockTracks(15);
+    return [];
   }
   
   // Handle no setlist case
@@ -60,10 +34,10 @@ export const getAvailableTracks = (allTracksData: { tracks?: SpotifyTrack[] } | 
   
   console.log(`${filteredTracks.length} tracks available after filtering out ${setlist.length} setlist tracks`);
   
-  // If after filtering we have no tracks, return mock tracks
+  // If after filtering we have no tracks, return empty array
   if (filteredTracks.length === 0) {
-    console.log("No tracks available after filtering, providing mock tracks");
-    return generateMockTracks(15);
+    console.log("No tracks available after filtering");
+    return [];
   }
   
   // Sort by name for easy browsing in dropdown

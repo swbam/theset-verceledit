@@ -1,14 +1,18 @@
 import React from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Music } from 'lucide-react';
-import { SpotifyTrack } from '@/lib/spotify/types';
+import { Artist, TopTrack } from '@/types/artist';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Button } from '@/components/ui/button';
 
 interface ArtistStatsProps {
-  artist: any;
-  topTracks: SpotifyTrack[];
+  artist: Artist;
+  topTracks: TopTrack[];
+  isLoading?: boolean;
+  hasError?: boolean;
 }
 
-const ArtistStats = ({ artist, topTracks }: ArtistStatsProps) => {
+const ArtistStats = ({ artist, topTracks, isLoading = false, hasError = false }: ArtistStatsProps) => {
   // Format large numbers with commas and abbreviations
   const formatNumber = (num: number): string => {
     if (num >= 1000000000) {
@@ -25,14 +29,10 @@ const ArtistStats = ({ artist, topTracks }: ArtistStatsProps) => {
 
   // Extract and format the artist stats
   const spotifyFollowers = artist.followers || 0;
-  const monthlyListeners = artist.monthly_listeners || artist.popularity * 1000000 || 0;
+  const monthlyListeners = artist.monthly_listeners || 0;
 
-  // Extract and format genres
-  const genres = artist.genres || ['Pop', 'Rock', 'Alternative', 'Indie'];
-
-  // Formation year and origin (fallbacks if not available)
-  const formationYear = artist.formed || artist.formation_year || '1996';
-  const origin = artist.origin || 'London, England';
+  // Extract genres (if available)
+  const genres = artist.genres || [];
 
   return (
     <div className="bg-zinc-900 rounded-lg p-6">
@@ -48,73 +48,112 @@ const ArtistStats = ({ artist, topTracks }: ArtistStatsProps) => {
       <div className="grid grid-cols-2 gap-6 mb-8">
         <div>
           <p className="text-zinc-400 text-sm mb-1">Spotify Followers</p>
-          <p className="text-2xl font-bold">{formatNumber(spotifyFollowers)}</p>
+          {isLoading ? (
+            <Skeleton className="h-8 w-16" />
+          ) : (
+            <p className="text-2xl font-bold">{formatNumber(spotifyFollowers)}</p>
+          )}
         </div>
         <div>
           <p className="text-zinc-400 text-sm mb-1">Monthly Listeners</p>
-          <p className="text-2xl font-bold">{formatNumber(monthlyListeners)}</p>
+          {isLoading ? (
+            <Skeleton className="h-8 w-16" />
+          ) : (
+            <p className="text-2xl font-bold">{formatNumber(monthlyListeners)}</p>
+          )}
         </div>
       </div>
 
       <div className="mb-8">
         <h3 className="text-lg font-semibold mb-4">Top Tracks</h3>
-        <ul className="space-y-3">
-          {topTracks && topTracks.length > 0 ? (
-            topTracks.slice(0, 5).map((track, index) => (
+        
+        {isLoading ? (
+          <ul className="space-y-3">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <li key={i} className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <span className="text-zinc-400 mr-3">{i}.</span>
+                  <Skeleton className="h-5 w-32" />
+                </div>
+                <Skeleton className="h-5 w-5 rounded-full" />
+              </li>
+            ))}
+          </ul>
+        ) : hasError ? (
+          <div className="bg-zinc-800/50 rounded-md p-4 text-center">
+            <p className="text-sm text-zinc-400 mb-2">
+              Failed to load top tracks from Spotify
+            </p>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => window.location.reload()}
+            >
+              Retry
+            </Button>
+          </div>
+        ) : topTracks.length === 0 ? (
+          <div className="bg-zinc-800/50 rounded-md p-4 text-center">
+            <p className="text-sm text-zinc-400">
+              No top tracks available for this artist
+            </p>
+          </div>
+        ) : (
+          <ul className="space-y-3">
+            {topTracks.map((track, index) => (
               <li key={track.id} className="flex items-center justify-between">
                 <div className="flex items-center">
                   <span className="text-zinc-400 mr-3">{index + 1}.</span>
                   <span>{track.name}</span>
                 </div>
-                <Music className="h-5 w-5 text-zinc-400" />
+                {track.spotify_url && (
+                  <a 
+                    href={track.spotify_url} 
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    className="text-zinc-400 hover:text-white transition-colors"
+                    aria-label={`Listen to ${track.name} on Spotify`}
+                  >
+                    <Music className="h-5 w-5" />
+                  </a>
+                )}
               </li>
-            ))
-          ) : (
-            // Fallback tracks if Spotify tracks not available
-            [
-              "Yellow",
-              "Viva La Vida",
-              "The Scientist",
-              "Fix You",
-              "Paradise"
-            ].map((trackName, index) => (
-              <li key={index} className="flex items-center justify-between">
-                <div className="flex items-center">
-                  <span className="text-zinc-400 mr-3">{index + 1}.</span>
-                  <span>{trackName}</span>
-                </div>
-                <Music className="h-5 w-5 text-zinc-400" />
-              </li>
-            ))
+            ))}
+          </ul>
+        )}
+      </div>
+
+      {genres.length > 0 && (
+        <div className="mb-8">
+          <h3 className="text-lg font-semibold mb-4">Genres</h3>
+          <div className="flex flex-wrap gap-2">
+            {genres.slice(0, 4).map((genre, index) => (
+              <Badge
+                key={index}
+                variant="outline"
+                className="bg-zinc-800 text-white border-zinc-700 px-3 py-1"
+              >
+                {genre}
+              </Badge>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {artist.formation_year && (
+        <div className="grid grid-cols-2 gap-6">
+          <div>
+            <p className="text-zinc-400 text-sm mb-1">Formed</p>
+            <p className="font-semibold">{artist.formation_year}</p>
+          </div>
+          {artist.origin && (
+            <div>
+              <p className="text-zinc-400 text-sm mb-1">Origin</p>
+              <p className="font-semibold">{artist.origin}</p>
+            </div>
           )}
-        </ul>
-      </div>
-
-      <div className="mb-8">
-        <h3 className="text-lg font-semibold mb-4">Genres</h3>
-        <div className="flex flex-wrap gap-2">
-          {genres.slice(0, 4).map((genre, index) => (
-            <Badge
-              key={index}
-              variant="outline"
-              className="bg-zinc-800 text-white border-zinc-700 px-3 py-1"
-            >
-              {genre}
-            </Badge>
-          ))}
         </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-6">
-        <div>
-          <p className="text-zinc-400 text-sm mb-1">Formed</p>
-          <p className="font-semibold">{formationYear}</p>
-        </div>
-        <div>
-          <p className="text-zinc-400 text-sm mb-1">Origin</p>
-          <p className="font-semibold">{origin}</p>
-        </div>
-      </div>
+      )}
     </div>
   );
 };

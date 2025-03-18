@@ -1,7 +1,5 @@
-
 import { getAccessToken } from './auth';
 import { saveTracksToDb, getStoredTracksFromDb, checkArtistTracksNeedUpdate } from './utils';
-import { generateMockTracks } from './utils';
 import { SpotifyTrack } from './types';
 
 // Define the expected response type from the Spotify API
@@ -42,27 +40,28 @@ export async function getArtistAllTracks(artistId: string): Promise<{ tracks: Sp
         headers: {
           Authorization: `Bearer ${token}`,
         },
+        next: { revalidate: 86400 }, // Cache for 24 hours
       }
     );
     
     if (!albumsResponse.ok) {
       console.error(`Failed to fetch albums for artist ${artistId}: ${albumsResponse.statusText}`);
       
-      // If we have some stored tracks, better return those than mock data
+      // If we have some stored tracks, better return those than empty array
       if (storedTracks && storedTracks.length > 0) {
         return { tracks: storedTracks };
       }
-      return { tracks: generateMockTracks(20) };
+      return { tracks: [] };
     }
     
     const albums = await albumsResponse.json() as SpotifyAlbumsResponse;
     
     if (!albums || !albums.items || albums.items.length === 0) {
-      console.log("No albums found for artist, using mock data or stored tracks");
+      console.log("No albums found for artist");
       if (storedTracks && storedTracks.length > 0) {
         return { tracks: storedTracks };
       }
-      return { tracks: generateMockTracks(20) };
+      return { tracks: [] };
     }
     
     console.log(`Found ${albums.items.length} albums for artist ${artistId}`);
@@ -79,6 +78,7 @@ export async function getArtistAllTracks(artistId: string): Promise<{ tracks: Sp
             headers: {
               Authorization: `Bearer ${token}`,
             },
+            next: { revalidate: 86400 }, // Cache for 24 hours
           }
         );
         
@@ -106,6 +106,7 @@ export async function getArtistAllTracks(artistId: string): Promise<{ tracks: Sp
                 headers: {
                   Authorization: `Bearer ${token}`,
                 },
+                next: { revalidate: 86400 }, // Cache for 24 hours
               }
             );
             
@@ -146,11 +147,27 @@ export async function getArtistAllTracks(artistId: string): Promise<{ tracks: Sp
     // Save tracks to database for future use
     if (allTracks.length > 0) {
       await saveTracksToDb(artistId, allTracks);
+      return { tracks: allTracks };
     }
     
-    return { tracks: allTracks };
+    // If we couldn't get any tracks from Spotify but have stored tracks, use those
+    if (storedTracks && storedTracks.length > 0) {
+      console.log(`No tracks found from Spotify, using ${storedTracks.length} stored tracks`);
+      return { tracks: storedTracks };
+    }
+    
+    // No tracks found anywhere
+    return { tracks: [] };
   } catch (error) {
     console.error("Error in getArtistAllTracks:", error);
-    return { tracks: generateMockTracks(20) };
+    
+    // If we have stored tracks, use those as fallback
+    const storedTracks = await getStoredTracksFromDb(artistId);
+    if (storedTracks && storedTracks.length > 0) {
+      console.log(`Error occurred, falling back to ${storedTracks.length} stored tracks`);
+      return { tracks: storedTracks };
+    }
+    
+    return { tracks: [] };
   }
 }

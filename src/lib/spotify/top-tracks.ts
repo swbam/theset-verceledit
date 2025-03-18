@@ -1,56 +1,69 @@
-import { fetchArtistTopTracks } from './fetch-artist-top-tracks';
-import { generateMockTracks } from './utils';
-import { 
-  getArtistTopTracksFromDb, 
-  saveTracksToDb, 
-  checkArtistTracksNeedUpdate
-} from './utils';
+import { getArtistTopTracksFromDb, checkArtistTracksNeedUpdate, saveTracksToDb } from './utils';
+import { fetchArtistTopTracksFromSpotify } from './fetch-artist-top-tracks';
 import { SpotifyTrack } from './types';
 
-export async function getArtistTopTracks(artistId: string, limit: number = 10): Promise<{ tracks: SpotifyTrack[] }> {
+/**
+ * Fetches an artist's top tracks from Spotify API
+ * @param artistId The Spotify ID of the artist
+ * @param limit Maximum number of tracks to return (default: 10)
+ * @returns An object containing the artist's top tracks
+ */
+export async function getArtistTopTracks(
+  artistId: string,
+  limit: number = 10
+): Promise<{ tracks: SpotifyTrack[] }> {
+  if (!artistId) {
+    console.error('No artist ID provided to getArtistTopTracks');
+    return { tracks: [] };
+  }
+  
   try {
-    console.log(`Fetching top ${limit} tracks for artist ID: ${artistId}`);
+    console.log(`Getting top tracks for artist ${artistId}`);
     
-    // First check if we already have stored tracks
-    const storedTracks = await getArtistTopTracksFromDb(artistId, limit);
-    
-    // Check if we need to update the artist's tracks
+    // Check if we have this artist's top tracks cached in the database
+    const cachedTracks = await getArtistTopTracksFromDb(artistId, limit);
     const needsUpdate = await checkArtistTracksNeedUpdate(artistId);
     
-    if (storedTracks && storedTracks.length > 0 && !needsUpdate) {
-      console.log(`Using ${storedTracks.length} cached top tracks for artist ${artistId}`);
-      return { tracks: storedTracks };
+    // If we have tracks cached and they don't need an update, use them
+    if (cachedTracks.length > 0 && !needsUpdate) {
+      console.log(`Using ${cachedTracks.length} cached top tracks for ${artistId}`);
+      return { tracks: cachedTracks };
     }
     
-    // If no stored tracks or update needed, fetch from Spotify
-    console.log(`Fetching fresh tracks from Spotify for artist ${artistId}`);
-    const fetchedTracks = await fetchArtistTopTracks(artistId);
-    
-    if (fetchedTracks && fetchedTracks.length > 0) {
-      console.log(`Fetched ${fetchedTracks.length} top tracks from Spotify API`);
+    // Otherwise, fetch from Spotify
+    console.log(`Fetching new top tracks from Spotify for ${artistId}`);
+    try {
+      const spotifyTracks = await fetchArtistTopTracksFromSpotify(artistId);
       
-      // Save tracks to database for future use
-      await saveTracksToDb(artistId, fetchedTracks);
+      // If we got tracks, save them to the database
+      if (spotifyTracks && spotifyTracks.length > 0) {
+        await saveTracksToDb(artistId, spotifyTracks);
+        return { tracks: spotifyTracks.slice(0, limit) };
+      }
       
-      // Return the top tracks limited to the requested amount
-      const sortedTracks = [...fetchedTracks].sort((a, b) => 
-        (b.popularity || 0) - (a.popularity || 0)
-      );
+      // If Spotify returned no tracks but we have cached tracks, use those
+      if (cachedTracks.length > 0) {
+        console.log("No tracks found in Spotify, using database tracks");
+        return { tracks: cachedTracks };
+      }
       
-      return { tracks: sortedTracks.slice(0, limit) };
+      // No tracks found anywhere
+      console.log("No tracks found in database or Spotify");
+      return { tracks: [] };
+    } catch (spotifyError) {
+      console.error("Error fetching from Spotify:", spotifyError);
+      
+      // If Spotify fetch fails but we have cached tracks, use those
+      if (cachedTracks.length > 0) {
+        console.log("Falling back to database tracks");
+        return { tracks: cachedTracks };
+      }
+      
+      // No tracks available
+      return { tracks: [] };
     }
-    
-    // If we still have some stored tracks but they're outdated, use them anyway
-    if (storedTracks && storedTracks.length > 0) {
-      console.log(`Using ${storedTracks.length} outdated top tracks for artist ${artistId}`);
-      return { tracks: storedTracks };
-    }
-    
-    console.log("No tracks found in database or Spotify, using mock data");
-    return { tracks: generateMockTracks(limit) };
   } catch (error) {
     console.error("Error in getArtistTopTracks:", error);
-    console.log("Falling back to mock data");
-    return { tracks: generateMockTracks(limit) };
+    return { tracks: [] };
   }
 }

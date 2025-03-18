@@ -1,5 +1,6 @@
 import { supabase, supabaseAdmin } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { PastSetlist } from '@/types/artist';
 
 export interface SetlistSong {
   id: string;
@@ -457,3 +458,196 @@ export const getSetlistForShow = async (
     return null;
   }
 };
+
+/**
+ * Saves past setlists to the database
+ * @param artistId The ID of the artist
+ * @param setlists Array of setlists to save
+ * @returns Boolean indicating success
+ */
+export async function savePastSetlistsToDatabase(
+  artistId: string, 
+  setlists: PastSetlist[]
+): Promise<boolean> {
+  try {
+    if (!artistId || !setlists || setlists.length === 0) {
+      console.warn("Invalid input for savePastSetlistsToDatabase. Skipping save.");
+      return false;
+    }
+    
+    console.log(`Saving ${setlists.length} past setlists for artist ${artistId}`);
+    
+    // First, ensure all venues exist in the database
+    const venueIds = new Map<string, string>();
+    
+    for (const setlist of setlists) {
+      if (!setlist.venue || !setlist.venue.name) continue;
+      
+      // Generate a unique key for this venue
+      const venueKey = `${setlist.venue.name}:${setlist.venue.city || ''}:${setlist.venue.state || ''}`;
+      
+      // Skip if we've already processed this venue
+      if (venueIds.has(venueKey)) continue;
+      
+      // Check if venue exists
+      const { data: existingVenues } = await supabase
+        .from('venues')
+        .select('id')
+        .eq('name', setlist.venue.name)
+        .eq('city', setlist.venue.city || '')
+        .eq('state', setlist.venue.state || '')
+        .limit(1);
+      
+      if (existingVenues && existingVenues.length > 0) {
+        // Venue exists, store its ID
+        venueIds.set(venueKey, existingVenues[0].id);
+      } else {
+        // Venue doesn't exist, create it
+        const { data: newVenue, error } = await supabase
+          .from('venues')
+          .insert({
+            name: setlist.venue.name,
+            city: setlist.venue.city,
+            state: setlist.venue.state,
+            country: setlist.venue.country
+          })
+          .select('id')
+          .single();
+        
+        if (error) {
+          console.error("Error creating venue:", error);
+          continue;
+        }
+        
+        if (newVenue) {
+          venueIds.set(venueKey, newVenue.id);
+        }
+      }
+    }
+    
+    // Now save the setlists
+    for (const setlist of setlists) {
+      if (!setlist.venue || !setlist.venue.name) continue;
+      
+      const venueKey = `${setlist.venue.name}:${setlist.venue.city || ''}:${setlist.venue.state || ''}`;
+      const venueId = venueIds.get(venueKey);
+      
+      if (!venueId) {
+        console.error(`Could not find venue ID for ${setlist.venue.name}. Skipping setlist.`);
+        continue;
+      }
+      
+      // Check if setlist already exists
+      const { data: existingSetlists } = await supabase
+        .from('past_setlists')
+        .select('id')
+        .eq('id', setlist.id)
+        .limit(1);
+      
+      if (existingSetlists && existingSetlists.length > 0) {
+        // Setlist exists, update it
+        const { error } = await supabase
+          .from('past_setlists')
+          .update({
+            date: setlist.date,
+            venue_id: venueId,
+            songs: setlist.songs,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', setlist.id);
+        
+        if (error) {
+          console.error(`Error updating setlist ${setlist.id}:`, error);
+        }
+      } else {
+        // Setlist doesn't exist, create it
+        const { error } = await supabase
+          .from('past_setlists')
+          .insert({
+            id: setlist.id,
+            date: setlist.date,
+            venue_id: venueId,
+            artist_id: artistId,
+            songs: setlist.songs
+          });
+        
+        if (error) {
+          console.error(`Error creating setlist:`, error);
+        }
+      }
+    }
+    
+    // Update artist's setlists_last_updated timestamp
+    await supabase
+      .from('artists')
+      .update({
+        setlists_last_updated: new Date().toISOString()
+      })
+      .eq('id', artistId);
+    
+    return true;
+  } catch (error) {
+    console.error("Error in savePastSetlistsToDatabase:", error);
+    return false;
+  }
+}
+
+/**
+ * Creates a setlist for a new show
+ * @param showId The ID of the show
+ * @param artistId The ID of the artist
+ * @param tracks Array of tracks to add to the setlist
+ * @returns The ID of the created setlist
+ */
+export async function createSetlistForShow(
+  showId: string,
+  artistId: string,
+  tracks: Array<{ id: string; title: string; album?: string; spotify_url?: string }>
+): Promise<string | null> {
+  try {
+    // Create the setlist
+    const { data: setlist, error: setlistError } = await supabase
+      .from('setlists')
+      .insert({
+        show_id: showId,
+        artist_id: artistId,
+        is_active: true
+      })
+      .select('id')
+      .single();
+    
+    if (setlistError) {
+      console.error("Error creating setlist:", setlistError);
+      return null;
+    }
+    
+    if (!setlist) {
+      console.error("No setlist created");
+      return null;
+    }
+    
+    // Add tracks to the setlist
+    const setlistSongs = tracks.map(track => ({
+      setlist_id: setlist.id,
+      title: track.title,
+      album: track.album,
+      spotify_url: track.spotify_url,
+      track_id: track.id,
+      vote_count: 0
+    }));
+    
+    const { error: songsError } = await supabase
+      .from('setlist_songs')
+      .insert(setlistSongs);
+    
+    if (songsError) {
+      console.error("Error adding songs to setlist:", songsError);
+      return null;
+    }
+    
+    return setlist.id;
+  } catch (error) {
+    console.error("Error in createSetlistForShow:", error);
+    return null;
+  }
+}

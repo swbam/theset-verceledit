@@ -11,9 +11,6 @@ export { convertStoredTracks, saveTracksToDb } from './utils';
 // Export type definitions
 export * from './types';
 
-// Only export mock-tracks from one place to avoid ambiguity
-export { generateMockTracks } from './utils';
-
 // Import the function before re-exporting it as an alias
 import { getArtistAllTracks } from './all-tracks';
 // Add getAllArtistTracks as alias for getArtistAllTracks for compatibility

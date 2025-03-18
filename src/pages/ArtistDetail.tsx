@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { fetchArtistEvents } from '@/lib/ticketmaster';
@@ -21,28 +21,6 @@ import { SectionHeader } from '@/components/ui/section-header';
 import PastSetlistCard from '@/components/artist/PastSetlistCard';
 import { Artist, PastSetlist, Show, TopTrack } from '@/types/artist';
 import { Skeleton } from '@/components/ui/skeleton';
-
-// Mock past setlists data to display in the UI
-const MOCK_PAST_SETLISTS = [
-  {
-    id: 'past-1',
-    date: '2023-04-05',
-    venue: { name: 'Sphere', city: 'Las Vegas', state: 'Nevada' },
-    songs: ['Yellow', 'The Scientist', 'Viva La Vida']
-  },
-  {
-    id: 'past-2',
-    date: '2023-04-06',
-    venue: { name: 'Sphere', city: 'Las Vegas', state: 'Nevada' },
-    songs: ['Paradise', 'Fix You', 'Clocks']
-  },
-  {
-    id: 'past-3',
-    date: '2023-04-09',
-    venue: { name: 'Sphere', city: 'Las Vegas', state: 'Nevada' },
-    songs: ['A Sky Full of Stars', 'Adventure of a Lifetime', 'Higher Power']
-  }
-];
 
 const ArtistDetail = () => {
   const { id } = useParams<{ id: string }>();

@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { SpotifyTrack } from './types';
 
@@ -159,23 +158,5 @@ export function convertStoredTracks(tracks: any[]): SpotifyTrack[] {
     duration_ms: track.duration_ms,
     popularity: track.popularity,
     preview_url: track.preview_url
-  }));
-}
-
-// Function to generate mock tracks
-export function generateMockTracks(count: number): SpotifyTrack[] {
-  console.log(`Generating ${count} mock tracks in hook utils`);
-  return Array.from({ length: count }, (_, i) => ({
-    id: `mock-track-${i}`,
-    name: `Popular Song ${i + 1}`,
-    popularity: 100 - (i * 5), // Decreasing popularity 
-    album: {
-      name: i % 2 === 0 ? 'Greatest Hits' : 'Best Album',
-      images: [{ url: `https://picsum.photos/seed/${i}/300/300` }]
-    },
-    artists: [{ name: 'Mock Artist' }],
-    uri: `spotify:track:mock-${i}`,
-    duration_ms: 180000 + (i * 10000),
-    preview_url: null
   }));
 }
