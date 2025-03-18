@@ -1,4 +1,4 @@
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import { getArtistAllTracks } from "@/lib/spotify/all-tracks";
 import { SpotifyTrack } from "@/lib/spotify/types";
