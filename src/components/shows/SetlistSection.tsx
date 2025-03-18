@@ -7,6 +7,7 @@ import { useRealtimeVotes } from '@/hooks/use-realtime-votes';
 import { LoadingIndicator } from '@/components/ui/loading';
 import ShowSetlist from '@/components/shows/setlist/ShowSetlist';
 import { useSongManagement } from '@/hooks/realtime/use-song-management';
+import { toast } from 'sonner';
 
 interface SetlistSectionProps {
   showId: string;
@@ -73,7 +74,7 @@ const SetlistSection = ({ showId, spotifyArtistId }: SetlistSectionProps) => {
   }, [setlistId, initialSongs, setlist, addInitialSongs]);
   
   // Show loading indicator if we're loading tracks
-  if (isLoadingTracks) {
+  if (isLoadingTracks || isLoadingSetlist) {
     return (
       <div className="flex justify-center p-8">
         <LoadingIndicator size="lg" message="Loading setlist..." />
@@ -84,20 +85,29 @@ const SetlistSection = ({ showId, spotifyArtistId }: SetlistSectionProps) => {
   // Function to handle adding a song with the selected track
   const onAddSong = async () => {
     console.log("Adding song with track ID:", selectedTrack);
-    if (!selectedTrack) return;
+    if (!selectedTrack) {
+      toast.error("Please select a song first");
+      return;
+    }
     
     // Find the selected track in the available tracks
     const trackToAdd = availableTracks.find(track => track.id === selectedTrack);
     if (!trackToAdd) {
       console.error("Selected track not found in available tracks");
+      toast.error("Selected track not found. Please try another song.");
       return;
     }
+    
+    console.log("Track found, adding to setlist:", trackToAdd.name);
     
     // Call the handleAddSong function with the track ID and name
     await handleAddSong(selectedTrack, trackToAdd.name || '');
     
     // Reset the selected track
     setSelectedTrack('');
+    
+    // Show success message
+    toast.success(`Added "${trackToAdd.name}" to the setlist`);
   };
   
   return (

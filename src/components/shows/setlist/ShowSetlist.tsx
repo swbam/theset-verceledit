@@ -1,3 +1,4 @@
+
 import React from 'react';
 import VotableSetlistTable from '@/components/setlist/VotableSetlistTable';
 import { SetlistAddSongForm } from './index';
@@ -32,31 +33,37 @@ const ShowSetlist = ({
 }: ShowSetlistProps) => {
   // Process setlist items to ensure they have proper names
   const processedSetlist = React.useMemo(() => {
+    console.log("Processing setlist with available tracks:", 
+      setlist?.length, availableTracks?.length);
+    
     return setlist.map(song => {
-      // Ensure song has a proper name, not "Popular Song X"
-      if (!song.name || song.name.startsWith('Popular Song')) {
-        // Find the matching track in availableTracks if possible
-        const matchingTrack = availableTracks?.find(track => track.id === song.id);
-        if (matchingTrack?.name) {
-          return {
-            ...song,
-            name: matchingTrack.name
-          };
-        }
-        // Provide a better fallback name
+      // If the song already has a proper name that isn't a placeholder, use it
+      if (song.name && !song.name.startsWith('Popular Song') && 
+          !song.name.startsWith('Track ') && !song.name.startsWith('Song ')) {
+        return song;
+      }
+      
+      // Find the matching track in availableTracks if possible
+      const matchingTrack = availableTracks?.find(track => track.id === song.id);
+      if (matchingTrack?.name) {
         return {
           ...song,
-          name: `Track ${song.id.substring(0, 6)}`
+          name: matchingTrack.name,
+          albumName: matchingTrack.album?.name,
+          albumImageUrl: matchingTrack.album?.images?.[0]?.url
         };
       }
-      return song;
+      
+      // If we still don't have a good name, provide a better fallback
+      return {
+        ...song,
+        name: song.name || `Track ${song.id.substring(0, 6)}`
+      };
     });
   }, [setlist, availableTracks]);
   
   return (
     <div className="flex flex-col">
-      {/* We're removing the orange label that shows when creating a setlist */}
-      
       {/* Song selection form at the top */}
       <SetlistAddSongForm
         availableTracks={availableTracks}

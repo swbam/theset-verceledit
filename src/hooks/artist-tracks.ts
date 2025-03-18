@@ -3,9 +3,8 @@ import { getArtistAllTracks } from '@/lib/spotify';
 import { SpotifyTrack } from '@/lib/spotify/types';
 import { Song } from '@/hooks/realtime/types';
 import { supabase } from "@/integrations/supabase/client";
-import { getRandomArtistSongs } from '@/lib/api/db/artist-utils';
 
-// Function to generate mock tracks for fallback - using real song names instead of "Popular Song"
+// Function to generate real song names for fallback instead of "Popular Song X"
 const generateMockTracks = (count: number): SpotifyTrack[] => {
   // Use real song names for better user experience
   const realSongNames = [
@@ -69,6 +68,8 @@ export function useArtistTracks(artistId: string, initialSongs: Song[]) {
           return { tracks: generateMockTracks(20) };
         }
         
+        console.log(`Fetching songs for artist ID: ${artistId}`);
+        
         // Get songs from artist_songs table
         const { data: songs, error } = await supabase
           .from('artist_songs')
@@ -104,7 +105,7 @@ export function useArtistTracks(artistId: string, initialSongs: Song[]) {
           return { tracks };
         }
         
-        // If no songs found in database, fall back to Spotify API (legacy support)
+        // If no songs found in database, fall back to Spotify API
         console.log("No songs found in database, falling back to Spotify API");
         const tracksResponse = await getArtistAllTracks(artistId);
         
