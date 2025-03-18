@@ -46,7 +46,7 @@ export const fetchArtistAlbums = async (
     }
     
     const existingTrackIds = new Set(allTracks.map(track => track.id));
-    let updatedTracks = [...allTracks];
+    const updatedTracks = [...allTracks];
     
     // Process album batches sequentially to avoid rate limiting
     for (const batch of albumBatches) {

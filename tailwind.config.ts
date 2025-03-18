@@ -1,5 +1,7 @@
-
 import type { Config } from "tailwindcss";
+import { fontFamily } from "tailwindcss/defaultTheme";
+import plugin from "tailwindcss/plugin";
+import animatePlugin from "tailwindcss-animate";
 
 export default {
 	darkMode: ["class"],
@@ -20,16 +22,8 @@ export default {
 		},
 		extend: {
 			fontFamily: {
-				sans: [
-					'SF Pro Display',
-					'system-ui',
-					'-apple-system',
-					'BlinkMacSystemFont',
-					'Segoe UI',
-					'Roboto',
-					'sans-serif'
-				],
-				mono: ['SF Mono', 'monospace'],
+				sans: ['Inter', ...fontFamily.sans],
+				mono: ['Roboto Mono', 'monospace'],
 			},
 			colors: {
 				border: 'hsl(var(--border))',
@@ -39,31 +33,87 @@ export default {
 				foreground: 'hsl(var(--foreground))',
 				primary: {
 					DEFAULT: 'hsl(var(--primary))',
-					foreground: 'hsl(var(--primary-foreground))'
+					100: '#F6F6F6',
+					200: '#EEEEEE',
+					300: '#E2E2E2',
+					400: '#CBCBCB',
+					500: '#ADADAD',
+					600: '#858585',
+					700: '#333333',
+					800: '#171717',
+					900: '#000000',
 				},
 				secondary: {
 					DEFAULT: 'hsl(var(--secondary))',
-					foreground: 'hsl(var(--secondary-foreground))'
+					100: '#F5F5F5',
+					200: '#EEEEEE',
+					300: '#E0E0E0',
+					400: '#BDBDBD',
+					500: '#9E9E9E',
+					600: '#757575',
+					700: '#616161',
+					800: '#404040',
+					900: '#0A0A0A',
 				},
 				destructive: {
 					DEFAULT: 'hsl(var(--destructive))',
-					foreground: 'hsl(var(--destructive-foreground))'
+					100: '#FFF5F5',
+					200: '#FED7D7',
+					300: '#FEB2B2',
+					400: '#FC8181',
+					500: '#F56565',
+					600: '#E53E3E',
+					700: '#C53030',
+					800: '#9B2C2C',
+					900: '#742A2A',
 				},
 				muted: {
 					DEFAULT: 'hsl(var(--muted))',
-					foreground: 'hsl(var(--muted-foreground))'
+					100: '#F5F5F5',
+					200: '#EEEEEE',
+					300: '#E0E0E0',
+					400: '#BDBDBD',
+					500: '#9E9E9E',
+					600: '#757575',
+					700: '#616161',
+					800: '#404040',
+					900: '#0A0A0A',
 				},
 				accent: {
 					DEFAULT: 'hsl(var(--accent))',
-					foreground: 'hsl(var(--accent-foreground))'
+					100: '#F5F5F5',
+					200: '#EEEEEE',
+					300: '#E0E0E0',
+					400: '#BDBDBD',
+					500: '#9E9E9E',
+					600: '#757575',
+					700: '#616161',
+					800: '#404040',
+					900: '#0A0A0A',
 				},
 				popover: {
 					DEFAULT: 'hsl(var(--popover))',
-					foreground: 'hsl(var(--popover-foreground))'
+					100: '#F5F5F5',
+					200: '#EEEEEE',
+					300: '#E0E0E0',
+					400: '#BDBDBD',
+					500: '#9E9E9E',
+					600: '#757575',
+					700: '#616161',
+					800: '#404040',
+					900: '#0A0A0A',
 				},
 				card: {
 					DEFAULT: 'hsl(var(--card))',
-					foreground: 'hsl(var(--card-foreground))'
+					100: '#F5F5F5',
+					200: '#EEEEEE',
+					300: '#E0E0E0',
+					400: '#BDBDBD',
+					500: '#9E9E9E',
+					600: '#757575',
+					700: '#616161',
+					800: '#404040',
+					900: '#0A0A0A',
 				},
 				sidebar: {
 					DEFAULT: 'hsl(var(--sidebar-background))',
@@ -74,7 +124,16 @@ export default {
 					'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
 					border: 'hsl(var(--sidebar-border))',
 					ring: 'hsl(var(--sidebar-ring))'
-				}
+				},
+				'primary-foreground': 'hsl(var(--primary-foreground))',
+				'secondary-foreground': 'hsl(var(--secondary-foreground))',
+				'muted-foreground': 'hsl(var(--muted-foreground))',
+				'accent-foreground': 'hsl(var(--accent-foreground))',
+				'destructive-foreground': 'hsl(var(--destructive-foreground))',
+				'card-foreground': 'hsl(var(--card-foreground))',
+				'popover-foreground': 'hsl(var(--popover-foreground))',
+				black: '#000000',
+				white: '#FFFFFF',
 			},
 			borderRadius: {
 				lg: 'var(--radius)',
@@ -160,5 +219,18 @@ export default {
 			}
 		}
 	},
-	plugins: [require("tailwindcss-animate")],
+	plugins: [
+		animatePlugin,
+		plugin(function({ addVariant }) {
+			addVariant('hocus', ['&:hover', '&:focus']);
+			addVariant('hocus-within', ['&:hover', '&:focus-within']);
+		}),
+		plugin(function({ addUtilities }) {
+			addUtilities({
+				'.app-gradient': {
+					background: 'linear-gradient(180deg, #000000 0%, #0A0A0A 100%)',
+				},
+			});
+		}),
+	],
 } satisfies Config;

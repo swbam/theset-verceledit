@@ -1,8 +1,7 @@
-
 import { toast } from "sonner";
 
 // Ticketmaster API key
-export const TICKETMASTER_API_KEY = "k8GrSAkbFaN0w7qDxGl7ohr8LwdAQm9b";
+export const TICKETMASTER_API_KEY = import.meta.env.VITE_TICKETMASTER_API_KEY || "k8GrSAkbFaN0w7qDxGl7ohr8LwdAQm9b";
 export const TICKETMASTER_BASE_URL = "https://app.ticketmaster.com/discovery/v2";
 
 /**

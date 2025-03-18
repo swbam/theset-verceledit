@@ -1,4 +1,3 @@
-
 import React from 'react';
 
 // Define types similar to Next.js Image component
@@ -8,41 +7,34 @@ interface ImageProps {
   width?: number;
   height?: number;
   fill?: boolean;
-  quality?: number;
-  priority?: boolean;
-  loading?: 'lazy' | 'eager';
-  placeholder?: 'blur' | 'empty';
-  blurDataURL?: string;
-  className?: string;
   style?: React.CSSProperties;
-  sizes?: string;
+  className?: string;
+  priority?: boolean;
+  quality?: number;
+  loading?: 'eager' | 'lazy';
   unoptimized?: boolean;
-  layout?: 'fill' | 'fixed' | 'intrinsic' | 'responsive';
-  objectFit?: 'contain' | 'cover' | 'fill' | 'none' | 'scale-down';
-  objectPosition?: string;
+  onLoad?: () => void;
+  onError?: () => void;
 }
 
-// Create a simple Image component that works like Next.js Image
-const Image = ({
-  src,
-  alt,
-  width,
-  height,
-  fill,
-  className,
-  style,
-  priority,
-  ...props
+/**
+ * Simple shim for Next.js Image component
+ */
+const Image = ({ 
+  src, 
+  alt, 
+  width, 
+  height, 
+  fill, 
+  style = {}, 
+  className = '', 
+  onLoad, 
+  onError, 
+  ...props 
 }: ImageProps) => {
   const imgStyle: React.CSSProperties = {
+    ...(fill ? { width: '100%', height: '100%', objectFit: 'cover' } : {}),
     ...style,
-    ...(fill ? { 
-      position: 'absolute',
-      height: '100%',
-      width: '100%',
-      inset: '0px',
-      objectFit: 'cover' 
-    } : {})
   };
 
   return (
@@ -53,7 +45,8 @@ const Image = ({
       height={height}
       className={className}
       style={imgStyle}
-      loading={priority ? 'eager' : 'lazy'}
+      onLoad={onLoad}
+      onError={onError}
       {...props}
     />
   );

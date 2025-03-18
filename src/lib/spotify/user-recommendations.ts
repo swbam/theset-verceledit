@@ -1,7 +1,6 @@
 import { SpotifyTrack } from './types';
 import { getAccessToken } from './auth';
-import { supabase } from '@/integrations/supabase/client';
-
+import { supabase } from '@/lib/supabase';
 // Get user's top artists from Spotify
 export async function getMyTopArtists() {
   console.log("Fetching user's top artists from Spotify");

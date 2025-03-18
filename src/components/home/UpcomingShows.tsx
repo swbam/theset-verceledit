@@ -1,146 +1,117 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ChevronRight, MapPin, CalendarDays } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { fetchShowsByGenre, popularMusicGenres } from '@/lib/ticketmaster';
-import { Skeleton } from '@/components/ui/skeleton';
+import { fetchUpcomingShows } from '@/lib/ticketmaster';
 
-// Create a simplified genre list for the UI filter
 const GENRES = [
-  { id: "all", name: "All Genres" },
-  { id: "rock", name: "Rock" },
-  { id: "pop", name: "Pop" },
-  { id: "hip-hop", name: "Hip Hop" },
-  { id: "electronic", name: "Electronic" },
-  { id: "R&B", name: "R&B" },
-  { id: "country", name: "Country" },
-  { id: "latin", name: "Latin" },
+  { id: 'all', name: 'All Genres' },
+  { id: 'pop', name: 'Pop' },
+  { id: 'rock', name: 'Rock' },
+  { id: 'hip-hop', name: 'Hip Hop' },
+  { id: 'electronic', name: 'Electronic' },
+  { id: 'rnb', name: 'R&B' },
+  { id: 'country', name: 'Country' },
+  { id: 'latin', name: 'Latin' },
 ];
 
 const UpcomingShows = () => {
-  const [activeGenre, setActiveGenre] = useState("all");
+  const [selectedGenre, setSelectedGenre] = useState('all');
   
-  // Fetch shows based on the selected genre
-  const { data: shows = [], isLoading, error } = useQuery({
-    queryKey: ['upcomingShows', activeGenre],
-    queryFn: async () => {
-      try {
-        if (activeGenre === "all") {
-          // For "All Genres", fetch the default (rock) shows
-          return await fetchShowsByGenre(popularMusicGenres[0].id, 6);
-        } else {
-          // Fetch shows for the selected genre
-          return await fetchShowsByGenre(activeGenre, 6);
-        }
-      } catch (error) {
-        console.error("Error fetching upcoming shows:", error);
-        return [];
-      }
-    },
-    staleTime: 5 * 60 * 1000, // 5 minutes
+  const { data: upcomingShows = [], isLoading } = useQuery({
+    queryKey: ['upcomingShows', selectedGenre],
+    queryFn: () => fetchUpcomingShows(selectedGenre !== 'all' ? selectedGenre : undefined),
   });
 
   return (
-    <section className="py-12 md:py-16 px-4 bg-black">
+    <section className="py-10 px-4">
       <div className="container mx-auto max-w-7xl">
-        <div className="flex justify-between items-center mb-8">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
           <div>
-            <h2 className="text-2xl font-bold text-white">Upcoming Shows</h2>
-            <p className="text-sm text-white/60 mt-1">Popular concerts coming up soon</p>
+            <h2 className="text-2xl font-bold">Upcoming Shows</h2>
+            <p className="text-white/60 text-sm hidden md:block">Vote on setlists for these upcoming concerts</p>
           </div>
-          <Link to="/shows" className="text-white hover:text-white/80 flex items-center text-sm">
-            View all <ChevronRight size={16} className="ml-1" />
+          
+          <Link to="/shows" className="group inline-flex items-center mt-2 md:mt-0">
+            <span className="text-sm font-medium mr-1">View all</span>
+            <ArrowRight className="h-4 w-4 group-hover:translate-x-0.5 transition-transform" />
           </Link>
         </div>
         
-        <div className="flex gap-2 mb-6 overflow-x-auto pb-2 scrollbar-hide">
-          {GENRES.map(genre => (
-            <button
-              key={genre.id}
-              onClick={() => setActiveGenre(genre.id)}
-              className={`whitespace-nowrap px-4 py-1.5 rounded-full text-sm border ${
-                activeGenre === genre.id
-                  ? 'bg-white text-black border-white'
-                  : 'bg-transparent text-white border-white/20 hover:border-white/40'
-              }`}
-            >
-              {genre.name}
-            </button>
-          ))}
+        <div className="overflow-x-auto pb-2 mb-6">
+          <div className="flex space-x-2 min-w-max">
+            {GENRES.map((genre) => (
+              <Button
+                key={genre.id}
+                variant={selectedGenre === genre.id ? "default" : "outline"}
+                size="sm"
+                className={`rounded-full text-xs px-4 h-8 ${
+                  selectedGenre === genre.id 
+                    ? "" 
+                    : "bg-zinc-900 hover:bg-zinc-800 border-zinc-800"
+                }`}
+                onClick={() => setSelectedGenre(genre.id)}
+              >
+                {genre.name}
+              </Button>
+            ))}
+          </div>
         </div>
         
         {isLoading ? (
-          <div className="grid grid-cols-1 divide-y divide-white/10 animate-pulse">
-            {[...Array(3)].map((_, i) => (
-              <div key={i} className="py-4">
-                <div className="h-5 w-1/3 bg-white/5 rounded mb-2"></div>
-                <div className="h-4 w-1/2 bg-white/5 rounded mb-2"></div>
-                <div className="h-3 w-1/4 bg-white/5 rounded"></div>
+          <div className="space-y-4">
+            {Array(5).fill(0).map((_, i) => (
+              <div key={i} className="bg-zinc-900 border border-zinc-800 rounded-lg p-4 animate-pulse">
+                <div className="flex flex-col md:flex-row md:items-center">
+                  <div className="w-full md:w-3/5 mb-2 md:mb-0">
+                    <div className="h-5 bg-zinc-800 rounded w-1/3 mb-2"></div>
+                    <div className="h-4 bg-zinc-800 rounded w-2/3"></div>
+                  </div>
+                  <div className="w-full md:w-2/5 flex justify-between mt-3 md:mt-0">
+                    <div className="h-8 bg-zinc-800 rounded w-24"></div>
+                    <div className="h-8 bg-zinc-800 rounded w-24"></div>
+                  </div>
+                </div>
               </div>
             ))}
           </div>
-        ) : shows.length === 0 ? (
-          <div className="text-center py-10 border border-white/10 rounded-lg">
-            <p className="text-white/60">No upcoming shows found for this genre</p>
-            <Button 
-              variant="outline" 
-              className="mt-3"
-              onClick={() => setActiveGenre("all")}
-            >
-              Show all genres
-            </Button>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-0">
-            {shows.slice(0, 6).map((show) => {
-              // Format date string nicely
-              const eventDate = show.date 
-                ? new Date(show.date).toLocaleDateString('en-US', {
-                    month: 'short',
-                    day: 'numeric',
-                    year: 'numeric'
-                  })
-                : 'Date TBA';
-                
-              return (
-                <div key={show.id} className="border-b border-white/10 py-4">
-                  <Link to={`/shows/${show.id}`} className="block hover:opacity-80 transition-opacity">
-                    <div className="flex flex-col">
-                      <div className="text-xs text-white/60 font-medium">
-                        {show.artist?.name || 'Various Artists'}
-                      </div>
-                      <h3 className="font-bold text-lg text-white mb-1">
-                        {show.name}
-                      </h3>
-                      <div className="flex items-center text-xs text-white/60">
-                        <CalendarDays className="h-3 w-3 mr-1" />
-                        {eventDate}
-                        <span className="mx-2">•</span>
-                        <MapPin className="h-3 w-3 mr-1" />
-                        {show.venue?.name ? (
-                          `${show.venue.name}, ${show.venue.city || ''}`
-                        ) : (
-                          'Venue TBA'
-                        )}
-                      </div>
-                    </div>
-                  </Link>
-                  <div className="mt-2">
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      className="text-xs h-7 px-3 rounded-full border-white/20 hover:border-white/40"
-                      asChild
-                    >
-                      <Link to={`/shows/${show.id}`}>View details</Link>
+        ) : upcomingShows.length > 0 ? (
+          <div className="space-y-4">
+            {upcomingShows.map((show) => (
+              <div key={show.id} className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
+                <div className="flex flex-col md:flex-row md:items-center">
+                  <div className="w-full md:w-3/5 mb-3 md:mb-0">
+                    <h3 className="font-medium text-white">
+                      {show.name || show.artist?.name}
+                    </h3>
+                    <p className="text-white/60 text-sm mt-1">
+                      {new Date(show.date).toLocaleDateString('en-US', { 
+                        month: 'short', 
+                        day: 'numeric', 
+                        year: 'numeric' 
+                      })} • {show.venue?.name || 'Unknown venue'}, {show.venue?.city || ''}{show.venue?.state ? `, ${show.venue.state}` : ''}
+                    </p>
+                  </div>
+                  <div className="w-full md:w-2/5 flex justify-between md:justify-end md:space-x-3">
+                    <Button asChild variant="outline" size="sm" className="w-full md:w-auto">
+                      <Link to={`/shows/${show.id}`}>View Setlist</Link>
                     </Button>
+                    {show.ticket_url && (
+                      <Button asChild variant="default" size="sm" className="w-full md:w-auto">
+                        <a href={show.ticket_url} target="_blank" rel="noopener noreferrer">
+                          Tickets
+                        </a>
+                      </Button>
+                    )}
                   </div>
                 </div>
-              );
-            })}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-10 bg-zinc-900 rounded-lg border border-zinc-800">
+            <p className="text-white/60">No upcoming shows found</p>
           </div>
         )}
       </div>

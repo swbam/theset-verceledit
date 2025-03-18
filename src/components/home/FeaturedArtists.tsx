@@ -1,88 +1,71 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ChevronRight } from 'lucide-react';
-import { Skeleton } from '@/components/ui/skeleton';
-import { fetchFeaturedArtists } from '@/lib/api/artist';
+import { ArrowRight } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { fetchFeaturedArtists } from '@/lib/api/artist/featured';
 
 const FeaturedArtists = () => {
-  const { data: artistsData = [], isLoading, error } = useQuery({
+  const { data: featuredArtists = [], isLoading } = useQuery({
     queryKey: ['featuredArtists'],
-    queryFn: () => fetchFeaturedArtists(6),
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    queryFn: () => fetchFeaturedArtists(),
   });
 
-  // Filter out duplicate artists by ID
-  const uniqueArtists = artistsData.reduce((acc, current) => {
-    const x = acc.find(item => item.id === current.id);
-    if (!x) {
-      return acc.concat([current]);
-    } else {
-      return acc;
-    }
-  }, []);
-
   return (
-    <section className="py-12 md:py-16 px-4 bg-black">
+    <section className="py-8 px-4 bg-black">
       <div className="container mx-auto max-w-7xl">
-        <div className="flex justify-between items-center mb-8">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
           <div>
-            <h2 className="text-2xl font-bold text-white">Featured Artists</h2>
-            <p className="text-sm text-white/60 mt-1">Top artists with upcoming shows to vote on</p>
+            <h2 className="text-2xl font-bold">Featured Artists</h2>
+            <p className="text-white/60 text-sm">Top artists with upcoming shows to vote on</p>
           </div>
-          <Link to="/artists" className="text-white hover:text-white/80 flex items-center text-sm">
-            View all <ChevronRight size={16} className="ml-1" />
+          
+          <Link to="/artists" className="group inline-flex items-center mt-2 md:mt-0">
+            <span className="text-sm font-medium mr-1">View all</span>
+            <ArrowRight className="h-4 w-4 group-hover:translate-x-0.5 transition-transform" />
           </Link>
         </div>
         
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
           {isLoading ? (
-            [...Array(6)].map((_, index) => (
-              <div key={index} className="bg-black border border-white/10 rounded-lg overflow-hidden">
-                <Skeleton className="aspect-square w-full" />
-                <div className="p-4">
-                  <Skeleton className="h-4 w-2/3 mb-2" />
-                  <Skeleton className="h-3 w-1/2" />
-                </div>
+            // Loading skeletons
+            Array(6).fill(0).map((_, i) => (
+              <div key={i} className="flex flex-col items-center">
+                <div className="w-24 h-24 md:w-28 md:h-28 rounded-full bg-zinc-900 animate-pulse mb-3"></div>
+                <div className="h-4 bg-zinc-900 rounded w-20 mb-1 animate-pulse"></div>
+                <div className="h-3 bg-zinc-900 rounded w-12 animate-pulse"></div>
               </div>
             ))
-          ) : error ? (
-            <div className="text-center py-10 bg-black/20 rounded-lg border border-white/5 col-span-6">
-              <p className="text-white/60">No featured artists found</p>
-            </div>
-          ) : (
-            uniqueArtists.slice(0, 6).map((artist) => (
+          ) : featuredArtists.length > 0 ? (
+            featuredArtists.map((artist) => (
               <Link 
-                key={artist.id}
+                key={artist.id} 
                 to={`/artists/${artist.id}`}
-                className="bg-black border border-white/10 rounded-lg overflow-hidden hover:border-white/30 transition-all hover:translate-y-[-2px]"
+                className="flex flex-col items-center text-center group"
               >
-                <div className="aspect-square overflow-hidden">
-                  {artist.image ? (
+                <div className="w-24 h-24 md:w-28 md:h-28 rounded-full overflow-hidden bg-zinc-900 mb-3 group-hover:ring-2 ring-white/20 transition-all">
+                  {artist.image_url || artist.image ? (
                     <img 
-                      src={artist.image} 
+                      src={artist.image_url || artist.image} 
                       alt={artist.name} 
                       className="w-full h-full object-cover"
                     />
                   ) : (
-                    <div className="w-full h-full bg-gradient-to-b from-zinc-800 to-black flex items-center justify-center">
-                      <span className="text-white/20 font-bold text-xl">{artist.name.substring(0, 1)}</span>
+                    <div className="w-full h-full flex items-center justify-center text-white/30 uppercase text-xs">
+                      No Image
                     </div>
                   )}
                 </div>
-                <div className="p-3">
-                  <h3 className="font-medium text-sm text-white mb-1 truncate">
-                    {artist.name}
-                  </h3>
-                  
-                  {typeof artist.upcoming_shows === 'number' && (
-                    <div className="text-xs text-white/60">
-                      {artist.upcoming_shows} {artist.upcoming_shows === 1 ? 'show' : 'shows'}
-                    </div>
-                  )}
-                </div>
+                
+                <h3 className="font-medium text-sm text-white">{artist.name}</h3>
+                <p className="text-white/60 text-xs mt-1">
+                  {artist.upcoming_shows || 0} {artist.upcoming_shows === 1 ? 'show' : 'shows'}
+                </p>
               </Link>
             ))
+          ) : (
+            <div className="col-span-full text-center py-8">
+              <p className="text-white/60">No featured artists available</p>
+            </div>
           )}
         </div>
       </div>

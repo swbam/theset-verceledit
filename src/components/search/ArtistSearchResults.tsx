@@ -14,7 +14,7 @@ interface Artist {
 interface ArtistSearchResultsProps {
   artists: Artist[];
   isLoading: boolean;
-  onSelect?: (artist: Artist) => void;
+  onSelect?: (artistId: string) => void;
   className?: string;
 }
 
@@ -63,7 +63,7 @@ const ArtistSearchResults = ({
           className="flex items-center gap-3 px-3 py-2 hover:bg-zinc-800 transition-colors"
           onClick={(e) => {
             e.preventDefault(); // Prevent default to allow our custom handler
-            onSelect?.(artist);
+            onSelect?.(artist.id);
           }}
         >
           {artist.image ? (

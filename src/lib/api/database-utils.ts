@@ -22,7 +22,7 @@ export * from './db/vote-utils';
 // Remove the show-database-utils export as we're consolidating with show-utils
 
 // Add missing saveShowToDatabase function
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/lib/supabase';
 import { saveVenueToDatabase } from './db/venue-utils';
 
 /**

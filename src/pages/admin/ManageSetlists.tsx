@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { batchCreateSetlistsForPopularShows, createSetlistsForSpecificShows, createSetlistsForArtist } from '@/lib/api/db/setlist-batch';
-import { supabase } from '@/integrations/supabase/client';
-import { Button } from '@/components/ui/button';
+import { supabase } from '@/lib/supabase';import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Loader2, CheckCircle, AlertCircle, Search, Import, RefreshCw } from 'lucide-react';

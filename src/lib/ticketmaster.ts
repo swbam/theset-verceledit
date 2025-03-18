@@ -66,6 +66,73 @@ export async function fetchTrendingShows(limit: number = 10) {
     return [];
   }
 }
+
+/**
+ * Fetch upcoming shows from Ticketmaster with optional genre filtering
+ * @param genre Optional genre to filter by
+ * @param limit Number of shows to fetch
+ * @returns Array of upcoming shows
+ */
+export async function fetchUpcomingShows(genre?: string, limit: number = 10) {
+  try {
+    const apiKey = import.meta.env.VITE_TICKETMASTER_API_KEY || 'k8GrSAkbFaN0w7qDxGl7ohr8LwdAQm9b';
+    
+    // Build the URL with appropriate parameters
+    let url = `https://app.ticketmaster.com/discovery/v2/events.json?classificationName=music&size=${limit}&sort=date,asc&apikey=${apiKey}`;
+    
+    // Add genre filter if provided
+    if (genre) {
+      url += `&genreId=${genre}`;
+    }
+    
+    console.log(`Fetching upcoming shows${genre ? ` for genre: ${genre}` : ''}, limit: ${limit}`);
+    
+    const response = await fetch(url);
+    
+    if (!response.ok) {
+      console.error(`Ticketmaster API error: ${response.status}`);
+      return [];
+    }
+    
+    const data = await response.json() as TicketmasterEventsResponse;
+    
+    if (!data._embedded?.events || data._embedded.events.length === 0) {
+      console.log('No upcoming shows found');
+      return [];
+    }
+    
+    // Map events to a more usable format
+    return data._embedded.events.map(event => {
+      const venue = event._embedded?.venues?.[0] || {} as TicketmasterVenue;
+      const attraction = event._embedded?.attractions?.[0] || {} as TicketmasterAttraction;
+      
+      return {
+        id: event.id,
+        name: event.name,
+        date: event.dates.start.dateTime,
+        status: event.dates.status?.code,
+        url: event.url,
+        image: event.images?.find(img => img.ratio === '16_9')?.url || event.images?.[0]?.url,
+        venue: {
+          id: venue.id,
+          name: venue.name,
+          city: venue.city?.name,
+          state: venue.state?.name,
+          country: venue.country?.name,
+          address: venue.address?.line1,
+        },
+        artist: {
+          id: attraction.id,
+          name: attraction.name,
+        }
+      };
+    });
+  } catch (error) {
+    console.error('Error fetching upcoming shows:', error);
+    return [];
+  }
+}
+
 export { 
   // Removing searchArtistsWithEvents as we're implementing it directly in this file
   fetchFeaturedArtists,
@@ -91,8 +158,7 @@ export {
 } from './api/db/venue-utils';
 
 // Import supabase client
-import { supabase } from '@/integrations/supabase/client';
-import { Artist } from '@/types/artist';
+import { supabase } from '@/lib/supabase';import { Artist } from '@/types/artist';
 
 // Define types for Ticketmaster API responses
 interface TicketmasterImage {

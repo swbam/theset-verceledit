@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 
 const AuthCallback = () => {
@@ -13,22 +13,17 @@ const AuthCallback = () => {
   useEffect(() => {
     const handleAuthCallback = async () => {
       try {
-        console.log('Auth callback started');
+        console.log('Auth callback initiated');
         
-        // Extract provider from URL query
-        const provider = new URLSearchParams(window.location.search).get('provider');
-        console.log('Provider from URL:', provider);
+        // Parse query parameters
+        const params = new URLSearchParams(location.search);
+        const provider = params.get('provider');
+        const returnUrl = params.get('returnTo') || '/my-artists'; // Default to /my-artists
         
-        // Handle hash fragment for OAuth providers
-        const hashParams = new URLSearchParams(window.location.hash.substring(1));
-        const accessToken = hashParams.get('access_token');
-        const returnUrl = sessionStorage.getItem('auth_return_url') || '/';
+        console.log('Provider:', provider);
+        console.log('Return URL:', returnUrl);
         
-        if (accessToken) {
-          console.log('Access token found in URL');
-        }
-        
-        // Get the current session
+        // Get the session to verify authentication was successful
         const { data: { session }, error: sessionError } = await supabase.auth.getSession();
         
         if (sessionError) {

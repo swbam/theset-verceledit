@@ -14,7 +14,7 @@ export const getAvailableTracks = (
   }
   
   // Make sure tracks are valid
-  let validTracks = allTracksData.tracks.filter(track => track && track.id && track.name);
+  const validTracks = allTracksData.tracks.filter(track => track && track.id && track.name);
   
   console.log(`Valid tracks: ${validTracks.length} out of ${allTracksData.tracks.length}`);
   

@@ -1,137 +1,99 @@
 import React from 'react';
-import { Badge } from '@/components/ui/badge';
-import { Music } from 'lucide-react';
-import { Artist, TopTrack } from '@/types/artist';
-import { Skeleton } from '@/components/ui/skeleton';
+import { Music, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 
 interface ArtistStatsProps {
-  artist: Artist;
-  topTracks: TopTrack[];
-  isLoading?: boolean;
-  hasError?: boolean;
+  spotifyFollowers?: number;
+  monthlyListeners?: number;
+  topTracks?: Array<{ id: string; name: string }>;
+  genres?: string[];
+  formed?: string;
+  origin?: string;
+  spotifyId?: string;
 }
 
-const ArtistStats = ({ artist, topTracks, isLoading = false, hasError = false }: ArtistStatsProps) => {
-  // Format large numbers with commas and abbreviations
-  const formatNumber = (num: number): string => {
-    if (num >= 1000000000) {
-      return (num / 1000000000).toFixed(1) + 'B';
-    }
+const ArtistStats = ({
+  spotifyFollowers,
+  monthlyListeners,
+  topTracks = [],
+  genres = [],
+  formed,
+  origin,
+  spotifyId,
+}: ArtistStatsProps) => {
+  // Format numbers with commas
+  const formatNumber = (num: number | undefined) => {
+    if (!num) return '0';
+    return num.toLocaleString('en-US');
+  };
+  
+  // Format to millions if over 1M
+  const formatMillions = (num: number | undefined) => {
+    if (!num) return '0';
     if (num >= 1000000) {
-      return (num / 1000000).toFixed(1) + 'M';
+      return `${(num / 1000000).toFixed(1)}M`;
     }
-    if (num >= 1000) {
-      return (num / 1000).toFixed(1) + 'K';
-    }
-    return num.toString();
+    return formatNumber(num);
   };
 
-  // Extract and format the artist stats
-  const spotifyFollowers = artist.followers || 0;
-  const monthlyListeners = artist.monthly_listeners || 0;
-
-  // Extract genres (if available)
-  const genres = artist.genres || [];
-
   return (
-    <div className="bg-zinc-900 rounded-lg p-6">
-      <h2 className="text-xl font-semibold mb-6 flex items-center">
-        <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M16 2V16H2V2H16ZM16 0H2C0.9 0 0 0.9 0 2V16C0 17.1 0.9 18 2 18H16C17.1 18 18 17.1 18 16V2C18 0.9 17.1 0 16 0Z" fill="currentColor"/>
-          <path d="M22 6H20V20H6V22H20C21.1 22 22 21.1 22 20V6Z" fill="currentColor"/>
-          <path d="M9 6L12 9L15 6" fill="currentColor"/>
-        </svg>
+    <div className="bg-zinc-900 rounded-lg border border-zinc-800 p-6">
+      <h2 className="flex items-center text-xl font-bold mb-6">
+        <Music className="mr-2 h-5 w-5" />
         Artist Stats
       </h2>
-
-      <div className="grid grid-cols-2 gap-6 mb-8">
-        <div>
-          <p className="text-zinc-400 text-sm mb-1">Spotify Followers</p>
-          {isLoading ? (
-            <Skeleton className="h-8 w-16" />
-          ) : (
-            <p className="text-2xl font-bold">{formatNumber(spotifyFollowers)}</p>
-          )}
+      
+      <div className="grid grid-cols-2 gap-4 mb-8">
+        <div className="text-center">
+          <div className="text-white/60 text-sm mb-1">
+            Spotify Followers
+          </div>
+          <div className="text-2xl font-bold">
+            {formatMillions(spotifyFollowers)}
+          </div>
         </div>
-        <div>
-          <p className="text-zinc-400 text-sm mb-1">Monthly Listeners</p>
-          {isLoading ? (
-            <Skeleton className="h-8 w-16" />
-          ) : (
-            <p className="text-2xl font-bold">{formatNumber(monthlyListeners)}</p>
-          )}
+        
+        <div className="text-center">
+          <div className="text-white/60 text-sm mb-1">
+            Monthly Listeners
+          </div>
+          <div className="text-2xl font-bold">
+            {formatMillions(monthlyListeners)}
+          </div>
         </div>
       </div>
-
+      
       <div className="mb-8">
-        <h3 className="text-lg font-semibold mb-4">Top Tracks</h3>
-        
-        {isLoading ? (
-          <ul className="space-y-3">
-            {[1, 2, 3, 4, 5].map((i) => (
-              <li key={i} className="flex items-center justify-between">
-                <div className="flex items-center">
-                  <span className="text-zinc-400 mr-3">{i}.</span>
-                  <Skeleton className="h-5 w-32" />
-                </div>
-                <Skeleton className="h-5 w-5 rounded-full" />
-              </li>
-            ))}
-          </ul>
-        ) : hasError ? (
-          <div className="bg-zinc-800/50 rounded-md p-4 text-center">
-            <p className="text-sm text-zinc-400 mb-2">
-              Failed to load top tracks from Spotify
-            </p>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={() => window.location.reload()}
-            >
-              Retry
-            </Button>
-          </div>
-        ) : topTracks.length === 0 ? (
-          <div className="bg-zinc-800/50 rounded-md p-4 text-center">
-            <p className="text-sm text-zinc-400">
-              No top tracks available for this artist
-            </p>
-          </div>
-        ) : (
-          <ul className="space-y-3">
-            {topTracks.map((track, index) => (
+        <h3 className="text-white/80 font-medium mb-3">Top Tracks</h3>
+        <ul className="space-y-2">
+          {topTracks && topTracks.length > 0 ? (
+            topTracks.map((track, index) => (
               <li key={track.id} className="flex items-center justify-between">
                 <div className="flex items-center">
-                  <span className="text-zinc-400 mr-3">{index + 1}.</span>
+                  <span className="text-white/40 w-5 text-right mr-3">{index + 1}.</span>
                   <span>{track.name}</span>
                 </div>
-                {track.spotify_url && (
-                  <a 
-                    href={track.spotify_url} 
-                    target="_blank" 
-                    rel="noopener noreferrer" 
-                    className="text-zinc-400 hover:text-white transition-colors"
-                    aria-label={`Listen to ${track.name} on Spotify`}
-                  >
-                    <Music className="h-5 w-5" />
-                  </a>
-                )}
+                <div className="text-white/70">
+                  <Music className="h-4 w-4" />
+                </div>
               </li>
-            ))}
-          </ul>
-        )}
+            ))
+          ) : (
+            <li className="text-white/40 text-center py-2">No tracks available</li>
+          )}
+        </ul>
       </div>
-
-      {genres.length > 0 && (
+      
+      {genres && genres.length > 0 && (
         <div className="mb-8">
-          <h3 className="text-lg font-semibold mb-4">Genres</h3>
+          <h3 className="text-white/80 font-medium mb-3">Genres</h3>
           <div className="flex flex-wrap gap-2">
-            {genres.slice(0, 4).map((genre, index) => (
-              <Badge
-                key={index}
-                variant="outline"
-                className="bg-zinc-800 text-white border-zinc-700 px-3 py-1"
+            {genres.map((genre, index) => (
+              <Badge 
+                key={index} 
+                variant="secondary"
+                className="bg-zinc-800 hover:bg-zinc-700 text-white border-none"
               >
                 {genre}
               </Badge>
@@ -139,19 +101,40 @@ const ArtistStats = ({ artist, topTracks, isLoading = false, hasError = false }:
           </div>
         </div>
       )}
-
-      {artist.formation_year && (
-        <div className="grid grid-cols-2 gap-6">
+      
+      <div className="grid grid-cols-2 gap-4 mb-8">
+        {formed && (
           <div>
-            <p className="text-zinc-400 text-sm mb-1">Formed</p>
-            <p className="font-semibold">{artist.formation_year}</p>
+            <h3 className="text-white/80 font-medium mb-1">Formed</h3>
+            <div className="text-white/60">{formed}</div>
           </div>
-          {artist.origin && (
-            <div>
-              <p className="text-zinc-400 text-sm mb-1">Origin</p>
-              <p className="font-semibold">{artist.origin}</p>
-            </div>
-          )}
+        )}
+        
+        {origin && (
+          <div>
+            <h3 className="text-white/80 font-medium mb-1">Origin</h3>
+            <div className="text-white/60">{origin}</div>
+          </div>
+        )}
+      </div>
+      
+      {spotifyId && (
+        <div className="text-center">
+          <Button 
+            variant="outline" 
+            className="w-full"
+            asChild
+          >
+            <a 
+              href={`https://open.spotify.com/artist/${spotifyId}`} 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="inline-flex items-center"
+            >
+              Listen on Spotify
+              <ExternalLink className="ml-2 h-3.5 w-3.5" />
+            </a>
+          </Button>
         </div>
       )}
     </div>

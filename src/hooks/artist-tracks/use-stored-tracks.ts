@@ -1,7 +1,6 @@
 
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
-import { SpotifyTrack } from '@/lib/spotify/types';
+import { supabase } from '@/lib/supabase';import { SpotifyTrack } from '@/lib/spotify/types';
 
 // Fetch stored tracks directly from the artist's stored_tracks column
 export function useStoredTracks(artistId: string, enabled: boolean = true) {

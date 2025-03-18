@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 
@@ -10,51 +9,37 @@ interface LinkProps {
   scroll?: boolean;
   prefetch?: boolean;
   className?: string;
-  children: React.ReactNode;
-  style?: React.CSSProperties;
-  onClick?: (e: React.MouseEvent<HTMLAnchorElement>) => void;
   target?: string;
   rel?: string;
+  children: React.ReactNode;
+  onClick?: (e: React.MouseEvent) => void;
 }
 
-// Create a simple Link component that works like Next.js Link
-const Link = ({ 
-  href, 
-  children, 
+/**
+ * Simple shim for Next.js Link component
+ */
+const Link = ({
+  href,
+  as,
+  replace,
+  scroll,
+  prefetch,
+  children,
   className,
-  style,
-  onClick,
-  target,
-  rel,
-  ...props 
+  ...props
 }: LinkProps) => {
-  // Handle external links
-  const isExternal = href.startsWith('http') || href.startsWith('//');
-  
-  if (isExternal) {
+  // If the link is external (starts with http or https)
+  if (href.startsWith('http') || href.startsWith('mailto:') || href.startsWith('tel:')) {
     return (
-      <a 
-        href={href}
-        className={className}
-        style={style}
-        onClick={onClick}
-        target={target || '_blank'}
-        rel={rel || 'noopener noreferrer'}
-        {...props}
-      >
+      <a href={href} className={className} {...props}>
         {children}
       </a>
     );
   }
 
+  // Otherwise use React Router's Link
   return (
-    <RouterLink 
-      to={href} 
-      className={className}
-      style={style}
-      onClick={onClick}
-      {...props}
-    >
+    <RouterLink to={href} className={className} {...props}>
       {children}
     </RouterLink>
   );

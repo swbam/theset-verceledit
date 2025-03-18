@@ -1,5 +1,4 @@
-import { supabase } from '@/integrations/supabase/client';
-import { getRandomArtistSongs } from '@/lib/api/db/artist-utils';
+import { supabase } from '@/lib/supabase';import { getRandomArtistSongs } from '@/lib/api/db/artist-utils';
 import { createSetlistForShow } from '@/lib/api/db/show-utils';
 import { addTracksToSetlist } from '@/lib/api/db/setlist-utils';
 import { fetchTrendingShows } from '@/lib/ticketmaster';

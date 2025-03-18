@@ -1,140 +1,82 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { CalendarDays, MapPin, ChevronRight } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
+import { ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Skeleton } from '@/components/ui/skeleton';
-import { getTrendingConcerts } from '@/lib/ticketmaster';
+import { Link } from 'react-router-dom';
+import { Card, CardContent } from '@/components/ui/card';
+import { fetchTrendingShows } from '@/lib/ticketmaster';
 
 const TrendingShows = () => {
-  const { data: showsData = [], isLoading } = useQuery({
+  const { data: trendingShows = [], isLoading } = useQuery({
     queryKey: ['trendingShows'],
-    queryFn: async () => {
-      try {
-        // Fetch trending concerts from the Ticketmaster API
-        const events = await getTrendingConcerts(4);
-        
-        // Process the events to extract useful information
-        return events.map((event: any) => {
-          // Extract artist info
-          let artistName = '';
-          if (event._embedded?.attractions && event._embedded.attractions.length > 0) {
-            artistName = event._embedded.attractions[0].name;
-          } else {
-            artistName = event.name.split(' at ')[0].split(' - ')[0].trim();
-          }
-          
-          // Extract venue info
-          let venueCity = '';
-          let venueName = '';
-          if (event._embedded?.venues && event._embedded.venues.length > 0) {
-            const venue = event._embedded.venues[0];
-            venueCity = venue.city?.name || '';
-            venueName = venue.name || '';
-          }
-          
-          // Generate a votes count for display (since we don't have actual votes yet)
-          const randomVotes = Math.floor(Math.random() * 15000) + 5000;
-          
-          return {
-            id: event.id,
-            name: event.name,
-            artist: { name: artistName },
-            image_url: event.images.find((img: any) => img.ratio === "16_9" && img.width > 500)?.url,
-            venue: { 
-              name: venueName, 
-              city: venueCity 
-            },
-            date: new Date(event.dates.start.dateTime || event.dates.start.localDate).toLocaleDateString('en-US', {
-              month: 'long',
-              day: 'numeric',
-              year: 'numeric'
-            }),
-            votes: randomVotes
-          };
-        });
-      } catch (error) {
-        console.error("Failed to fetch trending shows:", error);
-        return [];
-      }
-    },
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    queryFn: () => fetchTrendingShows(),
+    staleTime: 1000 * 60 * 5, // 5 minutes
   });
 
   return (
-    <section className="py-12 px-4 bg-black">
+    <section className="py-8 px-4">
       <div className="container mx-auto max-w-7xl">
-        <div className="flex justify-between items-center mb-8">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
           <div>
-            <h2 className="text-2xl font-bold text-white">Trending Shows</h2>
-            <p className="text-sm text-white/60 mt-1">Shows with the most active voting right now</p>
+            <h2 className="text-2xl font-bold">Trending Shows</h2>
+            <p className="text-white/60 text-sm">Shows with the most active voting right now</p>
           </div>
-          <Button variant="link" asChild size="sm" className="text-white hover:text-white/80">
-            <Link to="/shows" className="flex items-center">
-              View all <ChevronRight className="ml-1 h-4 w-4" />
-            </Link>
-          </Button>
+          
+          <Link to="/shows" className="group inline-flex items-center mt-2 md:mt-0">
+            <span className="text-sm font-medium mr-1">View all</span>
+            <ArrowRight className="h-4 w-4 group-hover:translate-x-0.5 transition-transform" />
+          </Link>
         </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+        
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {isLoading ? (
-            [...Array(4)].map((_, i) => (
-              <div key={i} className="bg-black border border-white/10 rounded-lg animate-pulse">
-                <div className="aspect-[4/3] bg-white/5 relative rounded-t-lg overflow-hidden">
-                  <div className="absolute top-4 right-4 h-5 w-16 bg-white/5 rounded-full"></div>
-                </div>
-                <div className="p-5 space-y-3">
-                  <Skeleton className="h-4 w-20 bg-white/5" />
-                  <Skeleton className="h-5 w-3/4 bg-white/5" />
-                  <Skeleton className="h-4 w-1/2 bg-white/5" />
-                </div>
-              </div>
+            // Loading skeletons
+            Array(4).fill(0).map((_, i) => (
+              <Card key={i} className="bg-zinc-900 border-zinc-800">
+                <div className="aspect-video bg-zinc-800 animate-pulse"></div>
+                <CardContent className="p-4">
+                  <div className="h-5 bg-zinc-800 rounded w-2/3 mb-2 animate-pulse"></div>
+                  <div className="h-4 bg-zinc-800 rounded w-1/2 mb-4 animate-pulse"></div>
+                  <div className="h-8 bg-zinc-800 rounded animate-pulse"></div>
+                </CardContent>
+              </Card>
             ))
-          ) : (
-            showsData.map((show) => (
-              <Link 
-                key={show.id} 
-                to={`/shows/${show.id}`}
-                className="block bg-black rounded-lg overflow-hidden border border-white/10 hover:border-white/30 transition-all"
-              >
-                <div className="relative aspect-[4/3] overflow-hidden">
+          ) : trendingShows.length > 0 ? (
+            trendingShows.map((show) => (
+              <Card key={show.id} className="bg-zinc-900 border-zinc-800 overflow-hidden">
+                <div className="aspect-video relative overflow-hidden bg-zinc-800">
                   {show.image_url ? (
                     <img 
                       src={show.image_url} 
-                      alt={show.name}
-                      className="w-full h-full object-cover hover:scale-105 transition-transform duration-500"
+                      alt={show.name} 
+                      className="w-full h-full object-cover"
                     />
                   ) : (
-                    <div className="w-full h-full bg-gradient-to-t from-black to-zinc-800 flex items-center justify-center">
-                      <CalendarDays className="h-8 w-8 text-white/30" />
+                    <div className="absolute inset-0 flex items-center justify-center text-white/30 text-xs uppercase">
+                      No Image
                     </div>
                   )}
-                  <Badge 
-                    variant="outline" 
-                    className="absolute top-3 right-3 bg-black/60 border-white/10 text-white text-xs font-normal py-0.5"
-                  >
-                    {new Intl.NumberFormat().format(show.votes)} votes
-                  </Badge>
-                </div>
-                <div className="p-5">
-                  <div className="mb-1 text-xs text-white/60 uppercase tracking-wide font-semibold">
-                    {show.artist.name}
-                  </div>
-                  <h3 className="font-bold text-base mb-2 text-white line-clamp-1">
-                    {show.name}
-                  </h3>
-                  <div className="flex items-center text-xs text-white/60">
-                    <CalendarDays className="h-3.5 w-3.5 mr-1.5" />
-                    {show.date}
-                  </div>
-                  <div className="flex items-center text-xs text-white/60 mt-1">
-                    <MapPin className="h-3.5 w-3.5 mr-1.5" />
-                    {show.venue?.name || 'Unknown Venue'}, {show.venue?.city || 'Unknown Location'}
+                  <div className="absolute top-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded-full">
+                    {show.vote_count || 0} votes
                   </div>
                 </div>
-              </Link>
+                
+                <CardContent className="p-4">
+                  <h3 className="font-medium text-white truncate">{show.name}</h3>
+                  <p className="text-white/60 text-sm mb-3 truncate">
+                    {show.artist?.name || 'Unknown Artist'}
+                  </p>
+                  
+                  <Button asChild className="w-full" size="sm">
+                    <Link to={`/shows/${show.id}`}>View Setlist</Link>
+                  </Button>
+                </CardContent>
+              </Card>
             ))
+          ) : (
+            <div className="col-span-full text-center py-8">
+              <p className="text-white/60">No trending shows at the moment</p>
+            </div>
           )}
         </div>
       </div>

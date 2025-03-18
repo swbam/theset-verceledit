@@ -6,8 +6,7 @@ import { Music, ArrowRight, Calendar, Clock, MapPin } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
+import { supabase } from '@/lib/supabase';import { toast } from 'sonner';
 
 interface PastSetlistsProps {
   artistId: string;

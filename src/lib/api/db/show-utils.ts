@@ -1,4 +1,4 @@
-import { supabase, supabaseAdmin } from '@/integrations/supabase/client';
+import { supabase, supabaseAdmin } from '@/lib/supabase';
 import { toast } from 'sonner';
 
 // Create a new show record in the database
@@ -333,6 +333,62 @@ export async function getTrendingShows(limit = 10) {
     return shows;
   } catch (error) {
     console.error('Error in getTrendingShows:', error);
+    return [];
+  }
+}
+
+/**
+ * Fetch upcoming shows with optional genre filtering
+ * @param genre Optional genre to filter by
+ * @param limit Maximum number of shows to return
+ */
+export async function fetchUpcomingShows(genre?: string, limit = 10) {
+  try {
+    console.log(`Fetching upcoming shows${genre ? ` for genre: ${genre}` : ''}, limit: ${limit}`);
+    
+    // Create query
+    let query = supabase
+      .from('shows')
+      .select(`
+        id,
+        name,
+        date,
+        artist_id,
+        image_url,
+        venue_id,
+        ticket_url,
+        artists (
+          id,
+          name
+        ),
+        venues (
+          name,
+          city,
+          state,
+          country
+        )
+      `)
+      .gte('date', new Date().toISOString())
+      .order('date', { ascending: true })
+      .limit(limit);
+    
+    // Add genre filter if provided
+    if (genre) {
+      // This assumes we have a genres column in the artists table
+      // or that we can filter by genre some other way
+      query = query.eq('artists.genres', genre);
+    }
+    
+    const { data, error } = await query;
+    
+    if (error) {
+      console.error('Error fetching upcoming shows:', error);
+      return [];
+    }
+    
+    return data || [];
+  } catch (error) {
+    console.error('Error in fetchUpcomingShows:', error);
     return [];
   }
 }

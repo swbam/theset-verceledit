@@ -1,4 +1,4 @@
-import { supabase, supabaseAdmin } from '@/integrations/supabase/client';
+import { supabase, supabaseAdmin } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { PastSetlist } from '@/types/artist';
 
@@ -648,6 +648,96 @@ export async function createSetlistForShow(
     return setlist.id;
   } catch (error) {
     console.error("Error in createSetlistForShow:", error);
+    return null;
+  }
+}
+
+/**
+ * Fetches the most active show with voting data
+ * @returns The most active show with voting data and top songs
+ */
+export async function fetchMostActiveVotingShow() {
+  try {
+    // First, find the setlist with the most votes
+    const { data: activeSetlists, error: setlistsError } = await supabase
+      .from('setlists')
+      .select(`
+        id,
+        show_id,
+        shows (
+          id,
+          name,
+          date,
+          image_url,
+          ticket_url,
+          artist_id,
+          artists (
+            id,
+            name
+          )
+        )
+      `)
+      .order('vote_count', { ascending: false })
+      .limit(1);
+    
+    if (setlistsError) {
+      console.error('Error fetching active setlists:', setlistsError);
+      return null;
+    }
+    
+    if (!activeSetlists || activeSetlists.length === 0) {
+      console.log('No active setlists found');
+      return null;
+    }
+    
+    const activeSetlist = activeSetlists[0];
+    const show = activeSetlist.shows;
+    
+    if (!show) {
+      console.error('Show data not found for setlist:', activeSetlist.id);
+      return null;
+    }
+    
+    // Get the top songs for this setlist
+    const { data: songs, error: songsError } = await supabase
+      .from('setlist_songs')
+      .select(`
+        id,
+        track_id,
+        votes,
+        top_tracks (
+          id,
+          name,
+          album_name,
+          album_image_url
+        )
+      `)
+      .eq('setlist_id', activeSetlist.id)
+      .order('votes', { ascending: false })
+      .limit(5);
+    
+    if (songsError) {
+      console.error('Error fetching top songs:', songsError);
+      return null;
+    }
+    
+    // Prepare the response
+    return {
+      id: show.id,
+      name: show.name,
+      date: show.date,
+      image_url: show.image_url,
+      ticket_url: show.ticket_url,
+      artist: show.artists,
+      votes_count: activeSetlist.vote_count || 0,
+      top_songs: songs.map(song => ({
+        id: song.track_id,
+        name: song.top_tracks?.name || `Unknown Song`,
+        votes: song.votes
+      }))
+    };
+  } catch (error) {
+    console.error('Error in fetchMostActiveVotingShow:', error);
     return null;
   }
 }

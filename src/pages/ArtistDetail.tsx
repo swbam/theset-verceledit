@@ -14,7 +14,6 @@ import ArtistDetailSkeleton from '@/components/artist/ArtistDetailSkeleton';
 import ArtistNotFound from '@/components/artist/ArtistNotFound';
 import ArtistStats from '@/components/artist/ArtistStats';
 import { useDocumentTitle } from '@/hooks/use-document-title';
-import { Music } from 'lucide-react';
 import { Button } from '@/components/ui/button'; 
 import { toast } from 'sonner';
 import { SectionHeader } from '@/components/ui/section-header';
@@ -136,12 +135,6 @@ const ArtistDetail = () => {
   // Prepare top tracks for display
   const topTracks: TopTrack[] = topTracksData?.tracks?.slice(0, 5) || [];
 
-  // Format date for past setlists
-  const formatDateCompact = (dateString: string): string => {
-    const date = new Date(dateString);
-    return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(date);
-  };
-
   return (
     <div className="min-h-screen flex flex-col bg-black text-white">
       <Navbar />
@@ -149,151 +142,144 @@ const ArtistDetail = () => {
       <main className="flex-grow">
         <ArtistHeader 
           artistName={artist.name} 
-          artistImage={artist.image}
+          artistImage={artist.image_url || artist.image}
           artistGenres={artist.genres || []}
           spotifyUrl={artist.spotify_id ? `https://open.spotify.com/artist/${artist.spotify_id}` : undefined}
           followers={artist.followers || 0}
           monthlyListeners={artist.monthly_listeners || 0}
         />
         
-        <div className="container mx-auto px-4 py-10">
-          <div className="flex flex-col lg:flex-row gap-8">
-            {/* Main content - Upcoming Shows & Past Setlists */}
-            <div className="lg:w-[70%]">
-              {/* Upcoming Shows Section */}
-              <div className="mb-12">
-                <SectionHeader
-                  title="Upcoming Shows"
-                  subtitle={`Vote on setlists for upcoming ${artist.name} concerts`}
-                  actionLink={shows.length > 4 ? `/shows?artist=${encodeURIComponent(artist.name)}` : undefined}
-                  actionText="See all shows"
-                  count={shows.length > 4 ? shows.length : undefined}
-                />
-                
-                <UpcomingShows 
-                  shows={shows.slice(0, 4)}
-                  artistName={artist.name}
-                />
-              </div>
+        <div className="container mx-auto px-4 py-8">
+          <div className="flex flex-col md:flex-row gap-8">
+            {/* Left Column - Upcoming Shows */}
+            <div className="w-full md:w-2/3">
+              <h2 className="text-2xl font-bold mb-4">Upcoming Shows</h2>
+              <p className="text-white/60 text-sm mb-6">
+                Vote on setlists for upcoming {artist.name} shows
+              </p>
               
-              {/* Past Setlists section */}
-              <div>
-                <SectionHeader
-                  title="Past Setlists"
-                  subtitle={`Review what ${artist.name} played at previous concerts`}
-                  actionLink={pastSetlists.length > 3 ? `/artists/${id}/past-setlists` : undefined}
-                  actionText="See all setlists"
-                />
-                
-                {pastSetlistsLoading ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {[1, 2, 3, 4].map((i) => (
-                      <div key={i} className="bg-zinc-900/50 border border-zinc-800/50 rounded-lg overflow-hidden">
-                        <div className="p-4">
-                          <div className="flex items-center gap-2 mb-3">
-                            <Skeleton className="h-4 w-4 rounded-full" />
-                            <Skeleton className="h-4 w-32" />
-                          </div>
-                          <Skeleton className="h-6 w-3/4 mb-1" />
-                          <div className="flex items-center gap-2 mb-4">
-                            <Skeleton className="h-3 w-3 rounded-full" />
-                            <Skeleton className="h-3 w-40" />
-                          </div>
-                          <div className="mt-4">
-                            <div className="flex items-center gap-2 mb-2">
-                              <Skeleton className="h-4 w-4 rounded-full" />
-                              <Skeleton className="h-4 w-28" />
+              {shows.length === 0 ? (
+                <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-8 text-center">
+                  <p className="text-lg mb-3">No upcoming shows found</p>
+                  <p className="text-white/60 text-sm mb-6">
+                    We couldn't find any upcoming shows for {artist.name}
+                  </p>
+                  <Button asChild variant="outline">
+                    <Link to="/artists">Browse other artists</Link>
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {shows.map((show) => (
+                    <div key={show.id} className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
+                      <div className="flex flex-col">
+                        <time className="text-white/60 text-sm mb-2">
+                          {new Date(show.date).toLocaleDateString('en-US', {
+                            month: 'long',
+                            day: 'numeric',
+                            year: 'numeric'
+                          })}
+                        </time>
+                        
+                        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-3">
+                          <div className="mb-3 sm:mb-0">
+                            <h3 className="font-medium">{show.venue?.name || 'Unknown Venue'}</h3>
+                            <div className="text-white/60 text-sm">
+                              {show.venue?.city || ''}{show.venue?.state ? `, ${show.venue.state}` : ''}
+                              {show.venue?.country && show.venue.country !== 'United States' ? `, ${show.venue.country}` : ''}
                             </div>
-                            <div className="flex flex-wrap gap-2 mt-1">
-                              {[1, 2, 3].map((j) => (
-                                <Skeleton key={j} className="h-6 w-20 rounded-full" />
-                              ))}
-                            </div>
+                          </div>
+                          
+                          <div className="flex gap-3">
+                            <Button asChild size="sm" variant="outline">
+                              <Link to={`/shows/${show.id}`}>Setlist</Link>
+                            </Button>
+                            
+                            {show.ticket_url && (
+                              <Button asChild size="sm">
+                                <a href={show.ticket_url} target="_blank" rel="noopener noreferrer">
+                                  Tickets
+                                </a>
+                              </Button>
+                            )}
                           </div>
                         </div>
-                        <div className="px-4 py-3 bg-zinc-950/30 border-t border-zinc-800/50">
-                          <Skeleton className="h-8 w-full" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              
+              {/* Past Setlists Section */}
+              {pastSetlists.length > 0 && (
+                <div className="mt-10">
+                  <h2 className="text-2xl font-bold mb-4">Past Setlists</h2>
+                  <p className="text-white/60 text-sm mb-6">
+                    Review what {artist.name} played at previous shows
+                  </p>
+                  
+                  <div className="space-y-4">
+                    {pastSetlists.slice(0, 3).map((setlist) => (
+                      <div key={setlist.id} className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
+                        <div className="flex flex-col">
+                          <time className="text-white/60 text-sm mb-2">
+                            {new Date(setlist.event_date).toLocaleDateString('en-US', {
+                              month: 'long',
+                              day: 'numeric',
+                              year: 'numeric'
+                            })}
+                          </time>
+                          
+                          <div className="mb-3">
+                            <h3 className="font-medium">{setlist.venue?.name || 'Unknown Venue'}</h3>
+                            <div className="text-white/60 text-sm">
+                              {setlist.venue?.city || ''}{setlist.venue?.state ? `, ${setlist.venue.state}` : ''}
+                            </div>
+                          </div>
+                          
+                          <div className="flex flex-wrap gap-2 mb-4">
+                            {setlist.songs.slice(0, 3).map((song) => (
+                              <Badge key={song.id} variant="outline" className="bg-zinc-800">
+                                {song.name}
+                              </Badge>
+                            ))}
+                            {setlist.songs.length > 3 && (
+                              <Badge variant="outline" className="bg-zinc-800">
+                                +{setlist.songs.length - 3} more
+                              </Badge>
+                            )}
+                          </div>
+                          
+                          <Button asChild variant="outline" size="sm" className="self-start">
+                            <Link to={`/setlists/${setlist.id}`}>View full setlist</Link>
+                          </Button>
                         </div>
                       </div>
                     ))}
                   </div>
-                ) : pastSetlistsError ? (
-                  <div className="text-center p-8 border border-zinc-800 rounded-lg bg-zinc-900/50">
-                    <p className="text-lg mb-4 text-white">Failed to load past setlists</p>
-                    <Button 
-                      variant="outline" 
-                      onClick={() => window.location.reload()}
-                    >
-                      Try Again
-                    </Button>
-                  </div>
-                ) : pastSetlists.length === 0 ? (
-                  <div className="text-center p-8 border border-zinc-800 rounded-lg bg-zinc-900/50">
-                    <p className="text-lg mb-4 text-white">No past setlists found for this artist</p>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {pastSetlists.map((setlist) => (
-                      <PastSetlistCard key={setlist.id} setlist={setlist} />
-                    ))}
-                  </div>
-                )}
-              </div>
+                  
+                  {pastSetlists.length > 3 && (
+                    <div className="mt-4 text-center">
+                      <Button asChild variant="outline">
+                        <Link to={`/artists/${id}/setlists`}>See all past setlists</Link>
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
             
-            {/* Sidebar - Artist Stats & Spotify */}
-            <div className="lg:w-[30%] space-y-6">
+            {/* Right Column - Artist Stats */}
+            <div className="w-full md:w-1/3">
               <ArtistStats 
-                artist={artist}
+                spotifyFollowers={artist.followers}
+                monthlyListeners={artist.monthly_listeners}
                 topTracks={topTracks}
-                isLoading={tracksLoading}
-                hasError={!!tracksError}
+                genres={artist.genres}
+                formed={artist.formation_year?.toString()}
+                origin={artist.origin}
+                spotifyId={artist.spotify_id}
               />
-              
-              {/* Spotify Connect Section */}
-              <div className="bg-zinc-900 rounded-lg p-6">
-                <div className="flex items-center gap-4 mb-4">
-                  <svg viewBox="0 0 24 24" width="24" height="24" className="text-green-500">
-                    <path 
-                      fill="currentColor" 
-                      d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.48.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"
-                    />
-                  </svg>
-                  <h3 className="text-lg font-semibold">Spotify Integration</h3>
-                </div>
-                <p className="text-zinc-400 mb-5">
-                  {artist.spotify_id 
-                    ? `Get personalized recommendations and track stats for ${artist.name} by connecting your Spotify account.`
-                    : `Connect your Spotify account to unlock personalized features for ${artist.name}.`
-                  }
-                </p>
-                
-                <div className="flex space-x-3">
-                  {artist.spotify_id && (
-                    <Button variant="outline" asChild className="flex-1 bg-zinc-800/50 border-zinc-700">
-                      <a 
-                        href={`https://open.spotify.com/artist/${artist.spotify_id}`} 
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center justify-center"
-                      >
-                        <Music className="mr-2 h-4 w-4" />
-                        Open in Spotify
-                      </a>
-                    </Button>
-                  )}
-                  
-                  <Button variant="default" asChild className="flex-1 bg-green-600 hover:bg-green-700">
-                    <a href="/connect-spotify" className="inline-flex items-center justify-center">
-                      Connect Account
-                    </a>
-                  </Button>
-                </div>
-                
-                <p className="text-xs text-zinc-500 text-center mt-4">
-                  Already connected? <a href="/my-artists" className="text-zinc-300 hover:underline">View your stats</a>
-                </p>
-              </div>
             </div>
           </div>
         </div>

@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
-import { getSetlistSongs } from '@/lib/api/db/setlist-utils';
+import { supabase } from '@/lib/supabase';
+import { getSetlistSongs, addTracksToSetlist } from '@/lib/api/db/setlist-utils';
 import { createSetlistForShow } from '@/lib/api/db/show-utils';
+import { getRandomArtistSongs } from '@/lib/api/db/artist-utils';
 import { Song } from './types';
 import { toast } from 'sonner';
 
@@ -24,8 +25,6 @@ export function useSetlist(showId: string, initialSongs: Song[], userId?: string
       console.log(`Getting setlist ID for show: ${showId}`);
       
       // Try to find existing setlist - multiple attempts with error handling
-      const existingSetlistId = null; // This is just a placeholder, we return early if we find a setlist
-      
       try {
         const { data, error } = await supabase
           .from('setlists')
@@ -35,6 +34,30 @@ export function useSetlist(showId: string, initialSongs: Song[], userId?: string
         
         if (!error && data?.id) {
           console.log(`Found existing setlist: ${data.id}`);
+          
+          // Check if this setlist has songs
+          const { data: songsData, error: songsError } = await supabase
+            .from('setlist_songs')
+            .select('id')
+            .eq('setlist_id', data.id)
+            .limit(1);
+            
+          if (!songsError && songsData && songsData.length === 0) {
+            console.log(`Setlist ${data.id} exists but has no songs. Will populate with random songs.`);
+            
+            // Get the artist ID from the show
+            const { data: showData } = await supabase
+              .from('shows')
+              .select('artist_id')
+              .eq('id', showId)
+              .single();
+              
+            if (showData?.artist_id) {
+              // Add random songs to the empty setlist
+              await populateSetlistWithRandomSongs(data.id, showData.artist_id);
+            }
+          }
+          
           return data.id;
         }
       } catch (fetchError) {
@@ -69,86 +92,37 @@ export function useSetlist(showId: string, initialSongs: Song[], userId?: string
       }
       
       // Create the setlist - multiple approaches with fallbacks
+      const timestamp = new Date().toISOString();
+      const setlistData = {
+        show_id: showId,
+        created_at: timestamp,
+        last_updated: timestamp
+      };
       
-      // Approach 1: Direct insert with transaction
-      try {
-        // Use a more complete setlist object with all required fields
-        const timestamp = new Date().toISOString();
-        const setlistData = {
-          show_id: showId,
-          created_at: timestamp,
-          last_updated: timestamp
-        };
+      console.log("Attempting to create setlist with data:", setlistData);
+      
+      // Try to insert with RLS bypass for anonymous users
+      const { data: newSetlist, error: insertError } = await supabase
+        .from('setlists')
+        .insert(setlistData)
+        .select('id')
+        .single();
+      
+      if (!insertError && newSetlist?.id) {
+        console.log(`Successfully created setlist: ${newSetlist.id}`);
         
-        console.log("Attempting to create setlist with data:", setlistData);
-        
-        // Try to insert with RLS bypass for anonymous users
-        const { data: newSetlist, error: insertError } = await supabase
-          .from('setlists')
-          .insert(setlistData)
-          .select('id')
-          .single();
-        
-        if (!insertError && newSetlist?.id) {
-          console.log(`Successfully created setlist: ${newSetlist.id}`);
-          return newSetlist.id;
+        // Always attempt to populate the setlist with random songs if we have an artist ID
+        if (artistId) {
+          await populateSetlistWithRandomSongs(newSetlist.id, artistId);
         }
         
-        // Log detailed error information
-        if (insertError) {
-          console.error("Error in direct setlist creation:", {
-            code: insertError.code,
-            message: insertError.message,
-            details: insertError.details,
-            hint: insertError.hint
-          });
-          
-          // Check if it's a duplicate key error (someone else might have created it)
-          if (insertError.code === '23505') {
-            console.log(`Duplicate key error - setlist may already exist for show ${showId}`);
-            
-            // Try to get the setlist again
-            const { data: existingSetlist } = await supabase
-              .from('setlists')
-              .select('id')
-              .eq('show_id', showId)
-              .maybeSingle();
-              
-            if (existingSetlist?.id) {
-              console.log(`Found existing setlist after duplicate key error: ${existingSetlist.id}`);
-              return existingSetlist.id;
-            }
-          }
-          
-          // If it's an authentication error, try a different approach
-          if (insertError.code === '401' || insertError.message?.includes('unauthorized')) {
-            console.log("Authentication error, trying alternative approach");
-            // Continue to next approach
-          }
-        }
-      } catch (createError) {
-        console.error("Exception in direct setlist creation:", createError);
-        // Continue to next approach
+        return newSetlist.id;
       }
       
-      // Approach 2: Use the utility function
-      try {
-        const newSetlistId = await createSetlistForShow({ 
-          id: showId, 
-          artist_id: artistId 
-        });
+      if (insertError) {
+        console.error("Error inserting setlist:", insertError);
         
-        if (newSetlistId) {
-          console.log(`Created setlist using utility function: ${newSetlistId}`);
-          return newSetlistId;
-        }
-      } catch (utilError) {
-        console.error("Error using createSetlistForShow utility:", utilError);
-        // Continue to final check
-      }
-      
-      // Final check: One last attempt to find an existing setlist (in case of race condition)
-      try {
+        // Final check: One last attempt to find an existing setlist (in case of race condition)
         const { data: finalCheck } = await supabase
           .from('setlists')
           .select('id')
@@ -159,8 +133,6 @@ export function useSetlist(showId: string, initialSongs: Song[], userId?: string
           console.log(`Found setlist in final check: ${finalCheck.id}`);
           return finalCheck.id;
         }
-      } catch (finalError) {
-        console.error("Error in final setlist check:", finalError);
       }
       
       // If we get here, all attempts failed
@@ -172,6 +144,67 @@ export function useSetlist(showId: string, initialSongs: Song[], userId?: string
       return null;
     }
   }, []);
+  
+  // Helper function to populate a setlist with random songs
+  const populateSetlistWithRandomSongs = async (setlistId: string, artistId: string) => {
+    try {
+      console.log(`Populating setlist ${setlistId} with random songs from artist ${artistId}`);
+      
+      // First, try to get songs from the artist_songs table
+      const { data: artistSongs, error: songsError } = await supabase
+        .from('artist_songs')
+        .select('id, name')
+        .eq('artist_id', artistId)
+        .order('popularity', { ascending: false })
+        .limit(50); // Get a good selection of songs to pick from
+      
+      let randomSongs = [];
+      
+      if (!songsError && artistSongs && artistSongs.length >= 5) {
+        // Shuffle and pick 5 random songs from the catalog
+        randomSongs = [...artistSongs].sort(() => 0.5 - Math.random()).slice(0, 5);
+        console.log(`Selected 5 random songs from artist's catalog of ${artistSongs.length} songs`);
+      } else {
+        // If we don't have enough songs in the database, try the utility function
+        console.log(`Not enough songs in database, trying getRandomArtistSongs utility`);
+        randomSongs = await getRandomArtistSongs(artistId, 5);
+        
+        if (!randomSongs || randomSongs.length === 0) {
+          console.error(`No songs found for artist ${artistId} using getRandomArtistSongs`);
+          return false;
+        }
+      }
+      
+      if (randomSongs.length === 0) {
+        console.warn(`No songs found for artist ${artistId}, setlist will be empty`);
+        return false;
+      }
+      
+      // Prepare songs for insertion into setlist_songs table
+      const setlistSongs = randomSongs.map(song => ({
+        setlist_id: setlistId,
+        track_id: song.id,
+        votes: 0,
+        created_at: new Date().toISOString()
+      }));
+      
+      // Insert the songs into the setlist_songs table
+      const { error: insertError } = await supabase
+        .from('setlist_songs')
+        .insert(setlistSongs);
+      
+      if (insertError) {
+        console.error("Error inserting songs into setlist:", insertError);
+        return false;
+      }
+      
+      console.log(`Successfully added ${setlistSongs.length} songs to setlist ${setlistId}`);
+      return true;
+    } catch (error) {
+      console.error("Error populating setlist with random songs:", error);
+      return false;
+    }
+  };
   
   // Fetch songs from database
   const { 

@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
-import { createArtistSongsTable } from '@/lib/db/migrations/create-artist-songs';
+import { supabase } from '@/lib/supabase';import { createArtistSongsTable } from '@/lib/db/migrations/create-artist-songs';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Loader2 } from 'lucide-react';

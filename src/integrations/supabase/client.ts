@@ -3,12 +3,12 @@ import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
 // Get environment variables
-const SUPABASE_URL = process.env.SUPABASE_URL || "https://otccjilgjjzrexmmtlhi.supabase.co";
-const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im90Y2NqaWxnamp6cmV4bW10bGhpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDIxNDc2NzQsImV4cCI6MjA1NzcyMzY3NH0.F1YexbItwAJhP_c5pF7j2leHCDCK3X8yKe-27A0fa4o";
-const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "https://otccjilgjjzrexmmtlhi.supabase.co";
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im90Y2NqaWxnamp6cmV4bW10bGhpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDIxNDc2NzQsImV4cCI6MjA1NzcyMzY3NH0.F1YexbItwAJhP_c5pF7j2leHCDCK3X8yKe-27A0fa4o";
+const SUPABASE_SERVICE_ROLE_KEY = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
 
-// Import the supabase client like this:
-// import { supabase } from "@/integrations/supabase/client";
+// DEPRECATED - This file is being phased out. Please use:
+// import { supabase } from "@/lib/supabase";
 
 // Create the standard client with anonymous key
 export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_ANON_KEY);

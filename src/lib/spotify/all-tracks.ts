@@ -67,7 +67,7 @@ export async function getArtistAllTracks(artistId: string): Promise<{ tracks: Sp
     console.log(`Found ${albums.items.length} albums for artist ${artistId}`);
     
     // For each album, fetch its tracks
-    let allTracks: SpotifyTrack[] = [];
+    const allTracks: SpotifyTrack[] = [];
     const trackIds = new Set<string>();
     
     for (const album of albums.items.slice(0, 10)) { // Limit to 10 albums to avoid rate limiting

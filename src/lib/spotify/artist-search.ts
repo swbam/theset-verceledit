@@ -1,6 +1,5 @@
 
-import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
+import { supabase } from '@/lib/supabase';import { toast } from 'sonner';
 import { getAccessToken } from './auth';
 
 const SPOTIFY_API_BASE = 'https://api.spotify.com/v1';

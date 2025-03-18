@@ -12,12 +12,20 @@ export async function searchArtistsWithEvents(query: string, limit = 10): Promis
     // Log the search request for debugging
     console.log(`Searching Ticketmaster for artists matching: "${query}"`);
     
-    const data = await callTicketmasterApi('events.json', {
-      keyword: query,
-      segmentName: 'Music',
-      sort: 'relevance,date,asc',
-      size: Math.min(limit * 3, 50).toString() // Fetch more to get a good selection of unique artists
-    });
+    // Make sure the API key is properly used
+    const TICKETMASTER_API_KEY = import.meta.env.VITE_TICKETMASTER_API_KEY || 'k8GrSAkbFaN0w7qDxGl7ohr8LwdAQm9b';
+    
+    // Direct API call to Ticketmaster to ensure it works
+    const url = `https://app.ticketmaster.com/discovery/v2/events.json?keyword=${encodeURIComponent(query)}&classificationName=music&size=${Math.min(limit * 3, 50)}&apikey=${TICKETMASTER_API_KEY}`;
+    
+    const response = await fetch(url);
+    
+    if (!response.ok) {
+      console.error(`Ticketmaster API error: ${response.status} - ${response.statusText}`);
+      return [];
+    }
+    
+    const data = await response.json();
 
     if (!data?._embedded?.events) {
       console.log('No events found for query:', query);
@@ -59,12 +67,14 @@ export async function searchArtistsWithEvents(query: string, limit = 10): Promis
             popularity = parseInt(attraction.upcomingEvents._total) || 0;
           }
           
-          // Store artist in our map
+          // Store artist in our map with consistent property names
           artistsMap.set(attraction.id, {
             id: attraction.id,
             name: attraction.name,
             image: artistImage,
+            image_url: artistImage, // Add for consistency
             upcomingShows: attraction.upcomingEvents?._total || 1,
+            upcoming_shows: attraction.upcomingEvents?._total || 1, // Add for consistency
             popularity: popularity
           });
         });
@@ -85,13 +95,16 @@ export async function searchArtistsWithEvents(query: string, limit = 10): Promis
             id: artistId,
             name: artistName,
             image: artistImage,
+            image_url: artistImage, // Add for consistency
             upcomingShows: 1,
+            upcoming_shows: 1, // Add for consistency
             popularity: 0
           });
         } else {
           // Increment upcoming shows count for this artist
           const artist = artistsMap.get(artistId);
           artist.upcomingShows += 1;
+          artist.upcoming_shows += 1; // Update both for consistency
           artistsMap.set(artistId, artist);
         }
       }
@@ -100,9 +113,6 @@ export async function searchArtistsWithEvents(query: string, limit = 10): Promis
     // Extract artists from the map
     const artists = Array.from(artistsMap.values());
     console.log(`Extracted ${artists.length} unique artists from events`);
-    
-    // Don't attempt to save to database during search - this is likely causing the error
-    // We'll only do this when the user explicitly selects an artist
     
     // Sort by estimated popularity and limit results
     return artists
@@ -121,9 +131,6 @@ export async function searchArtistsWithEvents(query: string, limit = 10): Promis
       .slice(0, limit);
   } catch (error) {
     console.error("Ticketmaster artist search error:", error);
-    // Don't show toast during search as it's distracting
-    // toast.error("Failed to search for artists");
-    
     // Return empty array instead of letting the error propagate
     return [];
   }

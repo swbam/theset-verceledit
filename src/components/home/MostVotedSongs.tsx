@@ -3,8 +3,7 @@ import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Music, Play, ChevronUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { supabase } from '@/integrations/supabase/client';
-import { Link } from 'react-router-dom';
+import { supabase } from '@/lib/supabase';import { Link } from 'react-router-dom';
 
 type SongType = {
   id: string;

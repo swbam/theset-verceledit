@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import { toast } from 'sonner';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/lib/supabase';
 import { addSongToSetlist as dbAddSongToSetlist } from '@/lib/api/db/setlist-utils';
 import { addTracksToSetlist } from '@/lib/api/db/setlist-utils';
 import { Song } from './types';
