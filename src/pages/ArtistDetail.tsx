@@ -16,6 +16,8 @@ import { useDocumentTitle } from '@/hooks/use-document-title';
 import { Calendar, MapPin, ChevronRight, Music } from 'lucide-react';
 import { Button } from '@/components/ui/button'; 
 import { toast } from 'sonner';
+import { SectionHeader } from '@/components/ui/section-header';
+import PastSetlistCard from '@/components/artist/PastSetlistCard';
 
 // Mock past setlists data to display in the UI
 const MOCK_PAST_SETLISTS = [
@@ -155,75 +157,34 @@ const ArtistDetail = () => {
           <div className="flex flex-col lg:flex-row gap-8">
             {/* Main content - Upcoming Shows & Past Setlists */}
             <div className="lg:w-[70%]">
-              <div className="mb-10">
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-2xl font-bold">Upcoming Shows</h2>
-                  {shows.length > 20 && (
-                    <Link 
-                      to={`/shows?artist=${encodeURIComponent(artist.name)}`}
-                      className="text-sm text-zinc-400 flex items-center hover:text-white transition-colors"
-                    >
-                      See all {shows.length} shows <ChevronRight className="h-4 w-4 ml-1" />
-                    </Link>
-                  )}
-                </div>
-                <p className="text-zinc-400 mb-6">Vote on setlists for upcoming shows</p>
+              {/* Upcoming Shows Section */}
+              <div className="mb-12">
+                <SectionHeader
+                  title="Upcoming Shows"
+                  subtitle={`Vote on setlists for upcoming ${artist.name} concerts`}
+                  actionLink={shows.length > 4 ? `/shows?artist=${encodeURIComponent(artist.name)}` : undefined}
+                  actionText="See all shows"
+                  count={shows.length > 4 ? shows.length : undefined}
+                />
                 
                 <UpcomingShows 
-                  shows={shows.slice(0, 5)}
+                  shows={shows.slice(0, 4)}
                   artistName={artist.name}
                 />
               </div>
               
               {/* Past Setlists section */}
               <div>
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-2xl font-bold">Past Setlists</h2>
-                  {pastSetlists.length > 3 && (
-                    <Link 
-                      to={`/artists/${id}/past-setlists`}
-                      className="text-sm text-zinc-400 flex items-center hover:text-white transition-colors"
-                    >
-                      See all setlists <ChevronRight className="h-4 w-4 ml-1" />
-                    </Link>
-                  )}
-                </div>
-                <p className="text-zinc-400 mb-6">Review what {artist.name} played at previous shows</p>
+                <SectionHeader
+                  title="Past Setlists"
+                  subtitle={`Review what ${artist.name} played at previous concerts`}
+                  actionLink={pastSetlists.length > 3 ? `/artists/${id}/past-setlists` : undefined}
+                  actionText="See all setlists"
+                />
                 
-                <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {pastSetlists.map((setlist) => (
-                    <div key={setlist.id} className="border-b border-zinc-800 pb-4 last:border-0">
-                      <div className="flex items-start mb-3">
-                        <Calendar className="h-5 w-5 text-zinc-400 mr-3 mt-0.5" />
-                        <span className="font-medium">{formatDateCompact(setlist.date)}</span>
-                      </div>
-                      
-                      <div className="pl-8">
-                        <h3 className="font-bold">{setlist.venue.name}</h3>
-                        <div className="flex items-center text-zinc-400 text-sm mb-3">
-                          <MapPin className="h-3.5 w-3.5 mr-1.5 flex-shrink-0" />
-                          <span>
-                            {setlist.venue.city}
-                            {setlist.venue.state && `, ${setlist.venue.state}`}
-                          </span>
-                        </div>
-                        
-                        <div className="mb-4">
-                          <p className="text-sm font-medium mb-2">Top songs played:</p>
-                          <ul className="text-zinc-400 text-sm">
-                            {setlist.songs.map((song, idx) => (
-                              <li key={idx} className="inline-block mr-4">• {song}</li>
-                            ))}
-                          </ul>
-                        </div>
-                        
-                        <Button variant="link" asChild className="px-0 h-auto text-zinc-400 hover:text-white">
-                          <Link to={`/shows/${setlist.id}`}>
-                            View full setlist
-                          </Link>
-                        </Button>
-                      </div>
-                    </div>
+                    <PastSetlistCard key={setlist.id} setlist={setlist} />
                   ))}
                 </div>
               </div>
