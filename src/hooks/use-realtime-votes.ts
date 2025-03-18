@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/auth/AuthContext';
 import { 
@@ -109,6 +110,7 @@ export function useRealtimeVotes(showId: string, spotifyArtistId: string, initia
     },
     anonymousVoteCount,
     setlistId,
-    getSetlistId // Expose the getSetlistId function
+    getSetlistId,
+    refetchSongs
   };
 }

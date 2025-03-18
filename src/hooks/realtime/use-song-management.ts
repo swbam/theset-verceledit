@@ -1,3 +1,4 @@
+
 import { useCallback } from 'react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
@@ -52,6 +53,11 @@ export function useSongManagement(
         return false;
       }
       
+      // Try to add the song, with detailed logging for debugging
+      console.log("Calling dbAddSongToSetlist with params:", { 
+        setlistId, trackId, trackName 
+      });
+      
       const songId = await dbAddSongToSetlist(setlistId, trackId, trackName);
       
       if (songId) {
@@ -61,8 +67,37 @@ export function useSongManagement(
         toast.success(`"${trackName}" added to setlist!`);
         return true;
       } else {
-        console.error("Failed to add song");
+        console.error("Failed to add song - dbAddSongToSetlist returned null or undefined");
         toast.error("Failed to add song to setlist");
+        
+        // Try a direct database insertion as a fallback
+        try {
+          console.log("Attempting direct database insertion as fallback");
+          const { data, error } = await supabase
+            .from('setlist_songs')
+            .insert({
+              setlist_id: setlistId,
+              track_id: trackId,
+              votes: 0
+            })
+            .select('id')
+            .single();
+            
+          if (error) {
+            console.error("Error in direct insertion fallback:", error);
+            return false;
+          }
+          
+          if (data?.id) {
+            console.log("Song added successfully via fallback with ID:", data.id);
+            refetchSongs();
+            toast.success(`"${trackName}" added to setlist!`);
+            return true;
+          }
+        } catch (fallbackError) {
+          console.error("Fallback insertion error:", fallbackError);
+        }
+        
         return false;
       }
     } catch (error: unknown) {

@@ -37,7 +37,8 @@ const SetlistSection = ({ showId, spotifyArtistId }: SetlistSectionProps) => {
     handleAddSong,
     anonymousVoteCount,
     setlistId,
-    getSetlistId
+    getSetlistId,
+    refetchSongs
   } = useRealtimeVotes(showId, spotifyArtistId, initialSongs);
   
   // Get song management functions
@@ -45,7 +46,7 @@ const SetlistSection = ({ showId, spotifyArtistId }: SetlistSectionProps) => {
     setlistId,
     showId,
     getSetlistId,
-    () => {}, // We'll handle refetching separately
+    refetchSongs,
     setlist
   );
   
@@ -99,14 +100,28 @@ const SetlistSection = ({ showId, spotifyArtistId }: SetlistSectionProps) => {
     
     console.log("Track found, adding to setlist:", trackToAdd.name);
     
-    // Call the handleAddSong function with the track ID and name
-    await handleAddSong(selectedTrack, trackToAdd.name || '');
-    
-    // Reset the selected track
-    setSelectedTrack('');
-    
-    // Show success message
-    toast.success(`Added "${trackToAdd.name}" to the setlist`);
+    try {
+      // Call the handleAddSong function with the track ID and name
+      const success = await handleAddSong(selectedTrack, trackToAdd.name || '');
+      
+      if (success) {
+        // Reset the selected track
+        setSelectedTrack('');
+        
+        // Show success message
+        toast.success(`Added "${trackToAdd.name}" to the setlist`);
+        
+        // Force refetch songs to update the UI
+        setTimeout(() => {
+          refetchSongs();
+        }, 500);
+      } else {
+        toast.error("Failed to add song to setlist");
+      }
+    } catch (error) {
+      console.error("Error adding song:", error);
+      toast.error("An error occurred while adding the song");
+    }
   };
   
   return (
