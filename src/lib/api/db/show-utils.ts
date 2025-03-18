@@ -79,7 +79,7 @@ export async function createSetlistForShow(showData: { id: string; artist_id?: s
       const setlistData = {
         show_id: showId,
         created_at: timestamp,
-        last_updated: timestamp
+        last_updated: timestamp // This matches the SQL schema for setlists table
       };
       
       console.log(`Attempting to create setlist with data:`, setlistData);

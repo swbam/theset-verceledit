@@ -1,4 +1,3 @@
-
 import { useCallback } from 'react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
@@ -51,6 +50,69 @@ export function useSongManagement(
         console.log(`Song ${trackId} already exists in setlist`);
         toast.info(`"${trackName}" is already in the setlist!`);
         return false;
+      }
+      
+      // First, check if this track exists in the top_tracks table
+      // This is critical because setlist_songs.track_id references top_tracks.id
+      const { data: existingTrack, error: trackCheckError } = await supabase
+        .from('top_tracks')
+        .select('id')
+        .eq('id', trackId)
+        .maybeSingle();
+      
+      if (trackCheckError) {
+        console.error("Error checking for track in top_tracks:", trackCheckError);
+      }
+      
+      // If track doesn't exist in top_tracks, we need to add it first
+      if (!existingTrack) {
+        console.log(`Track ${trackId} not found in top_tracks, adding it first`);
+        
+        try {
+          // Look up artist info from the shows table to get artist_id
+          const { data: showData, error: showError } = await supabase
+            .from('shows')
+            .select('artist_id')
+            .eq('id', showId)
+            .single();
+            
+          if (showError) {
+            console.error("Error fetching show info for artist_id:", showError);
+            toast.error("Failed to get show information");
+            return false;
+          }
+          
+          const artistId = showData?.artist_id;
+          if (!artistId) {
+            console.error("Show is missing artist_id, cannot add track");
+            toast.error("Show is missing artist information");
+            return false;
+          }
+          
+          // Insert minimal track information into top_tracks
+          const { data: newTrack, error: insertTrackError } = await supabase
+            .from('top_tracks')
+            .insert({
+              id: trackId,
+              artist_id: artistId,
+              name: trackName,
+              last_updated: new Date().toISOString()
+            })
+            .select('id')
+            .single();
+            
+          if (insertTrackError) {
+            console.error("Error inserting track to top_tracks:", insertTrackError);
+            toast.error("Failed to prepare track for setlist");
+            return false;
+          }
+          
+          console.log("Successfully added track to top_tracks:", newTrack);
+        } catch (trackInsertError) {
+          console.error("Exception inserting track to top_tracks:", trackInsertError);
+          toast.error("Failed to prepare track for setlist");
+          return false;
+        }
       }
       
       // Try to add the song, with detailed logging for debugging
@@ -144,6 +206,66 @@ export function useSongManagement(
         const shuffled = [...initialSongs].sort(() => 0.5 - Math.random());
         songsToAdd = shuffled.slice(0, 5);
         console.log(`Selected songs: ${songsToAdd.map(s => s.name).join(', ')}`);
+      }
+      
+      // Get the show information to get artist_id for the tracks
+      const { data: showData, error: showError } = await supabase
+        .from('setlists')
+        .select(`
+          id,
+          show:show_id (
+            id,
+            artist_id
+          )
+        `)
+        .eq('id', setlistId)
+        .single();
+        
+      if (showError) {
+        console.error("Error fetching show info for artist_id:", showError);
+        throw new Error("Failed to get show information");
+      }
+      
+      const artistId = showData?.show?.artist_id;
+      if (!artistId) {
+        console.error("Show is missing artist_id, cannot add tracks");
+        throw new Error("Show is missing artist information");
+      }
+      
+      // First ensure all songs exist in top_tracks
+      for (const song of songsToAdd) {
+        // Check if track exists in top_tracks
+        const { data: existingTrack, error: trackCheckError } = await supabase
+          .from('top_tracks')
+          .select('id')
+          .eq('id', song.id)
+          .maybeSingle();
+        
+        if (trackCheckError) {
+          console.error(`Error checking if track ${song.id} exists:`, trackCheckError);
+        }
+        
+        // If track doesn't exist, add it first
+        if (!existingTrack) {
+          console.log(`Track ${song.id} not found in top_tracks, adding it before adding to setlist`);
+          
+          // Create minimal track record in top_tracks
+          const { error: trackInsertError } = await supabase
+            .from('top_tracks')
+            .insert({
+              id: song.id,
+              artist_id: artistId,
+              name: song.name,
+              last_updated: new Date().toISOString()
+            });
+            
+          if (trackInsertError) {
+            console.error(`Error inserting track ${song.id} to top_tracks:`, trackInsertError);
+            // Continue with next song
+          } else {
+            console.log(`Successfully added track ${song.id} to top_tracks`);
+          }
+        }
       }
       
       // Prepare the tracks for batch insertion

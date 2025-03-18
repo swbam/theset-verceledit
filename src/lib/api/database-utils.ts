@@ -85,7 +85,7 @@ export async function saveShowToDatabase(showData: ShowData): Promise<string | n
               ticket_url: showData.ticket_url,
               artist_id: showData.artist_id,
               venue_id: showData.venue_id,
-              last_updated: new Date().toISOString()
+              updated_at: new Date().toISOString()
             })
             .eq('id', showData.id);
 
@@ -129,7 +129,7 @@ export async function saveShowToDatabase(showData: ShowData): Promise<string | n
       artist_id: showData.artist_id,
       venue_id: showData.venue_id,
       created_at: new Date().toISOString(),
-      last_updated: new Date().toISOString()
+      updated_at: new Date().toISOString()
     };
 
     // Insert new show

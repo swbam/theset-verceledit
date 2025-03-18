@@ -57,7 +57,7 @@ export async function saveArtistToDatabase(artist: any) {
       .upsert({
         id: artist.id,
         name: artist.name,
-        image: artist.image,
+        image_url: artist.image || artist.image_url,
         genres: Array.isArray(artist.genres) ? artist.genres : [],
         popularity: artist.popularity || 0,
         upcoming_shows: artist.upcomingShows || artist.upcoming_shows || 0,

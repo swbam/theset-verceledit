@@ -21,7 +21,8 @@ export async function saveTracksToDb(artistId: string, tracks: SpotifyTrack[]) {
       album_name: track.album?.name,
       album_image_url: track.album?.images?.[0]?.url,
       popularity: track.popularity || 0,
-      duration_ms: track.duration_ms
+      duration_ms: track.duration_ms,
+      last_updated: new Date().toISOString()
     }));
     
     // Use upsert to either insert new tracks or update existing ones

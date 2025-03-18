@@ -108,7 +108,7 @@ export const resolveArtistId = async (artistId: string, artistName: string): Pro
         await supabase
           .from('artists')
           .update({ 
-            image: spotifyArtist.images?.[0]?.url,
+            image_url: spotifyArtist.images?.[0]?.url,
           })
           .eq('id', artistId);
         
@@ -120,7 +120,7 @@ export const resolveArtistId = async (artistId: string, artistName: string): Pro
           .insert({
             id: artistId,
             name: artistName,
-            image: spotifyArtist.images?.[0]?.url,
+            image_url: spotifyArtist.images?.[0]?.url,
           })
           .select()
           .single();
