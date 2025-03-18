@@ -1,5 +1,6 @@
 
-import { supabase } from '@/lib/supabase';import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 import { getAccessToken } from './auth';
 
 const SPOTIFY_API_BASE = 'https://api.spotify.com/v1';
@@ -107,7 +108,7 @@ export const resolveArtistId = async (artistId: string, artistName: string): Pro
         await supabase
           .from('artists')
           .update({ 
-            image_url: spotifyArtist.images?.[0]?.url,
+            image: spotifyArtist.images?.[0]?.url,
           })
           .eq('id', artistId);
         
@@ -119,7 +120,7 @@ export const resolveArtistId = async (artistId: string, artistName: string): Pro
           .insert({
             id: artistId,
             name: artistName,
-            image_url: spotifyArtist.images?.[0]?.url,
+            image: spotifyArtist.images?.[0]?.url,
           })
           .select()
           .single();

@@ -1,3 +1,4 @@
+
 import * as React from "react"
 import * as PopoverPrimitive from "@radix-ui/react-popover"
 
@@ -24,5 +25,6 @@ const PopoverContent = React.forwardRef<
     />
   </PopoverPrimitive.Portal>
 ))
+PopoverContent.displayName = PopoverContent.displayName
 
 export { Popover, PopoverTrigger, PopoverContent }

@@ -21,11 +21,7 @@ const Command = React.forwardRef<
 ))
 Command.displayName = CommandPrimitive.displayName
 
-// Define a non-empty interface with at least one optional property
-interface CommandDialogProps extends DialogProps {
-  // Add any additional properties specific to CommandDialog here
-  className?: string;
-}
+interface CommandDialogProps extends DialogProps {}
 
 const CommandDialog = ({ children, ...props }: CommandDialogProps) => {
   return (

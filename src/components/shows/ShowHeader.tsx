@@ -3,7 +3,6 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, Calendar, MapPin, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useIsMobile } from '@/hooks/use-mobile';
 
 interface ShowHeaderProps {
   show: {
@@ -25,8 +24,6 @@ interface ShowHeaderProps {
 }
 
 const ShowHeader: React.FC<ShowHeaderProps> = ({ show }) => {
-  const isMobile = useIsMobile();
-  
   // Format date for display
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -77,45 +74,44 @@ const ShowHeader: React.FC<ShowHeaderProps> = ({ show }) => {
       style={{
         backgroundImage: show.image_url ? `linear-gradient(to bottom, rgba(0,0,0,0.8), rgba(0,0,0,0.7)), url(${show.image_url})` : undefined,
         height: 'auto',
-        maxHeight: isMobile ? '35vh' : 'auto',
       }}
     >
-      <div className={`px-4 md:px-8 lg:px-12 ${isMobile ? 'py-4' : 'py-12'} relative z-10`}>
+      <div className="px-6 md:px-8 lg:px-12 py-12 relative z-10">
         <div className="max-w-7xl mx-auto">
-          <div className="flex items-center justify-between mb-2">
-            {show.artist && (
-              <Link to={`/artists/${show.artist.id}`} className="text-white/80 hover:text-white inline-flex items-center transition-colors">
-                <ArrowLeft size={16} className="mr-1" />
-                <span className={`${isMobile ? 'text-xs' : 'text-sm'}`}>Back to artist</span>
-              </Link>
-            )}
-            
-            <span className="inline-block bg-white/20 text-white text-xs px-2 py-0.5 rounded-full">
+          {show.artist && (
+            <Link to={`/artists/${show.artist.id}`} className="text-white/80 hover:text-white inline-flex items-center mb-4 transition-colors">
+              <ArrowLeft size={18} className="mr-2" />
+              Back to artist
+            </Link>
+          )}
+          
+          <div className="mb-3">
+            <span className="inline-block bg-white/20 text-white text-xs px-3 py-1 rounded-full">
               {new Date(show.date) > new Date() ? 'Upcoming' : 'Past'}
             </span>
           </div>
           
-          <h1 className={`${isMobile ? 'text-xl' : 'text-3xl md:text-4xl lg:text-5xl'} font-bold text-white mb-1`}>{show.artist?.name}</h1>
+          <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold text-white mb-2">{show.artist?.name}</h1>
           
-          {tourName && <p className={`${isMobile ? 'text-sm' : 'text-xl'} text-white/90 mb-2`}>{tourName}</p>}
+          {tourName && <p className="text-xl text-white/90 mb-4">{tourName}</p>}
           
-          <div className={`flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-6 mt-2`}>
-            <div className={`flex items-center text-white/80 ${isMobile ? 'text-xs' : ''}`}>
-              <Calendar size={isMobile ? 14 : 18} className="mr-1.5 text-white/60" />
+          <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6 mt-4">
+            <div className="flex items-center text-white/80">
+              <Calendar size={18} className="mr-2 text-white/60" />
               {formatDate(show.date)}
             </div>
             
             {show.venue && (
-              <div className={`flex items-center text-white/80 ${isMobile ? 'text-xs' : ''}`}>
-                <MapPin size={isMobile ? 14 : 18} className="mr-1.5 text-white/60" />
+              <div className="flex items-center text-white/80">
+                <MapPin size={18} className="mr-2 text-white/60" />
                 {show.venue.name}, {show.venue.city}, {show.venue.state}
               </div>
             )}
           </div>
           
           {show.ticket_url && (
-            <div className={`${isMobile ? 'mt-2' : 'mt-6'}`}>
-              <Button asChild className="bg-white hover:bg-white/90 text-black" size={isMobile ? "sm" : "default"}>
+            <div className="mt-6">
+              <Button asChild className="bg-white hover:bg-white/90 text-black">
                 <a 
                   href={show.ticket_url} 
                   target="_blank" 
@@ -123,7 +119,7 @@ const ShowHeader: React.FC<ShowHeaderProps> = ({ show }) => {
                   className="inline-flex items-center"
                 >
                   <span>Get Tickets</span>
-                  <ExternalLink size={isMobile ? 14 : 16} className="ml-2" />
+                  <ExternalLink size={16} className="ml-2" />
                 </a>
               </Button>
             </div>

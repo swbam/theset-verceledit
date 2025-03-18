@@ -43,9 +43,6 @@ const App = () => (
               <Route path="/shows" element={<Artists />} />
               <Route path="/artists/:id" element={<ArtistDetail />} />
               <Route path="/shows/:id" element={<ShowDetail />} />
-              {/* Add routes for both Next.js and React Router patterns */}
-              <Route path="/artist/:id" element={<ArtistDetail />} />
-              <Route path="/show/:id" element={<ShowDetail />} />
               <Route path="/auth" element={<Auth />} />
               <Route path="/auth/callback" element={<AuthCallback />} />
               <Route 

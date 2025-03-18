@@ -1,10 +1,9 @@
 
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Calendar, MapPin, Music, Ticket } from 'lucide-react';
+import { Calendar, MapPin, Music } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { formatDate } from '@/lib/api/mock-service';
 
 interface ShowCardProps {
@@ -28,6 +27,37 @@ interface ShowCardProps {
 }
 
 const ShowCard = ({ show }: ShowCardProps) => {
+  // Format the show name to remove artist name and delivery info
+  const formatShowName = (fullName: string, artistName: string) => {
+    if (!fullName) return '';
+    
+    // Remove the artist name and any text after "delivered by" or similar phrases
+    let formattedName = fullName;
+    
+    // Remove artist name if present at the beginning
+    if (artistName && formattedName.startsWith(artistName)) {
+      formattedName = formattedName.substring(artistName.length).trim();
+      // Remove any colon at the beginning
+      if (formattedName.startsWith(':')) {
+        formattedName = formattedName.substring(1).trim();
+      }
+    }
+    
+    // Remove delivery information
+    const deliveryPhrases = [' - delivered by ', ' delivered by ', ' - presented by ', ' presented by '];
+    for (const phrase of deliveryPhrases) {
+      const index = formattedName.toLowerCase().indexOf(phrase.toLowerCase());
+      if (index !== -1) {
+        formattedName = formattedName.substring(0, index);
+      }
+    }
+    
+    return formattedName;
+  };
+
+  // Get the formatted show name
+  const tourName = formatShowName(show.name, show.artist?.name || '');
+
   // Get a genre from either show or artist
   const getShowGenre = () => {
     if (show.genre) return show.genre;
@@ -41,69 +71,65 @@ const ShowCard = ({ show }: ShowCardProps) => {
   const genre = getShowGenre();
 
   return (
-    <Card className="bg-[#111111]/80 border-white/10 overflow-hidden hover:border-white/30 transition duration-300 hover:scale-[1.01] rounded-[3px]">
-      <div className="relative aspect-[3/2] overflow-hidden rounded-t-[3px]">
-        {show.image_url ? (
-          <img
-            src={show.image_url}
-            alt={show.artist?.name || show.name}
-            className="w-full h-full object-cover transition-transform"
-            loading="lazy"
-            onError={(e) => {
-              (e.target as HTMLImageElement).style.display = 'none';
-              (e.target as HTMLImageElement).parentElement!.classList.add('bg-[#222]');
-              (e.target as HTMLImageElement).parentElement!.innerHTML += '<div class="flex items-center justify-center h-full w-full"><svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-10 w-10 text-white/40"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg></div>';
-            }}
-          />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center bg-[#222]">
-            <Music className="h-10 w-10 text-white/40" />
+    <Link to={`/shows/${show.id}`}>
+      <Card className="bg-[#111111]/80 border-white/10 overflow-hidden hover:border-white/30 transition duration-300 hover:scale-[1.02]">
+        <div className="relative aspect-video overflow-hidden">
+          {show.image_url ? (
+            <img
+              src={show.image_url}
+              alt={show.name}
+              className="w-full h-full object-cover transition-transform"
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center bg-[#222]">
+              <Music className="h-10 w-10 text-white/40" />
+            </div>
+          )}
+          <Badge 
+            className="absolute top-3 right-3 bg-black/60 hover:bg-black/60 text-white"
+          >
+            {genre}
+          </Badge>
+          <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black to-transparent pt-10">
+            <div className="flex items-center justify-end p-3">
+              <div className="flex items-center bg-white/10 rounded-full px-2 py-0.5">
+                <span className="text-white text-xs font-medium">
+                  {Math.floor(Math.random() * 5000) + 500}
+                </span>
+              </div>
+            </div>
           </div>
-        )}
-        <Badge 
-          className="absolute top-3 right-3 bg-black/60 hover:bg-black/60 text-white"
-        >
-          {genre}
-        </Badge>
-        <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black to-transparent pt-10">
-          <div className="p-3">
-            {show.date && (
-              <div className="inline-flex items-center bg-white/10 rounded-full px-2 py-1 mb-2">
-                <Calendar size={14} className="mr-1 flex-shrink-0" />
-                <span className="text-white text-xs font-medium">{formatDate(show.date, false)}</span>
+        </div>
+        
+        <CardContent className="p-4">
+          <h3 className="font-bold text-lg mb-1 line-clamp-1">
+            {tourName || show.name.split(' - ')[0]}
+          </h3>
+          
+          <p className="text-white/70 text-sm mb-3 line-clamp-1">
+            {show.artist?.name || 'Unknown Artist'}
+          </p>
+          
+          <div className="flex flex-col space-y-2 text-sm text-white/60">
+            <div className="flex items-center">
+              <Calendar size={16} className="mr-2 flex-shrink-0" />
+              <span>{formatDate(show.date, true)}</span>
+            </div>
+            
+            {show.venue && (
+              <div className="flex items-start">
+                <MapPin size={16} className="mr-2 flex-shrink-0 mt-1" />
+                <span className="line-clamp-2">
+                  {show.venue.name}
+                  {show.venue.city && `, ${show.venue.city}`}
+                  {show.venue.state && `, ${show.venue.state}`}
+                </span>
               </div>
             )}
           </div>
-        </div>
-      </div>
-      
-      <CardContent className="p-3">
-        <h3 className="font-bold text-lg mb-0.5 line-clamp-1">
-          {show.artist?.name || 'Unknown Artist'}
-        </h3>
-        
-        <p className="text-white/70 text-sm mb-2 line-clamp-1">
-          {show.name.split(' - ')[0]}
-        </p>
-        
-        {show.venue && (
-          <div className="flex items-start mb-3">
-            <MapPin size={16} className="mr-1.5 flex-shrink-0 mt-0.5 text-white/60" />
-            <span className="text-sm text-white/60 line-clamp-1">
-              {show.venue.name}
-              {show.venue.city && `, ${show.venue.city}`}
-            </span>
-          </div>
-        )}
-        
-        <Button className="w-full" size="sm" asChild>
-          <Link to={`/shows/${show.id}`}>
-            <Ticket className="h-4 w-4 mr-1.5" />
-            View Setlist
-          </Link>
-        </Button>
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+    </Link>
   );
 };
 

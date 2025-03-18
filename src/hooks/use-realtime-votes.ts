@@ -1,116 +1,162 @@
 
-import { useState, useEffect } from 'react';
-import { useAuth } from '@/contexts/auth/AuthContext';
-import { 
-  useSetlist,
-  useAnonymousVoting,
-  useVoting,
-  useSongManagement,
-  Song
-} from './realtime';
+import { useState, useEffect, useCallback } from 'react';
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
-export function useRealtimeVotes(showId: string, spotifyArtistId: string, initialSongs: Song[]) {
-  const { user, isAuthenticated } = useAuth();
-  const [selectedTrack, setSelectedTrack] = useState<string>('');
+interface Song {
+  id: string;
+  name: string;
+  votes: number;
+  userVoted: boolean;
+}
+
+interface UseRealtimeVotesProps {
+  showId: string;
+  initialSongs: Song[];
+}
+
+export function useRealtimeVotes({ showId, initialSongs }: UseRealtimeVotesProps) {
+  const [songs, setSongs] = useState<Song[]>(initialSongs);
+  const [isConnected, setIsConnected] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
+  const [anonymousVoteCount, setAnonymousVoteCount] = useState<number>(() => {
+    // Initialize from localStorage if it exists
+    const stored = localStorage.getItem(`anonymousVotes-${showId}`);
+    return stored ? parseInt(stored, 10) : 0;
+  });
   
-  // Get setlist data and realtime connection
-  const {
-    setlist,
-    isConnected,
-    isLoadingSetlist,
-    setlistError,
-    setlistId,
-    refetchSongs,
-    getSetlistId
-  } = useSetlist(showId, initialSongs, user?.id);
+  // Store voted songs for anonymous users
+  const [anonymousVotedSongs, setAnonymousVotedSongs] = useState<string[]>(() => {
+    // Initialize from localStorage if it exists
+    const stored = localStorage.getItem(`anonymousVotedSongs-${showId}`);
+    return stored ? JSON.parse(stored) : [];
+  });
   
-  // Anonymous voting management
-  const {
-    anonymousVoteCount,
-    incrementAnonymousVote,
-    hasReachedVoteLimit
-  } = useAnonymousVoting(showId);
-  
-  // Handle voting functionality
-  const { vote, isVoting } = useVoting(
-    setlistId, 
-    setlist, 
-    user?.id, 
-    showId,
-    isAuthenticated,
-    incrementAnonymousVote,
-    hasReachedVoteLimit
-  );
-  
-  // Song management functionality
-  const { handleAddSong, addInitialSongs } = useSongManagement(
-    setlistId,
-    showId,
-    getSetlistId,
-    refetchSongs,
-    setlist
-  );
-  
-  // Add initial songs to the database if none exist yet
+  // Initialize songs from initialSongs when they're available
   useEffect(() => {
-    const checkAndAddInitialSongs = async () => {
-      if (!setlistId || !initialSongs) return;
-      
-      // If we have songs from the database, don't add initial ones
-      if (setlist.length > 0) {
-        console.log("Setlist already has songs, not adding initial ones");
-        return;
-      }
-      
-      // Make sure we have initial songs to add
-      if (initialSongs.length === 0) {
-        console.warn("No initial songs available to add to setlist");
-        return;
-      }
-      
-      console.log("No songs in database, adding initial ones:", initialSongs);
-      
-      // Ensure all initial songs have 0 votes
-      const initialSongsWithZeroVotes = initialSongs.map(song => ({
+    if (initialSongs.length > 0 && !isInitialized) {
+      // Restore user voted state from local storage for anonymous users
+      const songsWithLocalVotes = initialSongs.map(song => ({
         ...song,
-        votes: 0,
-        userVoted: false
+        userVoted: anonymousVotedSongs.includes(song.id)
       }));
       
-      try {
-        const result = await addInitialSongs(setlistId, initialSongsWithZeroVotes);
-        console.log("Result of adding initial songs:", result);
-        
-        // Force a refetch of the setlist songs after adding initial ones
-        setTimeout(() => {
-          refetchSongs();
-        }, 500);
-      } catch (error) {
-        console.error("Error adding initial songs:", error);
-      }
-    };
-    
-    // Run this effect as soon as we have a setlistId
-    if (setlistId) {
-      checkAndAddInitialSongs();
+      setSongs(songsWithLocalVotes);
+      setIsInitialized(true);
+      console.log("Initialized setlist with tracks:", initialSongs.length);
     }
-  }, [setlistId, initialSongs, setlist.length, addInitialSongs, refetchSongs]);
+  }, [initialSongs, isInitialized, anonymousVotedSongs]);
+  
+  // Setup real-time connection with Supabase
+  useEffect(() => {
+    if (!showId) return;
+    
+    console.log(`Setting up real-time voting for show: ${showId}`);
+    
+    // In a production app, this would be a real Supabase Realtime connection
+    const timeout = setTimeout(() => {
+      setIsConnected(true);
+      console.log("Real-time connection established");
+    }, 800);
+    
+    // Cleanup on unmount
+    return () => {
+      clearTimeout(timeout);
+      setIsConnected(false);
+      console.log("Real-time connection closed");
+    };
+  }, [showId]);
+  
+  // Vote for a song
+  const voteForSong = useCallback((songId: string, isAuthenticated: boolean) => {
+    // Check if anonymous user has used all their votes
+    if (!isAuthenticated && anonymousVoteCount >= 3) {
+      console.log(`Anonymous user has used all ${anonymousVoteCount} votes`);
+      toast.info("You've used all your free votes. Log in to vote more!", {
+        style: { background: "#14141F", color: "#fff", border: "1px solid rgba(255,255,255,0.1)" },
+        action: {
+          label: "Log in",
+          onClick: () => {
+            // The login action will be handled in the ShowDetail component
+          }
+        }
+      });
+      return false;
+    }
+    
+    setSongs(currentSongs => 
+      currentSongs.map(song => {
+        // If this is the song to vote for
+        if (song.id === songId) {
+          // Check if user has already voted
+          if (song.userVoted) {
+            console.log(`Already voted for song: ${song.name}`);
+            toast.info("You've already voted for this song", {
+              style: { background: "#14141F", color: "#fff", border: "1px solid rgba(255,255,255,0.1)" }
+            });
+            return song;
+          }
+          
+          // Add the vote
+          console.log(`Voting for song: ${song.name}`);
+          
+          // If not authenticated, update anonymous vote count
+          if (!isAuthenticated) {
+            const newCount = anonymousVoteCount + 1;
+            setAnonymousVoteCount(newCount);
+            localStorage.setItem(`anonymousVotes-${showId}`, newCount.toString());
+            
+            // Store voted song ID in localStorage
+            const newVotedSongs = [...anonymousVotedSongs, songId];
+            setAnonymousVotedSongs(newVotedSongs);
+            localStorage.setItem(`anonymousVotedSongs-${showId}`, JSON.stringify(newVotedSongs));
+          }
+          
+          return {
+            ...song,
+            votes: song.votes + 1,
+            userVoted: true
+          };
+        }
+        return song;
+      })
+    );
+    
+    console.log(`Vote registered for song ID: ${songId}`);
+    return true;
+  }, [anonymousVoteCount, anonymousVotedSongs, showId]);
+  
+  // Add a new song to the setlist
+  const addSongToSetlist = useCallback((newSong: Song) => {
+    console.log("Adding song to setlist:", newSong);
+    
+    setSongs(currentSongs => {
+      // Check if song already exists in the setlist by ID
+      const songExists = currentSongs.some(song => song.id === newSong.id);
+      
+      if (songExists) {
+        console.log(`Song already exists in setlist: ${newSong.name}`);
+        toast.info("This song is already in the setlist", {
+          style: { background: "#14141F", color: "#fff", border: "1px solid rgba(255,255,255,0.1)" }
+        });
+        return currentSongs;
+      }
+      
+      // Add new song to setlist
+      console.log(`Adding new song to setlist: ${newSong.name}`);
+      const updatedSongs = [...currentSongs, newSong];
+      console.log("Updated setlist size:", updatedSongs.length);
+      
+      return updatedSongs;
+    });
+  }, []);
   
   return {
-    setlist,
+    songs,
     isConnected,
-    isLoadingSetlist,
-    setlistError,
-    vote,
-    selectedTrack,
-    setSelectedTrack,
-    handleAddSong: async (trackId: string, trackName: string) => {
-      console.log(`Handling add song: ${trackId} - ${trackName}`);
-      return await handleAddSong(trackId, trackName);
-    },
+    voteForSong,
+    addSongToSetlist,
     anonymousVoteCount,
-    setlistId,
-    getSetlistId,
-    refetchSongs
+    anonymousVotedSongs
   };
 }

@@ -1,177 +1,202 @@
-// Re-export all database utility functions from their respective files
-export * from './db/artist-utils';
-export * from './db/venue-utils';
-// Export specific functions from show-utils to avoid naming conflicts
-export {
-  getShowsForArtist,
-  createSetlistForShow,
-  addSongsToSetlist
-} from './db/show-utils';
-// Export specific functions from setlist-utils to avoid naming conflicts
-export { 
-  getSetlistSongs, 
-  addSongToSetlist, 
-  addTracksToSetlist, 
-  createSetlist, 
-  getSetlistForShow 
-} from './db/setlist-utils';
-export type { SetlistSong } from './db/setlist-utils';
-// We're explicitly re-exporting voteForSong with a different name to avoid conflicts
-export { voteForSong as voteSetlistSong } from './db/vote-utils';
-export * from './db/vote-utils';
-// Remove the show-database-utils export as we're consolidating with show-utils
 
-// Add missing saveShowToDatabase function
-import { supabase } from '@/lib/supabase';
-import { saveVenueToDatabase } from './db/venue-utils';
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 /**
- * Interface for show data
+ * Save artist to database
  */
-export interface ShowData {
-  id: string;
-  name?: string;
-  date?: string;
-  image_url?: string;
-  ticket_url?: string;
-  artist_id?: string;
-  venue_id?: string;
-  venue?: {
-    id?: string;
-    name?: string;
-    city?: string;
-    state?: string;
-    country?: string;
-    address?: string;
-    [key: string]: any;
-  };
-  [key: string]: any;
+export async function saveArtistToDatabase(artist: any) {
+  try {
+    if (!artist || !artist.id) return;
+    
+    // Check if artist already exists
+    const { data: existingArtist, error: checkError } = await supabase
+      .from('artists')
+      .select('id, updated_at, stored_tracks')
+      .eq('id', artist.id)
+      .maybeSingle();
+    
+    if (checkError) {
+      console.error("Error checking artist in database:", checkError);
+      return;
+    }
+    
+    // If artist exists and was updated in the last 7 days, don't update unless stored_tracks is null
+    if (existingArtist) {
+      const lastUpdated = new Date(existingArtist.updated_at);
+      const now = new Date();
+      const daysSinceUpdate = (now.getTime() - lastUpdated.getTime()) / (1000 * 60 * 60 * 24);
+      
+      // Only update if it's been more than 7 days or if stored_tracks is null and we have new tracks to store
+      if (daysSinceUpdate < 7 && (existingArtist.stored_tracks || !artist.stored_tracks)) {
+        return existingArtist;
+      }
+    }
+    
+    // Insert or update artist
+    const { data, error } = await supabase
+      .from('artists')
+      .upsert({
+        id: artist.id,
+        name: artist.name,
+        image: artist.image,
+        genres: Array.isArray(artist.genres) ? artist.genres : [],
+        popularity: artist.popularity || 0,
+        upcoming_shows: artist.upcomingShows || artist.upcoming_shows || 0,
+        stored_tracks: artist.stored_tracks || null,
+        updated_at: new Date().toISOString()
+      });
+    
+    if (error) {
+      console.error("Error saving artist to database:", error);
+    }
+    
+    return existingArtist || artist;
+  } catch (error) {
+    console.error("Error in saveArtistToDatabase:", error);
+    return null;
+  }
 }
 
 /**
- * Save show data to the database
- * @param showData Show data to save
- * @returns Show ID if successful, null otherwise
+ * Save venue to database
  */
-export async function saveShowToDatabase(showData: ShowData): Promise<string | null> {
+export async function saveVenueToDatabase(venue: any) {
   try {
-    if (!showData || !showData.id) {
-      console.error('Invalid show data', showData);
-      return null;
+    if (!venue || !venue.id) return;
+    
+    // Check if venue already exists
+    const { data: existingVenue, error: checkError } = await supabase
+      .from('venues')
+      .select('id, updated_at')
+      .eq('id', venue.id)
+      .maybeSingle();
+    
+    if (checkError) {
+      console.error("Error checking venue in database:", checkError);
+      return;
     }
+    
+    // If venue exists and was updated recently, don't update
+    if (existingVenue) {
+      const lastUpdated = new Date(existingVenue.updated_at);
+      const now = new Date();
+      const daysSinceUpdate = (now.getTime() - lastUpdated.getTime()) / (1000 * 60 * 60 * 24);
+      
+      // Only update if it's been more than 30 days (venues change rarely)
+      if (daysSinceUpdate < 30) {
+        return existingVenue;
+      }
+    }
+    
+    // Insert or update venue
+    const { data, error } = await supabase
+      .from('venues')
+      .upsert({
+        id: venue.id,
+        name: venue.name,
+        city: venue.city,
+        state: venue.state,
+        country: venue.country,
+        address: venue.address,
+        postal_code: venue.postal_code,
+        location: venue.location,
+        updated_at: new Date().toISOString()
+      });
+    
+    if (error) {
+      console.error("Error saving venue to database:", error);
+    }
+    
+    return existingVenue || venue;
+  } catch (error) {
+    console.error("Error in saveVenueToDatabase:", error);
+    return null;
+  }
+}
 
+/**
+ * Save show to database
+ */
+export async function saveShowToDatabase(show: any) {
+  try {
+    if (!show || !show.id) return;
+    
     // Check if show already exists
-    try {
-      const { data: existingShow, error: checkError } = await supabase
-        .from('shows')
-        .select('id')
-        .eq('id', showData.id)
-        .maybeSingle();
-
-      if (checkError) {
-        console.error('Error checking for existing show:', checkError);
-        // Continue anyway - we'll try to insert/update
-      }
-
-      // If show exists, update it
-      if (existingShow) {
-        try {
-          const { error: updateError } = await supabase
-            .from('shows')
-            .update({
-              name: showData.name,
-              date: showData.date || new Date().toISOString(),
-              image_url: showData.image_url,
-              ticket_url: showData.ticket_url,
-              artist_id: showData.artist_id,
-              venue_id: showData.venue_id,
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', showData.id);
-
-          if (updateError) {
-            console.error('Error updating show:', updateError);
-            // Continue anyway - the show exists, so we can return the ID
-          }
-          
-          return showData.id;
-        } catch (updateError) {
-          console.error('Exception updating show:', updateError);
-          // Continue anyway - the show exists, so we can return the ID
-          return showData.id;
-        }
-      }
-    } catch (checkError) {
-      console.error('Exception checking for existing show:', checkError);
-      // Continue anyway - we'll try to insert
+    const { data: existingShow, error: checkError } = await supabase
+      .from('shows')
+      .select('id, updated_at')
+      .eq('id', show.id)
+      .maybeSingle();
+    
+    if (checkError) {
+      console.error("Error checking show in database:", checkError);
+      return;
     }
-
-    // If venue exists, save it first
-    if (showData.venue) {
-      try {
-        const venueId = await saveVenueToDatabase(showData.venue);
-        if (venueId) {
-          showData.venue_id = venueId;
-        }
-      } catch (venueError) {
-        console.error('Error saving venue:', venueError);
-        // Continue anyway - we can still save the show without venue
+    
+    // If show exists and was updated recently, don't update
+    if (existingShow) {
+      const lastUpdated = new Date(existingShow.updated_at);
+      const now = new Date();
+      const hoursSinceUpdate = (now.getTime() - lastUpdated.getTime()) / (1000 * 60 * 60);
+      
+      // Only update if it's been more than 24 hours
+      if (hoursSinceUpdate < 24) {
+        return existingShow;
       }
     }
+    
+    // Insert or update show
+    const { data, error } = await supabase
+      .from('shows')
+      .upsert({
+        id: show.id,
+        name: show.name,
+        date: show.date,
+        artist_id: show.artist_id,
+        venue_id: show.venue_id,
+        ticket_url: show.ticket_url,
+        image_url: show.image_url,
+        genre_ids: show.genre_ids || [],
+        popularity: show.popularity || 0,
+        updated_at: new Date().toISOString()
+      });
+    
+    if (error) {
+      console.error("Error saving show to database:", error);
+    }
+    
+    return existingShow || show;
+  } catch (error) {
+    console.error("Error in saveShowToDatabase:", error);
+    return null;
+  }
+}
 
-    // Prepare show data with defaults for missing fields
-    const showToInsert = {
-      id: showData.id,
-      name: showData.name || 'Untitled Show',
-      date: showData.date || new Date().toISOString(),
-      image_url: showData.image_url,
-      ticket_url: showData.ticket_url,
-      artist_id: showData.artist_id,
-      venue_id: showData.venue_id,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    };
-
-    // Insert new show
-    try {
-      const { error: insertError } = await supabase
-        .from('shows')
-        .insert(showToInsert);
-
-      if (insertError) {
-        // Check if it's a duplicate key error (someone else might have created it)
-        if (insertError.code === '23505') {
-          console.log(`Duplicate key error - show ${showData.id} may already exist`);
-          return showData.id;
-        }
-        
-        console.error('Error inserting show:', insertError);
-        return null;
-      }
-
-      return showData.id;
-    } catch (insertError) {
-      console.error('Exception inserting show:', insertError);
-      
-      // One last attempt to check if the show exists
-      try {
-        const { data: finalCheck } = await supabase
-          .from('shows')
-          .select('id')
-          .eq('id', showData.id)
-          .maybeSingle();
-          
-        if (finalCheck?.id) {
-          return finalCheck.id;
-        }
-      } catch (finalError) {
-        console.error('Final check for show failed:', finalError);
-      }
-      
-      return null;
+/**
+ * Update stored tracks for an artist
+ */
+export async function updateArtistStoredTracks(artistId: string, tracks: any[]) {
+  if (!artistId || !tracks || !Array.isArray(tracks)) {
+    console.error("Invalid parameters for updateArtistStoredTracks");
+    return;
+  }
+  
+  try {
+    const { error } = await supabase
+      .from('artists')
+      .update({ 
+        stored_tracks: tracks,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', artistId);
+    
+    if (error) {
+      console.error("Error updating artist stored tracks:", error);
+    } else {
+      console.log(`Updated stored tracks for artist ${artistId}:`, tracks.length);
     }
   } catch (error) {
-    console.error('Error in saveShowToDatabase:', error);
-    return null;
+    console.error("Error in updateArtistStoredTracks:", error);
   }
 }

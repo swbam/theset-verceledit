@@ -1,7 +1,8 @@
+
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@/integrations/supabase/client';
 import { AuthState, UserProfile } from './types';
 
 export function useSupabaseAuth(): AuthState & {

@@ -1,5 +1,5 @@
 import { toast } from "sonner";
-import { supabase } from "@/lib/supabase";
+import { supabase } from "@/integrations/supabase/client";
 import { callTicketmasterApi } from "../ticketmaster-config";
 import { saveArtistToDatabase } from "../database-utils";
 

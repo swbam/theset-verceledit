@@ -1,29 +1,30 @@
-import React, { useEffect, useState } from 'react';
+
+import { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
 const AuthCallback = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [error, setError] = useState<string | null>(null);
-  const [processing, setProcessing] = useState(true);
 
   useEffect(() => {
     const handleAuthCallback = async () => {
       try {
-        console.log('Auth callback initiated');
+        console.log('Auth callback started');
+        // Handle hash fragment for OAuth providers
+        const hashParams = new URLSearchParams(window.location.hash.substring(1));
+        const accessToken = hashParams.get('access_token');
+        const provider = new URLSearchParams(window.location.search).get('provider');
         
-        // Parse query parameters
-        const params = new URLSearchParams(location.search);
-        const provider = params.get('provider');
-        const returnUrl = params.get('returnTo') || '/my-artists'; // Default to /my-artists
+        if (accessToken) {
+          console.log('Access token found in URL');
+          // Handle access token if present in the hash
+        }
         
-        console.log('Provider:', provider);
-        console.log('Return URL:', returnUrl);
-        
-        // Get the session to verify authentication was successful
+        // Get the current session
         const { data: { session }, error: sessionError } = await supabase.auth.getSession();
         
         if (sessionError) {
@@ -33,84 +34,26 @@ const AuthCallback = () => {
         
         if (session) {
           console.log('Session found:', session.user.id);
-          console.log('Provider token exists:', !!session.provider_token);
-          
-          // Always show success message
           toast.success('Successfully signed in!');
           
           // If authentication was with Spotify, redirect to my-artists page
-          if (provider === 'spotify' || session.provider_token) {
-            console.log('Redirecting to personalized dashboard after Spotify login');
-            
-            try {
-              // First, fetch user profile to ensure it exists
-              const { error: profileError } = await supabase
-                .from('profiles')
-                .upsert({
-                  id: session.user.id,
-                  updated_at: new Date().toISOString(),
-                  provider: 'spotify'
-                });
-                
-              if (profileError) {
-                console.error('Error updating profile:', profileError);
-              }
-              
-              // Fetch Spotify user data to store in the profile
-              try {
-                // Attempt to fetch user's top artists from Spotify to verify token works
-                const spotifyResponse = await fetch('/api/spotify/me/top-artists', {
-                  headers: {
-                    'Authorization': `Bearer ${session.access_token}`
-                  }
-                });
-                
-                if (spotifyResponse.ok) {
-                  console.log('Successfully fetched Spotify data');
-                }
-              } catch (spotifyError) {
-                console.error('Error fetching Spotify data:', spotifyError);
-                // Continue with redirect even if this fails
-              }
-              
-              // Store the Spotify provider token in local storage for later use
-              localStorage.setItem('spotify_provider_token', session.provider_token || '');
-              
-              // Delay navigation slightly to ensure database operations complete
-              setTimeout(() => {
-                // Force a hard redirect to ensure clean state
-                window.location.href = '/my-artists';
-              }, 800);
-            } catch (error) {
-              console.error('Error in Spotify auth flow:', error);
-              // Fallback to normal redirect
-              navigate('/my-artists', { replace: true });
-              setProcessing(false);
-            }
+          if (provider === 'spotify' || (session.provider_token && provider === 'spotify')) {
+            console.log('Redirecting to my-artists page');
+            navigate('/my-artists');
           } else {
-            // For other auth methods, go to homepage or original destination
-            setTimeout(() => {
-              navigate(returnUrl, { replace: true });
-              setProcessing(false);
-            }, 500);
+            navigate('/');
           }
         } else {
           console.log('No session found after redirect');
           // This might happen if the OAuth process wasn't completed
           setError('Authentication process was interrupted. Please try again.');
-          setTimeout(() => {
-            navigate('/auth');
-            setProcessing(false);
-          }, 2000);
+          setTimeout(() => navigate('/auth'), 2000);
         }
       } catch (err: any) {
         console.error('Error during auth callback:', err);
         setError(err.message || 'Authentication failed');
         toast.error(err.message || 'Authentication failed');
-        setTimeout(() => {
-          navigate('/auth');
-          setProcessing(false);
-        }, 2000);
+        setTimeout(() => navigate('/auth'), 2000);
       }
     };
 

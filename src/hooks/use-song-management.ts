@@ -2,62 +2,49 @@
 import { useState } from 'react';
 import { useRealtimeVotes } from '@/hooks/use-realtime-votes';
 import { toast } from 'sonner';
-import { Song, Track } from './realtime/types';
+
+export interface Song {
+  id: string;
+  name: string;
+  votes: number;
+  userVoted: boolean;
+}
 
 export function useSongManagement(showId: string, initialSongs: Song[], isAuthenticated: boolean, login: () => void) {
   const [selectedTrack, setSelectedTrack] = useState<string>('');
   
   const {
-    setlist,
+    songs: setlist,
     isConnected,
-    vote,
-    selectedTrack: realtimeSelectedTrack,
-    setSelectedTrack: realtimeSetSelectedTrack,
-    handleAddSong: realtimeHandleAddSong,
+    voteForSong,
+    addSongToSetlist,
     anonymousVoteCount
-  } = useRealtimeVotes(showId, '', initialSongs);
+  } = useRealtimeVotes({
+    showId: showId || '',
+    initialSongs
+  });
   
-  const handleVote = async (songId: string) => {
-    try {
-      if (!songId) {
-        console.error("Invalid song ID for voting");
-        return false;
-      }
-      
-      const success = await vote(songId);
-      if (success) {
-        toast.success("Your vote has been counted!");
-        return true;
-      } else if (!isAuthenticated && anonymousVoteCount >= 3) {
-        // This will trigger a toast in the hook, but we also redirect to login
-        setTimeout(() => {
-          login();
-        }, 2000);
-        return false;
-      }
-      return false;
-    } catch (error) {
-      console.error("Error voting for song:", error);
-      toast.error("Something went wrong while voting");
-      return false;
+  const handleVote = (songId: string) => {
+    const voteSuccess = voteForSong(songId, isAuthenticated);
+    
+    if (voteSuccess) {
+      toast.success("Your vote has been counted!");
+    } else if (!isAuthenticated && anonymousVoteCount >= 3) {
+      // This will trigger a toast in the hook, but we also redirect to login
+      setTimeout(() => {
+        login();
+      }, 2000);
     }
   };
 
-  const handleAddSong = async (allTracksData: { tracks?: Track[] }) => {
+  const handleAddSong = (allTracksData: any) => {
     if (!selectedTrack) {
       toast.error("Please select a song first");
-      return false;
-    }
-
-    // Ensure we have valid tracks data
-    if (!allTracksData?.tracks || !Array.isArray(allTracksData.tracks)) {
-      console.error("Invalid tracks data:", allTracksData);
-      toast.error("Could not access track information");
-      return false;
+      return;
     }
 
     // Find the selected track in the available tracks
-    const trackToAdd = allTracksData.tracks.find((track: Track) => track.id === selectedTrack);
+    const trackToAdd = allTracksData?.tracks?.find((track: any) => track.id === selectedTrack);
     
     if (trackToAdd) {
       // Check if the song already exists in the setlist
@@ -65,28 +52,22 @@ export function useSongManagement(showId: string, initialSongs: Song[], isAuthen
       
       if (songExists) {
         toast.info(`"${trackToAdd.name}" is already in the setlist!`);
-        return false;
+        return;
       }
       
-      try {
-        // Call realtimeHandleAddSong
-        await realtimeHandleAddSong(trackToAdd.id, trackToAdd.name || '');
-        
-        // Reset the selected track
-        setSelectedTrack('');
-        toast.success(`"${trackToAdd.name}" added to setlist!`);
-        
-        // Log the update for debugging
-        console.log(`Added song to setlist: ${trackToAdd.name}`, setlist.length + 1);
-        return true;
-      } catch (error) {
-        console.error("Error adding song to setlist:", error);
-        toast.error("Failed to add song to setlist");
-        return false;
-      }
-    } else {
-      toast.error("Could not find the selected track");
-      return false;
+      // Add the song to the setlist
+      addSongToSetlist({
+        id: trackToAdd.id,
+        name: trackToAdd.name,
+        votes: 0,
+        userVoted: false
+      });
+      
+      setSelectedTrack('');
+      toast.success(`"${trackToAdd.name}" added to setlist!`);
+      
+      // Log the update for debugging
+      console.log(`Added song to setlist: ${trackToAdd.name}`, setlist.length + 1);
     }
   };
 

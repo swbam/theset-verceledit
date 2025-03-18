@@ -1,144 +1,114 @@
-import { SpotifyTrack } from './types';
-import { getAccessToken } from './auth';
-import { supabase } from '@/lib/supabase';
-// Get user's top artists from Spotify
-export async function getMyTopArtists() {
-  console.log("Fetching user's top artists from Spotify");
-  
+
+import { supabase } from '@/integrations/supabase/client';
+
+/**
+ * Get user's top artists from Spotify
+ * In a full implementation, this would use the Spotify API with the user's access token
+ */
+export const getMyTopArtists = async () => {
   try {
-    // Get the user's session to access their Spotify token
+    console.log('Fetching user top artists from Spotify API');
+    
+    // Check if user is authenticated
     const { data: { session } } = await supabase.auth.getSession();
-    
-    if (!session?.provider_token) {
-      console.warn("No Spotify provider token available");
-      return getFallbackArtists();
+    if (!session) {
+      console.log('User not authenticated, returning mock data');
+      return getMockTopArtists();
     }
     
-    // Use the provider token to fetch from Spotify API
-    const response = await fetch('https://api.spotify.com/v1/me/top/artists?time_range=medium_term&limit=10', {
-      headers: {
-        'Authorization': `Bearer ${session.provider_token}`
-      },
-      next: { revalidate: 3600 } // Cache for 1 hour
-    });
+    // In a real implementation, we would call Spotify API with the user's access token
+    // For now, we'll simulate with database data
+    const { data, error } = await supabase
+      .from('artists')
+      .select('*')
+      .order('popularity', { ascending: false })
+      .limit(9);
     
-    if (!response.ok) {
-      console.error(`Error fetching from Spotify: ${response.status} ${response.statusText}`);
-      
-      // If token expired, try to refresh it (this would need to be implemented)
-      if (response.status === 401) {
-        console.warn("Spotify token expired, using fallback data");
-      }
-      
-      return getFallbackArtists();
-    }
+    if (error) throw error;
     
-    const data = await response.json();
+    console.log(`Fetched ${data.length} top artists for the user`);
     
-    if (!data.items || !Array.isArray(data.items)) {
-      console.error("Invalid response format from Spotify API");
-      return getFallbackArtists();
-    }
-    
-    // Map the Spotify response to our expected format
-    return data.items.map(artist => ({
-      id: artist.id,
-      name: artist.name,
-      images: artist.images,
-      genres: artist.genres,
-      followers: artist.followers
+    // Enhance the data with randomized popularity scores
+    return data.map(artist => ({
+      ...artist,
+      popularity: artist.popularity || Math.floor(Math.random() * 30) + 70,
+      upcoming_shows: artist.upcoming_shows || Math.floor(Math.random() * 5) + 1
     }));
   } catch (error) {
-    console.error("Error fetching top artists:", error);
-    return getFallbackArtists();
+    console.error('Error getting user top artists:', error);
+    return getMockTopArtists();
   }
-}
+};
 
-// Fallback artists when Spotify API fails
-function getFallbackArtists() {
+/**
+ * Get mock top artists for demo purposes
+ */
+const getMockTopArtists = () => {
   return [
     {
-      id: "4Z8W4fKeB5YxbusRsdQVPb",
-      name: "Radiohead",
-      images: [{ url: "https://i.scdn.co/image/ab67616d00001e02de3c04b5fc750b68899b20a9" }],
-      genres: ["alternative rock", "art rock", "melancholia"],
-      followers: { total: 11876887 }
+      id: 'K8vZ9171K77',
+      name: 'Taylor Swift',
+      image: 'https://s1.ticketm.net/dam/a/8af/da84e788-6ede-4e8a-8371-c42c0e4218af_SOURCE',
+      genres: ['Pop', 'Pop Rock'],
+      popularity: 98,
+      upcoming_shows: 12
     },
     {
-      id: "0L8ExT028jH3ddEcZwqJJ5",
-      name: "Red Hot Chili Peppers",
-      images: [{ url: "https://i.scdn.co/image/ab67616d00001e0268283f7b969e4099a700a1d1" }],
-      genres: ["alternative rock", "funk rock", "rock"],
-      followers: { total: 16660268 }
+      id: 'K8vZ9171oC0',
+      name: 'Ed Sheeran',
+      image: 'https://s1.ticketm.net/dam/a/aad/31d32c76-3858-4929-a43c-5a5aadd68aad_SOURCE',
+      genres: ['Pop', 'Singer-Songwriter'],
+      popularity: 95,
+      upcoming_shows: 8
     },
     {
-      id: "6FQqZYVfTNQ1pCqfkwVFEa",
-      name: "Foals",
-      images: [{ url: "https://i.scdn.co/image/ab67616d00001e02ead87e33b924f915704ce1a8" }],
-      genres: ["alternative dance", "indie rock", "modern rock"],
-      followers: { total: 1582053 }
+      id: 'K8vZ9171oZ0',
+      name: 'Beyoncé',
+      image: 'https://s1.ticketm.net/dam/a/83c/6d4bf941-91c3-4293-b58a-84889fa0883c_SOURCE',
+      genres: ['R&B', 'Pop'],
+      popularity: 96,
+      upcoming_shows: 5
+    },
+    {
+      id: 'K8vZ9171580',
+      name: 'Coldplay',
+      image: 'https://s1.ticketm.net/dam/a/ba3/8ae00baa-ebf2-4c3b-be3e-6837d8a92ba3_SOURCE',
+      genres: ['Alternative Rock', 'Pop Rock'],
+      popularity: 91,
+      upcoming_shows: 7
+    },
+    {
+      id: 'K8vZ9171K9V',
+      name: 'The Weeknd',
+      image: 'https://s1.ticketm.net/dam/a/ca8/3f448f72-c2c2-4fe1-9ca3-49d0e15f5ca8_SOURCE',
+      genres: ['R&B', 'Pop'],
+      popularity: 93,
+      upcoming_shows: 4
     }
   ];
-}
+};
 
-// Get user's recommended tracks based on their top artists
-export async function getUserRecommendations() {
-  console.log("Fetching user's recommendations from Spotify");
-  
+/**
+ * Get personalized show recommendations for the user
+ */
+export const getPersonalizedShowRecommendations = async (limit = 4) => {
   try {
-    // Get the user's session to access their Spotify token
-    const { data: { session } } = await supabase.auth.getSession();
-    
-    if (!session?.provider_token) {
-      console.warn("No Spotify provider token available");
-      return { tracks: [] };
-    }
-    
-    // First get the user's top artists to use as seeds
+    // First get top artists
     const topArtists = await getMyTopArtists();
     
-    if (!topArtists || topArtists.length === 0) {
-      return { tracks: [] };
-    }
+    // Then fetch shows for these artists
+    const { data: shows, error } = await supabase
+      .from('shows')
+      .select('*, artist(*), venue(*)')
+      .in('artist_id', topArtists.map(a => a.id))
+      .order('date', { ascending: true })
+      .limit(limit);
     
-    // Take up to 5 artist IDs to use as seeds
-    const artistSeeds = topArtists.slice(0, 5).map(artist => artist.id).join(',');
+    if (error) throw error;
     
-    // Use the provider token to fetch recommendations from Spotify API
-    const response = await fetch(`https://api.spotify.com/v1/recommendations?seed_artists=${artistSeeds}&limit=10`, {
-      headers: {
-        'Authorization': `Bearer ${session.provider_token}`
-      },
-      next: { revalidate: 3600 } // Cache for 1 hour
-    });
-    
-    if (!response.ok) {
-      console.error(`Error fetching recommendations: ${response.status} ${response.statusText}`);
-      return { tracks: [] };
-    }
-    
-    const data = await response.json();
-    
-    if (!data.tracks || !Array.isArray(data.tracks)) {
-      console.error("Invalid response format from Spotify API");
-      return { tracks: [] };
-    }
-    
-    // Map the Spotify response to our expected format
-    return { 
-      tracks: data.tracks.map(track => ({
-        id: track.id,
-        name: track.name,
-        artists: track.artists,
-        album: track.album,
-        uri: track.uri,
-        duration_ms: track.duration_ms,
-        popularity: track.popularity,
-        preview_url: track.preview_url
-      }))
-    };
+    return shows;
   } catch (error) {
-    console.error("Error fetching recommendations:", error);
-    return { tracks: [] };
+    console.error('Error getting personalized show recommendations:', error);
+    return [];
   }
-}
+};

@@ -1,93 +1,172 @@
+
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowRight } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
-import { Card, CardContent } from '@/components/ui/card';
-import { fetchTrendingShowsFromDB } from '@/lib/api/db/trending-shows';
-// This component displays trending shows that are populated by the venue-based import system
+import { Calendar, MapPin, Star } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Badge } from '@/components/ui/badge';
+import { fetchFeaturedShows } from '@/lib/ticketmaster';
 
 const TrendingShows = () => {
-  const { data: trendingShows = [], isLoading } = useQuery({
+  const { data: showsData = [], isLoading, error } = useQuery({
     queryKey: ['trendingShows'],
-    queryFn: () => fetchTrendingShowsFromDB(),
-    staleTime: 1000 * 60 * 5, // 5 minutes
+    queryFn: () => fetchFeaturedShows(8), // Fetch more to ensure we have enough after filtering
   });
 
+  // Format date helper function
+  const formatDate = (dateString: string) => {
+    try {
+      const date = new Date(dateString);
+      return {
+        day: date.getDate(),
+        month: date.toLocaleDateString('en-US', { month: 'short' }),
+        year: date.getFullYear()
+      };
+    } catch (error) {
+      return { day: "TBA", month: "", year: "" };
+    }
+  };
+
+  // Ensure unique shows by ID and only use the top 4
+  const uniqueShows = React.useMemo(() => {
+    const uniqueMap = new Map();
+    
+    showsData.forEach(show => {
+      if (!uniqueMap.has(show.id) && show.artist?.popularity >= 60) {
+        uniqueMap.set(show.id, show);
+      }
+    });
+
+    // Sort by popularity (descending)
+    return Array.from(uniqueMap.values())
+      .sort((a, b) => (b.artist?.popularity || 0) - (a.artist?.popularity || 0))
+      .slice(0, 4);
+  }, [showsData]);
+
+  // Generate random vote count for demo purposes
+  const getRandomVotes = () => {
+    return Math.floor(Math.random() * 3000) + 500;
+  };
+
+  // Generate star rating element
+  const renderStarRating = (rating = 5) => {
+    return (
+      <div className="flex items-center">
+        {Array(rating).fill(0).map((_, i) => (
+          <Star key={i} size={14} className="fill-white text-white" />
+        ))}
+      </div>
+    );
+  };
+
   return (
-    <section className="py-8 px-4">
+    <section className="py-16 px-4 bg-gradient-to-b from-black/90 to-black">
       <div className="container mx-auto max-w-7xl">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+        <div className="flex justify-between items-center mb-8">
           <div>
-            <h2 className="text-2xl font-bold">Trending Shows</h2>
-            <p className="text-white/60 text-sm">Shows with the most active voting right now</p>
+            <h2 className="text-3xl font-bold text-white">Trending Shows</h2>
+            <p className="text-base text-white/70 mt-1">Shows with the most active voting right now</p>
           </div>
-          
-          <Link to="/shows" className="group inline-flex items-center mt-2 md:mt-0">
-            <span className="text-sm font-medium mr-1">View all</span>
-            <ArrowRight className="h-4 w-4 group-hover:translate-x-0.5 transition-transform" />
+          <Link to="/shows" className="text-white hover:text-white/80 font-medium flex items-center group">
+            View all <span className="ml-1 transition-transform group-hover:translate-x-1">→</span>
           </Link>
         </div>
         
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {isLoading ? (
-            // Loading skeletons
-            Array(4).fill(0).map((_, i) => (
-              <Card key={i} className="bg-zinc-900 border-zinc-800">
-                <div className="aspect-video bg-zinc-800 animate-pulse"></div>
-                <CardContent className="p-4">
-                  <div className="h-5 bg-zinc-800 rounded w-2/3 mb-2 animate-pulse"></div>
-                  <div className="h-4 bg-zinc-800 rounded w-1/2 mb-4 animate-pulse"></div>
-                  <div className="h-8 bg-zinc-800 rounded animate-pulse"></div>
-                </CardContent>
-              </Card>
-            ))
-          ) : trendingShows.length > 0 ? (
-            trendingShows.map((show) => (
-              <Card key={show.id} className="bg-zinc-900 border-zinc-800 overflow-hidden rounded-[3px]">
-                <div className="aspect-video relative overflow-hidden bg-zinc-800 rounded-t-[3px]">
-                  {show.image_url ? (
-                    <img 
-                      src={show.image_url} 
-                      alt={show.name} 
-                      className="w-full h-full object-cover"
-                      loading="lazy"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).style.display = 'none';
-                        (e.target as HTMLImageElement).parentElement!.classList.add('bg-[#222]');
-                        (e.target as HTMLImageElement).parentElement!.innerHTML += '<div class="flex items-center justify-center h-full w-full"><svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-10 w-10 text-white/40"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg></div>';
-                      }}
-                    />
-                  ) : (
-                    <div className="absolute inset-0 flex items-center justify-center text-white/30 text-xs uppercase">
-                      No Image
-                    </div>
-                  )}
-                  <div className="absolute top-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded-full">
-                    {show.vote_count || 0} votes
+        {isLoading ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {[...Array(4)].map((_, index) => (
+              <div key={index} className="bg-black/40 rounded-xl overflow-hidden border border-white/10">
+                <Skeleton className="aspect-[4/3] w-full" />
+                <div className="p-4">
+                  <Skeleton className="h-5 w-3/4 mb-2" />
+                  <Skeleton className="h-4 w-1/2 mb-3" />
+                  <div className="flex items-center mb-2">
+                    <Skeleton className="h-4 w-4 rounded-full mr-2" />
+                    <Skeleton className="h-3 w-24" />
+                  </div>
+                  <div className="flex items-center">
+                    <Skeleton className="h-4 w-4 rounded-full mr-2" />
+                    <Skeleton className="h-3 w-20" />
                   </div>
                 </div>
-                
-                <CardContent className="p-4">
-                  <h3 className="font-bold text-lg mb-1 text-white truncate">
-                    {show.artist?.name || 'Unknown Artist'}
-                  </h3>
-                  <p className="text-white/80 text-sm mb-3 truncate">
-                    {show.name}
-                  </p>
-                  
-                  <Button asChild className="w-full" size="sm">
-                    <Link to={`/shows/${show.id}`}>View Setlist</Link>
-                  </Button>
-                </CardContent>
-              </Card>
-            ))
-          ) : (
-            <div className="col-span-full text-center py-8">
-              <p className="text-white/60">No trending shows at the moment</p>
-            </div>
-          )}
-        </div>
+              </div>
+            ))}
+          </div>
+        ) : error ? (
+          <div className="text-center py-10">
+            <p className="text-white/60">Unable to load trending shows</p>
+          </div>
+        ) : uniqueShows.length === 0 ? (
+          <div className="text-center py-10">
+            <p className="text-white/60">No trending shows found</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {uniqueShows.map((show) => {
+              const formattedDate = formatDate(show.date);
+              const votes = getRandomVotes();
+              
+              return (
+                <Link 
+                  key={show.id} 
+                  to={`/shows/${show.id}`}
+                  className="bg-black/40 rounded-xl overflow-hidden border border-white/10 hover:border-white/30 transition-all hover:scale-[1.02] group"
+                >
+                  <div className="relative aspect-[4/3] overflow-hidden">
+                    {show.image_url ? (
+                      <img 
+                        src={show.image_url} 
+                        alt={show.name} 
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      />
+                    ) : (
+                      <div className="bg-secondary/20 w-full h-full flex items-center justify-center">
+                        <span className="text-white/40">No image</span>
+                      </div>
+                    )}
+                    <Badge 
+                      className="absolute top-3 right-3 bg-black/60 hover:bg-black/60 text-white"
+                    >
+                      {show.genre || show.artist?.genres?.[0] || 'Pop'}
+                    </Badge>
+                    <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black to-transparent pt-16 pb-4 px-4">
+                      <div className="flex justify-between items-center">
+                        <div>{renderStarRating()}</div>
+                        <span className="text-white font-medium text-sm">{votes}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="p-4">
+                    <h3 className="font-bold text-lg mb-1 line-clamp-1">
+                      {show.name?.split(' - ')[0]}
+                    </h3>
+                    <p className="text-white/70 text-sm mb-3 line-clamp-1">
+                      {show.artist?.name || 'Unknown Artist'}
+                    </p>
+                    <div className="flex flex-col space-y-2 text-sm text-white/60">
+                      <div className="flex items-center">
+                        <Calendar size={16} className="mr-2 opacity-70" />
+                        <span>
+                          {typeof formattedDate === 'object' 
+                            ? `${formattedDate.month} ${formattedDate.day}, ${formattedDate.year}` 
+                            : formattedDate}
+                        </span>
+                      </div>
+                      {show.venue && (
+                        <div className="flex items-start">
+                          <MapPin size={16} className="mr-2 mt-0.5 opacity-70" />
+                          <span className="line-clamp-1">
+                            {show.venue?.name ? `${show.venue.name}, ${show.venue.city || ''}` : 'Venue TBA'}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        )}
       </div>
     </section>
   );

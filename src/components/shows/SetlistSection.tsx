@@ -1,143 +1,165 @@
 
-import React, { useEffect } from 'react';
+import React from 'react';
+import { AlertCircle, Info } from 'lucide-react';
+import { formatDistanceToNow } from 'date-fns';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/auth/AuthContext';
-import { useArtistTracks } from '@/hooks/artist-tracks';
-import { useInitialSongs } from '@/hooks/artist-tracks/use-initial-songs';
-import { useRealtimeVotes } from '@/hooks/use-realtime-votes';
-import { LoadingIndicator } from '@/components/ui/loading';
-import ShowSetlist from '@/components/shows/setlist/ShowSetlist';
-import { useSongManagement } from '@/hooks/realtime/use-song-management';
-import { toast } from 'sonner';
+import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
+import SetlistHeader from './SetlistHeader';
+import ShowSetlist from './ShowSetlist';
+import VotingStats from './VotingStats';
+import HowItWorksCard from './HowItWorksCard';
 
-interface SetlistSectionProps {
-  showId: string;
-  spotifyArtistId: string;
+interface Song {
+  id: string;
+  name: string;
+  votes: number;
+  userVoted: boolean;
 }
 
-const SetlistSection = ({ showId, spotifyArtistId }: SetlistSectionProps) => {
+interface Track {
+  id: string;
+  name: string;
+}
+
+interface SetlistSectionProps {
+  setlist: Song[];
+  isConnected: boolean;
+  isLoadingTracks: boolean;
+  handleVote: (songId: string) => void;
+  showId?: string;
+  showName?: string;
+  artistName?: string;
+  availableTracks?: Track[];
+  isLoadingAllTracks?: boolean;
+  selectedTrack?: string;
+  setSelectedTrack?: (trackId: string) => void;
+  handleAddSong?: () => void;
+  anonymousVoteCount?: number;
+}
+
+const SetlistSection: React.FC<SetlistSectionProps> = ({ 
+  setlist, 
+  isConnected, 
+  isLoadingTracks, 
+  handleVote,
+  showId = '',
+  showName = 'Concert',
+  artistName = 'Artist',
+  availableTracks = [],
+  isLoadingAllTracks = false,
+  selectedTrack = '',
+  setSelectedTrack = () => {},
+  handleAddSong = () => {},
+  anonymousVoteCount = 0
+}) => {
   const { isAuthenticated, login } = useAuth();
   
-  // Get initial songs
-  const { songs: initialSongs, isLoading: isLoadingInitialSongs } = useInitialSongs(spotifyArtistId);
+  const totalVotes = setlist.reduce((acc, song) => acc + song.votes, 0);
+  const userVotedCount = setlist.filter(song => song.userVoted).length;
   
-  // Get artist tracks for the setlist
-  const { 
-    isLoadingTracks, 
-    isLoadingAllTracks, 
-    availableTracks 
-  } = useArtistTracks(spotifyArtistId, initialSongs);
-  
-  // Use the realtime voting hook
-  const { 
-    setlist, 
-    isLoadingSetlist, 
-    vote, 
-    selectedTrack, 
-    setSelectedTrack, 
-    handleAddSong,
-    anonymousVoteCount,
-    setlistId,
-    getSetlistId,
-    refetchSongs
-  } = useRealtimeVotes(showId, spotifyArtistId, initialSongs);
-  
-  // Get song management functions
-  const { addInitialSongs } = useSongManagement(
-    setlistId,
-    showId,
-    getSetlistId,
-    refetchSongs,
-    setlist
-  );
-  
-  // Add initial songs to the setlist when it's created
-  useEffect(() => {
-    if (setlistId && initialSongs && initialSongs.length > 0 && (!setlist || setlist.length === 0)) {
-      console.log(`Adding ${initialSongs.length} initial songs to setlist ${setlistId}`);
-      
-      // Add a small delay to ensure the setlist is fully created in the database
-      const timer = setTimeout(() => {
-        addInitialSongs(setlistId, initialSongs)
-          .then(success => {
-            if (success) {
-              console.log("Successfully added initial songs to setlist");
-            } else {
-              console.error("Failed to add initial songs to setlist");
-            }
-          })
-          .catch(error => {
-            console.error("Error adding initial songs:", error);
-          });
-      }, 1000);
-      
-      return () => clearTimeout(timer);
-    }
-  }, [setlistId, initialSongs, setlist, addInitialSongs]);
-  
-  // Show loading indicator if we're loading tracks
-  if (isLoadingTracks || isLoadingSetlist || isLoadingInitialSongs) {
-    return (
-      <div className="flex justify-center p-8">
-        <LoadingIndicator size="lg" message="Loading setlist..." />
-      </div>
-    );
-  }
-  
-  // Function to handle adding a song with the selected track
-  const onAddSong = async () => {
-    if (!selectedTrack) {
-      toast.error("Please select a song first");
-      return;
-    }
-    
-    // Find the selected track in the available tracks
-    const trackToAdd = availableTracks.find(track => track.id === selectedTrack);
-    if (!trackToAdd) {
-      console.error("Selected track not found in available tracks");
-      toast.error("Selected track not found. Please try another song.");
-      return;
-    }
-    
-    console.log("Track found, adding to setlist:", trackToAdd.name);
-    
-    try {
-      // Call the handleAddSong function with the track ID and name
-      const success = await handleAddSong(selectedTrack, trackToAdd.name || '');
-      
-      if (success) {
-        // Reset the selected track
-        setSelectedTrack('');
-        
-        // Show success message
-        toast.success(`Added "${trackToAdd.name}" to the setlist`);
-        
-        // Force refetch songs to update the UI
-        setTimeout(() => {
-          refetchSongs();
-        }, 500);
-      } else {
-        toast.error("Failed to add song to setlist");
-      }
-    } catch (error) {
-      console.error("Error adding song:", error);
-      toast.error("An error occurred while adding the song");
-    }
-  };
+  // For debugging
+  console.log("Available tracks:", availableTracks.length);
+  console.log("Selected track:", selectedTrack);
+  console.log("Is loading tracks:", isLoadingAllTracks);
   
   return (
-    <ShowSetlist 
-      setlist={setlist || []}
-      handleVote={vote}
-      availableTracks={availableTracks || []}
-      isLoadingAllTracks={isLoadingAllTracks}
-      selectedTrack={selectedTrack}
-      setSelectedTrack={setSelectedTrack}
-      handleAddSong={onAddSong}
-      isAuthenticated={isAuthenticated}
-      login={login}
-      anonymousVoteCount={anonymousVoteCount}
-      setlistId={setlistId}
-    />
+    <section className="px-6 md:px-8 lg:px-12 py-12 bg-black">
+      <div className="max-w-6xl mx-auto">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div className="lg:col-span-2">
+            <Card className="bg-[#0A0A0A] border-white/10 shadow-lg overflow-hidden">
+              <CardHeader className="pb-0">
+                <SetlistHeader 
+                  isConnected={isConnected}
+                  totalVotes={totalVotes}
+                  showId={showId}
+                  showName={showName}
+                  artistName={artistName}
+                />
+              </CardHeader>
+              <CardContent className="p-0">
+                {isLoadingTracks ? (
+                  <div className="p-12 space-y-8 animate-pulse">
+                    <div className="h-8 bg-white/5 rounded w-full max-w-md"></div>
+                    <div className="h-8 bg-white/5 rounded w-full max-w-lg"></div>
+                    <div className="h-8 bg-white/5 rounded w-full max-w-sm"></div>
+                    <div className="h-8 bg-white/5 rounded w-full max-w-lg"></div>
+                  </div>
+                ) : (
+                  <>
+                    <ShowSetlist 
+                      setlist={setlist}
+                      handleVote={handleVote}
+                      availableTracks={availableTracks}
+                      isLoadingAllTracks={isLoadingAllTracks}
+                      selectedTrack={selectedTrack}
+                      setSelectedTrack={setSelectedTrack}
+                      handleAddSong={handleAddSong}
+                      isAuthenticated={isAuthenticated}
+                      login={login}
+                      anonymousVoteCount={anonymousVoteCount}
+                    />
+                    
+                    {!isAuthenticated && anonymousVoteCount >= 3 && (
+                      <div className="p-4 mx-4 mb-4 mt-2">
+                        <Alert variant="default" className="bg-white/5 border-white/10">
+                          <AlertCircle className="h-4 w-4 text-white/70" />
+                          <AlertDescription className="flex items-center justify-between">
+                            <span className="text-white/80">You've used all your free votes. Log in with Spotify to vote more!</span>
+                            <Button 
+                              size="sm" 
+                              onClick={login}
+                              className="bg-white text-black hover:bg-white/90"
+                            >
+                              Log In
+                            </Button>
+                          </AlertDescription>
+                        </Alert>
+                      </div>
+                    )}
+                    
+                    <div className="p-5 border-t border-white/10 text-sm text-white/60 flex justify-between items-center">
+                      <div className="flex items-center gap-1.5">
+                        <span className="inline-block w-2 h-2 bg-green-500 rounded-full"></span>
+                        <p>
+                          Last updated {formatDistanceToNow(new Date(), { addSuffix: true })}
+                        </p>
+                      </div>
+                      
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger>
+                            <Info className="h-4 w-4 text-white/40" />
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="bg-[#0A0A0A] border-white/10 text-white">
+                            <p>Votes are updated in real time</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </div>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+          
+          <div className="space-y-6">
+            <VotingStats
+              totalVotes={totalVotes}
+              userVotedCount={userVotedCount}
+              anonymousVoteCount={anonymousVoteCount}
+              isAuthenticated={isAuthenticated}
+              login={login}
+            />
+            
+            <HowItWorksCard />
+          </div>
+        </div>
+      </div>
+    </section>
   );
 };
 

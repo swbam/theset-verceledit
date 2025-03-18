@@ -1,69 +1,53 @@
-import { getArtistTopTracksFromDb, checkArtistTracksNeedUpdate, saveTracksToDb } from './utils';
-import { fetchArtistTopTracksFromSpotify } from './fetch-artist-top-tracks';
-import { SpotifyTrack } from './types';
 
-/**
- * Fetches an artist's top tracks from Spotify API
- * @param artistId The Spotify ID of the artist
- * @param limit Maximum number of tracks to return (default: 10)
- * @returns An object containing the artist's top tracks
- */
-export async function getArtistTopTracks(
-  artistId: string,
-  limit: number = 10
-): Promise<{ tracks: SpotifyTrack[] }> {
-  if (!artistId) {
-    console.error('No artist ID provided to getArtistTopTracks');
-    return { tracks: [] };
-  }
-  
+import { getAccessToken } from './auth';
+import { getStoredTracksFromDb } from './utils';
+import { getArtistAllTracks } from './all-tracks';
+import { SpotifyTrack, SpotifyTracksResponse } from './types';
+import { supabase } from '@/integrations/supabase/client';
+
+// Get top tracks for an artist
+export const getArtistTopTracks = async (artistId: string, limit = 10): Promise<SpotifyTracksResponse> => {
   try {
-    console.log(`Getting top tracks for artist ${artistId}`);
+    // Check if we have stored tracks in the database
+    const storedTracks = await getStoredTracksFromDb(artistId);
     
-    // Check if we have this artist's top tracks cached in the database
-    const cachedTracks = await getArtistTopTracksFromDb(artistId, limit);
-    const needsUpdate = await checkArtistTracksNeedUpdate(artistId);
-    
-    // If we have tracks cached and they don't need an update, use them
-    if (cachedTracks.length > 0 && !needsUpdate) {
-      console.log(`Using ${cachedTracks.length} cached top tracks for ${artistId}`);
-      return { tracks: cachedTracks };
+    if (storedTracks && storedTracks.length > 0) {
+      console.log("Using stored tracks from database");
+      // Return top tracks sorted by popularity
+      return { 
+        tracks: storedTracks
+          .sort((a, b) => (b.popularity || 0) - (a.popularity || 0))
+          .slice(0, limit)
+      };
     }
     
-    // Otherwise, fetch from Spotify
-    console.log(`Fetching new top tracks from Spotify for ${artistId}`);
-    try {
-      const spotifyTracks = await fetchArtistTopTracksFromSpotify(artistId);
+    // If no stored tracks, fetch the complete catalog first
+    await getArtistAllTracks(artistId);
+    
+    // Then get the artist data again
+    const { data: refreshedData, error: refreshError } = await supabase
+      .from('artists')
+      .select('stored_tracks')
+      .eq('id', artistId)
+      .maybeSingle();
       
-      // If we got tracks, save them to the database
-      if (spotifyTracks && spotifyTracks.length > 0) {
-        await saveTracksToDb(artistId, spotifyTracks);
-        return { tracks: spotifyTracks.slice(0, limit) };
-      }
-      
-      // If Spotify returned no tracks but we have cached tracks, use those
-      if (cachedTracks.length > 0) {
-        console.log("No tracks found in Spotify, using database tracks");
-        return { tracks: cachedTracks };
-      }
-      
-      // No tracks found anywhere
-      console.log("No tracks found in database or Spotify");
-      return { tracks: [] };
-    } catch (spotifyError) {
-      console.error("Error fetching from Spotify:", spotifyError);
-      
-      // If Spotify fetch fails but we have cached tracks, use those
-      if (cachedTracks.length > 0) {
-        console.log("Falling back to database tracks");
-        return { tracks: cachedTracks };
-      }
-      
-      // No tracks available
-      return { tracks: [] };
+    if (!refreshError && refreshedData && refreshedData.stored_tracks && 
+        Array.isArray(refreshedData.stored_tracks)) {
+      // Properly cast the Json to SpotifyTrack[]
+      const tracks = refreshedData.stored_tracks as unknown as SpotifyTrack[];
+      return { 
+        tracks: tracks
+          .sort((a, b) => (b.popularity || 0) - (a.popularity || 0))
+          .slice(0, limit)
+      };
     }
+    
+    // Fallback if something went wrong
+    return { tracks: [] };
+      
   } catch (error) {
-    console.error("Error in getArtistTopTracks:", error);
+    console.error('Error getting artist top tracks:', error);
+    // In case of error, return empty array
     return { tracks: [] };
   }
-}
+};

@@ -1,173 +1,151 @@
+
 import { getAccessToken } from './auth';
-import { saveTracksToDb, getStoredTracksFromDb, checkArtistTracksNeedUpdate } from './utils';
-import { SpotifyTrack } from './types';
+import { saveTracksToDb, getStoredTracksFromDb } from './utils';
+import { SpotifyTrack, SpotifyTracksResponse } from './types';
+import { supabase } from '@/integrations/supabase/client';
 
-// Define the expected response type from the Spotify API
-interface SpotifyAlbumsResponse {
-  items: {
-    id: string;
-    name: string;
-  }[];
-}
+const SPOTIFY_API_BASE = 'https://api.spotify.com/v1';
 
-interface SpotifyAlbumTracksResponse {
-  items: SpotifyTrack[];
-}
-
-export async function getArtistAllTracks(artistId: string): Promise<{ tracks: SpotifyTrack[] }> {
+// Get all tracks for an artist
+export const getArtistAllTracks = async (artistId: string): Promise<SpotifyTracksResponse> => {
   try {
-    console.log(`Fetching all tracks for artist ID: ${artistId}`);
+    // Check if we have stored tracks and they're less than 7 days old
+    const { data: artistData, error } = await supabase
+      .from('artists')
+      .select('stored_tracks, updated_at')
+      .eq('id', artistId)
+      .maybeSingle();
     
-    // First check if we already have stored tracks for this artist
-    const storedTracks = await getStoredTracksFromDb(artistId);
-    const needsUpdate = await checkArtistTracksNeedUpdate(artistId);
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
     
-    if (storedTracks && storedTracks.length > 10 && !needsUpdate) {
-      console.log(`Using ${storedTracks.length} cached tracks from database for all tracks`);
-      return { tracks: storedTracks };
+    // If we have stored tracks and they're recent, use them
+    if (!error && artistData && artistData.stored_tracks && 
+        Array.isArray(artistData.stored_tracks) && 
+        artistData.stored_tracks.length > 0 &&
+        new Date(artistData.updated_at) > sevenDaysAgo) {
+      console.log(`Using ${artistData.stored_tracks.length} stored tracks from database`);
+      // Properly cast the Json to SpotifyTrack[]
+      return { tracks: artistData.stored_tracks as unknown as SpotifyTrack[] };
     }
     
-    // If we need to update or don't have enough tracks, fetch from Spotify
-    console.log(`Fetching fresh catalog from Spotify for artist ${artistId}`);
-    
-    // Get access token
+    // Otherwise fetch from Spotify API
+    console.log(`Fetching complete track catalog for artist ID: ${artistId}`);
     const token = await getAccessToken();
     
-    // Fetch all of the artist's albums
-    const albumsResponse = await fetch(
-      `https://api.spotify.com/v1/artists/${artistId}/albums?include_groups=album,single&limit=50&market=US`,
+    // First get the top tracks as a starting point
+    const topTracksResponse = await fetch(
+      `${SPOTIFY_API_BASE}/artists/${artistId}/top-tracks?market=US`,
       {
         headers: {
           Authorization: `Bearer ${token}`,
         },
-        next: { revalidate: 86400 }, // Cache for 24 hours
+      }
+    );
+    
+    if (!topTracksResponse.ok) {
+      throw new Error(`Failed to get top tracks: ${topTracksResponse.statusText}`);
+    }
+    
+    const topTracksData = await topTracksResponse.json();
+    let allTracks: SpotifyTrack[] = topTracksData.tracks.map((track: any) => ({
+      id: track.id,
+      name: track.name,
+      duration_ms: track.duration_ms,
+      popularity: track.popularity,
+      preview_url: track.preview_url,
+      uri: track.uri,
+      album: track.album?.name || 'Unknown Album',
+      votes: 0
+    }));
+    
+    // Get all albums (increase limit to 50 to get more)
+    const albumsResponse = await fetch(
+      `${SPOTIFY_API_BASE}/artists/${artistId}/albums?include_groups=album,single,compilation&limit=50&market=US`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
       }
     );
     
     if (!albumsResponse.ok) {
-      console.error(`Failed to fetch albums for artist ${artistId}: ${albumsResponse.statusText}`);
+      throw new Error(`Failed to get albums: ${albumsResponse.statusText}`);
+    }
+    
+    const albumsData = await albumsResponse.json();
+    
+    // For each album, get all tracks
+    for (const album of albumsData.items) {
+      const tracksResponse = await fetch(
+        `${SPOTIFY_API_BASE}/albums/${album.id}/tracks?limit=50&market=US`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
       
-      // If we have some stored tracks, better return those than empty array
-      if (storedTracks && storedTracks.length > 0) {
-        return { tracks: storedTracks };
+      if (!tracksResponse.ok) {
+        console.error(`Failed to get tracks for album ${album.id}: ${tracksResponse.statusText}`);
+        continue;
       }
-      return { tracks: [] };
-    }
-    
-    const albums = await albumsResponse.json() as SpotifyAlbumsResponse;
-    
-    if (!albums || !albums.items || albums.items.length === 0) {
-      console.log("No albums found for artist");
-      if (storedTracks && storedTracks.length > 0) {
-        return { tracks: storedTracks };
-      }
-      return { tracks: [] };
-    }
-    
-    console.log(`Found ${albums.items.length} albums for artist ${artistId}`);
-    
-    // For each album, fetch its tracks
-    const allTracks: SpotifyTrack[] = [];
-    const trackIds = new Set<string>();
-    
-    for (const album of albums.items.slice(0, 10)) { // Limit to 10 albums to avoid rate limiting
-      try {
-        const trackResponse = await fetch(
-          `https://api.spotify.com/v1/albums/${album.id}/tracks?limit=50&market=US`,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-            next: { revalidate: 86400 }, // Cache for 24 hours
-          }
-        );
-        
-        if (!trackResponse.ok) {
-          console.error(`Failed to fetch tracks for album ${album.id}: ${trackResponse.statusText}`);
+      
+      const tracksData = await tracksResponse.json();
+      
+      // Get full track details for each track (for popularity score)
+      for (const track of tracksData.items) {
+        // Skip if we already have this track from top tracks
+        if (allTracks.some((t) => t.id === track.id)) {
           continue;
         }
         
-        const albumTracks = await trackResponse.json() as SpotifyAlbumTracksResponse;
-        
-        // Additional request to get track details including popularity
-        if (albumTracks && albumTracks.items) {
-          // Get track IDs for this album
-          const albumTrackIds = albumTracks.items.map(track => track.id).filter(id => !trackIds.has(id));
-          
-          // Split into chunks of 50 for the API limit
-          for (let i = 0; i < albumTrackIds.length; i += 50) {
-            const idChunk = albumTrackIds.slice(i, i + 50);
-            if (idChunk.length === 0) continue;
-            
-            // Get detailed track info including popularity
-            const detailsResponse = await fetch(
-              `https://api.spotify.com/v1/tracks?ids=${idChunk.join(',')}&market=US`,
-              {
-                headers: {
-                  Authorization: `Bearer ${token}`,
-                },
-                next: { revalidate: 86400 }, // Cache for 24 hours
-              }
-            );
-            
-            if (detailsResponse.ok) {
-              const trackDetails = await detailsResponse.json();
-              
-              if (trackDetails && trackDetails.tracks) {
-                // Add unique tracks to our collection
-                for (const track of trackDetails.tracks) {
-                  if (!trackIds.has(track.id)) {
-                    trackIds.add(track.id);
-                    allTracks.push({
-                      id: track.id,
-                      name: track.name,
-                      album: {
-                        name: track.album?.name,
-                        images: track.album?.images || []
-                      },
-                      artists: track.artists,
-                      uri: track.uri,
-                      duration_ms: track.duration_ms,
-                      popularity: track.popularity,
-                      preview_url: track.preview_url
-                    });
-                  }
-                }
-              }
+        // Get full track details
+        try {
+          const trackResponse = await fetch(
+            `${SPOTIFY_API_BASE}/tracks/${track.id}?market=US`,
+            {
+              headers: {
+                Authorization: `Bearer ${token}`,
+              },
             }
+          );
+          
+          if (!trackResponse.ok) {
+            continue;
           }
+          
+          const trackData = await trackResponse.json();
+          
+          allTracks.push({
+            id: trackData.id,
+            name: trackData.name,
+            duration_ms: trackData.duration_ms,
+            popularity: trackData.popularity || 0,
+            preview_url: trackData.preview_url,
+            uri: trackData.uri,
+            album: album.name,
+            votes: 0
+          });
+        } catch (e) {
+          console.error(`Error fetching detail for track ${track.id}:`, e);
         }
-      } catch (error) {
-        console.error(`Error fetching tracks for album ${album.id}:`, error);
       }
     }
     
-    console.log(`Total unique tracks found: ${allTracks.length}`);
+    console.log(`Fetched ${allTracks.length} total tracks for artist ${artistId}`);
     
-    // Save tracks to database for future use
-    if (allTracks.length > 0) {
-      await saveTracksToDb(artistId, allTracks);
-      return { tracks: allTracks };
-    }
+    // Remove duplicates (based on ID)
+    const uniqueTracks = Array.from(
+      new Map(allTracks.map((track) => [track.id, track])).values()
+    );
     
-    // If we couldn't get any tracks from Spotify but have stored tracks, use those
-    if (storedTracks && storedTracks.length > 0) {
-      console.log(`No tracks found from Spotify, using ${storedTracks.length} stored tracks`);
-      return { tracks: storedTracks };
-    }
+    // Store all tracks in the database
+    await saveTracksToDb(artistId, uniqueTracks);
     
-    // No tracks found anywhere
-    return { tracks: [] };
+    return { tracks: uniqueTracks };
   } catch (error) {
-    console.error("Error in getArtistAllTracks:", error);
-    
-    // If we have stored tracks, use those as fallback
-    const storedTracks = await getStoredTracksFromDb(artistId);
-    if (storedTracks && storedTracks.length > 0) {
-      console.log(`Error occurred, falling back to ${storedTracks.length} stored tracks`);
-      return { tracks: storedTracks };
-    }
-    
+    console.error('Error getting all artist tracks:', error);
     return { tracks: [] };
   }
-}
+};

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Menu, X } from 'lucide-react';
@@ -19,11 +20,11 @@ const Navbar = ({ showSearch = true }) => {
   const isHomePage = location.pathname === '/';
   const isSearchPage = location.pathname === '/search';
 
-  // Debounce search query with a slightly longer delay (500ms)
+  // Debounce search query
   useEffect(() => {
     const handler = setTimeout(() => {
       setDebouncedQuery(searchQuery);
-    }, 500);
+    }, 300);
 
     return () => {
       clearTimeout(handler);
@@ -31,23 +32,10 @@ const Navbar = ({ showSearch = true }) => {
   }, [searchQuery]);
 
   // Fetch artist search results
-  const { data: artists = [], isLoading, error } = useQuery({
+  const { data: artists = [], isLoading } = useQuery({
     queryKey: ['navSearch', debouncedQuery],
-    queryFn: async () => {
-      try {
-        if (!debouncedQuery || debouncedQuery.length < 2) return [];
-        console.log('Searching for artists with query:', debouncedQuery);
-        const results = await searchArtistsWithEvents(debouncedQuery, 5);
-        console.log('Search results:', results);
-        return results;
-      } catch (searchError) {
-        console.error('Error searching for artists:', searchError);
-        return [];
-      }
-    },
+    queryFn: () => searchArtistsWithEvents(debouncedQuery, 5),
     enabled: debouncedQuery.length > 2,
-    staleTime: 1000 * 60 * 5, // Cache results for 5 minutes
-    retry: 1, // Only retry once on failure
   });
 
   const toggleMenu = () => {
@@ -60,37 +48,31 @@ const Navbar = ({ showSearch = true }) => {
 
   const handleFullSearch = (query: string) => {
     if (query.trim()) {
-      // Navigate to search page with query
-      navigate(`/search?q=${encodeURIComponent(query)}`);
+      // Only navigate if we're not already on the search page
+      if (!isSearchPage) {
+        navigate(`/search?q=${encodeURIComponent(query)}`);
+      }
       setSearchQuery('');
     }
   };
 
   const handleNavigation = (artistId: string) => {
-    if (!artistId) return;
-    
-    // Close the menu if it's open
-    if (isMenuOpen) {
-      setIsMenuOpen(false);
-    }
-    
-    // Navigate to the artist page
     navigate(`/artists/${artistId}`);
     setSearchQuery('');
   };
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-zinc-800 bg-black backdrop-blur supports-[backdrop-filter]:bg-black/90">
+    <header className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-16 items-center justify-between">
         <Link to="/" className="flex items-center" onClick={closeMenu}>
-          <span className="text-xl font-semibold text-white">TheSet</span>
+          <span className="text-xl font-semibold bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent">TheSet</span>
         </Link>
 
-        {showSearch && !isMobile && (
+        {!isHomePage && showSearch && !isMobile && (
           <NavbarSearch 
             searchQuery={searchQuery}
             setSearchQuery={setSearchQuery}
-            artists={artists || []}
+            artists={artists}
             isLoading={isLoading}
             handleFullSearch={handleFullSearch}
             handleNavigation={handleNavigation}
@@ -105,7 +87,6 @@ const Navbar = ({ showSearch = true }) => {
               size="icon"
               onClick={toggleMenu}
               aria-label={isMenuOpen ? "Close menu" : "Open menu"}
-              className="text-white hover:bg-zinc-800"
             >
               {isMenuOpen ? <X size={20} /> : <Menu size={20} />}
             </Button>
@@ -114,7 +95,7 @@ const Navbar = ({ showSearch = true }) => {
               isOpen={isMenuOpen}
               searchQuery={searchQuery}
               setSearchQuery={setSearchQuery}
-              artists={artists || []}
+              artists={artists}
               isLoading={isLoading}
               handleFullSearch={handleFullSearch}
               handleNavigation={handleNavigation}

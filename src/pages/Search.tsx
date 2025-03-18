@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -8,7 +9,6 @@ import Footer from '@/components/layout/Footer';
 import SearchBar from '@/components/ui/SearchBar';
 import ArtistSearchResults from '@/components/search/ArtistSearchResults';
 import { useDocumentTitle } from '@/hooks/use-document-title';
-import { Artist } from '@/types/artist';
 
 const Search = () => {
   const navigate = useNavigate();
@@ -31,7 +31,7 @@ const Search = () => {
       setSearchQuery(queryParam);
       setDebouncedQuery(queryParam);
     }
-  }, [queryParam, searchQuery]);
+  }, [queryParam]);
 
   // Debounce the search query to avoid making too many API calls
   useEffect(() => {
@@ -63,7 +63,7 @@ const Search = () => {
     setSearchQuery(query);
   };
 
-  const handleArtistSelect = (artist: Artist) => {
+  const handleArtistSelect = (artist: any) => {
     navigate(`/artists/${artist.id}`);
   };
 
