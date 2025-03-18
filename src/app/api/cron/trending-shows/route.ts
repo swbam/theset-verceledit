@@ -1,6 +1,8 @@
+
 import { NextRequest, NextResponse } from 'next/server';
 import { populateTrendingShowsSetlists } from '@/lib/cron/trending-shows';
 import { importTrendingShows } from '@/lib/cron/import-trending-shows';
+import { importShowsFromTopVenues } from '@/lib/cron/import-venue-shows';
 
 /**
  * Cron job handler to import trending shows from Ticketmaster and pre-populate setlists
@@ -22,7 +24,11 @@ export async function GET(request: NextRequest) {
     console.log('Starting trending shows import and population...');
     const importResult = await importTrendingShows();
     
-    // Then run the trending shows setlist population job
+    // Then import shows from top venues
+    console.log('Starting top venues shows import...');
+    const venueResult = await importShowsFromTopVenues(10, 5);
+    
+    // Finally run the trending shows setlist population job
     // This will use the newly imported shows
     const populateResult = await populateTrendingShowsSetlists();
     
@@ -30,6 +36,11 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       import: importResult,
+      venues: {
+        venuesProcessed: venueResult.venuesProcessed,
+        showsCreated: venueResult.showsCreated,
+        errors: venueResult.errors.length
+      },
       populate: populateResult
     });
   } catch (error) {

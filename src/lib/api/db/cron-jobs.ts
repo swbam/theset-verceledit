@@ -11,6 +11,7 @@ import { importShowsFromTopVenues } from '@/lib/cron/import-venue-shows';
  * 1. Pre-create setlists for upcoming popular shows
  * 2. Pre-create setlists for homepage featured shows
  * 3. Sync artist stats from Spotify
+ * 4. Import shows from top venues
  * 
  * @returns An object with results from all operations
  */
@@ -25,6 +26,8 @@ export async function runMaintenanceJobs() {
     homepageSetlistsProcessed: 0,
     setlistErrors: [] as string[],
     artistsUpdated: 0,
+    venuesProcessed: 0,
+    showsFromVenuesCreated: 0,
     startTime: startTime.toISOString(),
     endTime: '',
     duration: 0,
@@ -94,6 +97,9 @@ export async function runMaintenanceJobs() {
     console.log("Running venue-based show import");
     const venueResults = await importShowsFromTopVenues(10, 5);
     
+    results.venuesProcessed = venueResults.venuesProcessed;
+    results.showsFromVenuesCreated = venueResults.showsCreated;
+    
     // Log this step
     await logJobRun({
       job_type: 'venue_shows_import',
@@ -113,15 +119,17 @@ export async function runMaintenanceJobs() {
     // Log the entire maintenance run
     await logJobRun({
       job_type: 'maintenance_run',
-      items_processed: results.setlistsProcessed + results.homepageSetlistsProcessed + results.artistsUpdated,
-      items_created: results.setlistsCreated + results.homepageSetlistsCreated + results.artistsUpdated,
+      items_processed: results.setlistsProcessed + results.homepageSetlistsProcessed + results.artistsUpdated + results.venuesProcessed,
+      items_created: results.setlistsCreated + results.homepageSetlistsCreated + results.artistsUpdated + results.showsFromVenuesCreated,
       errors: results.setlistErrors,
       status: results.setlistErrors.length === 0 ? 'success' : 'partial',
       metadata: {
         duration_ms: results.duration,
         setlists_created: results.setlistsCreated,
         homepage_setlists_created: results.homepageSetlistsCreated,
-        artists_updated: results.artistsUpdated
+        artists_updated: results.artistsUpdated,
+        venues_processed: results.venuesProcessed,
+        shows_from_venues_created: results.showsFromVenuesCreated
       }
     });
     
