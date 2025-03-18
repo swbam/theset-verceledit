@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Calendar, MapPin, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import ShowCard from './ShowCard';
 
 interface UpcomingShowsProps {
   shows: any[];
@@ -9,17 +9,6 @@ interface UpcomingShowsProps {
 }
 
 const UpcomingShows = ({ shows, artistName }: UpcomingShowsProps) => {
-  // Format date to display in a more compact format (May 31, 2025)
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    const options: Intl.DateTimeFormatOptions = { 
-      month: 'long', 
-      day: 'numeric', 
-      year: 'numeric' 
-    };
-    return date.toLocaleDateString('en-US', options);
-  };
-
   // If no shows, display a message
   if (shows.length === 0) {
     return (
@@ -32,48 +21,14 @@ const UpcomingShows = ({ shows, artistName }: UpcomingShowsProps) => {
     );
   }
 
-  // Display the shows in a list
+  // Display the shows in a grid
   return (
-    <div className="space-y-4">
-      {shows.map((show) => (
-        <div 
-          key={show.id} 
-          className="border-b border-zinc-800 pb-4 last:border-0 last:pb-0"
-        >
-          <div className="flex items-start mb-2">
-            <Calendar className="h-5 w-5 text-zinc-400 mr-3 mt-0.5" />
-            <span className="font-medium">{formatDate(show.date)}</span>
-          </div>
-          
-          <div className="pl-8">
-            <h3 className="font-bold">{show.venue?.name || "Venue TBA"}</h3>
-            <div className="flex items-center text-zinc-400 text-sm mb-3">
-              <MapPin className="h-3.5 w-3.5 mr-1.5 flex-shrink-0" />
-              <span>
-                {show.venue?.city || ""}
-                {show.venue?.state && show.venue?.city ? `, ${show.venue.state}` : show.venue?.state || ""}
-              </span>
-            </div>
-          
-            <div className="flex space-x-2">
-              <Button size="sm" variant="secondary" asChild className="px-4">
-                <Link to={`/shows/${show.id}`}>
-                  Setlist
-                </Link>
-              </Button>
-              
-              {show.ticket_url && (
-                <Button size="sm" variant="outline" asChild className="px-4">
-                  <a href={show.ticket_url} target="_blank" rel="noopener noreferrer">
-                    Tickets
-                    <ExternalLink className="ml-1.5 h-3 w-3" />
-                  </a>
-                </Button>
-              )}
-            </div>
-          </div>
-        </div>
-      ))}
+    <div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {shows.map((show) => (
+          <ShowCard key={show.id} show={show} />
+        ))}
+      </div>
       
       {shows.length > 5 && (
         <div className="text-right mt-6">

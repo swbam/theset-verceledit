@@ -154,7 +154,7 @@ const ArtistDetail = () => {
         <div className="container mx-auto px-4 py-10">
           <div className="flex flex-col lg:flex-row gap-8">
             {/* Main content - Upcoming Shows & Past Setlists */}
-            <div className="lg:w-2/3">
+            <div className="lg:w-[70%]">
               <div className="mb-10">
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-2xl font-bold">Upcoming Shows</h2>
@@ -230,7 +230,7 @@ const ArtistDetail = () => {
             </div>
             
             {/* Sidebar - Artist Stats & Spotify */}
-            <div className="lg:w-1/3 space-y-6">
+            <div className="lg:w-[30%] space-y-6">
               <ArtistStats 
                 artist={artist}
                 topTracks={topTracks}
