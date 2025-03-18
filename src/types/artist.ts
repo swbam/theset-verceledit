@@ -1,11 +1,53 @@
 export interface Artist {
   id: string;
   name: string;
+  image?: string;
   genres?: string[];
-  image?: string | null;
-  ticketmasterUrl?: string | null;
-  spotifyId?: string | null;
-  // Add additional fields as needed
+  spotify_id?: string;
+  followers?: number;
+  monthly_listeners?: number;
+  popularity?: number;
+}
+
+export interface Show {
+  id: string;
+  date: string;
+  name: string;
+  venue?: Venue;
+  ticket_url?: string;
+  artist?: Artist;
+  image_url?: string;
+}
+
+export interface Venue {
+  name: string;
+  city?: string;
+  state?: string;
+  country?: string;
+  address?: string;
+}
+
+export interface PastSetlist {
+  id: string;
+  date: string;
+  venue: Venue;
+  songs: string[];
+  artist_id: string;
+}
+
+export interface TopTrack {
+  id: string;
+  name: string;
+  preview_url?: string;
+  spotify_url: string;
+  album?: {
+    name: string;
+    image?: string;
+  };
+}
+
+export interface ArtistTopTracks {
+  tracks: TopTrack[];
 }
 
 export interface ArtistWithEvents extends Artist {
@@ -20,19 +62,6 @@ export interface Event {
   url: string;
   image?: string;
   venue: Venue;
-}
-
-export interface Venue {
-  id: string;
-  name: string;
-  city?: string;
-  state?: string;
-  country?: string;
-  address?: string;
-  location?: {
-    latitude: number;
-    longitude: number;
-  };
 }
 
 export interface Track {

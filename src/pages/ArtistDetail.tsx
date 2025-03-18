@@ -5,6 +5,7 @@ import { fetchArtistEvents } from '@/lib/ticketmaster';
 import { fetchArtistById } from '@/lib/api/artist';
 import { syncArtistStatsToDatabase } from '@/lib/api/db/artist-utils';
 import { getArtistTopTracks } from '@/lib/spotify';
+import { fetchPastSetlists } from '@/lib/api/setlists';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
 import ArtistHeader from '@/components/artist/ArtistHeader';
@@ -13,11 +14,13 @@ import ArtistDetailSkeleton from '@/components/artist/ArtistDetailSkeleton';
 import ArtistNotFound from '@/components/artist/ArtistNotFound';
 import ArtistStats from '@/components/artist/ArtistStats';
 import { useDocumentTitle } from '@/hooks/use-document-title';
-import { Calendar, MapPin, ChevronRight, Music } from 'lucide-react';
+import { Music } from 'lucide-react';
 import { Button } from '@/components/ui/button'; 
 import { toast } from 'sonner';
 import { SectionHeader } from '@/components/ui/section-header';
 import PastSetlistCard from '@/components/artist/PastSetlistCard';
+import { Artist, PastSetlist, Show, TopTrack } from '@/types/artist';
+import { Skeleton } from '@/components/ui/skeleton';
 
 // Mock past setlists data to display in the UI
 const MOCK_PAST_SETLISTS = [
@@ -43,7 +46,6 @@ const MOCK_PAST_SETLISTS = [
 
 const ArtistDetail = () => {
   const { id } = useParams<{ id: string }>();
-  const [pastSetlists, setPastSetlists] = useState(MOCK_PAST_SETLISTS);
   
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -74,6 +76,7 @@ const ArtistDetail = () => {
         })
         .catch(error => {
           console.error("Error syncing artist stats:", error);
+          toast.error("Failed to sync artist stats. Some information may be outdated.");
         });
     }
   }, [artist?.id, artist?.spotify_id, artist?.name]);
@@ -83,7 +86,7 @@ const ArtistDetail = () => {
     data: shows = [],
     isLoading: showsLoading,
     error: showsError
-  } = useQuery({
+  } = useQuery<Show[]>({
     queryKey: ['artistEvents', id],
     queryFn: async () => {
       try {
@@ -92,7 +95,7 @@ const ArtistDetail = () => {
         return allShows;
       } catch (error) {
         console.error("Error fetching artist events:", error);
-        toast.error("Failed to load shows");
+        toast.error("Failed to load upcoming shows. Please try refreshing the page.");
         return [];
       }
     },
@@ -104,12 +107,34 @@ const ArtistDetail = () => {
   // Fetch artist's top tracks from Spotify
   const {
     data: topTracksData,
-    isLoading: tracksLoading
+    isLoading: tracksLoading,
+    error: tracksError
   } = useQuery({
     queryKey: ['artistTopTracks', artist?.spotify_id],
     queryFn: () => getArtistTopTracks(artist?.spotify_id || ''),
     enabled: !!artist?.spotify_id,
     staleTime: 1000 * 60 * 60, // 1 hour
+  });
+  
+  // Fetch past setlists for this artist
+  const {
+    data: pastSetlists = [],
+    isLoading: pastSetlistsLoading,
+    error: pastSetlistsError
+  } = useQuery<PastSetlist[]>({
+    queryKey: ['pastSetlists', id],
+    queryFn: async () => {
+      try {
+        const setlists = await fetchPastSetlists(id as string);
+        return setlists;
+      } catch (error) {
+        console.error("Error fetching past setlists:", error);
+        toast.error("Failed to load past setlists");
+        return [];
+      }
+    },
+    enabled: !!id,
+    staleTime: 1000 * 60 * 30, // 30 minutes
   });
   
   // Set document title
@@ -131,10 +156,10 @@ const ArtistDetail = () => {
   }
 
   // Prepare top tracks for display
-  const topTracks = topTracksData?.tracks?.slice(0, 5) || [];
+  const topTracks: TopTrack[] = topTracksData?.tracks?.slice(0, 5) || [];
 
   // Format date for past setlists
-  const formatDateCompact = (dateString) => {
+  const formatDateCompact = (dateString: string): string => {
     const date = new Date(dateString);
     return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(date);
   };
@@ -182,11 +207,59 @@ const ArtistDetail = () => {
                   actionText="See all setlists"
                 />
                 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {pastSetlists.map((setlist) => (
-                    <PastSetlistCard key={setlist.id} setlist={setlist} />
-                  ))}
-                </div>
+                {pastSetlistsLoading ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {[1, 2, 3, 4].map((i) => (
+                      <div key={i} className="bg-zinc-900/50 border border-zinc-800/50 rounded-lg overflow-hidden">
+                        <div className="p-4">
+                          <div className="flex items-center gap-2 mb-3">
+                            <Skeleton className="h-4 w-4 rounded-full" />
+                            <Skeleton className="h-4 w-32" />
+                          </div>
+                          <Skeleton className="h-6 w-3/4 mb-1" />
+                          <div className="flex items-center gap-2 mb-4">
+                            <Skeleton className="h-3 w-3 rounded-full" />
+                            <Skeleton className="h-3 w-40" />
+                          </div>
+                          <div className="mt-4">
+                            <div className="flex items-center gap-2 mb-2">
+                              <Skeleton className="h-4 w-4 rounded-full" />
+                              <Skeleton className="h-4 w-28" />
+                            </div>
+                            <div className="flex flex-wrap gap-2 mt-1">
+                              {[1, 2, 3].map((j) => (
+                                <Skeleton key={j} className="h-6 w-20 rounded-full" />
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="px-4 py-3 bg-zinc-950/30 border-t border-zinc-800/50">
+                          <Skeleton className="h-8 w-full" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : pastSetlistsError ? (
+                  <div className="text-center p-8 border border-zinc-800 rounded-lg bg-zinc-900/50">
+                    <p className="text-lg mb-4 text-white">Failed to load past setlists</p>
+                    <Button 
+                      variant="outline" 
+                      onClick={() => window.location.reload()}
+                    >
+                      Try Again
+                    </Button>
+                  </div>
+                ) : pastSetlists.length === 0 ? (
+                  <div className="text-center p-8 border border-zinc-800 rounded-lg bg-zinc-900/50">
+                    <p className="text-lg mb-4 text-white">No past setlists found for this artist</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {pastSetlists.map((setlist) => (
+                      <PastSetlistCard key={setlist.id} setlist={setlist} />
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
             
@@ -195,6 +268,8 @@ const ArtistDetail = () => {
               <ArtistStats 
                 artist={artist}
                 topTracks={topTracks}
+                isLoading={tracksLoading}
+                hasError={!!tracksError}
               />
               
               {/* Spotify Connect Section */}
