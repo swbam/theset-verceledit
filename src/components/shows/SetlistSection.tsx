@@ -18,7 +18,7 @@ const SetlistSection = ({ showId, spotifyArtistId }: SetlistSectionProps) => {
   const { isAuthenticated, login } = useAuth();
   
   // Get initial songs
-  const initialSongs = useInitialSongs(spotifyArtistId);
+  const { songs: initialSongs, isLoading: isLoadingInitialSongs } = useInitialSongs(spotifyArtistId);
   
   // Get artist tracks for the setlist
   const { 
@@ -51,7 +51,7 @@ const SetlistSection = ({ showId, spotifyArtistId }: SetlistSectionProps) => {
   
   // Add initial songs to the setlist when it's created
   useEffect(() => {
-    if (setlistId && initialSongs.length > 0 && (!setlist || setlist.length === 0)) {
+    if (setlistId && initialSongs && initialSongs.length > 0 && (!setlist || setlist.length === 0)) {
       console.log(`Adding ${initialSongs.length} initial songs to setlist ${setlistId}`);
       
       // Add a small delay to ensure the setlist is fully created in the database
@@ -74,7 +74,7 @@ const SetlistSection = ({ showId, spotifyArtistId }: SetlistSectionProps) => {
   }, [setlistId, initialSongs, setlist, addInitialSongs]);
   
   // Show loading indicator if we're loading tracks
-  if (isLoadingTracks || isLoadingSetlist) {
+  if (isLoadingTracks || isLoadingSetlist || isLoadingInitialSongs) {
     return (
       <div className="flex justify-center p-8">
         <LoadingIndicator size="lg" message="Loading setlist..." />
@@ -84,7 +84,6 @@ const SetlistSection = ({ showId, spotifyArtistId }: SetlistSectionProps) => {
   
   // Function to handle adding a song with the selected track
   const onAddSong = async () => {
-    console.log("Adding song with track ID:", selectedTrack);
     if (!selectedTrack) {
       toast.error("Please select a song first");
       return;
@@ -112,9 +111,9 @@ const SetlistSection = ({ showId, spotifyArtistId }: SetlistSectionProps) => {
   
   return (
     <ShowSetlist 
-      setlist={setlist}
+      setlist={setlist || []}
       handleVote={vote}
-      availableTracks={availableTracks}
+      availableTracks={availableTracks || []}
       isLoadingAllTracks={isLoadingAllTracks}
       selectedTrack={selectedTrack}
       setSelectedTrack={setSelectedTrack}

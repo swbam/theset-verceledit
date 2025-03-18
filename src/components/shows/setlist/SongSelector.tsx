@@ -31,9 +31,7 @@ const SongSelector = ({
   
   // Sort tracks alphabetically by name and filter duplicates
   const sortedTracks = React.useMemo(() => {
-    console.log("Sorting available tracks:", tracks?.length);
-    if (!tracks || !Array.isArray(tracks) || tracks.length === 0) {
-      // Return empty array instead of mock tracks
+    if (!tracks || !Array.isArray(tracks)) {
       return [];
     }
     

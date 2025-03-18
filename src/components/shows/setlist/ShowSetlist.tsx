@@ -15,7 +15,7 @@ interface ShowSetlistProps {
   isAuthenticated: boolean;
   login: () => void;
   anonymousVoteCount?: number;
-  setlistId: string | null; // Add setlistId to props
+  setlistId: string | null;
 }
 
 const ShowSetlist = ({
@@ -33,8 +33,10 @@ const ShowSetlist = ({
 }: ShowSetlistProps) => {
   // Process setlist items to ensure they have proper names
   const processedSetlist = React.useMemo(() => {
-    console.log("Processing setlist with available tracks:", 
-      setlist?.length, availableTracks?.length);
+    if (!setlist || !Array.isArray(setlist)) {
+      console.log("Invalid setlist data:", setlist);
+      return [];
+    }
     
     return setlist.map(song => {
       // If the song already has a proper name that isn't a placeholder, use it

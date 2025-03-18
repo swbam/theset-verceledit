@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { useRealtimeVotes } from '@/hooks/use-realtime-votes';
 import { toast } from 'sonner';
-import { Song } from './realtime/types';
+import { Song, Track } from './realtime/types';
 
 export function useSongManagement(showId: string, initialSongs: Song[], isAuthenticated: boolean, login: () => void) {
   const [selectedTrack, setSelectedTrack] = useState<string>('');
@@ -19,29 +19,45 @@ export function useSongManagement(showId: string, initialSongs: Song[], isAuthen
   
   const handleVote = async (songId: string) => {
     try {
+      if (!songId) {
+        console.error("Invalid song ID for voting");
+        return false;
+      }
+      
       const success = await vote(songId);
       if (success) {
         toast.success("Your vote has been counted!");
+        return true;
       } else if (!isAuthenticated && anonymousVoteCount >= 3) {
         // This will trigger a toast in the hook, but we also redirect to login
         setTimeout(() => {
           login();
         }, 2000);
+        return false;
       }
+      return false;
     } catch (error) {
       console.error("Error voting for song:", error);
       toast.error("Something went wrong while voting");
+      return false;
     }
   };
 
-  const handleAddSong = async (allTracksData: any) => {
+  const handleAddSong = async (allTracksData: { tracks?: Track[] }) => {
     if (!selectedTrack) {
       toast.error("Please select a song first");
       return false;
     }
 
+    // Ensure we have valid tracks data
+    if (!allTracksData?.tracks || !Array.isArray(allTracksData.tracks)) {
+      console.error("Invalid tracks data:", allTracksData);
+      toast.error("Could not access track information");
+      return false;
+    }
+
     // Find the selected track in the available tracks
-    const trackToAdd = allTracksData?.tracks?.find((track: any) => track.id === selectedTrack);
+    const trackToAdd = allTracksData.tracks.find((track: Track) => track.id === selectedTrack);
     
     if (trackToAdd) {
       // Check if the song already exists in the setlist
@@ -53,8 +69,8 @@ export function useSongManagement(showId: string, initialSongs: Song[], isAuthen
       }
       
       try {
-        // Call realtimeHandleAddSong without checking its return value
-        await realtimeHandleAddSong(trackToAdd.id, trackToAdd.name);
+        // Call realtimeHandleAddSong
+        await realtimeHandleAddSong(trackToAdd.id, trackToAdd.name || '');
         
         // Reset the selected track
         setSelectedTrack('');
