@@ -1,3 +1,4 @@
+
 import React from 'react';
 
 // Define types similar to Next.js Image component
