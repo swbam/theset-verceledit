@@ -1,4 +1,3 @@
-
 import React from 'react';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
@@ -15,7 +14,7 @@ const Index = () => {
   
   return (
     <div className="min-h-screen flex flex-col bg-black text-white">
-      <Navbar showSearch={false} />
+      <Navbar showSearch={true} />
       
       <main className="flex-grow">
         <Hero />

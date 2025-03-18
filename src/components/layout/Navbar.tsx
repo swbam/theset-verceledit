@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Menu, X } from 'lucide-react';
@@ -62,13 +61,13 @@ const Navbar = ({ showSearch = true }) => {
   };
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+    <header className="sticky top-0 z-50 w-full border-b border-zinc-800 bg-black backdrop-blur supports-[backdrop-filter]:bg-black/90">
       <div className="container flex h-16 items-center justify-between">
         <Link to="/" className="flex items-center" onClick={closeMenu}>
-          <span className="text-xl font-semibold bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent">TheSet</span>
+          <span className="text-xl font-semibold text-white">TheSet</span>
         </Link>
 
-        {!isHomePage && showSearch && !isMobile && (
+        {showSearch && !isMobile && (
           <NavbarSearch 
             searchQuery={searchQuery}
             setSearchQuery={setSearchQuery}
@@ -87,6 +86,7 @@ const Navbar = ({ showSearch = true }) => {
               size="icon"
               onClick={toggleMenu}
               aria-label={isMenuOpen ? "Close menu" : "Open menu"}
+              className="text-white hover:bg-zinc-800"
             >
               {isMenuOpen ? <X size={20} /> : <Menu size={20} />}
             </Button>

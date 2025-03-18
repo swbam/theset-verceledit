@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
@@ -226,13 +225,33 @@ export const addSongToSetlist = async (
 
 export const addTracksToSetlist = async (
   setlistId: string,
-  trackIds: string[]
+  trackIds: string[],
+  trackNames: Record<string, string> = {}
 ): Promise<void> => {
   try {
-    // Process each track ID
-    for (const trackId of trackIds) {
-      await addSongToSetlist(setlistId, trackId);
+    console.log(`Batch adding ${trackIds.length} tracks to setlist ${setlistId}`);
+    
+    // Prepare all songs for insertion at once
+    const songsToInsert = trackIds.map(trackId => ({
+      setlist_id: setlistId,
+      track_id: trackId,
+      votes: 0, // Explicitly set to 0
+      suggested_by: null,
+      created_at: new Date().toISOString()
+    }));
+    
+    // Bulk insert all songs at once
+    const { data, error } = await supabase
+      .from('setlist_songs')
+      .insert(songsToInsert)
+      .select();
+      
+    if (error) {
+      console.error('Error batch inserting songs to setlist:', error);
+      throw error;
     }
+    
+    console.log(`Successfully added ${data.length} tracks to setlist ${setlistId}`);
   } catch (error) {
     console.error('Error adding tracks to setlist:', error);
     throw error;

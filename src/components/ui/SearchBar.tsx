@@ -98,8 +98,8 @@ const SearchBar = ({
     >
       <div className={cn(
         "flex items-center overflow-hidden transition-all duration-300 ease-in-out",
-        "bg-background border border-border rounded-full",
-        isFocused && "border-foreground/30 ring-2 ring-foreground/5"
+        "bg-zinc-900 border border-zinc-800 rounded-full",
+        isFocused && "border-zinc-600 ring-2 ring-zinc-700/40"
       )}>
         <button
           type="submit"
@@ -109,8 +109,8 @@ const SearchBar = ({
           <Search 
             size={18} 
             className={cn(
-              "text-muted-foreground transition-colors",
-              isFocused && "text-foreground",
+              "text-zinc-400 transition-colors",
+              isFocused && "text-white",
               isLoading && "animate-pulse"
             )} 
           />
@@ -123,7 +123,7 @@ const SearchBar = ({
           onChange={handleQueryChange}
           onFocus={() => setIsFocused(true)}
           placeholder={placeholder}
-          className="py-3 px-3 w-full bg-transparent focus:outline-none"
+          className="py-3 px-3 w-full bg-transparent focus:outline-none text-white placeholder:text-zinc-400"
           aria-label="Search"
         />
         
@@ -131,7 +131,7 @@ const SearchBar = ({
           <button
             type="button"
             onClick={clearSearch}
-            className="pr-4 text-muted-foreground hover:text-foreground transition-colors"
+            className="pr-4 text-zinc-400 hover:text-white transition-colors"
             aria-label="Clear search"
           >
             <X size={18} />
@@ -141,7 +141,7 @@ const SearchBar = ({
 
       {/* Search results dropdown */}
       {isFocused && children && (
-        <div className="absolute left-0 right-0 mt-2 z-10">
+        <div className="absolute left-0 right-0 mt-2 z-10 bg-zinc-900 border border-zinc-800 rounded-md shadow-lg overflow-hidden">
           {children}
         </div>
       )}

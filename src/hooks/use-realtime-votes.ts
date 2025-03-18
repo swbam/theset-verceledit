@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/auth/AuthContext';
 import { 
@@ -56,20 +55,29 @@ export function useRealtimeVotes(showId: string, spotifyArtistId: string, initia
     const checkAndAddInitialSongs = async () => {
       if (!setlistId || !initialSongs || initialSongs.length === 0) return;
       
-      // If we have songs from the database, don't add initial songs
+      // If we have songs from the database, don't add initial ones
       if (setlist.length > 0) {
         console.log("Setlist already has songs, not adding initial ones");
         return;
       }
       
-      console.log("No songs in database, adding initial ones:", initialSongs.length);
-      await addInitialSongs(setlistId, initialSongs);
+      console.log("No songs in database, adding initial ones:", initialSongs);
+      
+      // Ensure all initial songs have 0 votes
+      const initialSongsWithZeroVotes = initialSongs.map(song => ({
+        ...song,
+        votes: 0,
+        userVoted: false
+      }));
+      
+      await addInitialSongs(setlistId, initialSongsWithZeroVotes);
     };
     
-    if (!isLoadingSetlist && setlistId) {
+    // Run this effect as soon as we have a setlistId
+    if (setlistId) {
       checkAndAddInitialSongs();
     }
-  }, [setlistId, initialSongs, setlist.length, isLoadingSetlist, addInitialSongs]);
+  }, [setlistId, initialSongs, setlist.length, addInitialSongs]);
   
   return {
     setlist,

@@ -1,4 +1,3 @@
-
 import React from 'react';
 import VotableSetlistTable from '@/components/setlist/VotableSetlistTable';
 import { SetlistAddSongForm } from './index';
@@ -57,7 +56,7 @@ const ShowSetlist = ({
   return (
     <div className="flex flex-col">
       {/* Display setlist creation status if needed */}
-      {!setlistId && (
+      {!setlistId && !setlist.length && (
         <div className="p-4 text-amber-400 bg-amber-900/30 border border-amber-700 rounded-md mb-4">
           Creating setlist... This may take a moment.
         </div>

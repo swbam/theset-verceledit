@@ -1,70 +1,104 @@
-
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Music2, CalendarDays, ArrowLeft, Heart } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Music } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useIsMobile } from '@/hooks/use-mobile';
 
 interface ArtistHeaderProps {
   artistName: string;
   artistImage?: string;
-  upcomingShowsCount: number;
+  artistGenres?: string[];
+  spotifyUrl?: string;
+  followers?: number;
+  monthlyListeners?: number;
 }
 
-const ArtistHeader = ({ artistName, artistImage, upcomingShowsCount }: ArtistHeaderProps) => {
-  const isMobile = useIsMobile();
-  
+const ArtistHeader = ({ 
+  artistName, 
+  artistImage, 
+  artistGenres = [], 
+  spotifyUrl,
+  followers,
+  monthlyListeners
+}: ArtistHeaderProps) => {
+  // Format number for display (e.g., 1.2M)
+  const formatNumber = (num: number): string => {
+    if (!num) return '0';
+    if (num >= 1000000) {
+      return (num / 1000000).toFixed(1) + 'M';
+    }
+    if (num >= 1000) {
+      return (num / 1000).toFixed(1) + 'K';
+    }
+    return num.toString();
+  };
+
   return (
-    <section 
-      className="relative bg-cover bg-center header-gradient"
-      style={{
-        backgroundImage: artistImage 
-          ? `linear-gradient(to bottom, rgba(0,0,0,0.8), rgba(0,0,0,0.7)), url(${artistImage})` 
-          : undefined,
-        height: 'auto',
-        maxHeight: isMobile ? '35vh' : 'auto',
-      }}
-    >
-      <div className={`px-4 md:px-8 lg:px-12 ${isMobile ? 'py-6' : 'py-12'} relative z-10`}>
-        <div className="max-w-7xl mx-auto">
-          <Link to="/search" className="text-white/70 hover:text-white inline-flex items-center mb-4 md:mb-6 transition-colors">
-            <ArrowLeft size={16} className="mr-2" />
-            Back to search
-          </Link>
-          
-          <div className="flex flex-col md:flex-row gap-4 md:gap-8 items-start">
-            <div className={`${isMobile ? 'w-20 h-20' : 'w-32 h-32'} md:w-48 md:h-48 rounded-xl overflow-hidden bg-white/5 shadow-lg border border-white/10 flex-shrink-0`}>
-              {artistImage ? (
-                <img 
-                  src={artistImage} 
-                  alt={artistName} 
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <div className="flex items-center justify-center h-full">
-                  <Music2 size={isMobile ? 32 : 64} className="text-white/20" />
-                </div>
-              )}
-            </div>
+    <section className="relative bg-black">
+      <div className="absolute inset-0 overflow-hidden">
+        {artistImage && (
+          <div className="absolute inset-0 bg-center bg-cover opacity-30" 
+               style={{ backgroundImage: `url(${artistImage})` }} />
+        )}
+        <div className="absolute inset-0 bg-gradient-to-b from-black/70 to-black" />
+      </div>
+      
+      <div className="relative z-10 container mx-auto px-4 pt-8 pb-12">
+        <Link to="/artists" className="inline-flex items-center text-zinc-400 hover:text-white transition-colors mb-6">
+          <ArrowLeft size={16} className="mr-2" />
+          Back to artists
+        </Link>
+        
+        <div className="flex flex-col md:flex-row md:items-end gap-8">
+          <div className="flex-1">
+            <h1 className="text-4xl md:text-5xl font-bold tracking-tight mb-4">
+              {artistName}
+            </h1>
             
-            <div>
-              <h1 className={`${isMobile ? 'text-2xl' : 'text-3xl'} md:text-4xl lg:text-5xl font-bold text-white`}>
-                {artistName}
-              </h1>
-              
-              <div className={`${isMobile ? 'mt-3' : 'mt-6'} flex flex-wrap items-center gap-3`}>
-                <div className="inline-flex items-center bg-blue-500/10 text-blue-400 px-3 py-1 rounded-full text-sm">
-                  <CalendarDays size={14} className="mr-1" />
-                  {upcomingShowsCount} upcoming {upcomingShowsCount === 1 ? 'show' : 'shows'}
-                </div>
-                
-                <Button variant="outline" size="sm" className="border-white/10 bg-white/5 text-white hover:bg-white/10">
-                  <Heart size={14} className="mr-1.5" />
-                  Follow
-                </Button>
+            {artistGenres && artistGenres.length > 0 && (
+              <div className="flex flex-wrap gap-2 mb-4">
+                {artistGenres.map((genre, index) => (
+                  <span 
+                    key={index} 
+                    className="text-sm px-3 py-1 bg-zinc-800/80 rounded-full text-zinc-300"
+                  >
+                    {genre}
+                  </span>
+                ))}
               </div>
-            </div>
+            )}
+            
+            {(followers || monthlyListeners) && (
+              <div className="flex items-center gap-4 text-zinc-400 mb-6">
+                {followers > 0 && (
+                  <div>
+                    <span className="text-white font-semibold">{formatNumber(followers)}</span> followers
+                  </div>
+                )}
+                {monthlyListeners > 0 && (
+                  <div>
+                    <span className="text-white font-semibold">{formatNumber(monthlyListeners)}</span> monthly listeners
+                  </div>
+                )}
+              </div>
+            )}
           </div>
+          
+          {spotifyUrl && (
+            <div className="flex-shrink-0">
+              <Button variant="outline" asChild className="bg-zinc-900/50 border-zinc-700">
+                <a 
+                  href={spotifyUrl} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center"
+                >
+                  <Music className="mr-2 h-4 w-4" />
+                  Listen on Spotify
+                  <ExternalLink className="ml-2 h-3 w-3" />
+                </a>
+              </Button>
+            </div>
+          )}
         </div>
       </div>
     </section>

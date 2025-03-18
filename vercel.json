@@ -1,0 +1,24 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/run-maintenance",
+      "schedule": "0 */6 * * *"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/api/cron/run-maintenance",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store, private, no-cache"
+        }
+      ]
+    }
+  ],
+  "env": {
+    "MAINTENANCE_API_KEY": {
+      "description": "API key for maintenance cron jobs"
+    }
+  }
+} 

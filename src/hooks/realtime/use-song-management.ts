@@ -1,8 +1,8 @@
-
 import { useCallback } from 'react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { addSongToSetlist as dbAddSongToSetlist } from '@/lib/api/db/setlist-utils';
+import { addTracksToSetlist } from '@/lib/api/db/setlist-utils';
 
 /**
  * Hook for managing song additions to setlists
@@ -71,24 +71,32 @@ export function useSongManagement(
     }
   }, [setlistId, showId, getSetlistId, setlist, refetchSongs]);
   
-  // Add initial songs to the database
+  // Add initial songs to the database all at once
   const addInitialSongs = useCallback(async (setlistId: string, initialSongs: any[]) => {
     if (!setlistId || !initialSongs || initialSongs.length === 0) return;
     
-    console.log("Adding initial songs:", initialSongs.length);
+    console.log(`Adding ${initialSongs.length} initial songs to setlist ${setlistId}`);
     
-    // Add each song to the setlist
-    for (const song of initialSongs) {
-      try {
-        console.log(`Adding initial song to setlist: ${song.name} (${song.id})`);
-        await dbAddSongToSetlist(setlistId, song.id, song.name);
-      } catch (err) {
-        console.error(`Error adding initial song ${song.id}:`, err);
-      }
+    try {
+      // Prepare the tracks for batch insertion
+      const trackIds = initialSongs.map(song => song.id);
+      const trackNames = initialSongs.reduce((acc, song) => {
+        acc[song.id] = song.name;
+        return acc;
+      }, {});
+      
+      // Insert all tracks at once using the bulk add function
+      // This is more efficient than adding them one by one
+      await addTracksToSetlist(setlistId, trackIds, trackNames);
+      
+      // Refresh the songs list
+      refetchSongs();
+      
+      console.log(`Successfully added ${initialSongs.length} initial songs to setlist`);
+    } catch (error) {
+      console.error("Error adding initial songs:", error);
+      // Continue without initial songs if there's an error
     }
-    
-    // Refresh the songs list
-    refetchSongs();
   }, [refetchSongs]);
   
   return {

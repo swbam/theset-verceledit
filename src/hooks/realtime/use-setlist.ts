@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -79,9 +78,15 @@ export function useSetlist(showId: string, initialSongs: Song[], userId?: string
         if (newSetlist?.id) {
           console.log(`Created new setlist: ${newSetlist.id}`);
           
-          // If we have an artist ID, fetch and add initial tracks
+          // If we have an artist ID, make sure we'll add initial tracks
+          // (We'll let the useEffect in the main hook handle adding initial tracks)
           if (showData.artist_id) {
-            // We'll let the useEffect in the main hook handle adding initial tracks
+            // Update the last_updated field to trigger the useEffect
+            await supabase
+              .from('setlists')
+              .update({ last_updated: new Date().toISOString() })
+              .eq('id', newSetlist.id);
+              
             return newSetlist.id;
           }
         }

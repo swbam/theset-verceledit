@@ -1,4 +1,3 @@
-
 // Export all Spotify API functions
 export { searchArtists, getArtistById, getArtistByName } from './artist-search';
 export { getArtistTopTracks } from './top-tracks';
@@ -14,3 +13,8 @@ export * from './types';
 
 // Only export mock-tracks from one place to avoid ambiguity
 export { generateMockTracks } from './utils';
+
+// Import the function before re-exporting it as an alias
+import { getArtistAllTracks } from './all-tracks';
+// Add getAllArtistTracks as alias for getArtistAllTracks for compatibility
+export const getAllArtistTracks = getArtistAllTracks;
