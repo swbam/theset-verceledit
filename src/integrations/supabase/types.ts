@@ -83,7 +83,6 @@ export type Database = {
           spotify_id: string | null
           spotify_url: string | null
           stored_tracks: Json | null
-          ticketmaster_id: string | null
           tracks_last_updated: string | null
           upcoming_shows: number | null
           updated_at: string | null
@@ -92,14 +91,13 @@ export type Database = {
           created_at?: string | null
           followers?: number | null
           genres?: string[] | null
-          id?: string
+          id: string
           image_url?: string | null
           name: string
           popularity?: number | null
           spotify_id?: string | null
           spotify_url?: string | null
           stored_tracks?: Json | null
-          ticketmaster_id?: string | null
           tracks_last_updated?: string | null
           upcoming_shows?: number | null
           updated_at?: string | null
@@ -115,7 +113,6 @@ export type Database = {
           spotify_id?: string | null
           spotify_url?: string | null
           stored_tracks?: Json | null
-          ticketmaster_id?: string | null
           tracks_last_updated?: string | null
           upcoming_shows?: number | null
           updated_at?: string | null
@@ -124,69 +121,69 @@ export type Database = {
       }
       homepage_features: {
         Row: {
-          created_at: string
-          end_date: string | null
-          feature_type: string
+          active: boolean | null
+          created_at: string | null
+          description: string | null
           id: string
-          position: number | null
-          show_id: string
-          start_date: string | null
-          updated_at: string
+          image_url: string | null
+          order_index: number | null
+          reference_id: string
+          title: string
+          type: string
+          updated_at: string | null
         }
         Insert: {
-          created_at?: string
-          end_date?: string | null
-          feature_type: string
+          active?: boolean | null
+          created_at?: string | null
+          description?: string | null
           id?: string
-          position?: number | null
-          show_id: string
-          start_date?: string | null
-          updated_at?: string
+          image_url?: string | null
+          order_index?: number | null
+          reference_id: string
+          title: string
+          type: string
+          updated_at?: string | null
         }
         Update: {
-          created_at?: string
-          end_date?: string | null
-          feature_type?: string
+          active?: boolean | null
+          created_at?: string | null
+          description?: string | null
           id?: string
-          position?: number | null
-          show_id?: string
-          start_date?: string | null
-          updated_at?: string
+          image_url?: string | null
+          order_index?: number | null
+          reference_id?: string
+          title?: string
+          type?: string
+          updated_at?: string | null
         }
         Relationships: []
       }
       job_logs: {
         Row: {
-          created_at: string
-          error_count: number
-          errors: string[] | null
+          completed_at: string | null
+          data: Json | null
           id: string
-          items_created: number
-          items_processed: number
-          job_type: string
-          metadata: Json | null
+          job_name: string
+          message: string | null
+          started_at: string | null
           status: string
         }
         Insert: {
-          created_at?: string
-          error_count?: number
-          errors?: string[] | null
+          completed_at?: string | null
+          data?: Json | null
           id?: string
-          items_created?: number
-          items_processed?: number
-          job_type: string
-          metadata?: Json | null
-          status?: string
+          job_name: string
+          message?: string | null
+          started_at?: string | null
+          status: string
         }
         Update: {
-          created_at?: string
-          error_count?: number
-          errors?: string[] | null
+          completed_at?: string | null
+          data?: Json | null
           id?: string
-          items_created?: number
-          items_processed?: number
-          job_type?: string
-          metadata?: Json | null
+          job_name?: string
+          message?: string | null
+          started_at?: string | null
           status?: string
         }
         Relationships: []
@@ -254,7 +251,7 @@ export type Database = {
           avatar_url?: string | null
           created_at?: string | null
           full_name?: string | null
-          id?: string
+          id: string
           provider?: string | null
           provider_id?: string | null
           updated_at?: string | null
@@ -369,7 +366,7 @@ export type Database = {
           created_at?: string | null
           date?: string | null
           genre_ids?: string[] | null
-          id?: string
+          id: string
           image_url?: string | null
           name: string
           popularity?: number | null
@@ -457,51 +454,39 @@ export type Database = {
       venues: {
         Row: {
           address: string | null
-          capacity: number | null
           city: string | null
           country: string | null
           created_at: string | null
           id: string
-          image_url: string | null
           location: Json | null
           name: string
           postal_code: string | null
           state: string | null
-          ticket_url: string | null
           updated_at: string | null
-          website: string | null
         }
         Insert: {
           address?: string | null
-          capacity?: number | null
           city?: string | null
           country?: string | null
           created_at?: string | null
-          id?: string
-          image_url?: string | null
+          id: string
           location?: Json | null
           name: string
           postal_code?: string | null
           state?: string | null
-          ticket_url?: string | null
           updated_at?: string | null
-          website?: string | null
         }
         Update: {
           address?: string | null
-          capacity?: number | null
           city?: string | null
           country?: string | null
           created_at?: string | null
           id?: string
-          image_url?: string | null
           location?: Json | null
           name?: string
           postal_code?: string | null
           state?: string | null
-          ticket_url?: string | null
           updated_at?: string | null
-          website?: string | null
         }
         Relationships: []
       }
@@ -546,23 +531,9 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      create_artist_songs_table: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
-      }
-      create_job_logs_table: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
-      }
       increment_votes: {
         Args: {
           song_id: string
-        }
-        Returns: undefined
-      }
-      run_migration_query: {
-        Args: {
-          query_text: string
         }
         Returns: undefined
       }
