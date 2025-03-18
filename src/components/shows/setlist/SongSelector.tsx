@@ -33,17 +33,21 @@ const SongSelector = ({
   const sortedTracks = React.useMemo(() => {
     console.log("Sorting available tracks:", tracks?.length);
     if (!tracks || !Array.isArray(tracks) || tracks.length === 0) {
-      // Return some mock tracks if no tracks are available
-      return Array.from({ length: 10 }, (_, i) => ({
-        id: `mock-select-${i}`,
-        name: `Song Option ${i + 1}`
-      }));
+      // Return empty array instead of mock tracks
+      return [];
     }
     
     // Filter out duplicates by name (case-insensitive) and invalid tracks
+    // Also filter out any tracks with "Popular Song" placeholder names
     const uniqueNames = new Set();
     const uniqueTracks = tracks.filter(track => {
       if (!track || !track.name) return false;
+      
+      // Skip tracks with placeholder names
+      if (track.name.startsWith('Popular Song ') || track.name.startsWith('Song Option ')) {
+        return false;
+      }
+      
       const lowercaseName = track.name.toLowerCase();
       if (uniqueNames.has(lowercaseName)) return false;
       uniqueNames.add(lowercaseName);

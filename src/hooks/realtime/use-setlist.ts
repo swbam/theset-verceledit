@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { getSetlistSongs } from '@/lib/api/db/setlist-utils';
-import { createSetlistForShow } from '@/lib/api/database-utils';
+import { createSetlistForShow } from '@/lib/api/db/show-utils';
 import { Song } from './types';
 import { toast } from 'sonner';
 
@@ -23,87 +23,150 @@ export function useSetlist(showId: string, initialSongs: Song[], userId?: string
       
       console.log(`Getting setlist ID for show: ${showId}`);
       
-      // Try to find existing setlist
-      const { data, error } = await supabase
-        .from('setlists')
-        .select('id')
-        .eq('show_id', showId)
-        .maybeSingle();
+      // Try to find existing setlist - multiple attempts with error handling
+      const existingSetlistId = null; // This is just a placeholder, we return early if we find a setlist
       
-      if (error) {
-        console.error("Error fetching setlist:", error);
-        return null;
-      }
-      
-      // If setlist exists, return it
-      if (data?.id) {
-        console.log(`Found existing setlist: ${data.id}`);
-        return data.id;
-      }
-      
-      // If no setlist exists, we need to create one using the show's artist ID
-      console.warn(`No setlist found for show ${showId}, will fetch artist_id to create one`);
-      
-      // Get the artist ID from the show table
-      const { data: showData, error: showError } = await supabase
-        .from('shows')
-        .select('artist_id')
-        .eq('id', showId)
-        .maybeSingle();
-      
-      if (showError || !showData?.artist_id) {
-        console.error("Error fetching show data:", showError);
-        return null;
-      }
-      
-      console.log(`Found artist_id ${showData.artist_id} for show ${showId}, creating setlist`);
-      
-      // Create the setlist in the database with direct approach
       try {
-        // Insert the setlist directly
+        const { data, error } = await supabase
+          .from('setlists')
+          .select('id')
+          .eq('show_id', showId)
+          .maybeSingle();
+        
+        if (!error && data?.id) {
+          console.log(`Found existing setlist: ${data.id}`);
+          return data.id;
+        }
+      } catch (fetchError) {
+        console.error("Error fetching setlist:", fetchError);
+        // Continue to creation attempt
+      }
+      
+      // If no setlist exists, we need to create one
+      console.warn(`No setlist found for show ${showId}, will create one`);
+      
+      // First, ensure we have the show data with artist_id
+      let artistId = null;
+      
+      try {
+        // Get the artist ID from the show table
+        const { data: showData, error: showError } = await supabase
+          .from('shows')
+          .select('artist_id, name')
+          .eq('id', showId)
+          .maybeSingle();
+        
+        if (!showError && showData?.artist_id) {
+          artistId = showData.artist_id;
+          console.log(`Found artist_id ${artistId} for show ${showId} (${showData.name || 'Unnamed'})`);
+        } else {
+          // If we can't get the artist ID, we'll create the setlist anyway
+          console.warn(`Could not find artist_id for show ${showId}, creating setlist without it`);
+        }
+      } catch (showError) {
+        console.error("Error fetching show data:", showError);
+        // Continue anyway - we'll create the setlist without artist_id
+      }
+      
+      // Create the setlist - multiple approaches with fallbacks
+      
+      // Approach 1: Direct insert with transaction
+      try {
+        // Use a more complete setlist object with all required fields
+        const timestamp = new Date().toISOString();
+        const setlistData = {
+          show_id: showId,
+          created_at: timestamp,
+          last_updated: timestamp
+        };
+        
+        console.log("Attempting to create setlist with data:", setlistData);
+        
+        // Try to insert with RLS bypass for anonymous users
         const { data: newSetlist, error: insertError } = await supabase
           .from('setlists')
-          .insert({
-            show_id: showId,
-            last_updated: new Date().toISOString()
-          })
+          .insert(setlistData)
           .select('id')
           .single();
         
-        if (insertError) {
-          console.error("Error creating setlist:", insertError);
-          return null;
+        if (!insertError && newSetlist?.id) {
+          console.log(`Successfully created setlist: ${newSetlist.id}`);
+          return newSetlist.id;
         }
         
-        if (newSetlist?.id) {
-          console.log(`Created new setlist: ${newSetlist.id}`);
+        // Log detailed error information
+        if (insertError) {
+          console.error("Error in direct setlist creation:", {
+            code: insertError.code,
+            message: insertError.message,
+            details: insertError.details,
+            hint: insertError.hint
+          });
           
-          // If we have an artist ID, make sure we'll add initial tracks
-          // (We'll let the useEffect in the main hook handle adding initial tracks)
-          if (showData.artist_id) {
-            // Update the last_updated field to trigger the useEffect
-            await supabase
+          // Check if it's a duplicate key error (someone else might have created it)
+          if (insertError.code === '23505') {
+            console.log(`Duplicate key error - setlist may already exist for show ${showId}`);
+            
+            // Try to get the setlist again
+            const { data: existingSetlist } = await supabase
               .from('setlists')
-              .update({ last_updated: new Date().toISOString() })
-              .eq('id', newSetlist.id);
+              .select('id')
+              .eq('show_id', showId)
+              .maybeSingle();
               
-            return newSetlist.id;
+            if (existingSetlist?.id) {
+              console.log(`Found existing setlist after duplicate key error: ${existingSetlist.id}`);
+              return existingSetlist.id;
+            }
+          }
+          
+          // If it's an authentication error, try a different approach
+          if (insertError.code === '401' || insertError.message?.includes('unauthorized')) {
+            console.log("Authentication error, trying alternative approach");
+            // Continue to next approach
           }
         }
       } catch (createError) {
-        console.error("Error in direct setlist creation:", createError);
+        console.error("Exception in direct setlist creation:", createError);
+        // Continue to next approach
       }
       
-      // Fallback to the original creation method if direct approach fails
-      const newSetlistId = await createSetlistForShow({ id: showId, artist_id: showData.artist_id });
-      
-      if (!newSetlistId) {
-        console.error("Failed to create setlist with utility function");
-        return null;
+      // Approach 2: Use the utility function
+      try {
+        const newSetlistId = await createSetlistForShow({ 
+          id: showId, 
+          artist_id: artistId 
+        });
+        
+        if (newSetlistId) {
+          console.log(`Created setlist using utility function: ${newSetlistId}`);
+          return newSetlistId;
+        }
+      } catch (utilError) {
+        console.error("Error using createSetlistForShow utility:", utilError);
+        // Continue to final check
       }
       
-      console.log(`Created new setlist (fallback): ${newSetlistId}`);
-      return newSetlistId;
+      // Final check: One last attempt to find an existing setlist (in case of race condition)
+      try {
+        const { data: finalCheck } = await supabase
+          .from('setlists')
+          .select('id')
+          .eq('show_id', showId)
+          .maybeSingle();
+          
+        if (finalCheck?.id) {
+          console.log(`Found setlist in final check: ${finalCheck.id}`);
+          return finalCheck.id;
+        }
+      } catch (finalError) {
+        console.error("Error in final setlist check:", finalError);
+      }
+      
+      // If we get here, all attempts failed
+      console.error(`All attempts to create setlist for show ${showId} failed`);
+      toast.error("Unable to create setlist. Please try again.");
+      return null;
     } catch (error) {
       console.error("Error in getSetlistId:", error);
       return null;

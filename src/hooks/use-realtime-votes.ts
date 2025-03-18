@@ -53,11 +53,17 @@ export function useRealtimeVotes(showId: string, spotifyArtistId: string, initia
   // Add initial songs to the database if none exist yet
   useEffect(() => {
     const checkAndAddInitialSongs = async () => {
-      if (!setlistId || !initialSongs || initialSongs.length === 0) return;
+      if (!setlistId || !initialSongs) return;
       
       // If we have songs from the database, don't add initial ones
       if (setlist.length > 0) {
         console.log("Setlist already has songs, not adding initial ones");
+        return;
+      }
+      
+      // Make sure we have initial songs to add
+      if (initialSongs.length === 0) {
+        console.warn("No initial songs available to add to setlist");
         return;
       }
       
@@ -70,14 +76,24 @@ export function useRealtimeVotes(showId: string, spotifyArtistId: string, initia
         userVoted: false
       }));
       
-      await addInitialSongs(setlistId, initialSongsWithZeroVotes);
+      try {
+        const result = await addInitialSongs(setlistId, initialSongsWithZeroVotes);
+        console.log("Result of adding initial songs:", result);
+        
+        // Force a refetch of the setlist songs after adding initial ones
+        setTimeout(() => {
+          refetchSongs();
+        }, 500);
+      } catch (error) {
+        console.error("Error adding initial songs:", error);
+      }
     };
     
     // Run this effect as soon as we have a setlistId
     if (setlistId) {
       checkAndAddInitialSongs();
     }
-  }, [setlistId, initialSongs, setlist.length, addInitialSongs]);
+  }, [setlistId, initialSongs, setlist.length, addInitialSongs, refetchSongs]);
   
   return {
     setlist,
@@ -92,6 +108,7 @@ export function useRealtimeVotes(showId: string, spotifyArtistId: string, initia
       return await handleAddSong(trackId, trackName);
     },
     anonymousVoteCount,
-    setlistId
+    setlistId,
+    getSetlistId // Expose the getSetlistId function
   };
 }

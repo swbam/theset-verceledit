@@ -3,6 +3,14 @@
     {
       "path": "/api/cron/run-maintenance",
       "schedule": "0 */6 * * *"
+    },
+    {
+      "path": "/api/cron/weekly-sync",
+      "schedule": "0 0 * * 1"
+    },
+    {
+      "path": "/api/cron/trending-shows",
+      "schedule": "0 */3 * * *"
     }
   ],
   "headers": [
@@ -14,11 +22,32 @@
           "value": "no-store, private, no-cache"
         }
       ]
+    },
+    {
+      "source": "/api/cron/weekly-sync",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store, private, no-cache"
+        }
+      ]
+    },
+    {
+      "source": "/api/cron/trending-shows",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store, private, no-cache"
+        }
+      ]
     }
   ],
   "env": {
     "MAINTENANCE_API_KEY": {
       "description": "API key for maintenance cron jobs"
+    },
+    "CRON_SECRET_TOKEN": {
+      "description": "Secret token for authenticating cron job requests"
     }
   }
-} 
+}

@@ -55,12 +55,7 @@ const ShowSetlist = ({
   
   return (
     <div className="flex flex-col">
-      {/* Display setlist creation status if needed */}
-      {!setlistId && !setlist.length && (
-        <div className="p-4 text-amber-400 bg-amber-900/30 border border-amber-700 rounded-md mb-4">
-          Creating setlist... This may take a moment.
-        </div>
-      )}
+      {/* We're removing the orange label that shows when creating a setlist */}
       
       {/* Song selection form at the top */}
       <SetlistAddSongForm

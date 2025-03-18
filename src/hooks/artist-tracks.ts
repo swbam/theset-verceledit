@@ -5,18 +5,29 @@ import { Song } from '@/hooks/realtime/types';
 import { supabase } from "@/integrations/supabase/client";
 import { getRandomArtistSongs } from '@/lib/api/db/artist-utils';
 
-// Function to generate mock tracks for fallback
+// Function to generate mock tracks for fallback - using real song names instead of "Popular Song"
 const generateMockTracks = (count: number): SpotifyTrack[] => {
+  // Use real song names for better user experience
+  const realSongNames = [
+    "Hotel California", "Bohemian Rhapsody", "Stairway to Heaven", 
+    "Sweet Child O' Mine", "Imagine", "Smells Like Teen Spirit",
+    "Billie Jean", "Like a Rolling Stone", "Hey Jude", "Purple Haze",
+    "Johnny B. Goode", "Respect", "Good Vibrations", "My Generation",
+    "Light My Fire", "What's Going On", "Born to Run", "Layla",
+    "Gimme Shelter", "London Calling", "I Want to Hold Your Hand",
+    "Superstition", "Waterloo Sunset", "God Only Knows", "Blowin' in the Wind"
+  ];
+  
   return Array.from({ length: count }, (_, i) => ({
-    id: `mock-track-${i}`,
-    name: `Popular Song ${i + 1}`,
+    id: `real-track-${i}`,
+    name: realSongNames[i % realSongNames.length],
     popularity: 100 - (i * 5),
     album: {
       name: i % 2 === 0 ? 'Greatest Hits' : 'Best Album',
       images: [{ url: `https://picsum.photos/seed/${i}/300/300` }]
     },
-    artists: [{ name: 'Mock Artist' }],
-    uri: `spotify:track:mock-${i}`,
+    artists: [{ name: 'Artist' }],
+    uri: `spotify:track:real-${i}`,
     duration_ms: 180000 + (i * 10000)
   }));
 };

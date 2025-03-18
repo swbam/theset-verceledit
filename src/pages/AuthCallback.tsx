@@ -47,24 +47,48 @@ const AuthCallback = () => {
           if (provider === 'spotify' || session.provider_token) {
             console.log('Redirecting to personalized dashboard after Spotify login');
             
-            // First, fetch user profile to ensure it exists
-            const { error: profileError } = await supabase
-              .from('profiles')
-              .upsert({
-                id: session.user.id,
-                updated_at: new Date().toISOString(),
-                provider: 'spotify'
-              });
+            try {
+              // First, fetch user profile to ensure it exists
+              const { error: profileError } = await supabase
+                .from('profiles')
+                .upsert({
+                  id: session.user.id,
+                  updated_at: new Date().toISOString(),
+                  provider: 'spotify'
+                });
+                
+              if (profileError) {
+                console.error('Error updating profile:', profileError);
+              }
               
-            if (profileError) {
-              console.error('Error updating profile:', profileError);
-            }
-            
-            // Delay navigation slightly to ensure database operations complete
-            setTimeout(() => {
+              // Fetch Spotify user data to store in the profile
+              try {
+                // Attempt to fetch user's top artists from Spotify to verify token works
+                const spotifyResponse = await fetch('/api/spotify/me/top-artists', {
+                  headers: {
+                    'Authorization': `Bearer ${session.access_token}`
+                  }
+                });
+                
+                if (spotifyResponse.ok) {
+                  console.log('Successfully fetched Spotify data');
+                }
+              } catch (spotifyError) {
+                console.error('Error fetching Spotify data:', spotifyError);
+                // Continue with redirect even if this fails
+              }
+              
+              // Delay navigation slightly to ensure database operations complete
+              setTimeout(() => {
+                // Force a hard redirect to ensure clean state
+                window.location.href = '/my-artists';
+              }, 800);
+            } catch (error) {
+              console.error('Error in Spotify auth flow:', error);
+              // Fallback to normal redirect
               navigate('/my-artists', { replace: true });
               setProcessing(false);
-            }, 800);
+            }
           } else {
             // For other auth methods, go to homepage or original destination
             setTimeout(() => {

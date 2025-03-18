@@ -3,6 +3,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { addSongToSetlist as dbAddSongToSetlist } from '@/lib/api/db/setlist-utils';
 import { addTracksToSetlist } from '@/lib/api/db/setlist-utils';
+import { Song } from './types';
 
 /**
  * Hook for managing song additions to setlists
@@ -12,7 +13,7 @@ export function useSongManagement(
   showId: string, 
   getSetlistId: (showId: string) => Promise<string | null>,
   refetchSongs: () => void,
-  setlist: any[]
+  setlist: Song[]
 ) {
   // Handle adding a new song to the setlist
   const handleAddSong = useCallback(async (trackId: string, trackName: string) => {
@@ -64,7 +65,7 @@ export function useSongManagement(
         toast.error("Failed to add song to setlist");
         return false;
       }
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("Error adding song:", error);
       toast.error("Error adding song to setlist");
       return false;
@@ -72,30 +73,107 @@ export function useSongManagement(
   }, [setlistId, showId, getSetlistId, setlist, refetchSongs]);
   
   // Add initial songs to the database all at once
-  const addInitialSongs = useCallback(async (setlistId: string, initialSongs: any[]) => {
-    if (!setlistId || !initialSongs || initialSongs.length === 0) return;
+  const addInitialSongs = useCallback(async (setlistId: string, initialSongs: Song[]) => {
+    if (!setlistId) {
+      console.error("Cannot add initial songs: missing setlist ID");
+      return false;
+    }
+    
+    if (!initialSongs || initialSongs.length === 0) {
+      console.error("Cannot add initial songs: no songs provided");
+      return false;
+    }
     
     console.log(`Adding ${initialSongs.length} initial songs to setlist ${setlistId}`);
     
     try {
+      // First check if the setlist already has songs
+      const { data: existingSongs, error: checkError } = await supabase
+        .from('setlist_songs')
+        .select('id')
+        .eq('setlist_id', setlistId)
+        .limit(1);
+      
+      if (checkError) {
+        console.error("Error checking for existing songs:", checkError);
+      } else if (existingSongs && existingSongs.length > 0) {
+        console.log("Setlist already has songs, skipping initial song addition");
+        return true; // Already has songs, no need to add more
+      }
+      
+      // If we don't have enough songs, select a random subset of 5
+      let songsToAdd = initialSongs;
+      if (initialSongs.length > 5) {
+        console.log(`Selecting 5 random songs from ${initialSongs.length} available tracks`);
+        // Shuffle the array and take the first 5
+        const shuffled = [...initialSongs].sort(() => 0.5 - Math.random());
+        songsToAdd = shuffled.slice(0, 5);
+        console.log(`Selected songs: ${songsToAdd.map(s => s.name).join(', ')}`);
+      }
+      
       // Prepare the tracks for batch insertion
-      const trackIds = initialSongs.map(song => song.id);
-      const trackNames = initialSongs.reduce((acc, song) => {
+      const trackIds = songsToAdd.map(song => song.id);
+      const trackNames = songsToAdd.reduce((acc, song) => {
         acc[song.id] = song.name;
         return acc;
-      }, {});
+      }, {} as Record<string, string>);
       
       // Insert all tracks at once using the bulk add function
-      // This is more efficient than adding them one by one
-      await addTracksToSetlist(setlistId, trackIds, trackNames);
-      
-      // Refresh the songs list
-      refetchSongs();
-      
-      console.log(`Successfully added ${initialSongs.length} initial songs to setlist`);
-    } catch (error) {
+      try {
+        // This is more efficient than adding them one by one
+        await addTracksToSetlist(setlistId, trackIds, trackNames);
+        
+        // Refresh the songs list
+        setTimeout(() => {
+          refetchSongs();
+        }, 500); // Small delay to ensure database operations complete
+        
+        console.log(`Successfully added ${songsToAdd.length} initial songs to setlist`);
+        return true;
+      } catch (batchError: unknown) {
+        console.error("Error in batch adding songs:", batchError);
+        throw batchError; // Propagate to fallback
+      }
+    } catch (error: unknown) {
       console.error("Error adding initial songs:", error);
-      // Continue without initial songs if there's an error
+      // Try adding songs one by one as a fallback
+      try {
+        console.log("Attempting to add songs individually as fallback");
+        let addedCount = 0;
+        
+        // Try to add at least 5 songs, or all available if less than 5
+        const songsToTry = initialSongs.length > 5 
+          ? initialSongs.slice(0, 5) 
+          : initialSongs;
+        
+        for (const song of songsToTry) {
+          try {
+            const result = await dbAddSongToSetlist(setlistId, song.id, song.name);
+            if (result) {
+              addedCount++;
+              console.log(`Added song: ${song.name}`);
+            }
+          } catch (singleSongError: unknown) {
+            console.error(`Error adding song ${song.name}:`, singleSongError);
+            // Continue with next song
+          }
+        }
+        
+        console.log(`Added ${addedCount}/${songsToTry.length} songs individually`);
+        
+        // Refresh the songs list if we added any songs
+        if (addedCount > 0) {
+          setTimeout(() => {
+            refetchSongs();
+          }, 500);
+          return true;
+        }
+        
+        return false;
+      } catch (fallbackError: unknown) {
+        console.error("Fallback error adding songs individually:", fallbackError);
+        return false;
+      }
     }
   }, [refetchSongs]);
   

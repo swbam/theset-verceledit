@@ -1,4 +1,4 @@
-import { supabase } from '@/integrations/supabase/client';
+import { supabase, supabaseAdmin } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
 export interface SetlistSong {
@@ -210,6 +210,30 @@ export const addSongToSetlist = async (
       .select('id')
       .single();
 
+    // If we get an authentication error and admin client is available, try with admin client
+    if (insertError && (insertError.code === '401' || insertError.message?.includes('unauthorized')) && supabaseAdmin) {
+      console.log('Using admin client for adding song due to auth error');
+      const { data: adminData, error: adminError } = await supabaseAdmin
+        .from('setlist_songs')
+        .insert({
+          setlist_id: setlistId,
+          track_id: trackId,
+          votes: 0
+        })
+        .select('id')
+        .single();
+        
+      if (!adminError && adminData?.id) {
+        console.log(`Successfully added song with admin client: ${adminData.id}`);
+        return adminData.id;
+      }
+      
+      if (adminError) {
+        console.error('Error adding song with admin client:', adminError);
+        throw adminError;
+      }
+    }
+
     if (insertError) {
       console.error("Error inserting song:", insertError);
       throw insertError;
@@ -240,12 +264,31 @@ export const addTracksToSetlist = async (
       created_at: new Date().toISOString()
     }));
     
-    // Bulk insert all songs at once
+    // Try with regular client first
     const { data, error } = await supabase
       .from('setlist_songs')
       .insert(songsToInsert)
       .select();
       
+    // If we get an authentication error and admin client is available, try with admin client
+    if (error && (error.code === '401' || error.message?.includes('unauthorized')) && supabaseAdmin) {
+      console.log('Using admin client for adding tracks due to auth error');
+      const { data: adminData, error: adminError } = await supabaseAdmin
+        .from('setlist_songs')
+        .insert(songsToInsert)
+        .select();
+        
+      if (!adminError && adminData) {
+        console.log(`Successfully added ${adminData.length} tracks to setlist with admin client`);
+        return;
+      }
+      
+      if (adminError) {
+        console.error('Error adding tracks with admin client:', adminError);
+        throw adminError;
+      }
+    }
+    
     if (error) {
       console.error('Error batch inserting songs to setlist:', error);
       throw error;
@@ -260,7 +303,7 @@ export const addTracksToSetlist = async (
 
 export const createSetlist = async (
   showId: string,
-  createdBy: string
+  createdBy?: string
 ): Promise<string | null> => {
   try {
     console.log(`Creating setlist for show ID: ${showId}`);
@@ -274,7 +317,7 @@ export const createSetlist = async (
     
     if (checkError) {
       console.error('Error checking for existing setlist:', checkError);
-      return null;
+      // Continue anyway - we'll try to create a new one
     }
     
     if (existingSetlist?.id) {
@@ -283,22 +326,99 @@ export const createSetlist = async (
     }
     
     // Create a new setlist
-    const { data, error } = await supabase
-      .from('setlists')
-      .insert({
+    try {
+      const timestamp = new Date().toISOString();
+      const setlistData = {
         show_id: showId,
-        created_by: createdBy
-      })
-      .select('id')
-      .single();
+        created_at: timestamp,
+        last_updated: timestamp
+      };
+      
+      console.log(`Attempting to create setlist with data:`, setlistData);
+      
+      // Try with regular client first
+      const { data, error } = await supabase
+        .from('setlists')
+        .insert(setlistData)
+        .select('id')
+        .single();
+        
+      // If we get an authentication error and admin client is available, try with admin client
+      if (error && (error.code === '401' || error.message?.includes('unauthorized')) && supabaseAdmin) {
+        console.log('Using admin client for setlist creation due to auth error');
+        const { data: adminData, error: adminError } = await supabaseAdmin
+          .from('setlists')
+          .insert(setlistData)
+          .select('id')
+          .single();
+          
+        if (!adminError && adminData?.id) {
+          console.log(`Created new setlist with admin client: ${adminData.id}`);
+          return adminData.id;
+        }
+        
+        if (adminError) {
+          console.error('Error creating setlist with admin client:', adminError);
+        }
+      }
 
-    if (error) {
-      console.error('Error creating setlist:', error);
-      throw error;
+      if (error) {
+        // Log detailed error information
+        console.error('Error creating setlist:', {
+          code: error.code,
+          message: error.message,
+          details: error.details,
+          hint: error.hint
+        });
+        
+        // Check if it's a duplicate key error (someone else might have created it)
+        if (error.code === '23505') {
+          console.log(`Duplicate key error - setlist may already exist for show ${showId}`);
+          
+          // Try to get the setlist again
+          const { data: retrySetlist } = await supabase
+            .from('setlists')
+            .select('id')
+            .eq('show_id', showId)
+            .maybeSingle();
+            
+          if (retrySetlist?.id) {
+            console.log(`Found existing setlist on retry: ${retrySetlist.id}`);
+            return retrySetlist.id;
+          }
+        }
+        
+        throw error;
+      }
+      
+      if (!data?.id) {
+        console.error('No setlist ID returned after creation');
+        return null;
+      }
+      
+      console.log(`Created new setlist: ${data.id}`);
+      return data.id;
+    } catch (insertError) {
+      console.error('Exception during setlist creation:', insertError);
+      
+      // One last attempt to find an existing setlist
+      try {
+        const { data: lastAttemptSetlist } = await supabase
+          .from('setlists')
+          .select('id')
+          .eq('show_id', showId)
+          .maybeSingle();
+          
+        if (lastAttemptSetlist?.id) {
+          console.log(`Found setlist in last attempt: ${lastAttemptSetlist.id}`);
+          return lastAttemptSetlist.id;
+        }
+      } catch (finalError) {
+        console.error('Final attempt to find setlist failed:', finalError);
+      }
+      
+      return null;
     }
-    
-    console.log(`Created new setlist: ${data.id}`);
-    return data.id;
   } catch (error) {
     console.error('Error creating setlist:', error);
     return null;

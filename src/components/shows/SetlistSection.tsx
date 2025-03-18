@@ -1,11 +1,12 @@
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useAuth } from '@/contexts/auth/AuthContext';
 import { useArtistTracks } from '@/hooks/artist-tracks';
 import { useInitialSongs } from '@/hooks/artist-tracks/use-initial-songs';
 import { useRealtimeVotes } from '@/hooks/use-realtime-votes';
 import { LoadingIndicator } from '@/components/ui/loading';
 import ShowSetlist from '@/components/shows/setlist/ShowSetlist';
+import { useSongManagement } from '@/hooks/realtime/use-song-management';
 
 interface SetlistSectionProps {
   showId: string;
@@ -34,8 +35,42 @@ const SetlistSection = ({ showId, spotifyArtistId }: SetlistSectionProps) => {
     setSelectedTrack, 
     handleAddSong,
     anonymousVoteCount,
-    setlistId
+    setlistId,
+    getSetlistId
   } = useRealtimeVotes(showId, spotifyArtistId, initialSongs);
+  
+  // Get song management functions
+  const { addInitialSongs } = useSongManagement(
+    setlistId,
+    showId,
+    getSetlistId,
+    () => {}, // We'll handle refetching separately
+    setlist
+  );
+  
+  // Add initial songs to the setlist when it's created
+  useEffect(() => {
+    if (setlistId && initialSongs.length > 0 && (!setlist || setlist.length === 0)) {
+      console.log(`Adding ${initialSongs.length} initial songs to setlist ${setlistId}`);
+      
+      // Add a small delay to ensure the setlist is fully created in the database
+      const timer = setTimeout(() => {
+        addInitialSongs(setlistId, initialSongs)
+          .then(success => {
+            if (success) {
+              console.log("Successfully added initial songs to setlist");
+            } else {
+              console.error("Failed to add initial songs to setlist");
+            }
+          })
+          .catch(error => {
+            console.error("Error adding initial songs:", error);
+          });
+      }, 1000);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [setlistId, initialSongs, setlist, addInitialSongs]);
   
   // Show loading indicator if we're loading tracks
   if (isLoadingTracks) {
