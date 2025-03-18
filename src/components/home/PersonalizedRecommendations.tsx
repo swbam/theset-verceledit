@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Music } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -14,21 +13,24 @@ const PersonalizedRecommendations = () => {
   };
 
   return (
-    <section className="py-16 px-4">
-      <div className="max-w-5xl mx-auto text-center">
-        <div className="bg-black/40 border border-white/10 rounded-xl p-8 md:p-10 flex flex-col items-center">
-          <div className="w-16 h-16 bg-black/60 flex items-center justify-center rounded-full mb-4">
-            <Music className="h-8 w-8 text-white" />
+    <section className="py-12 px-4">
+      <div className="container mx-auto max-w-7xl">
+        <div className="flex items-center justify-center mb-6">
+          <div className="w-14 h-14 rounded-full flex items-center justify-center">
+            <Music className="h-7 w-7 text-white" strokeWidth={1.5} />
           </div>
-          
-          <h2 className="text-2xl font-bold mb-2">Personalized Recommendations</h2>
-          <p className="text-white/70 mb-6 max-w-md">
-            Connect your Spotify account to see personalized artists, concerts and upcoming shows
-          </p>
-          
+        </div>
+        
+        <h2 className="text-2xl font-bold text-center mb-2">Personalized Recommendations</h2>
+        <p className="text-white/60 text-center mb-6 max-w-lg mx-auto text-sm">
+          Connect your Spotify account to see personalized recommendations and upcoming shows.
+        </p>
+        
+        <div className="flex justify-center">
           <Button 
             onClick={handleConnectSpotify} 
-            className="bg-white text-black hover:bg-white/90 font-medium"
+            variant="outline"
+            className="rounded-full border-white/20 bg-white/5 hover:bg-white/10 text-white"
           >
             Connect Spotify
           </Button>

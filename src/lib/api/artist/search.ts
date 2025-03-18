@@ -64,7 +64,7 @@ export async function searchArtistsWithEvents(query: string, limit = 10): Promis
             id: attraction.id,
             name: attraction.name,
             image: artistImage,
-            upcomingShows: 1,
+            upcomingShows: attraction.upcomingEvents?._total || 1,
             popularity: popularity
           });
         });
@@ -97,13 +97,12 @@ export async function searchArtistsWithEvents(query: string, limit = 10): Promis
       }
     });
     
-    // Save artists to database
+    // Extract artists from the map
     const artists = Array.from(artistsMap.values());
     console.log(`Extracted ${artists.length} unique artists from events`);
     
-    for (const artist of artists) {
-      await saveArtistToDatabase(artist);
-    }
+    // Don't attempt to save to database during search - this is likely causing the error
+    // We'll only do this when the user explicitly selects an artist
     
     // Sort by estimated popularity and limit results
     return artists
@@ -122,7 +121,10 @@ export async function searchArtistsWithEvents(query: string, limit = 10): Promis
       .slice(0, limit);
   } catch (error) {
     console.error("Ticketmaster artist search error:", error);
-    toast.error("Failed to search for artists");
+    // Don't show toast during search as it's distracting
+    // toast.error("Failed to search for artists");
+    
+    // Return empty array instead of letting the error propagate
     return [];
   }
 }

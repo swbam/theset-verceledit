@@ -19,11 +19,11 @@ const Navbar = ({ showSearch = true }) => {
   const isHomePage = location.pathname === '/';
   const isSearchPage = location.pathname === '/search';
 
-  // Debounce search query
+  // Debounce search query with a slightly longer delay (500ms)
   useEffect(() => {
     const handler = setTimeout(() => {
       setDebouncedQuery(searchQuery);
-    }, 300);
+    }, 500);
 
     return () => {
       clearTimeout(handler);
@@ -31,10 +31,23 @@ const Navbar = ({ showSearch = true }) => {
   }, [searchQuery]);
 
   // Fetch artist search results
-  const { data: artists = [], isLoading } = useQuery({
+  const { data: artists = [], isLoading, error } = useQuery({
     queryKey: ['navSearch', debouncedQuery],
-    queryFn: () => searchArtistsWithEvents(debouncedQuery, 5),
+    queryFn: async () => {
+      try {
+        if (!debouncedQuery || debouncedQuery.length < 2) return [];
+        console.log('Searching for artists with query:', debouncedQuery);
+        const results = await searchArtistsWithEvents(debouncedQuery, 5);
+        console.log('Search results:', results);
+        return results;
+      } catch (searchError) {
+        console.error('Error searching for artists:', searchError);
+        return [];
+      }
+    },
     enabled: debouncedQuery.length > 2,
+    staleTime: 1000 * 60 * 5, // Cache results for 5 minutes
+    retry: 1, // Only retry once on failure
   });
 
   const toggleMenu = () => {
@@ -47,15 +60,21 @@ const Navbar = ({ showSearch = true }) => {
 
   const handleFullSearch = (query: string) => {
     if (query.trim()) {
-      // Only navigate if we're not already on the search page
-      if (!isSearchPage) {
-        navigate(`/search?q=${encodeURIComponent(query)}`);
-      }
+      // Navigate to search page with query
+      navigate(`/search?q=${encodeURIComponent(query)}`);
       setSearchQuery('');
     }
   };
 
   const handleNavigation = (artistId: string) => {
+    if (!artistId) return;
+    
+    // Close the menu if it's open
+    if (isMenuOpen) {
+      setIsMenuOpen(false);
+    }
+    
+    // Navigate to the artist page
     navigate(`/artists/${artistId}`);
     setSearchQuery('');
   };
@@ -71,7 +90,7 @@ const Navbar = ({ showSearch = true }) => {
           <NavbarSearch 
             searchQuery={searchQuery}
             setSearchQuery={setSearchQuery}
-            artists={artists}
+            artists={artists || []}
             isLoading={isLoading}
             handleFullSearch={handleFullSearch}
             handleNavigation={handleNavigation}
@@ -95,7 +114,7 @@ const Navbar = ({ showSearch = true }) => {
               isOpen={isMenuOpen}
               searchQuery={searchQuery}
               setSearchQuery={setSearchQuery}
-              artists={artists}
+              artists={artists || []}
               isLoading={isLoading}
               handleFullSearch={handleFullSearch}
               handleNavigation={handleNavigation}

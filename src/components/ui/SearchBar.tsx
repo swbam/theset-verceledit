@@ -27,8 +27,11 @@ const SearchBar = ({
 }: SearchBarProps) => {
   const [query, setQuery] = useState(value || '');
   const [isFocused, setIsFocused] = useState(false);
+  const [showResults, setShowResults] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const searchBarRef = useRef<HTMLFormElement>(null);
+  // Track whether search results are being interacted with
+  const [isInteractingWithResults, setIsInteractingWithResults] = useState(false);
 
   // Update internal state when value prop changes
   useEffect(() => {
@@ -42,14 +45,11 @@ const SearchBar = ({
     if (onSearch && query.trim()) {
       onSearch(query.trim());
     }
-    // Keep dropdown open if redirection is disabled
-    if (!disableRedirect) {
-      setIsFocused(false);
-    }
   };
 
   const clearSearch = () => {
     setQuery('');
+    setShowResults(false);
     if (onChange) {
       onChange('');
     }
@@ -61,9 +61,28 @@ const SearchBar = ({
   const handleQueryChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newQuery = e.target.value;
     setQuery(newQuery);
+    
+    // Show results dropdown when query has content
+    setShowResults(newQuery.length > 2);
+    
     if (onChange) {
       onChange(newQuery);
     }
+  };
+
+  const handleFocus = () => {
+    setIsFocused(true);
+    // Show results dropdown if there's query content
+    setShowResults(query.length > 2);
+  };
+
+  // Handle mouse events for results dropdown
+  const handleResultsMouseEnter = () => {
+    setIsInteractingWithResults(true);
+  };
+
+  const handleResultsMouseLeave = () => {
+    setIsInteractingWithResults(false);
   };
 
   // Handle outside click to close dropdown
@@ -71,6 +90,13 @@ const SearchBar = ({
     const handleClickOutside = (event: MouseEvent) => {
       if (searchBarRef.current && !searchBarRef.current.contains(event.target as Node)) {
         setIsFocused(false);
+        // Only hide results if not interacting with them
+        if (!isInteractingWithResults) {
+          // Give a short delay before hiding results to allow for clicks
+          setTimeout(() => {
+            setShowResults(false);
+          }, 200);
+        }
       }
     };
 
@@ -78,7 +104,7 @@ const SearchBar = ({
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, []);
+  }, [isInteractingWithResults]);
 
   // Auto focus on mount if needed
   useEffect(() => {
@@ -121,7 +147,7 @@ const SearchBar = ({
           type="text"
           value={query}
           onChange={handleQueryChange}
-          onFocus={() => setIsFocused(true)}
+          onFocus={handleFocus}
           placeholder={placeholder}
           className="py-3 px-3 w-full bg-transparent focus:outline-none text-white placeholder:text-zinc-400"
           aria-label="Search"
@@ -140,8 +166,12 @@ const SearchBar = ({
       </div>
 
       {/* Search results dropdown */}
-      {isFocused && children && (
-        <div className="absolute left-0 right-0 mt-2 z-10 bg-zinc-900 border border-zinc-800 rounded-md shadow-lg overflow-hidden">
+      {showResults && children && (
+        <div 
+          className="absolute left-0 right-0 mt-2 z-10 bg-zinc-900 border border-zinc-800 rounded-md shadow-lg overflow-hidden"
+          onMouseEnter={handleResultsMouseEnter}
+          onMouseLeave={handleResultsMouseLeave}
+        >
           {children}
         </div>
       )}

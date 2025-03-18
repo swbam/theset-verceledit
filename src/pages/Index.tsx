@@ -7,10 +7,11 @@ import UpcomingShows from '@/components/home/UpcomingShows';
 import HowItWorks from '@/components/home/HowItWorks';
 import PersonalizedRecommendations from '@/components/home/PersonalizedRecommendations';
 import TrendingShows from '@/components/home/TrendingShows';
+import LiveVotingSection from '@/components/home/LiveVotingSection';
 import { useDocumentTitle } from '@/hooks/use-document-title';
 
 const Index = () => {
-  useDocumentTitle('', 'Join TheSet to vote on setlists for upcoming concerts and influence what your favorite artists will play live.');
+  useDocumentTitle('', 'TheSet - Vote on setlists for upcoming concerts and influence what your favorite artists will play live.');
   
   return (
     <div className="min-h-screen flex flex-col bg-black text-white">
@@ -22,6 +23,7 @@ const Index = () => {
         <TrendingShows />
         <FeaturedArtists />
         <UpcomingShows />
+        <LiveVotingSection />
         <HowItWorks />
       </main>
       

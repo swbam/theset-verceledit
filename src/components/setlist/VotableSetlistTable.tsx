@@ -1,6 +1,5 @@
-
 import React, { useState } from 'react';
-import { ArrowBigUp, Music, Trophy, Star, Crown } from 'lucide-react';
+import { ArrowBigUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { 
   Table,
@@ -74,26 +73,8 @@ const VotableSetlistTable = ({ songs, onVote, className, anonymousVoteCount = 0 
               >
                 <TableCell className="py-4 px-4">
                   <div className="flex items-center">
-                    {/* Display rank icons only on mobile */}
-                    {isMobile && index <= 2 && (
-                      <>
-                        {index === 0 && <Trophy size={16} className="mr-2 text-yellow-500" />}
-                        {index === 1 && <Crown size={14} className="mr-2 text-gray-400" />}
-                        {index === 2 && <Star size={14} className="mr-2 text-amber-700" />}
-                      </>
-                    )}
-                    
-                    {/* Always show music icon for non-top songs or on desktop */}
-                    {(!isMobile || index > 2) && (
-                      <Music size={16} className="mr-2 text-white/40" />
-                    )}
-                    
                     <span className={cn(
-                      "font-medium truncate max-w-[180px] sm:max-w-[250px] md:max-w-full",
-                      index === 0 && "text-yellow-500", 
-                      index === 1 && "text-gray-400",
-                      index === 2 && "text-amber-700",
-                      song.userVoted && "text-white"
+                      "font-medium text-white truncate max-w-[180px] sm:max-w-[250px] md:max-w-full",
                     )}>
                       {song.name}
                     </span>
@@ -101,34 +82,33 @@ const VotableSetlistTable = ({ songs, onVote, className, anonymousVoteCount = 0 
                 </TableCell>
                 <TableCell className="py-4 px-4 text-center hidden sm:table-cell">
                   <span className={cn(
-                    "inline-flex items-center justify-center min-w-10 text-center font-mono font-medium text-sm rounded-full py-0.5 px-2",
-                    song.votes > 0 ? "bg-white/10 text-white" : "bg-white/5 text-white/60", 
-                    animatingSongId === song.id && "animate-pulse"
+                    "inline-flex items-center justify-center min-w-10 text-center font-medium text-sm",
+                    animatingSongId === song.id && "scale-105 transition-transform"
                   )}>
                     {song.votes}
                   </span>
                 </TableCell>
                 <TableCell className="py-4 px-4 text-right">
-                  <div className="flex items-center justify-end">
-                    <span className="mr-2 text-sm font-medium sm:hidden text-white">
+                  <div className="flex items-center justify-end gap-3">
+                    <span className="text-sm font-medium sm:hidden text-white">
                       {song.votes}
                     </span>
                     <button
                       onClick={() => !song.userVoted && handleVote(song.id)}
                       disabled={song.userVoted}
                       className={cn(
-                        "inline-flex items-center justify-center rounded-full w-9 h-9 transition-all",
+                        "inline-flex items-center justify-center rounded-full w-8 h-8 transition-all",
                         song.userVoted 
-                          ? "bg-white text-[#0A0A16] cursor-default" 
-                          : "text-white/60 hover:bg-white/10 hover:text-white",
-                        animatingSongId === song.id && "scale-110"
+                          ? "bg-white/90 text-black cursor-default" 
+                          : "text-white border border-white/20 hover:bg-white/10",
+                        animatingSongId === song.id && "scale-105"
                       )}
                       title={song.userVoted ? "You already voted for this song" : "Vote for this song"}
                       aria-label={song.userVoted ? "You already voted for this song" : "Vote for this song"}
                     >
                       <ArrowBigUp className={cn(
-                        "h-5 w-5 transition-all",
-                        song.userVoted && "text-[#0A0A16]",
+                        "h-4 w-4 transition-all",
+                        song.userVoted && "text-black",
                         animatingSongId === song.id && "animate-bounce"
                       )} />
                       <span className="sr-only">
@@ -144,7 +124,7 @@ const VotableSetlistTable = ({ songs, onVote, className, anonymousVoteCount = 0 
       </Table>
       
       {anonymousVoteCount > 0 && anonymousVoteCount < 3 && (
-        <div className="flex justify-end p-3 text-xs text-amber-400">
+        <div className="flex justify-end p-3 text-xs text-white">
           <div className="flex items-center gap-1.5">
             <span>You've used {anonymousVoteCount}/3 free votes</span>
           </div>

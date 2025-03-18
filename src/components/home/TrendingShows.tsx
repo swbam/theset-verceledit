@@ -1,11 +1,10 @@
-
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { CalendarDays, MapPin, ChevronRight } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 import { getTrendingConcerts } from '@/lib/ticketmaster';
 
 const TrendingShows = () => {
@@ -66,64 +65,73 @@ const TrendingShows = () => {
   return (
     <section className="py-12 px-4 bg-black">
       <div className="container mx-auto max-w-7xl">
-        <div className="flex justify-between items-center mb-6">
+        <div className="flex justify-between items-center mb-8">
           <div>
             <h2 className="text-2xl font-bold text-white">Trending Shows</h2>
-            <p className="text-sm text-white/70">Shows with the most active voting right now</p>
+            <p className="text-sm text-white/60 mt-1">Shows with the most active voting right now</p>
           </div>
-          <Button variant="link" asChild className="text-white hover:text-white/80">
+          <Button variant="link" asChild size="sm" className="text-white hover:text-white/80">
             <Link to="/shows" className="flex items-center">
               View all <ChevronRight className="ml-1 h-4 w-4" />
             </Link>
           </Button>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
           {isLoading ? (
             [...Array(4)].map((_, i) => (
-              <Card key={i} className="bg-black/40 border-white/10 animate-pulse">
-                <div className="aspect-video bg-white/5"></div>
-                <div className="p-4 space-y-2">
-                  <div className="h-4 bg-white/5 rounded w-3/4"></div>
-                  <div className="h-4 bg-white/5 rounded w-1/2"></div>
+              <div key={i} className="bg-black border border-white/10 rounded-lg animate-pulse">
+                <div className="aspect-[4/3] bg-white/5 relative rounded-t-lg overflow-hidden">
+                  <div className="absolute top-4 right-4 h-5 w-16 bg-white/5 rounded-full"></div>
                 </div>
-              </Card>
+                <div className="p-5 space-y-3">
+                  <Skeleton className="h-4 w-20 bg-white/5" />
+                  <Skeleton className="h-5 w-3/4 bg-white/5" />
+                  <Skeleton className="h-4 w-1/2 bg-white/5" />
+                </div>
+              </div>
             ))
           ) : (
             showsData.map((show) => (
               <Link 
                 key={show.id} 
                 to={`/shows/${show.id}`}
-                className="block bg-black/40 rounded-lg overflow-hidden border border-white/10 hover:border-white/20 transition-all hover:scale-[1.02] group"
+                className="block bg-black rounded-lg overflow-hidden border border-white/10 hover:border-white/30 transition-all"
               >
-                <div className="relative aspect-video">
+                <div className="relative aspect-[4/3] overflow-hidden">
                   {show.image_url ? (
                     <img 
                       src={show.image_url} 
                       alt={show.name}
-                      className="w-full h-full object-cover"
+                      className="w-full h-full object-cover hover:scale-105 transition-transform duration-500"
                     />
                   ) : (
-                    <div className="w-full h-full bg-white/5 flex items-center justify-center">
-                      <CalendarDays className="h-8 w-8 text-white/20" />
+                    <div className="w-full h-full bg-gradient-to-t from-black to-zinc-800 flex items-center justify-center">
+                      <CalendarDays className="h-8 w-8 text-white/30" />
                     </div>
                   )}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent"></div>
-                  <div className="absolute bottom-0 inset-x-0 p-4">
-                    <h3 className="font-bold text-base mb-1 text-white group-hover:text-white/90">
-                      {show.name}
-                    </h3>
-                    <div className="flex items-center text-xs text-white/70">
-                      <MapPin className="h-3 w-3 mr-1" />
-                      {show.venue?.city || 'Unknown Location'}
-                    </div>
-                  </div>
                   <Badge 
-                    variant="secondary" 
-                    className="absolute top-3 right-3 bg-black/60"
+                    variant="outline" 
+                    className="absolute top-3 right-3 bg-black/60 border-white/10 text-white text-xs font-normal py-0.5"
                   >
-                    {show.votes.toLocaleString()} votes
+                    {new Intl.NumberFormat().format(show.votes)} votes
                   </Badge>
+                </div>
+                <div className="p-5">
+                  <div className="mb-1 text-xs text-white/60 uppercase tracking-wide font-semibold">
+                    {show.artist.name}
+                  </div>
+                  <h3 className="font-bold text-base mb-2 text-white line-clamp-1">
+                    {show.name}
+                  </h3>
+                  <div className="flex items-center text-xs text-white/60">
+                    <CalendarDays className="h-3.5 w-3.5 mr-1.5" />
+                    {show.date}
+                  </div>
+                  <div className="flex items-center text-xs text-white/60 mt-1">
+                    <MapPin className="h-3.5 w-3.5 mr-1.5" />
+                    {show.venue?.name || 'Unknown Venue'}, {show.venue?.city || 'Unknown Location'}
+                  </div>
                 </div>
               </Link>
             ))

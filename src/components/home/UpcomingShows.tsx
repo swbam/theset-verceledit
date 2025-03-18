@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -12,10 +11,13 @@ import { Skeleton } from '@/components/ui/skeleton';
 // Create a simplified genre list for the UI filter
 const GENRES = [
   { id: "all", name: "All Genres" },
-  ...popularMusicGenres.slice(0, 7).map(genre => ({
-    id: genre.id,
-    name: genre.name
-  }))
+  { id: "rock", name: "Rock" },
+  { id: "pop", name: "Pop" },
+  { id: "hip-hop", name: "Hip Hop" },
+  { id: "electronic", name: "Electronic" },
+  { id: "R&B", name: "R&B" },
+  { id: "country", name: "Country" },
+  { id: "latin", name: "Latin" },
 ];
 
 const UpcomingShows = () => {
@@ -42,17 +44,15 @@ const UpcomingShows = () => {
   });
 
   return (
-    <section className="py-12 md:py-16 px-4 bg-[#0A0A10]">
+    <section className="py-12 md:py-16 px-4 bg-black">
       <div className="container mx-auto max-w-7xl">
-        <div className="flex justify-between items-center mb-6 md:mb-8">
+        <div className="flex justify-between items-center mb-8">
           <div>
-            <h2 className="text-2xl md:text-3xl font-bold text-white">Upcoming Shows</h2>
-            <p className="text-sm md:text-base text-white/70 mt-1">
-              Popular concerts coming up soon
-            </p>
+            <h2 className="text-2xl font-bold text-white">Upcoming Shows</h2>
+            <p className="text-sm text-white/60 mt-1">Popular concerts coming up soon</p>
           </div>
-          <Link to="/shows" className="text-white hover:text-white/80 font-medium flex items-center group">
-            <span className="hidden sm:inline">View all</span> <ChevronRight size={16} className="ml-0 sm:ml-1 transition-transform group-hover:translate-x-1" />
+          <Link to="/shows" className="text-white hover:text-white/80 flex items-center text-sm">
+            View all <ChevronRight size={16} className="ml-1" />
           </Link>
         </div>
         
@@ -61,10 +61,10 @@ const UpcomingShows = () => {
             <button
               key={genre.id}
               onClick={() => setActiveGenre(genre.id)}
-              className={`whitespace-nowrap px-4 py-2 rounded-full text-sm ${
+              className={`whitespace-nowrap px-4 py-1.5 rounded-full text-sm border ${
                 activeGenre === genre.id
-                  ? 'bg-white text-black font-medium'
-                  : 'bg-white/10 text-white hover:bg-white/20'
+                  ? 'bg-white text-black border-white'
+                  : 'bg-transparent text-white border-white/20 hover:border-white/40'
               }`}
             >
               {genre.name}
@@ -73,40 +73,17 @@ const UpcomingShows = () => {
         </div>
         
         {isLoading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-            {[...Array(6)].map((_, i) => (
-              <Card key={i} className="bg-black/40 border-white/10">
-                <div className="p-4 border-b border-white/10">
-                  <Skeleton className="h-5 w-3/4 mb-2" />
-                  <Skeleton className="h-4 w-1/2" />
-                </div>
-                <div className="p-4 space-y-3">
-                  <div className="flex items-center">
-                    <Skeleton className="h-4 w-4 mr-2 rounded-full" />
-                    <Skeleton className="h-3 w-20" />
-                  </div>
-                  <div className="flex items-center">
-                    <Skeleton className="h-4 w-4 mr-2 rounded-full" />
-                    <Skeleton className="h-3 w-40" />
-                  </div>
-                </div>
-                <Skeleton className="h-9 mx-4 mb-4 rounded" />
-              </Card>
+          <div className="grid grid-cols-1 divide-y divide-white/10 animate-pulse">
+            {[...Array(3)].map((_, i) => (
+              <div key={i} className="py-4">
+                <div className="h-5 w-1/3 bg-white/5 rounded mb-2"></div>
+                <div className="h-4 w-1/2 bg-white/5 rounded mb-2"></div>
+                <div className="h-3 w-1/4 bg-white/5 rounded"></div>
+              </div>
             ))}
           </div>
-        ) : error ? (
-          <div className="text-center py-10 bg-black/20 rounded-lg border border-white/5">
-            <p className="text-white/60">Failed to load upcoming shows</p>
-            <Button 
-              variant="outline" 
-              className="mt-3"
-              onClick={() => window.location.reload()}
-            >
-              Retry
-            </Button>
-          </div>
         ) : shows.length === 0 ? (
-          <div className="text-center py-10 bg-black/20 rounded-lg border border-white/5">
+          <div className="text-center py-10 border border-white/10 rounded-lg">
             <p className="text-white/60">No upcoming shows found for this genre</p>
             <Button 
               variant="outline" 
@@ -117,45 +94,51 @@ const UpcomingShows = () => {
             </Button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-            {shows.map(show => {
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-0">
+            {shows.slice(0, 6).map((show) => {
               // Format date string nicely
               const eventDate = show.date 
                 ? new Date(show.date).toLocaleDateString('en-US', {
-                    month: 'long',
+                    month: 'short',
                     day: 'numeric',
                     year: 'numeric'
                   })
                 : 'Date TBA';
                 
               return (
-                <Card key={show.id} className="bg-black/40 border-white/10 overflow-hidden hover:border-white/20 transition-all">
-                  <Link to={`/shows/${show.id}`} className="block">
-                    <div className="p-4 border-b border-white/10">
-                      <h3 className="font-bold text-lg mb-1">{show.name}</h3>
-                      <p className="text-sm text-white/80">{show.artist?.name || 'Various Artists'}</p>
-                    </div>
-                    <div className="p-4 space-y-2 text-sm">
-                      <div className="flex items-center">
-                        <CalendarDays className="h-4 w-4 mr-2 text-white/60" />
-                        <span className="text-white/80">{eventDate}</span>
+                <div key={show.id} className="border-b border-white/10 py-4">
+                  <Link to={`/shows/${show.id}`} className="block hover:opacity-80 transition-opacity">
+                    <div className="flex flex-col">
+                      <div className="text-xs text-white/60 font-medium">
+                        {show.artist?.name || 'Various Artists'}
                       </div>
-                      <div className="flex items-center">
-                        <MapPin className="h-4 w-4 mr-2 text-white/60" />
-                        <span className="text-white/80">
-                          {show.venue?.name ? (
-                            `${show.venue.name}, ${show.venue.city || ''} ${show.venue.state || ''}`
-                          ) : (
-                            'Venue TBA'
-                          )}
-                        </span>
+                      <h3 className="font-bold text-lg text-white mb-1">
+                        {show.name}
+                      </h3>
+                      <div className="flex items-center text-xs text-white/60">
+                        <CalendarDays className="h-3 w-3 mr-1" />
+                        {eventDate}
+                        <span className="mx-2">•</span>
+                        <MapPin className="h-3 w-3 mr-1" />
+                        {show.venue?.name ? (
+                          `${show.venue.name}, ${show.venue.city || ''}`
+                        ) : (
+                          'Venue TBA'
+                        )}
                       </div>
                     </div>
-                    <Button variant="outline" size="sm" className="m-4">
-                      View setlist
-                    </Button>
                   </Link>
-                </Card>
+                  <div className="mt-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="text-xs h-7 px-3 rounded-full border-white/20 hover:border-white/40"
+                      asChild
+                    >
+                      <Link to={`/shows/${show.id}`}>View details</Link>
+                    </Button>
+                  </div>
+                </div>
               );
             })}
           </div>
