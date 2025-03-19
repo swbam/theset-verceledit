@@ -1,75 +1,67 @@
 
 import React from 'react';
 
-interface ImageProps {
+interface NextImageProps {
   src: string;
-  alt: string;
+  alt?: string;
   width?: number;
   height?: number;
-  className?: string;
+  fill?: boolean;
   priority?: boolean;
-  placeholder?: 'blur' | 'empty' | 'data:image/...' | undefined;
-  blurDataURL?: string;
-  style?: React.CSSProperties;
   sizes?: string;
   quality?: number;
-  fill?: boolean;
-  loading?: 'eager' | 'lazy';
-  onLoad?: () => void;
-  onError?: () => void;
+  className?: string;
+  style?: React.CSSProperties;
+  [key: string]: any;
 }
 
 /**
- * This is a simple shim for Next.js Image component to allow using it in non-Next.js projects
- * It behaves like a regular img element with additional React props
+ * Mock implementation of Next.js Image component for React
+ * This is a simplified version that emulates the Next.js Image component
+ * for compatibility purposes.
  */
-const NextImage = ({
-  src,
-  alt,
+const Image = ({ 
+  src, 
+  alt = '',
   width,
   height,
-  className,
+  fill,
   priority,
-  placeholder,
-  blurDataURL,
-  style,
   sizes,
   quality,
-  fill,
-  loading,
-  onLoad,
-  onError,
-  ...props
-}: ImageProps) => {
-  const imgRef = React.useRef<HTMLImageElement>(null);
+  className,
+  style,
+  ...props 
+}: NextImageProps) => {
+  // Convert Next.js Image props to standard img props
+  const imgStyle = {
+    ...style,
+    ...(fill ? { 
+      position: 'absolute',
+      width: '100%',
+      height: '100%',
+      top: 0,
+      left: 0,
+      objectFit: 'cover'
+    } : {})
+  };
 
-  React.useEffect(() => {
-    if (priority) {
-      // Simulate priority loading by setting loading to 'eager'
-      if (imgRef.current) {
-        imgRef.current.loading = 'eager';
-      }
-    }
-  }, [priority]);
-
+  // Construct the actual img element with the appropriate props
   return (
     <img
-      ref={imgRef}
       src={src}
-      alt={alt || ''}
-      width={width}
-      height={height}
+      alt={alt}
+      width={fill ? undefined : width}
+      height={fill ? undefined : height}
       className={className}
-      style={{
-        ...(fill ? { objectFit: 'cover', width: '100%', height: '100%' } : {}),
-        ...style
-      }}
-      loading={priority ? 'eager' : loading || 'lazy'}
-      onLoad={onLoad}
-      onError={onError}
+      style={imgStyle}
+      loading={priority ? 'eager' : 'lazy'}
       {...props}
     />
   );
 };
 
-export default NextImage;
+/**
+ * Export module components
+ */
+export default Image;
