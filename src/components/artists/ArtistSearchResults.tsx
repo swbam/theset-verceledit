@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -28,24 +27,22 @@ const debounce = <T extends (...args: any[]) => any>(
 const ArtistSearchResults = ({ query, onSelect }: ArtistSearchResultsProps) => {
   const navigate = useNavigate();
   
-  // Debounce the search query to avoid excessive API calls
-  const debouncedQuery = React.useMemo(() => {
-    return debounce((q: string) => q, 300);
-  }, []);
-  
+  // We need to fix the debounce usage
   const [effectiveQuery, setEffectiveQuery] = React.useState('');
   
   React.useEffect(() => {
     if (query.length > 2) {
-      const handler = debouncedQuery(query);
-      const timer = setTimeout(() => {
-        setEffectiveQuery(handler);
+      // Create a function that will set the effective query, not trying to set a return value
+      const debouncedSetQuery = debounce((q: string) => {
+        setEffectiveQuery(q);
       }, 300);
-      return () => clearTimeout(timer);
+      
+      // Call the debounced function with the current query
+      debouncedSetQuery(query);
     } else {
       setEffectiveQuery('');
     }
-  }, [query, debouncedQuery]);
+  }, [query]);
   
   const { data: artists = [], isLoading, isError } = useQuery({
     queryKey: ['artistSearch', effectiveQuery],

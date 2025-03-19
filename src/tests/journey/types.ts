@@ -3,6 +3,23 @@
  * Type definitions for the user journey test
  */
 
+// Test step function and result types
+export interface TestContext {
+  artistId?: string;
+  spotifyArtistId?: string;
+  supabase: any;
+  artistTracks?: any[];
+  [key: string]: any;
+}
+
+export interface TestStepResult {
+  success: boolean;
+  message: string;
+  details?: any;
+}
+
+export type TestStep = (context: TestContext) => Promise<TestStepResult>;
+
 // Error tracking
 export interface ErrorLog {
   step: string;

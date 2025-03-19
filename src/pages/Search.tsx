@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -85,7 +84,6 @@ const Search = () => {
               className="w-full"
               value={searchQuery}
               disableRedirect={true}
-              autoFocus
             >
               {showSearchResults && (
                 <ArtistSearchResults 

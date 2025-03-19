@@ -12,6 +12,7 @@ interface SearchBarProps {
   className?: string;
   children?: ReactNode;
   disableRedirect?: boolean;
+  autoFocus?: boolean;
 }
 
 const SearchBar: React.FC<SearchBarProps> = ({
@@ -21,7 +22,8 @@ const SearchBar: React.FC<SearchBarProps> = ({
   value,
   className = "",
   children,
-  disableRedirect = false
+  disableRedirect = false,
+  autoFocus = false
 }) => {
   const [query, setQuery] = useState(value || '');
   const [showResults, setShowResults] = useState(false);
@@ -35,6 +37,13 @@ const SearchBar: React.FC<SearchBarProps> = ({
       setQuery(value);
     }
   }, [value]);
+
+  // Apply autoFocus when component mounts
+  useEffect(() => {
+    if (autoFocus && inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [autoFocus]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = e.target.value;

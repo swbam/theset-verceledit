@@ -1,8 +1,17 @@
 
-import { ErrorLog, SuccessLog } from './types';
+import { ErrorLog, SuccessLog, TestResults } from './types';
 
 // Configuration
 export const DETAILED_LOGGING = true;
+
+/**
+ * Logs an info message during the test
+ */
+export const logInfo = (message: string, details?: any) => {
+  if (DETAILED_LOGGING) {
+    console.log(`ℹ️ INFO: ${message}`, details || '');
+  }
+};
 
 /**
  * Logs an error during the test
@@ -54,4 +63,13 @@ export const logSuccess = (
   }
   
   return success;
+};
+
+/**
+ * Logs a warning during the test
+ */
+export const logWarning = (message: string, details?: any) => {
+  if (DETAILED_LOGGING) {
+    console.warn(`⚠️ WARNING: ${message}`, details || '');
+  }
 };

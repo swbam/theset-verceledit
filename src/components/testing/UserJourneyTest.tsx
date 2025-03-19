@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
@@ -65,7 +64,7 @@ const UserJourneyTest: React.FC<UserJourneyTestProps> = ({
           <CardTitle className="flex items-center justify-between">
             <span>User Journey Test</span>
             {results && (
-              <Badge variant={results.completed ? "success" : "destructive"}>
+              <Badge variant={results.completed ? "default" : "destructive"}>
                 {results.completed ? "PASSED" : "FAILED"}
               </Badge>
             )}

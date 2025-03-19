@@ -49,17 +49,22 @@ export function useShowDetail(id: string | undefined) {
   }, [show, isLoadingShow]);
   
   // Optimize track loading with better caching
-  const artistTracksData = useArtistTracks(show?.artist_id, spotifyArtistId);
+  const artistTracksResult = useArtistTracks(show?.artist_id, spotifyArtistId);
   
-  // Extract the needed fields from the useArtistTracks response
+  // Extract the needed fields from the useArtistTracks response with defaults
   const {
-    initialSongs = [],
+    tracks = [],
     isLoading: isLoadingTracks = false,
-    isLoadingAllTracks = false,
-    allTracksData = { tracks: [] },
-    getAvailableTracks = () => [],
-    storedTracksData = []
-  } = artistTracksData.data || {};
+    error: tracksError = null,
+    isError: isTracksError = false,
+    initialSongs = [],
+    storedTracksData = [],
+    getAvailableTracks = (setlist: any[]) => []
+  } = artistTracksResult;
+  
+  // For backward compatibility, create these properties
+  const isLoadingAllTracks = isLoadingTracks;
+  const allTracksData = { tracks };
   
   // Song management (voting, adding songs)
   const {

@@ -6,7 +6,12 @@ export const testArtistHasTracks: TestStep = async (context: TestContext): Promi
   const { artistId, spotifyArtistId } = context;
   
   if (!artistId || !spotifyArtistId) {
-    logError('Artist ID or Spotify Artist ID is missing');
+    logError(
+      context as { errors: any[] }, 
+      'Artist Tracks', 
+      'Client', 
+      'Artist ID or Spotify Artist ID is missing'
+    );
     return {
       success: false,
       message: 'Test prerequisites missing: Need both artistId and spotifyArtistId'
@@ -24,7 +29,11 @@ export const testArtistHasTracks: TestStep = async (context: TestContext): Promi
       .single();
     
     if (artistData?.stored_tracks && artistData.stored_tracks.length > 0) {
-      logSuccess(`Found ${artistData.stored_tracks.length} tracks in database for artist ${artistId}`);
+      logSuccess(
+        context as { successes: any[] }, 
+        'Artist Tracks', 
+        `Found ${artistData.stored_tracks.length} tracks in database for artist ${artistId}`
+      );
       context.artistTracks = artistData.stored_tracks;
       return {
         success: true,
@@ -53,7 +62,11 @@ export const testArtistHasTracks: TestStep = async (context: TestContext): Promi
         };
       }
       
-      logSuccess(`Found ${tracksData.tracks.length} tracks via Spotify API`);
+      logSuccess(
+        context as { successes: any[] }, 
+        'Artist Tracks', 
+        `Found ${tracksData.tracks.length} tracks via Spotify API`
+      );
       context.artistTracks = tracksData.tracks;
       
       // Save tracks to database in background
@@ -67,12 +80,27 @@ export const testArtistHasTracks: TestStep = async (context: TestContext): Promi
           .eq('id', artistId);
         
         if (error) {
-          logError(`Error saving tracks to database: ${error.message}`);
+          logError(
+            context as { errors: any[] }, 
+            'Artist Tracks', 
+            'Database', 
+            `Error saving tracks to database: ${error.message}`
+          );
         } else {
-          logSuccess('Saved tracks to database for future use');
+          logSuccess(
+            context as { successes: any[] }, 
+            'Artist Tracks', 
+            'Saved tracks to database for future use'
+          );
         }
       } catch (dbError) {
-        logError('Database error when saving tracks', "API or Database");
+        logError(
+          context as { errors: any[] }, 
+          'Artist Tracks', 
+          'Database', 
+          'Database error when saving tracks',
+          dbError
+        );
       }
       
       return {
@@ -80,17 +108,30 @@ export const testArtistHasTracks: TestStep = async (context: TestContext): Promi
         message: `Artist has ${tracksData.tracks.length} tracks from Spotify API`
       };
     } catch (apiError) {
-      logError(`API Error fetching tracks: ${apiError instanceof Error ? apiError.message : String(apiError)}`);
+      logError(
+        context as { errors: any[] }, 
+        'Artist Tracks', 
+        'API', 
+        `API Error fetching tracks: ${apiError instanceof Error ? apiError.message : String(apiError)}`
+      );
       return {
         success: false,
         message: 'Error fetching tracks from Spotify API'
       };
     }
   } catch (error) {
-    logError(`General error testing artist tracks: ${error instanceof Error ? error.message : String(error)}`);
+    logError(
+      context as { errors: any[] }, 
+      'Artist Tracks', 
+      'Client', 
+      `General error testing artist tracks: ${error instanceof Error ? error.message : String(error)}`
+    );
     return {
       success: false,
       message: 'Error testing artist tracks'
     };
   }
 };
+
+// Export the same function as getArtistTracks for backwards compatibility
+export const getArtistTracks = testArtistHasTracks;

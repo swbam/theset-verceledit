@@ -1,11 +1,10 @@
-
 import { toast } from "sonner";
 import { TestResults } from './journey/types';
 import { logError, logSuccess, DETAILED_LOGGING } from './journey/logger';
 import { TEST_ARTIST_NAME, TEST_ARTIST_ID } from './journey/config';
 import { getArtistDetails } from './journey/steps/artistDetails';
 import { getArtistShows } from './journey/steps/artistShows';
-import { getArtistTracks } from './journey/steps/artistTracks';
+import { testArtistHasTracks } from './journey/steps/artistTracks';
 import { 
   selectShow,
   getOrCreateSetlist, 
@@ -41,8 +40,12 @@ export async function runUserJourneyTest(
     // Step 2: Get artist's upcoming shows (API → Database)
     const shows = await getArtistShows(results, artistDetails.id, artistDetails.name);
     
-    // Step 3: Get artist's tracks (Database or API)
-    const tracks = await getArtistTracks(results, artistDetails);
+    // Step 3: Get artist's tracks (Database or API) - using the properly named function
+    const tracks = await testArtistHasTracks({
+      ...results,
+      artistId: artistDetails.id, 
+      spotifyArtistId: artistDetails.spotifyId
+    });
     
     // Step 4: Select a show (Client action)
     const selectedShow = await selectShow(results, shows[0]);
