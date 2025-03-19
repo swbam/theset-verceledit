@@ -1,6 +1,7 @@
+
 import { testArtistHasTracks } from './journey/steps/artistTracks';
 import { supabase } from '@/integrations/supabase/client';
-import { TestResults, TestContext, TestStepResult } from './journey/types';
+import { TestResults, TestContext } from './journey/types';
 
 /**
  * Runs the complete user journey test
@@ -15,9 +16,6 @@ export async function runUserJourneyTest(): Promise<TestResults> {
     supabase,
     errors: [],
     successes: [],
-    startTime: new Date(),
-    endTime: null,
-    completed: false
   };
   
   const results: TestResults = {
@@ -25,7 +23,8 @@ export async function runUserJourneyTest(): Promise<TestResults> {
     endTime: null,
     errors: [],
     successes: [],
-    completed: false
+    completed: false,
+    supabase // Add supabase to results to match expected TestContext
   };
   
   try {
@@ -64,3 +63,6 @@ export async function runUserJourneyTest(): Promise<TestResults> {
     return results;
   }
 }
+
+// Export TestResults for other modules to use
+export { TestResults, TestContext } from './journey/types';

@@ -1,5 +1,5 @@
 
-import { ErrorLog, SuccessLog, TestResults, TestContext } from './types';
+import { ErrorLog, SuccessLog, TestContext } from './types';
 
 // Configuration
 export const DETAILED_LOGGING = true;

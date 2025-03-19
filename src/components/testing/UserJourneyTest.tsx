@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { runUserJourneyTest, TestResults } from '@/tests/userJourneyTest';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -5,7 +6,12 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Loader2 } from 'lucide-react';
 
-const UserJourneyTest: React.FC = () => {
+interface UserJourneyTestProps {
+  customArtistId?: string;
+  customArtistName?: string;
+}
+
+const UserJourneyTest: React.FC<UserJourneyTestProps> = ({ customArtistId, customArtistName }) => {
   const [results, setResults] = useState<TestResults | null>(null);
   const [running, setRunning] = useState(false);
 
@@ -22,6 +28,10 @@ const UserJourneyTest: React.FC = () => {
     
     try {
       const testResults = await runUserJourneyTest();
+      // Add custom artist ID if provided
+      if (customArtistId) {
+        testResults.artistId = customArtistId;
+      }
       setResults(testResults);
     } catch (error) {
       console.error('Error running test:', error);
@@ -37,7 +47,7 @@ const UserJourneyTest: React.FC = () => {
           User Journey Test
           {results && (
             <Badge 
-              variant="secondary"
+              variant={results.errors.length === 0 ? "default" : "destructive"}
               className="ml-2"
             >
               {results.errors.length === 0 ? 'All Tests Passed' : `${results.errors.length} Errors`}
@@ -46,6 +56,7 @@ const UserJourneyTest: React.FC = () => {
         </CardTitle>
         <CardDescription>
           Tests the user journey from artist search to voting on setlists
+          {customArtistName && <span className="font-semibold ml-1">for {customArtistName}</span>}
         </CardDescription>
       </CardHeader>
       
@@ -99,6 +110,7 @@ const UserJourneyTest: React.FC = () => {
           <div className="text-center py-10">
             <p className="text-muted-foreground mb-4">
               Click the button below to run the automated user journey test
+              {customArtistName && <span> for {customArtistName}</span>}
             </p>
           </div>
         )}

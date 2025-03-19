@@ -46,8 +46,8 @@ export interface TestResults {
   errors: ErrorLog[];
   successes: SuccessLog[];
   completed: boolean;
-  supabase?: any; // Add this to align with TestContext
-  artistId?: string; // Add this to align with TestContext
-  spotifyArtistId?: string; // Add this to align with TestContext
-  artistTracks?: any[]; // Add this to align with TestContext
+  supabase?: any; // Make supabase optional in TestResults
+  artistId?: string;
+  spotifyArtistId?: string;
+  artistTracks?: any[];
 }

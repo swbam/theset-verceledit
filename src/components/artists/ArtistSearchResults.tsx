@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Loader2 } from 'lucide-react';
 import { searchArtistsWithEvents } from '@/lib/api/artist';
@@ -7,9 +7,10 @@ import ArtistCard from '@/components/artist/ArtistCard';
 
 interface ArtistSearchResultsProps {
   query: string;
+  onSelect?: (artist: any) => void;
 }
 
-const ArtistSearchResults: React.FC<ArtistSearchResultsProps> = ({ query }) => {
+const ArtistSearchResults: React.FC<ArtistSearchResultsProps> = ({ query, onSelect }) => {
   const [debouncedQuery, setDebouncedQuery] = useState(query);
   
   // Implement proper debounce with useCallback and useEffect
@@ -86,10 +87,12 @@ const ArtistSearchResults: React.FC<ArtistSearchResultsProps> = ({ query }) => {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
       {artists.map((artist) => (
-        <ArtistCard 
-          key={artist.id}
-          artist={artist}
-        />
+        <div key={artist.id} onClick={() => onSelect && onSelect(artist)}>
+          <ArtistCard 
+            key={artist.id}
+            artist={artist}
+          />
+        </div>
       ))}
     </div>
   );
