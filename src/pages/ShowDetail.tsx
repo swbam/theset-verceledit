@@ -1,3 +1,4 @@
+
 import React, { useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -11,7 +12,6 @@ import ShowNotFound from '@/components/shows/ShowNotFound';
 import { useShowDetails } from '@/hooks/use-show-details';
 import { useArtistTracks } from '@/hooks/use-artist-tracks';
 import { useSongManagement } from '@/hooks/use-song-management';
-import { useDocumentTitle } from '@/hooks/use-document-title';
 
 const ShowDetail = () => {
   const { id } = useParams<{ id: string }>();
@@ -84,32 +84,35 @@ const ShowDetail = () => {
     anonymousVoteCount
   } = useSongManagement(id || '', initialSongs, isAuthenticated, login);
   
-  console.log("Current setlist length:", setlist.length);
+  console.log("Current setlist length:", setlist?.length || 0);
   console.log("Is loading tracks:", isLoadingTracks);
   console.log("Is loading all tracks:", isLoadingAllTracks);
-  console.log("Initial songs length:", initialSongs.length);
-  console.log("All tracks data length:", allTracksData?.tracks?.length);
-  console.log("Stored tracks data length:", storedTracksData?.length);
+  console.log("Initial songs length:", initialSongs?.length || 0);
+  console.log("All tracks data length:", allTracksData?.tracks?.length || 0);
+  console.log("Stored tracks data length:", storedTracksData?.length || 0);
   
   const availableTracks = React.useMemo(() => {
-    console.log("Calculating available tracks. Current setlist:", setlist.length);
+    console.log("Calculating available tracks. Current setlist:", setlist?.length || 0);
     
     if (storedTracksData && Array.isArray(storedTracksData) && storedTracksData.length > 0) {
       console.log("Using stored tracks for available tracks list:", storedTracksData.length);
-      const setlistIds = new Set(setlist.map(song => song.id));
+      const setlistIds = new Set((setlist || []).map(song => song.id));
       return storedTracksData.filter((track: any) => !setlistIds.has(track.id));
     }
     
-    return getAvailableTracks(setlist);
+    return getAvailableTracks(setlist || []);
   }, [storedTracksData, allTracksData, setlist, getAvailableTracks]);
   
   const handleAddSongClick = () => {
     if (storedTracksData && Array.isArray(storedTracksData) && storedTracksData.length > 0) {
       console.log("Adding song using stored tracks data:", storedTracksData.length);
       handleAddSong({ tracks: storedTracksData });
-    } else {
-      console.log("Add song clicked, passing all tracks data:", allTracksData?.tracks?.length);
+    } else if (allTracksData && allTracksData.tracks) {
+      console.log("Add song clicked, passing all tracks data:", allTracksData.tracks.length);
       handleAddSong(allTracksData);
+    } else {
+      console.log("No tracks available to add");
+      toast.error("No tracks available to add");
     }
   };
   
@@ -128,14 +131,14 @@ const ShowDetail = () => {
       <main className="flex-grow">
         <ShowHeader show={show} />
         <SetlistSection 
-          setlist={setlist}
+          setlist={setlist || []}
           isConnected={isConnected}
           isLoadingTracks={isLoadingTracks}
           handleVote={handleVote}
-          showId={id}
-          showName={show.name}
+          showId={id || ''}
+          showName={show.name || ''}
           artistName={show.artist?.name || 'Artist'}
-          availableTracks={availableTracks}
+          availableTracks={availableTracks || []}
           isLoadingAllTracks={isLoadingAllTracks}
           selectedTrack={selectedTrack}
           setSelectedTrack={setSelectedTrack}

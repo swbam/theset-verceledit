@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { fetchShowDetails } from '@/lib/ticketmaster';
 import { searchArtists } from '@/lib/spotify';
+import { toast } from 'sonner';
 
 export function useShowDetails(id: string | undefined) {
   const [spotifyArtistId, setSpotifyArtistId] = useState<string>('');
@@ -39,6 +40,9 @@ export function useShowDetails(id: string | undefined) {
             // Set mock ID to allow for mock data fallback
             setSpotifyArtistId('mock-artist');
           }
+        } else {
+          console.log("No artist name found in show details");
+          setSpotifyArtistId('mock-artist');
         }
         
         return showDetails;
@@ -49,6 +53,10 @@ export function useShowDetails(id: string | undefined) {
     },
     enabled: !!id,
     retry: 1,
+    onError: (error) => {
+      console.error("Show details query error:", error);
+      toast.error("Could not load show details");
+    }
   });
 
   return {
