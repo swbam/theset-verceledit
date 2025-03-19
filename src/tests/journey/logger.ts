@@ -1,5 +1,5 @@
 
-import { ErrorLog, SuccessLog, TestResults } from './types';
+import { ErrorLog, SuccessLog, TestResults, TestContext } from './types';
 
 // Configuration
 export const DETAILED_LOGGING = true;
@@ -17,7 +17,7 @@ export const logInfo = (message: string, details?: any) => {
  * Logs an error during the test
  */
 export const logError = (
-  results: { errors: ErrorLog[] },
+  context: TestContext,
   step: string, 
   source: "API" | "Database" | "Client", 
   message: string, 
@@ -31,7 +31,7 @@ export const logError = (
     details
   };
   
-  results.errors.push(error);
+  context.errors.push(error);
   
   if (DETAILED_LOGGING) {
     console.error(`❌ ERROR at ${step} (${source}): ${message}`, details || '');
@@ -44,7 +44,7 @@ export const logError = (
  * Logs a success during the test
  */
 export const logSuccess = (
-  results: { successes: SuccessLog[] },
+  context: TestContext,
   step: string, 
   message: string, 
   details?: any
@@ -56,7 +56,7 @@ export const logSuccess = (
     details
   };
   
-  results.successes.push(success);
+  context.successes.push(success);
   
   if (DETAILED_LOGGING) {
     console.log(`✅ SUCCESS at ${step}: ${message}`, details || '');

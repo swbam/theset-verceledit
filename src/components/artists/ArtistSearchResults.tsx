@@ -1,142 +1,96 @@
-import React from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+
+import React, { useState, useEffect, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { Loader2 } from 'lucide-react';
 import { searchArtistsWithEvents } from '@/lib/api/artist';
-import { Avatar } from '@/components/ui/avatar';
-import { Skeleton } from '@/components/ui/skeleton';
-import { toast } from 'sonner';
+import ArtistCard from '@/components/artist/ArtistCard';
 
 interface ArtistSearchResultsProps {
   query: string;
-  onSelect?: (artist: any) => void;
 }
 
-// Simple debounce function implementation
-const debounce = <T extends (...args: any[]) => any>(
-  func: T, 
-  wait: number
-): ((...args: Parameters<T>) => void) => {
-  let timeout: ReturnType<typeof setTimeout> | null = null;
+const ArtistSearchResults: React.FC<ArtistSearchResultsProps> = ({ query }) => {
+  const [debouncedQuery, setDebouncedQuery] = useState(query);
   
-  return function(...args: Parameters<T>) {
-    if (timeout) clearTimeout(timeout);
-    timeout = setTimeout(() => func(...args), wait);
-  };
-};
-
-const ArtistSearchResults = ({ query, onSelect }: ArtistSearchResultsProps) => {
-  const navigate = useNavigate();
-  
-  // We need to fix the debounce usage
-  const [effectiveQuery, setEffectiveQuery] = React.useState('');
-  
-  React.useEffect(() => {
-    if (query.length > 2) {
-      // Create a function that will set the effective query, not trying to set a return value
-      const debouncedSetQuery = debounce((q: string) => {
-        setEffectiveQuery(q);
-      }, 300);
-      
-      // Call the debounced function with the current query
-      debouncedSetQuery(query);
-    } else {
-      setEffectiveQuery('');
-    }
+  // Implement proper debounce with useCallback and useEffect
+  useEffect(() => {
+    const timerId = setTimeout(() => {
+      setDebouncedQuery(query);
+    }, 300);
+    
+    return () => {
+      clearTimeout(timerId);
+    };
   }, [query]);
   
-  const { data: artists = [], isLoading, isError } = useQuery({
-    queryKey: ['artistSearch', effectiveQuery],
-    queryFn: () => searchArtistsWithEvents(effectiveQuery),
-    enabled: effectiveQuery.length > 2,
+  const { 
+    data: artists = [], 
+    isLoading, 
+    isError,
+    error 
+  } = useQuery({
+    queryKey: ['artistSearch', debouncedQuery],
+    queryFn: () => searchArtistsWithEvents(debouncedQuery),
+    enabled: debouncedQuery.length > 1,
     staleTime: 1000 * 60 * 5, // 5 minutes
-    gcTime: 1000 * 60 * 15, // 15 minutes - using gcTime instead of cacheTime
+    gcTime: 1000 * 60 * 30,   // 30 minutes
     meta: {
-      onError: (error: any) => {
-        console.error("Artist search error:", error);
-        // Only show user-facing toast for network errors, not DB permission issues
-        if (!(error instanceof Error && error.message.includes('permission denied'))) {
-          toast.error("Failed to search for artists. Please try again.");
-        }
+      onError: (err: any) => {
+        console.error('Artist search error:', err);
       }
     }
   });
 
-  if (!query || query.length <= 2) {
+  // Early return for empty queries
+  if (debouncedQuery.length < 2) {
     return (
-      <div className="bg-background rounded-xl shadow-lg border border-border p-4">
-        <p className="text-muted-foreground text-sm">Enter at least 3 characters to search</p>
+      <div className="text-center py-8">
+        <p className="text-muted-foreground">Type at least 2 characters to search</p>
       </div>
     );
   }
 
+  // Loading state
   if (isLoading) {
     return (
-      <div className="bg-background rounded-xl shadow-lg border border-border p-4 space-y-3">
-        {Array(3).fill(0).map((_, i) => (
-          <div key={i} className="flex items-center gap-3 p-2">
-            <Skeleton className="h-10 w-10 rounded-full" />
-            <div>
-              <Skeleton className="h-4 w-32" />
-              <Skeleton className="h-3 w-24 mt-1" />
-            </div>
-          </div>
-        ))}
+      <div className="text-center py-16">
+        <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+        <p className="text-muted-foreground">Searching for artists...</p>
       </div>
     );
   }
 
+  // Error state
   if (isError) {
     return (
-      <div className="bg-background rounded-xl shadow-lg border border-border p-4">
-        <p className="text-muted-foreground text-sm">Error searching for artists. Please try again.</p>
+      <div className="text-center py-12">
+        <p className="text-destructive mb-2">Error searching for artists</p>
+        <p className="text-muted-foreground text-sm">{error instanceof Error ? error.message : 'An unknown error occurred'}</p>
       </div>
     );
   }
 
+  // No results
   if (artists.length === 0) {
     return (
-      <div className="bg-background rounded-xl shadow-lg border border-border p-4">
-        <p className="text-muted-foreground text-sm">No artists found with upcoming shows</p>
+      <div className="text-center py-12">
+        <p className="font-medium mb-2">No artists found</p>
+        <p className="text-muted-foreground text-sm">
+          Try searching for another artist who has upcoming shows
+        </p>
       </div>
     );
   }
 
-  const handleArtistClick = (artist: any) => {
-    console.log("Artist selected:", artist);
-    if (onSelect) {
-      onSelect(artist);
-    } else {
-      navigate(`/artists/${artist.id}`);
-    }
-  };
-
+  // Results
   return (
-    <div className="bg-background rounded-xl shadow-lg border border-border overflow-hidden">
-      <div className="max-h-80 overflow-y-auto">
-        {artists.map((artist) => (
-          <div
-            key={artist.id}
-            onClick={() => handleArtistClick(artist)}
-            className="flex items-center gap-3 p-3 hover:bg-secondary/50 transition-colors border-b border-border last:border-0 cursor-pointer"
-          >
-            <Avatar className="h-10 w-10">
-              {artist.image ? (
-                <img src={artist.image} alt={artist.name} />
-              ) : (
-                <div className="bg-primary/10 h-full w-full flex items-center justify-center text-primary font-medium">
-                  {artist.name.charAt(0)}
-                </div>
-              )}
-            </Avatar>
-            <div>
-              <h4 className="font-medium text-sm">{artist.name}</h4>
-              <p className="text-xs text-muted-foreground">
-                {artist.upcomingShows} upcoming {artist.upcomingShows === 1 ? 'show' : 'shows'}
-              </p>
-            </div>
-          </div>
-        ))}
-      </div>
+    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+      {artists.map((artist) => (
+        <ArtistCard 
+          key={artist.id}
+          artist={artist}
+        />
+      ))}
     </div>
   );
 };

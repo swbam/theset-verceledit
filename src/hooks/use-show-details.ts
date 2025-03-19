@@ -27,12 +27,7 @@ export function useShowDetails(id: string | undefined) {
         .maybeSingle();
       
       if (error) {
-        // Only log database permission errors, don't show to user
-        if (error.code === '42501') {
-          console.log("Database permission error (expected):", error.message);
-        } else {
-          console.log("Database check error:", error.message);
-        }
+        console.log("Database check error:", error.message);
         return null;
       }
       
@@ -43,7 +38,7 @@ export function useShowDetails(id: string | undefined) {
     }
   }, []);
   
-  // Optimize the Spotify artist ID search
+  // Optimize the Spotify artist ID search with better caching
   const findSpotifyArtistId = useCallback(async (artistName: string) => {
     if (!artistName) return 'mock-artist';
     
@@ -58,13 +53,11 @@ export function useShowDetails(id: string | undefined) {
       const artistResult = await searchArtists(artistName, 1);
       if (artistResult?.artists?.items && artistResult.artists.items.length > 0) {
         const spotifyId = artistResult.artists.items[0].id;
-        console.log(`Set Spotify artist ID from search: ${spotifyId}`);
         
         // Cache the result
         localStorage.setItem(`spotify_artist_${artistName}`, spotifyId);
         return spotifyId;
       } else {
-        console.log("No Spotify artist found with name:", artistName);
         return 'mock-artist';
       }
     } catch (error) {
@@ -102,8 +95,8 @@ export function useShowDetails(id: string | undefined) {
     enabled: !!id,
     retry: 1,
     retryDelay: 1000,
-    staleTime: 1000 * 60 * 15, // 15 minutes
-    gcTime: 1000 * 60 * 60, // 1 hour - replaced cacheTime with gcTime
+    staleTime: 1000 * 60 * 60, // 60 minutes
+    gcTime: 1000 * 60 * 120,   // 2 hours
     refetchOnWindowFocus: false,
     meta: {
       onError: (error: any) => {

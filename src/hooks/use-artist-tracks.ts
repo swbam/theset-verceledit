@@ -20,11 +20,9 @@ export function useArtistTracks(artistId: string | undefined, spotifyArtistId: s
       try {
         // First check if we have stored tracks for this artist
         if (artistId) {
-          console.log(`Checking for stored tracks for artist ${artistId}`);
           const storedTracks = await getStoredTracksForArtist(artistId);
           
           if (storedTracks && storedTracks.length > 0) {
-            console.log(`Using ${storedTracks.length} stored tracks for artist ${artistId}`);
             return { 
               tracks: storedTracks,
               initialSongs: storedTracks,
@@ -39,8 +37,6 @@ export function useArtistTracks(artistId: string | undefined, spotifyArtistId: s
         
         // If no stored tracks but we have a Spotify ID, fetch from Spotify
         if (spotifyArtistId) {
-          console.log(`Fetching tracks from Spotify for artist ID: ${spotifyArtistId}`);
-          
           if (artistId) {
             // Use the dedicated function that stores tracks and handles errors
             const tracks = await fetchAndStoreArtistTracks(artistId, spotifyArtistId, "Unknown Artist");
@@ -81,10 +77,17 @@ export function useArtistTracks(artistId: string | undefined, spotifyArtistId: s
           };
         }
         
-        throw new Error('No stored tracks and no Spotify Artist ID available');
+        return { 
+          tracks: [],
+          initialSongs: [],
+          isLoadingTracks: false,
+          isLoadingAllTracks: false,
+          allTracksData: { tracks: [] },
+          storedTracksData: [],
+          getAvailableTracks: () => []
+        };
       } catch (error) {
         console.error("Error in useArtistTracks:", error);
-        toast.error("Failed to load artist tracks");
         return { 
           tracks: [],
           initialSongs: [],
@@ -98,6 +101,7 @@ export function useArtistTracks(artistId: string | undefined, spotifyArtistId: s
     },
     enabled: !!(artistId || spotifyArtistId),
     staleTime: 1000 * 60 * 60, // 1 hour - tracks don't change often
+    gcTime: 1000 * 60 * 120,   // 2 hours
   });
 
   return {

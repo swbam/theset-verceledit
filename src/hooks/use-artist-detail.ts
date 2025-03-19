@@ -14,13 +14,13 @@ export function useArtistDetail(id: string | undefined) {
     queryKey: ['artist', id],
     queryFn: () => fetchArtistById(id as string),
     enabled: !!id,
-    staleTime: 1000 * 60 * 30, // 30 minutes
-    gcTime: 1000 * 60 * 60, // 1 hour (using gcTime instead of cacheTime)
+    staleTime: 1000 * 60 * 60, // 60 minutes
+    gcTime: 1000 * 60 * 120, // 2 hours
     retry: 1,
     refetchOnWindowFocus: false
   });
   
-  // Fetch upcoming shows for this artist with improved caching
+  // Fetch upcoming shows for this artist with better caching
   const {
     data: shows = [],
     isLoading: showsLoading,
@@ -29,8 +29,8 @@ export function useArtistDetail(id: string | undefined) {
     queryKey: ['artistEvents', id],
     queryFn: () => fetchArtistEvents(id as string),
     enabled: !!id,
-    staleTime: 1000 * 60 * 30, // 30 minutes
-    gcTime: 1000 * 60 * 60, // 1 hour (using gcTime instead of cacheTime)
+    staleTime: 1000 * 60 * 60, // 60 minutes
+    gcTime: 1000 * 60 * 120, // 2 hours
     retry: 1,
     refetchOnWindowFocus: false
   });

@@ -48,19 +48,19 @@ export function useShowDetail(id: string | undefined) {
     }
   }, [show, isLoadingShow]);
   
-  // Optimize track loading with better caching
-  const artistTracksResult = useArtistTracks(show?.artist_id, spotifyArtistId);
+  // Get artist tracks with better optimized caching
+  const artistTracksResponse = useArtistTracks(show?.artist_id, spotifyArtistId);
   
-  // Extract the needed fields from the useArtistTracks response with defaults
+  // Extract all needed properties with defaults to avoid undefined errors
   const {
     tracks = [],
     isLoading: isLoadingTracks = false,
-    error: tracksError = null,
     isError: isTracksError = false,
+    error: tracksError = null,
     initialSongs = [],
     storedTracksData = [],
     getAvailableTracks = (setlist: any[]) => []
-  } = artistTracksResult;
+  } = artistTracksResponse;
   
   // For backward compatibility, create these properties
   const isLoadingAllTracks = isLoadingTracks;

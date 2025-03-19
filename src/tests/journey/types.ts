@@ -9,6 +9,8 @@ export interface TestContext {
   spotifyArtistId?: string;
   supabase: any;
   artistTracks?: any[];
+  errors: ErrorLog[];
+  successes: SuccessLog[];
   [key: string]: any;
 }
 

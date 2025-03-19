@@ -104,6 +104,7 @@ const SearchBar: React.FC<SearchBarProps> = ({
           onFocus={() => query.length > 0 && setShowResults(true)}
           placeholder={placeholder}
           className="pl-10 pr-10 w-full"
+          autoFocus={autoFocus}
         />
         
         {query && (
