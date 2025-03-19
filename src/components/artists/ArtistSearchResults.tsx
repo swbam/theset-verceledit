@@ -21,7 +21,10 @@ const ArtistSearchResults = ({ query, onSelect }: ArtistSearchResultsProps) => {
     enabled: query.length > 2,
     onError: (error) => {
       console.error("Artist search error:", error);
-      toast.error("Failed to search for artists. Please try again.");
+      // Only show user-facing toast for network errors, not DB permission issues
+      if (!(error instanceof Error && error.message.includes('permission denied'))) {
+        toast.error("Failed to search for artists. Please try again.");
+      }
     }
   });
 

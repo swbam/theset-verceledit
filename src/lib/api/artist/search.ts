@@ -17,19 +17,20 @@ export async function searchArtistsWithEvents(query: string, limit = 10): Promis
     console.log(`Searching for artists with query: "${query}"`);
     
     // First check if we already have this artist in our database
+    let existingArtists: any[] = [];
     try {
-      const { data: existingArtists, error: dbError } = await supabase
+      const { data, error } = await supabase
         .from('artists')
         .select('*')
         .ilike('name', `%${query}%`)
         .limit(limit);
         
-      if (dbError) {
-        console.error("Error searching database for artists:", dbError);
-        console.error("Detailed error info:", JSON.stringify(dbError));
-        // Continue with Ticketmaster search even if DB search fails
-      } else if (existingArtists && existingArtists.length > 0) {
-        console.log(`Found ${existingArtists.length} artists in database matching '${query}'`);
+      if (error) {
+        console.error("Error searching database for artists:", error);
+        // Continue with Ticketmaster search if DB search fails
+      } else if (data && data.length > 0) {
+        console.log(`Found ${data.length} artists in database matching '${query}'`);
+        existingArtists = data;
         
         // Return the existing artists but still do the API call in the background to refresh data
         // Don't await this so we return results quickly
@@ -64,12 +65,20 @@ export async function searchArtistsWithEvents(query: string, limit = 10): Promis
 
     if (!data._embedded?.events) {
       console.log(`No events found on Ticketmaster for query '${query}'`);
-      return [];
+      return existingArtists.length > 0 ? existingArtists : [];
     }
 
     // Process and save the artists
     const artists = await processAndSaveTicketmasterArtists(data, limit);
     console.log("Processed and returning artists:", artists.length);
+    
+    // Combine with existing artists if any, removing duplicates
+    if (existingArtists.length > 0) {
+      const existingIds = new Set(existingArtists.map(a => a.id));
+      const newArtists = artists.filter(a => !existingIds.has(a.id));
+      return [...existingArtists, ...newArtists];
+    }
+    
     return artists;
   } catch (error) {
     console.error("Ticketmaster artist search error:", error);
@@ -124,7 +133,7 @@ async function processAndSaveTicketmasterArtists(data: any, limit: number): Prom
     }
   });
   
-  // Process artists - even if DB operations fail, return the artists from API
+  // Process artists from Ticketmaster
   const artists = Array.from(artistsMap.values());
   console.log(`Found ${artists.length} unique artists from events`);
   
@@ -146,12 +155,16 @@ async function processAndSaveTicketmasterArtists(data: any, limit: number): Prom
           }
         } catch (spotifyError) {
           console.error(`Error fetching Spotify details for ${artist.name}:`, spotifyError);
+          // Continue without Spotify data
         }
         
         // Save to database (with or without Spotify data)
-        saveArtistToDatabase(artist).catch(saveError => {
+        try {
+          await saveArtistToDatabase(artist);
+        } catch (saveError) {
           console.error(`Error saving artist ${artist.name} to database:`, saveError);
-        });
+          // Continue even if database save fails - we'll still return API results
+        }
       } catch (artistError) {
         console.error(`Error processing artist ${artist.name}:`, artistError);
         // Continue with next artist

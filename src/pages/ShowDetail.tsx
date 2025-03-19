@@ -110,6 +110,7 @@ const ShowDetail = () => {
     isConnected
   });
   
+  // Fix the getAvailableTracks usage in useMemo
   const availableTracks = React.useMemo(() => {
     console.log("Calculating available tracks. Current setlist:", setlist?.length || 0);
     
@@ -119,8 +120,12 @@ const ShowDetail = () => {
       return storedTracksData.filter((track: any) => !setlistIds.has(track.id));
     }
     
-    return getAvailableTracks(setlist || []);
-  }, [storedTracksData, allTracksData, setlist, getAvailableTracks]);
+    if (typeof getAvailableTracks === 'function') {
+      return getAvailableTracks(setlist || []);
+    }
+    
+    return [];
+  }, [storedTracksData, setlist, getAvailableTracks]);
   
   const handleAddSongClick = () => {
     if (storedTracksData && Array.isArray(storedTracksData) && storedTracksData.length > 0) {
