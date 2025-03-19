@@ -9,17 +9,19 @@ import ArtistCard from '@/components/artist/ArtistCard';
 import { Button } from '@/components/ui/button';
 import { Loader2, Music } from 'lucide-react';
 import { getMyTopArtists } from '@/lib/spotify';
+import { toast } from 'sonner';
 
 const MyArtists = () => {
-  const { user, isAuthenticated, loginWithSpotify } = useAuth();
+  const { user, isAuthenticated, isLoading: authLoading, loginWithSpotify } = useAuth();
   const navigate = useNavigate();
   
   // Redirect to auth page if user is not authenticated
   useEffect(() => {
-    if (!isAuthenticated && !user) {
+    if (!authLoading && !isAuthenticated) {
+      console.log("Not authenticated, redirecting to auth page");
       navigate('/auth');
     }
-  }, [isAuthenticated, user, navigate]);
+  }, [isAuthenticated, authLoading, navigate]);
   
   // Fetch user's top artists from Spotify
   const { 
@@ -33,6 +35,10 @@ const MyArtists = () => {
     enabled: !!isAuthenticated && !!user,
     staleTime: 1000 * 60 * 30, // 30 minutes
     retry: 2,
+    onError: (err: any) => {
+      console.error("Error fetching top artists:", err);
+      toast.error("Failed to load your artists");
+    }
   });
   
   const handleConnectSpotify = () => {
@@ -42,6 +48,40 @@ const MyArtists = () => {
   const handleRefreshData = () => {
     refetch();
   };
+  
+  // Show loading while auth is in progress
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex flex-col">
+        <Navbar />
+        <main className="flex-grow flex items-center justify-center">
+          <div className="flex flex-col items-center">
+            <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
+            <p>Checking authentication...</p>
+          </div>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
+  
+  // If not authenticated, don't render the page content (redirect will happen)
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen flex flex-col">
+        <Navbar />
+        <main className="flex-grow flex items-center justify-center">
+          <div className="text-center">
+            <p>Please log in to view your artists</p>
+            <Button onClick={() => navigate('/auth')} className="mt-4">
+              Go to Login
+            </Button>
+          </div>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
   
   return (
     <div className="min-h-screen flex flex-col">
@@ -56,38 +96,36 @@ const MyArtists = () => {
             </p>
           </div>
           
-          {isAuthenticated && (
-            <div className="flex gap-3">
-              <Button 
-                variant="outline" 
-                onClick={handleRefreshData}
-                disabled={isLoading}
-              >
-                {isLoading ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <svg className="mr-2 h-4 w-4" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M21 2v6h-6"></path>
-                    <path d="M3 12a9 9 0 0 1 15-6.7L21 8"></path>
-                    <path d="M3 22v-6h6"></path>
-                    <path d="M21 12a9 9 0 0 1-15 6.7L3 16"></path>
-                  </svg>
-                )}
-                Refresh Data
-              </Button>
-              
-              <Button 
-                variant="outline" 
-                onClick={handleConnectSpotify}
-                className="bg-white text-black hover:bg-white/90"
-              >
-                <svg className="mr-2 h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M10 0C4.477 0 0 4.477 0 10c0 5.523 4.477 10 10 10 5.523 0 10-4.477 10-10 0-5.523-4.477-10-10-10zm4.586 14.424a.622.622 0 01-.858.205c-2.346-1.435-5.304-1.76-8.786-.964a.622.622 0 01-.277-1.215c3.809-.87 7.077-.496 9.713 1.116a.623.623 0 01.208.858zm1.223-2.722a.78.78 0 01-1.072.257c-2.687-1.652-6.786-2.13-9.965-1.166a.78.78 0 01-.973-.519.781.781 0 01.519-.972c3.642-1.106 8.146-.569 11.234 1.327a.78.78 0 01.257 1.073zm.105-2.835c-3.223-1.914-8.54-2.09-11.618-1.156a.935.935 0 11-.542-1.79c3.532-1.072 9.404-.865 13.115 1.338a.936.936 0 01-.955 1.608z" />
+          <div className="flex gap-3">
+            <Button 
+              variant="outline" 
+              onClick={handleRefreshData}
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <svg className="mr-2 h-4 w-4" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 2v6h-6"></path>
+                  <path d="M3 12a9 9 0 0 1 15-6.7L21 8"></path>
+                  <path d="M3 22v-6h6"></path>
+                  <path d="M21 12a9 9 0 0 1-15 6.7L3 16"></path>
                 </svg>
-                Reconnect Spotify
-              </Button>
-            </div>
-          )}
+              )}
+              Refresh Data
+            </Button>
+            
+            <Button 
+              variant="outline" 
+              onClick={handleConnectSpotify}
+              className="bg-white text-black hover:bg-white/90"
+            >
+              <svg className="mr-2 h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M10 0C4.477 0 0 4.477 0 10c0 5.523 4.477 10 10 10 5.523 0 10-4.477 10-10 0-5.523-4.477-10-10-10zm4.586 14.424a.622.622 0 01-.858.205c-2.346-1.435-5.304-1.76-8.786-.964a.622.622 0 01-.277-1.215c3.809-.87 7.077-.496 9.713 1.116a.623.623 0 01.208.858zm1.223-2.722a.78.78 0 01-1.072.257c-2.687-1.652-6.786-2.13-9.965-1.166a.78.78 0 01-.973-.519.781.781 0 01.519-.972c3.642-1.106 8.146-.569 11.234 1.327a.78.78 0 01.257 1.073zm.105-2.835c-3.223-1.914-8.54-2.09-11.618-1.156a.935.935 0 11-.542-1.79c3.532-1.072 9.404-.865 13.115 1.338a.936.936 0 01-.955 1.608z" />
+              </svg>
+              Reconnect Spotify
+            </Button>
+          </div>
         </div>
         
         {isLoading ? (

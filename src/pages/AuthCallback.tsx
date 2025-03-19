@@ -36,7 +36,7 @@ const AuthCallback = () => {
           // Check if auth was with Spotify - use both the URL parameter and session info
           if (provider === 'spotify' || session.provider_token) {
             console.log('Redirecting to my-artists page');
-            setTimeout(() => navigate('/my-artists'), 500);
+            setTimeout(() => navigate('/my-artists'), 1000);
           } else {
             navigate('/');
           }

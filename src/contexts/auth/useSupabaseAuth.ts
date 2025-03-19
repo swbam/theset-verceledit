@@ -41,6 +41,7 @@ export function useSupabaseAuth(): AuthState & {
   useEffect(() => {
     const checkSession = async () => {
       try {
+        setIsLoading(true);
         const { data, error } = await supabase.auth.getSession();
         
         if (error) {
