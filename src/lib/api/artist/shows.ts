@@ -75,6 +75,8 @@ export async function fetchAndSaveArtistShows(artistId: string): Promise<void> {
         .from('artists')
         .update({ upcoming_shows: upcomingShowsCount, updated_at: new Date().toISOString() })
         .eq('id', artistId);
+      
+      console.log(`Updated artist ${artistId} with ${upcomingShowsCount} upcoming shows`);
     }
   } catch (error) {
     console.error(`Error fetching shows for artist ${artistId}:`, error);

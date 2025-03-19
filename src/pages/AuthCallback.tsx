@@ -31,13 +31,26 @@ const AuthCallback = () => {
         if (session) {
           console.log('Session found:', session.user.id);
           console.log('Provider token:', session.provider_token ? 'Yes' : 'No');
+          
+          if (session.provider_token) {
+            console.log('Provider token is available');
+          } else {
+            console.warn('Provider token is not available - this may cause issues with Spotify API calls');
+          }
+          
           toast.success('Successfully signed in!');
           
           // Check if auth was with Spotify - use both the URL parameter and session info
           if (provider === 'spotify' || session.provider_token) {
-            console.log('Redirecting to my-artists page');
-            setTimeout(() => navigate('/my-artists'), 1000);
+            console.log('Redirecting to my-artists page since this was a Spotify login');
+            
+            // Force a slight delay to ensure state updates are complete
+            setTimeout(() => {
+              console.log('Now navigating to /my-artists');
+              navigate('/my-artists');
+            }, 1000);
           } else {
+            console.log('Non-Spotify login, redirecting to home page');
             navigate('/');
           }
         } else {

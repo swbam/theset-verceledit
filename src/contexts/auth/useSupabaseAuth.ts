@@ -21,6 +21,7 @@ export function useSupabaseAuth(): AuthState & {
 
   const fetchUserProfile = useCallback(async (userId: string) => {
     try {
+      console.log("Fetching user profile for:", userId);
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
@@ -32,6 +33,7 @@ export function useSupabaseAuth(): AuthState & {
         return;
       }
       
+      console.log("User profile fetched:", data);
       setProfile(data);
     } catch (error) {
       console.error('Error fetching user profile:', error);
@@ -42,6 +44,7 @@ export function useSupabaseAuth(): AuthState & {
     const checkSession = async () => {
       try {
         setIsLoading(true);
+        console.log("Checking session...");
         const { data, error } = await supabase.auth.getSession();
         
         if (error) {
@@ -49,11 +52,17 @@ export function useSupabaseAuth(): AuthState & {
           return;
         }
 
+        console.log("Session check result:", data.session ? "Active session found" : "No active session");
         setSession(data.session);
         
         if (data.session?.user) {
+          console.log("User found in session:", data.session.user.id);
           setUser(data.session.user);
           await fetchUserProfile(data.session.user.id);
+        } else {
+          console.log("No user in session");
+          setUser(null);
+          setProfile(null);
         }
       } catch (error) {
         console.error('Error checking authentication:', error);
@@ -67,12 +76,16 @@ export function useSupabaseAuth(): AuthState & {
     const { data: authListener } = supabase.auth.onAuthStateChange(
       async (event, currentSession) => {
         console.log('Auth state changed:', event);
+        console.log('Current session:', currentSession ? "Present" : "None");
+        
         setSession(currentSession);
         setUser(currentSession?.user || null);
         
         if (currentSession?.user) {
+          console.log("User in auth change:", currentSession.user.id);
           await fetchUserProfile(currentSession.user.id);
         } else {
+          console.log("No user in auth change");
           setProfile(null);
         }
         
@@ -141,7 +154,7 @@ export function useSupabaseAuth(): AuthState & {
         throw error;
       }
       
-      console.log('Spotify auth initiated:', data);
+      console.log('Spotify auth initiated successfully:', data);
     } catch (error: any) {
       console.error('Spotify login error:', error);
       toast.error(error.message || 'Failed to login with Spotify');
@@ -180,12 +193,15 @@ export function useSupabaseAuth(): AuthState & {
 
   const logout = useCallback(async () => {
     try {
+      console.log("Logging out...");
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
       
+      console.log("Signed out successfully");
       setUser(null);
       setProfile(null);
       setSession(null);
+      
       toast.info('Logged out successfully');
       navigate('/');
     } catch (error: any) {

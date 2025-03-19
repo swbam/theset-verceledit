@@ -12,19 +12,25 @@ export * from './utils';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
-// Add the missing function for fetching user's top artists
+// Improved function for fetching user's top artists with enhanced error handling
 export const getMyTopArtists = async () => {
   try {
-    console.log("Fetching top artists...");
+    console.log("Fetching top artists from Spotify...");
     const { data: { session } } = await supabase.auth.getSession();
     
-    if (!session?.provider_token) {
-      console.error("No Spotify provider token available");
-      toast.error("Spotify connection required. Please reconnect your account.");
+    if (!session) {
+      console.error("No active session");
+      toast.error("Please sign in to access your top artists");
       return [];
     }
     
-    console.log("Using provider token to fetch artists");
+    if (!session.provider_token) {
+      console.error("No Spotify provider token available");
+      toast.error("Unable to access Spotify. Please reconnect your account.");
+      return [];
+    }
+    
+    console.log("Using provider token to fetch artists from Spotify");
     const response = await fetch('https://api.spotify.com/v1/me/top/artists?limit=20', {
       headers: {
         Authorization: `Bearer ${session.provider_token}`,
@@ -34,17 +40,27 @@ export const getMyTopArtists = async () => {
     if (!response.ok) {
       // Handle common errors
       if (response.status === 401) {
-        toast.error("Spotify access expired. Please reconnect your account.");
-        console.error("Spotify token expired");
+        console.error("Spotify token expired or invalid:", response.status);
+        toast.error("Spotify access expired. Please sign in again.");
+        // Force sign out on token expiration to trigger a fresh login
+        await supabase.auth.signOut();
+      } else if (response.status === 403) {
+        console.error("Spotify permission denied:", response.status);
+        toast.error("Missing permission to access your Spotify data");
       } else {
-        toast.error(`Spotify API error: ${response.status}`);
         console.error("Spotify API error:", response.status, await response.text());
+        toast.error(`Spotify API error (${response.status})`);
       }
       return [];
     }
     
     const data = await response.json();
-    console.log(`Found ${data.items?.length || 0} top artists`);
+    console.log(`Found ${data.items?.length || 0} top artists from Spotify`);
+    
+    // Save artists to database in the background
+    if (data.items && data.items.length > 0) {
+      saveTopArtistsToDatabase(data.items);
+    }
     
     return data.items.map((artist: any) => ({
       id: artist.id,
@@ -61,3 +77,61 @@ export const getMyTopArtists = async () => {
     return [];
   }
 };
+
+// Helper function to save top artists to database
+async function saveTopArtistsToDatabase(artists: any[]) {
+  try {
+    for (const artist of artists) {
+      const artistData = {
+        id: artist.id,  // Use Spotify ID as the ID
+        name: artist.name,
+        image_url: artist.images?.[0]?.url,
+        genres: artist.genres || [],
+        popularity: artist.popularity,
+        spotify_id: artist.id,
+        spotify_url: artist.external_urls?.spotify,
+        followers: artist.followers?.total,
+        updated_at: new Date().toISOString()
+      };
+      
+      try {
+        // Check if artist exists
+        const { data: existingArtist, error: checkError } = await supabase
+          .from('artists')
+          .select('id')
+          .eq('spotify_id', artist.id)
+          .maybeSingle();
+        
+        if (checkError) {
+          console.error("Error checking artist in database:", checkError);
+          continue;
+        }
+        
+        if (existingArtist) {
+          // Update existing artist
+          const { error: updateError } = await supabase
+            .from('artists')
+            .update(artistData)
+            .eq('spotify_id', artist.id);
+          
+          if (updateError) {
+            console.error("Error updating artist:", updateError);
+          }
+        } else {
+          // Insert new artist
+          const { error: insertError } = await supabase
+            .from('artists')
+            .insert(artistData);
+          
+          if (insertError) {
+            console.error("Error inserting artist:", insertError);
+          }
+        }
+      } catch (dbError) {
+        console.error("Database error saving artist:", dbError);
+      }
+    }
+  } catch (error) {
+    console.error("Error saving top artists to database:", error);
+  }
+}

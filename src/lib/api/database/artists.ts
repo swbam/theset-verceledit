@@ -17,40 +17,45 @@ export async function saveArtistToDatabase(artist: any) {
     console.log(`Saving artist to database: ${artist.name} (ID: ${artist.id})`);
     
     // Check if artist already exists
-    const { data: existingArtist, error: checkError } = await supabase
-      .from('artists')
-      .select('id, updated_at, stored_tracks, spotify_id, upcoming_shows')
-      .eq('id', artist.id)
-      .maybeSingle();
-    
-    if (checkError) {
-      console.error("Error checking artist in database:", checkError);
-      return null;
-    }
-    
-    // If artist exists and was updated in the last 7 days, only update if we have new data
-    if (existingArtist) {
-      const lastUpdated = new Date(existingArtist.updated_at || 0);
-      const now = new Date();
-      const daysSinceUpdate = (now.getTime() - lastUpdated.getTime()) / (1000 * 60 * 60 * 24);
+    try {
+      const { data: existingArtist, error: checkError } = await supabase
+        .from('artists')
+        .select('id, updated_at, stored_tracks, spotify_id, upcoming_shows')
+        .eq('id', artist.id)
+        .maybeSingle();
       
-      console.log(`Artist ${artist.name} exists, last updated ${daysSinceUpdate.toFixed(1)} days ago`);
-      
-      // Check if we need to update
-      const needsUpdate = 
-        daysSinceUpdate > 7 || // More than 7 days old
-        !existingArtist.stored_tracks || // No stored tracks
-        artist.spotify_id && !existingArtist.spotify_id || // New Spotify ID available
-        artist.upcoming_shows && artist.upcoming_shows > (existingArtist.upcoming_shows || 0); // More upcoming shows
-      
-      if (!needsUpdate) {
-        console.log(`No update needed for artist ${artist.name}`);
-        return existingArtist;
+      if (checkError) {
+        console.error("Error checking artist in database:", checkError);
+        // Continue with insert/update anyway
       }
       
-      console.log(`Updating artist ${artist.name} with fresh data`);
-    } else {
-      console.log(`Artist ${artist.name} is new, creating record`);
+      // If artist exists and was updated in the last 7 days, only update if we have new data
+      if (existingArtist) {
+        const lastUpdated = new Date(existingArtist.updated_at || 0);
+        const now = new Date();
+        const daysSinceUpdate = (now.getTime() - lastUpdated.getTime()) / (1000 * 60 * 60 * 24);
+        
+        console.log(`Artist ${artist.name} exists, last updated ${daysSinceUpdate.toFixed(1)} days ago`);
+        
+        // Check if we need to update
+        const needsUpdate = 
+          daysSinceUpdate > 7 || // More than 7 days old
+          !existingArtist.stored_tracks || // No stored tracks
+          artist.spotify_id && !existingArtist.spotify_id || // New Spotify ID available
+          artist.upcoming_shows && artist.upcoming_shows > (existingArtist.upcoming_shows || 0); // More upcoming shows
+        
+        if (!needsUpdate) {
+          console.log(`No update needed for artist ${artist.name}`);
+          return existingArtist;
+        }
+        
+        console.log(`Updating artist ${artist.name} with fresh data`);
+      } else {
+        console.log(`Artist ${artist.name} is new, creating record`);
+      }
+    } catch (checkError) {
+      console.error("Error checking if artist exists:", checkError);
+      // Continue to try adding the artist anyway
     }
     
     // Prepare artist data for upsert
@@ -61,40 +66,64 @@ export async function saveArtistToDatabase(artist: any) {
       genres: Array.isArray(artist.genres) ? artist.genres : [],
       popularity: artist.popularity || 0,
       upcoming_shows: artist.upcomingShows || artist.upcoming_shows || 0,
-      spotify_id: artist.spotify_id || existingArtist?.spotify_id || null,
-      stored_tracks: artist.stored_tracks || existingArtist?.stored_tracks || null,
+      spotify_id: artist.spotify_id || null,
       updated_at: new Date().toISOString()
     };
     
-    // Insert or update artist
-    const { data, error } = await supabase
-      .from('artists')
-      .upsert(artistData)
-      .select();
+    // For debugging: log what we're trying to insert
+    console.log("Inserting/updating artist with data:", JSON.stringify(artistData, null, 2));
     
-    if (error) {
-      console.error("Error saving artist to database:", error);
-      return null;
-    }
-    
-    console.log(`Successfully saved artist ${artist.name} to database`);
-    
-    // After creating/updating the artist, if they don't have stored tracks, fetch them from Spotify
-    if ((!existingArtist?.stored_tracks && !artist.stored_tracks) && artistData.spotify_id) {
-      console.log(`No stored tracks found for artist ${artist.id}, fetching from Spotify...`);
+    // Insert or update artist - wrapped in try/catch to handle permission errors
+    try {
+      const { data, error } = await supabase
+        .from('artists')
+        .upsert(artistData)
+        .select();
       
-      try {
-        // Fetch tracks in the background (don't await)
-        fetchAndStoreArtistTracks(artist.id, artistData.spotify_id, artist.name);
-      } catch (trackError) {
-        console.error("Error initiating track fetch for artist:", trackError);
+      if (error) {
+        console.error("Error saving artist to database:", error);
+        
+        // If it's a permission error, try a fallback insert-only approach
+        if (error.code === '42501' || error.message.includes('permission denied')) {
+          console.log("Permission error detected. Trying insert-only approach...");
+          
+          const { data: insertData, error: insertError } = await supabase
+            .from('artists')
+            .insert(artistData)
+            .select();
+            
+          if (insertError) {
+            console.error("Insert-only approach also failed:", insertError);
+            return artistData; // Return our data object as fallback
+          }
+          
+          console.log("Insert-only approach succeeded");
+          return insertData?.[0] || artistData;
+        }
+        
+        return artistData; // Return our data object as fallback
       }
+      
+      console.log(`Successfully saved artist ${artist.name} to database`);
+      
+      // After creating/updating the artist, if they don't have stored tracks, fetch them from Spotify
+      const savedArtist = data?.[0] || artistData;
+      if ((!savedArtist.stored_tracks) && artistData.spotify_id) {
+        console.log(`No stored tracks found for artist ${artist.id}, fetching from Spotify...`);
+        
+        // Don't await - let this run in the background
+        fetchAndStoreArtistTracks(artist.id, artistData.spotify_id, artist.name)
+          .catch(err => console.error("Error fetching tracks:", err));
+      }
+      
+      return savedArtist;
+    } catch (saveError) {
+      console.error("Error in saveArtistToDatabase:", saveError);
+      return artistData; // Return our data object as fallback
     }
-    
-    return data?.[0] || existingArtist || artist;
   } catch (error) {
     console.error("Error in saveArtistToDatabase:", error);
-    return null;
+    return artist; // Return the original artist as fallback
   }
 }
 
@@ -123,19 +152,26 @@ export async function fetchAndStoreArtistTracks(artistId: string, spotifyId: str
     
     console.log(`Found ${tracksData.tracks.length} tracks for artist ${artistName}, storing in database`);
     
-    // Store tracks in database
-    await updateArtistStoredTracks(artistId, tracksData.tracks);
-    
-    // Update artist record with last update time
-    await supabase
-      .from('artists')
-      .update({ 
-        tracks_last_updated: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', artistId);
-    
-    return tracksData.tracks;
+    // Store tracks in database - wrapped in try/catch to handle permission errors
+    try {
+      await updateArtistStoredTracks(artistId, tracksData.tracks);
+      
+      // Update artist record with last update time
+      await supabase
+        .from('artists')
+        .update({ 
+          tracks_last_updated: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          stored_tracks: tracksData.tracks
+        })
+        .eq('id', artistId);
+      
+      console.log(`Successfully updated artist ${artistName} with ${tracksData.tracks.length} tracks`);
+      return tracksData.tracks;
+    } catch (dbError) {
+      console.error("Database error storing tracks:", dbError);
+      return tracksData.tracks; // Return the tracks even if we couldn't store them
+    }
   } catch (error) {
     console.error(`Error fetching and storing tracks for artist ${artistName}:`, error);
     return null;

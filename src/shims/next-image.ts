@@ -1,4 +1,5 @@
 
+// This is a shim for Next.js Image component
 import React from 'react';
 
 interface ImageProps {
@@ -6,27 +7,24 @@ interface ImageProps {
   alt: string;
   width?: number;
   height?: number;
-  className?: string;
-  priority?: boolean;
-  style?: React.CSSProperties;
-  fill?: boolean;
   loader?: any;
   quality?: number;
-  sizes?: string;
+  priority?: boolean;
   loading?: 'lazy' | 'eager';
-  blurDataURL?: string;
-  placeholder?: 'blur' | 'empty';
-  onLoad?: () => void;
-  onError?: () => void;
   unoptimized?: boolean;
+  objectFit?: 'fill' | 'contain' | 'cover' | 'none' | 'scale-down';
+  objectPosition?: string;
+  lazyBoundary?: string;
+  lazyRoot?: React.RefObject<HTMLElement>;
+  placeholder?: 'blur' | 'empty';
+  blurDataURL?: string;
+  className?: string;
+  style?: React.CSSProperties;
+  sizes?: string;
+  fill?: boolean;
 }
 
-/**
- * A simple Next.js Image component shim for React Router
- * Since Next.js Image component isn't available in a React Router app,
- * this provides a compatible API surface that renders as a standard img
- */
-const Image = ({
+export default function Image({
   src,
   alt,
   width,
@@ -34,41 +32,44 @@ const Image = ({
   className,
   style,
   fill,
-  loading,
-  priority,
-  ...rest
-}: ImageProps) => {
-  // Handle file paths from public directory
-  const imageSrc = src.startsWith('/') ? src : src;
-  
-  // Combine any passed style with width, height, and fill properties
-  const combinedStyle: React.CSSProperties = {
+  ...props
+}: ImageProps) {
+  // Convert fill layout to standard CSS
+  const imgStyle: React.CSSProperties = {
+    ...(fill
+      ? {
+          position: 'absolute',
+          height: '100%',
+          width: '100%',
+          left: 0,
+          top: 0,
+          right: 0,
+          bottom: 0,
+          objectFit: 'cover',
+        }
+      : {}),
     ...style,
-    ...(width && { width }),
-    ...(height && { height }),
-    ...(fill && {
-      position: 'absolute',
-      height: '100%',
-      width: '100%',
-      top: 0,
-      left: 0,
-      objectFit: 'cover',
-    }),
   };
 
-  // When priority is set, use eager loading
-  const imgLoading = priority ? 'eager' : loading || 'lazy';
-  
-  return (
-    <img
-      src={imageSrc}
-      alt={alt}
-      className={className}
-      style={combinedStyle}
-      loading={imgLoading}
-      {...rest}
-    />
-  );
-};
+  // For blur placeholder
+  const blurStyle = props.placeholder === 'blur' && props.blurDataURL
+    ? {
+        backgroundSize: 'cover',
+        backgroundPosition: '0% 0%',
+        backgroundImage: `url(${props.blurDataURL})`,
+      }
+    : {};
 
-export default Image;
+  return React.createElement(
+    'img',
+    {
+      src,
+      alt,
+      width,
+      height,
+      className,
+      style: { ...imgStyle, ...blurStyle },
+      loading: props.priority ? 'eager' : 'lazy',
+    }
+  );
+}
