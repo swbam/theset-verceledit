@@ -46,7 +46,7 @@ export interface TestResults {
   errors: ErrorLog[];
   successes: SuccessLog[];
   completed: boolean;
-  supabase?: any; // Make supabase optional in TestResults
+  supabase: any; // Changed from optional to required to match TestContext
   artistId?: string;
   spotifyArtistId?: string;
   artistTracks?: any[];

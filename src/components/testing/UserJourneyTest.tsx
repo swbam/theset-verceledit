@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
-import { runUserJourneyTest, TestResults } from '@/tests/userJourneyTest';
+import { runUserJourneyTest } from '@/tests/userJourneyTest';
+import type { TestResults } from '@/tests/journey/types';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
