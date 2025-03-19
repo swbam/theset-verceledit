@@ -15,7 +15,7 @@ export function useArtistDetail(id: string | undefined) {
     queryFn: () => fetchArtistById(id as string),
     enabled: !!id,
     staleTime: 1000 * 60 * 30, // 30 minutes
-    cacheTime: 1000 * 60 * 60, // 1 hour
+    gcTime: 1000 * 60 * 60, // 1 hour (using gcTime instead of cacheTime)
     retry: 1,
     refetchOnWindowFocus: false
   });
@@ -30,7 +30,7 @@ export function useArtistDetail(id: string | undefined) {
     queryFn: () => fetchArtistEvents(id as string),
     enabled: !!id,
     staleTime: 1000 * 60 * 30, // 30 minutes
-    cacheTime: 1000 * 60 * 60, // 1 hour
+    gcTime: 1000 * 60 * 60, // 1 hour (using gcTime instead of cacheTime)
     retry: 1,
     refetchOnWindowFocus: false
   });

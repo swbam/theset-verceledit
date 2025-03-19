@@ -5,11 +5,12 @@ import { Loader2, RefreshCw, AlertTriangle } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { getMyTopArtists } from '@/lib/spotify';
-import ArtistCard from '@/components/artists/ArtistCard';
+import ArtistCard from '@/components/artist/ArtistCard'; // Fixed path: artist instead of artists
 import { Button } from '@/components/ui/button';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
 import { useAuth } from '@/contexts/auth/AuthContext';
+import { supabase } from '@/integrations/supabase/client'; // Added missing import
 
 const MyArtists = () => {
   const navigate = useNavigate();
@@ -162,12 +163,13 @@ const MyArtists = () => {
           {artists.map((artist: any) => (
             <ArtistCard 
               key={artist.id}
-              id={artist.id}
-              name={artist.name}
-              imageUrl={artist.image}
-              genres={artist.genres?.slice(0, 2) || []}
-              upcomingShows={null}
-              spotifyUrl={artist.spotifyUrl}
+              artist={{
+                id: artist.id,
+                name: artist.name,
+                image: artist.image,
+                genres: artist.genres?.slice(0, 2) || [],
+                upcoming_shows: null
+              }}
             />
           ))}
         </div>

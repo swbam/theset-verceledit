@@ -6,12 +6,24 @@ import { searchArtistsWithEvents } from '@/lib/api/artist';
 import { Avatar } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
-import { debounce } from '@/lib/utils';
 
 interface ArtistSearchResultsProps {
   query: string;
   onSelect?: (artist: any) => void;
 }
+
+// Simple debounce function implementation
+const debounce = <T extends (...args: any[]) => any>(
+  func: T, 
+  wait: number
+): ((...args: Parameters<T>) => void) => {
+  let timeout: ReturnType<typeof setTimeout> | null = null;
+  
+  return function(...args: Parameters<T>) {
+    if (timeout) clearTimeout(timeout);
+    timeout = setTimeout(() => func(...args), wait);
+  };
+};
 
 const ArtistSearchResults = ({ query, onSelect }: ArtistSearchResultsProps) => {
   const navigate = useNavigate();
@@ -40,7 +52,7 @@ const ArtistSearchResults = ({ query, onSelect }: ArtistSearchResultsProps) => {
     queryFn: () => searchArtistsWithEvents(effectiveQuery),
     enabled: effectiveQuery.length > 2,
     staleTime: 1000 * 60 * 5, // 5 minutes
-    cacheTime: 1000 * 60 * 15, // 15 minutes
+    gcTime: 1000 * 60 * 15, // 15 minutes - using gcTime instead of cacheTime
     onError: (error) => {
       console.error("Artist search error:", error);
       // Only show user-facing toast for network errors, not DB permission issues
