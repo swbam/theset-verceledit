@@ -2,50 +2,45 @@
 import React from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 
-interface NextLinkProps {
+interface LinkProps {
   href: string;
   as?: string;
   replace?: boolean;
   scroll?: boolean;
+  shallow?: boolean;
   prefetch?: boolean;
-  target?: string;
   className?: string;
-  children?: React.ReactNode;
+  children: React.ReactNode;
+  onClick?: (e: React.MouseEvent<HTMLAnchorElement>) => void;
   [key: string]: any;
 }
 
 /**
- * Mock implementation of Next.js Link component for React Router
+ * Mock implementation of Next.js Link component
  * This is a simplified version that emulates the Next.js Link component
- * for compatibility purposes.
+ * for compatibility purposes, using React Router's Link.
  */
 const Link = ({ 
   href, 
   as, 
-  replace = false, 
-  scroll = true, 
-  prefetch, 
-  children,
+  className, 
+  children, 
+  onClick,
   ...props 
-}: NextLinkProps) => {
-  // Handle external links (starting with http/https)
-  if (href.startsWith('http')) {
-    return (
-      <a href={href} target="_blank" rel="noopener noreferrer" {...props}>
-        {children}
-      </a>
-    );
-  }
-
-  // For internal links, use React Router's Link
+}: LinkProps) => {
+  // Convert Next.js dynamic routes to React Router format if needed
+  const to = as || href;
+  
   return (
-    <RouterLink to={as || href} replace={replace} {...props}>
+    <RouterLink 
+      to={to} 
+      className={className}
+      onClick={onClick}
+      {...props}
+    >
       {children}
     </RouterLink>
   );
 };
 
-/**
- * Export module components
- */
 export default Link;

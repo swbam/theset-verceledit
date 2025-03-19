@@ -1,12 +1,14 @@
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { runUserJourneyTest } from '@/tests/userJourneyTest';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { AlertCircle, CheckCircle, Clock, Play, RefreshCw } from 'lucide-react';
+import { AlertCircle, CheckCircle, Clock, Copy, Play, RefreshCw } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { toast } from 'sonner';
 
 interface ErrorLog {
   step: string;
@@ -35,6 +37,8 @@ const UserJourneyTest = () => {
   const [isRunning, setIsRunning] = useState(false);
   const [results, setResults] = useState<TestResults | null>(null);
   const [expandedLogs, setExpandedLogs] = useState<Record<string, boolean>>({});
+  const [activeTab, setActiveTab] = useState<string>("visual");
+  const copyableTextRef = useRef<HTMLPreElement>(null);
 
   const runTest = async () => {
     setIsRunning(true);
@@ -62,6 +66,51 @@ const UserJourneyTest = () => {
     if (!results?.startTime || !results?.endTime) return "N/A";
     const duration = results.endTime.getTime() - results.startTime.getTime();
     return `${(duration / 1000).toFixed(2)} seconds`;
+  };
+
+  const copyLogsToClipboard = () => {
+    if (!copyableTextRef.current) return;
+    
+    const text = copyableTextRef.current.innerText;
+    navigator.clipboard.writeText(text)
+      .then(() => toast.success("Logs copied to clipboard"))
+      .catch(() => toast.error("Failed to copy logs"));
+  };
+
+  const generateCopyableText = () => {
+    if (!results) return "";
+    
+    const logEntries = [...results.successes, ...results.errors]
+      .sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+    
+    let text = `USER JOURNEY TEST RESULTS\n`;
+    text += `==============================\n`;
+    text += `Start time: ${results.startTime.toLocaleString()}\n`;
+    text += `End time: ${results.endTime?.toLocaleString() || 'N/A'}\n`;
+    text += `Duration: ${formatDuration()}\n`;
+    text += `Status: ${results.completed ? 'PASSED ✅' : 'FAILED ❌'}\n`;
+    text += `Success steps: ${results.successes.length}\n`;
+    text += `Error steps: ${results.errors.length}\n\n`;
+    text += `DETAILED LOGS:\n`;
+    text += `==============================\n\n`;
+    
+    logEntries.forEach((log, index) => {
+      const isError = 'source' in log;
+      const timestamp = new Date(log.timestamp).toLocaleTimeString();
+      
+      text += `[${timestamp}] ${isError ? '❌ ERROR' : '✅ SUCCESS'}: ${log.step}\n`;
+      if (isError) {
+        text += `  Source: ${(log as ErrorLog).source}\n`;
+      }
+      text += `  Message: ${log.message}\n`;
+      
+      if (log.details) {
+        text += `  Details: ${JSON.stringify(log.details, null, 2)}\n`;
+      }
+      text += `\n`;
+    });
+    
+    return text;
   };
 
   return (
@@ -140,66 +189,93 @@ const UserJourneyTest = () => {
               </Alert>
             )}
             
-            <div className="space-y-4">
-              <h3 className="text-lg font-medium">Test Steps</h3>
+            <Tabs defaultValue="visual" value={activeTab} onValueChange={setActiveTab}>
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="visual">Visual Log</TabsTrigger>
+                <TabsTrigger value="copyable">Copyable Log</TabsTrigger>
+              </TabsList>
               
-              <ScrollArea className="h-[400px] rounded-md border">
-                <div className="p-4 space-y-4">
-                  {[...results.successes, ...results.errors]
-                    .sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime())
-                    .map((log, index) => {
-                      const isError = 'source' in log;
-                      const logId = `log-${index}`;
-                      const isExpanded = expandedLogs[logId] || false;
-                      
-                      return (
-                        <div 
-                          key={logId}
-                          className={`rounded-lg p-4 ${isError ? 'bg-red-500/10 border border-red-500/20' : 'bg-green-500/10 border border-green-500/20'}`}
-                        >
+              <TabsContent value="visual" className="mt-4">
+                <ScrollArea className="h-[400px] rounded-md border">
+                  <div className="p-4 space-y-4">
+                    {[...results.successes, ...results.errors]
+                      .sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime())
+                      .map((log, index) => {
+                        const isError = 'source' in log;
+                        const logId = `log-${index}`;
+                        const isExpanded = expandedLogs[logId] || false;
+                        
+                        return (
                           <div 
-                            className="flex items-start justify-between cursor-pointer"
-                            onClick={() => toggleLogExpansion(logId)}
+                            key={logId}
+                            className={`rounded-lg p-4 ${isError ? 'bg-red-500/10 border border-red-500/20' : 'bg-green-500/10 border border-green-500/20'}`}
                           >
-                            <div>
-                              <div className="flex items-center">
-                                {isError ? (
-                                  <AlertCircle className="h-4 w-4 text-red-500 mr-2" />
-                                ) : (
-                                  <CheckCircle className="h-4 w-4 text-green-500 mr-2" />
-                                )}
-                                <span className="font-medium">
-                                  {log.step}
-                                </span>
-                                {isError && (
-                                  <Badge 
-                                    variant="outline"
-                                    className="ml-2 text-red-500 border-red-500/50"
-                                  >
-                                    {(log as ErrorLog).source}
-                                  </Badge>
-                                )}
+                            <div 
+                              className="flex items-start justify-between cursor-pointer"
+                              onClick={() => toggleLogExpansion(logId)}
+                            >
+                              <div>
+                                <div className="flex items-center">
+                                  {isError ? (
+                                    <AlertCircle className="h-4 w-4 text-red-500 mr-2" />
+                                  ) : (
+                                    <CheckCircle className="h-4 w-4 text-green-500 mr-2" />
+                                  )}
+                                  <span className="font-medium">
+                                    {log.step}
+                                  </span>
+                                  {isError && (
+                                    <Badge 
+                                      variant="outline"
+                                      className="ml-2 text-red-500 border-red-500/50"
+                                    >
+                                      {(log as ErrorLog).source}
+                                    </Badge>
+                                  )}
+                                </div>
+                                <p className="text-sm mt-1 text-muted-foreground">{log.message}</p>
                               </div>
-                              <p className="text-sm mt-1 text-muted-foreground">{log.message}</p>
+                              <span className="text-xs text-muted-foreground">
+                                {new Date(log.timestamp).toLocaleTimeString()}
+                              </span>
                             </div>
-                            <span className="text-xs text-muted-foreground">
-                              {new Date(log.timestamp).toLocaleTimeString()}
-                            </span>
+                            
+                            {isExpanded && log.details && (
+                              <div className="mt-3 pt-3 border-t border-border">
+                                <pre className="text-xs overflow-auto p-2 bg-muted rounded">
+                                  {JSON.stringify(log.details, null, 2)}
+                                </pre>
+                              </div>
+                            )}
                           </div>
-                          
-                          {isExpanded && log.details && (
-                            <div className="mt-3 pt-3 border-t border-border">
-                              <pre className="text-xs overflow-auto p-2 bg-muted rounded">
-                                {JSON.stringify(log.details, null, 2)}
-                              </pre>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
+                        );
+                      })}
+                  </div>
+                </ScrollArea>
+              </TabsContent>
+              
+              <TabsContent value="copyable" className="mt-4">
+                <div className="relative">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="absolute right-2 top-2 z-10"
+                    onClick={copyLogsToClipboard}
+                  >
+                    <Copy className="h-4 w-4 mr-1" />
+                    Copy
+                  </Button>
+                  <ScrollArea className="h-[400px] rounded-md border bg-muted">
+                    <pre 
+                      ref={copyableTextRef}
+                      className="p-4 text-xs font-mono whitespace-pre-wrap"
+                    >
+                      {generateCopyableText()}
+                    </pre>
+                  </ScrollArea>
                 </div>
-              </ScrollArea>
-            </div>
+              </TabsContent>
+            </Tabs>
           </div>
         )}
       </CardContent>
