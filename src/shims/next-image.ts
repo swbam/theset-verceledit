@@ -6,24 +6,23 @@ interface ImageProps {
   alt: string;
   width?: number;
   height?: number;
-  layout?: 'fixed' | 'intrinsic' | 'responsive' | 'fill';
-  objectFit?: 'contain' | 'cover' | 'fill' | 'none' | 'scale-down';
-  className?: string;
-  priority?: boolean;
-  quality?: number;
-  loading?: 'lazy' | 'eager';
-  placeholder?: 'blur' | 'empty';
-  blurDataURL?: string;
-  onClick?: () => void;
-  onLoad?: () => void;
-  onError?: () => void;
+  fill?: boolean;
   sizes?: string;
+  quality?: number;
+  priority?: boolean;
+  placeholder?: "blur" | "empty";
+  blurDataURL?: string;
+  className?: string;
+  style?: React.CSSProperties;
+  onLoad?: (event: React.SyntheticEvent<HTMLImageElement, Event>) => void;
+  onError?: (event: React.SyntheticEvent<HTMLImageElement, Event>) => void;
+  loading?: 'lazy' | 'eager';
   [key: string]: any;
 }
 
 /**
  * Mock implementation of Next.js Image component
- * This is a simplified version that emulates the Next.js Image component
+ * This is a simplified version that emulates the Next.js Image component 
  * for compatibility purposes.
  */
 const Image = ({ 
@@ -31,33 +30,32 @@ const Image = ({
   alt, 
   width, 
   height, 
-  layout,
-  objectFit,
-  className,
-  onClick,
+  fill, 
+  className, 
+  style: customStyle,
+  onLoad,
+  onError,
   loading = 'lazy',
   ...props 
 }: ImageProps) => {
-  const imgStyle: React.CSSProperties = {
-    objectFit: objectFit as React.CSSProperties['objectFit'],
+  
+  // Prepare the style object
+  const style: React.CSSProperties = {
+    ...(fill ? { objectFit: 'cover', width: '100%', height: '100%' } : {}),
+    ...(customStyle || {})
   };
-
-  if (layout === 'fill') {
-    imgStyle.width = '100%';
-    imgStyle.height = '100%';
-    imgStyle.position = 'absolute';
-  }
-
+  
   return (
     <img 
       src={src} 
-      alt={alt} 
+      alt={alt}
       width={width} 
       height={height}
       className={className}
-      onClick={onClick}
+      style={style}
+      onLoad={onLoad}
+      onError={onError}
       loading={loading}
-      style={imgStyle}
       {...props}
     />
   );
