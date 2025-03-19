@@ -14,15 +14,11 @@ const AuthCallback = () => {
     const handleAuthCallback = async () => {
       try {
         console.log('Auth callback started');
-        // Handle hash fragment for OAuth providers
-        const hashParams = new URLSearchParams(window.location.hash.substring(1));
-        const accessToken = hashParams.get('access_token');
-        const provider = new URLSearchParams(window.location.search).get('provider');
+        // Get URL parameters to check for the provider
+        const searchParams = new URLSearchParams(window.location.search);
+        const provider = searchParams.get('provider');
         
-        if (accessToken) {
-          console.log('Access token found in URL');
-          // Handle access token if present in the hash
-        }
+        console.log('Provider from URL:', provider);
         
         // Get the current session
         const { data: { session }, error: sessionError } = await supabase.auth.getSession();
@@ -34,18 +30,18 @@ const AuthCallback = () => {
         
         if (session) {
           console.log('Session found:', session.user.id);
+          console.log('Provider token:', session.provider_token ? 'Yes' : 'No');
           toast.success('Successfully signed in!');
           
-          // If authentication was with Spotify, redirect to my-artists page
-          if (provider === 'spotify' || (session.provider_token && provider === 'spotify')) {
+          // Check if auth was with Spotify - use both the URL parameter and session info
+          if (provider === 'spotify' || session.provider_token) {
             console.log('Redirecting to my-artists page');
-            navigate('/my-artists');
+            setTimeout(() => navigate('/my-artists'), 500);
           } else {
             navigate('/');
           }
         } else {
           console.log('No session found after redirect');
-          // This might happen if the OAuth process wasn't completed
           setError('Authentication process was interrupted. Please try again.');
           setTimeout(() => navigate('/auth'), 2000);
         }
