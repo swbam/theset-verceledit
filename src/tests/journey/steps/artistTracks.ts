@@ -10,16 +10,19 @@ export async function getArtistTracks(
   results: TestResults, 
   artistDetails: any
 ): Promise<any[]> {
-  console.log(`\n📍 STEP 4: Fetching tracks for artist: "${artistDetails.name}"`);
+  console.log(`\n📍 STEP 4: Fetching tracks for artist: "${artistDetails.name}" (Background process when viewing artist)`);
   
   try {
     let tracks = [];
-    // First check if there are stored tracks
+    // First check if there are stored tracks in the database
     if (artistDetails.stored_tracks && Array.isArray(artistDetails.stored_tracks)) {
       tracks = artistDetails.stored_tracks;
-      logSuccess(results, "Artist Tracks", `Using ${tracks.length} stored tracks for artist: ${artistDetails.name}`);
+      logSuccess(results, "Artist Tracks", `Using ${tracks.length} stored tracks for artist: ${artistDetails.name} (Database)`, {
+        trackCount: tracks.length,
+        firstTrack: tracks[0]?.name || "N/A"
+      });
     } else if (artistDetails.spotify_id) {
-      // If no stored tracks but we have Spotify ID, fetch from Spotify
+      // If no stored tracks but we have Spotify ID, fetch from Spotify API
       try {
         const tracksData = await getArtistAllTracks(artistDetails.spotify_id);
         
@@ -29,7 +32,10 @@ export async function getArtistTracks(
         }
         
         tracks = tracksData.tracks;
-        logSuccess(results, "Artist Tracks", `Fetched ${tracks.length} tracks from Spotify for artist: ${artistDetails.name}`);
+        logSuccess(results, "Artist Tracks", `Fetched ${tracks.length} tracks from Spotify for artist: ${artistDetails.name} (Spotify API)`, {
+          trackCount: tracks.length,
+          firstTrack: tracks[0]?.name || "N/A"
+        });
       } catch (spotifyError) {
         logError(results, "Artist Tracks", "API", `Error fetching tracks from Spotify: ${(spotifyError as Error).message}`, spotifyError);
         throw spotifyError;

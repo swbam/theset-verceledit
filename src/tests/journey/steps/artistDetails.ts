@@ -11,9 +11,10 @@ export async function getArtistDetails(
   artistId: string, 
   artistName: string
 ): Promise<any> {
-  console.log(`\n📍 STEP 2: Fetching details for artist: "${artistName}" (ID: ${artistId})`);
+  console.log(`\n📍 STEP 2: Fetching details for artist: "${artistName}" (Simulating user clicking on artist card)`);
   
   try {
+    // This function first checks the database, then falls back to API if needed
     const artistDetails = await fetchArtistById(artistId);
     
     if (!artistDetails) {
@@ -21,7 +22,7 @@ export async function getArtistDetails(
       throw new Error(`Failed to fetch details for artist: ${artistName}`);
     }
     
-    logSuccess(results, "Artist Details", `Successfully fetched details for artist: ${artistDetails.name}`, {
+    logSuccess(results, "Artist Details", `Successfully fetched details for artist: ${artistDetails.name} (Database)`, {
       id: artistDetails.id,
       name: artistDetails.name,
       spotifyId: artistDetails.spotify_id || "Not available",

@@ -4,25 +4,40 @@ import { TestResults } from '../types';
 import { logError, logSuccess } from '../logger';
 
 /**
- * Step 5-6: Select a show and get/create its setlist
+ * Step 5: Select a show
+ */
+export async function selectShow(
+  results: TestResults, 
+  show: any
+): Promise<any> {
+  console.log(`\n📍 STEP 5: Selecting show: "${show.name}" (Simulating user clicking on a show card)`);
+  
+  try {
+    logSuccess(results, "Show Selection", `User clicked on show: ${show.name} (Client action)`, {
+      showId: show.id,
+      showName: show.name,
+      showDate: show.date,
+      venueId: show.venue_id
+    });
+    
+    return show;
+  } catch (error) {
+    logError(results, "Show Selection", "Client", `Error selecting show: ${(error as Error).message}`, error);
+    throw error;
+  }
+}
+
+/**
+ * Step 6: Get or create setlist for the show
  */
 export async function getOrCreateSetlist(
   results: TestResults, 
   show: any
 ): Promise<string> {
-  console.log(`\n📍 STEP 5: Selecting show to view`);
-  
-  logSuccess(results, "Show Selection", `Selected show: ${show.name}`, {
-    showId: show.id,
-    showName: show.name,
-    showDate: show.date,
-    venueId: show.venue_id
-  });
-  
-  // Step 6: Check or create setlist for the show
-  console.log(`\n📍 STEP 6: Checking setlist for show: "${show.name}"`);
+  console.log(`\n📍 STEP 6: Checking for setlist on show page (Simulating loading show details page)`);
   
   try {
+    // Check for existing setlist in database
     const { data: existingSetlist, error: setlistError } = await supabase
       .from('setlists')
       .select('*')
@@ -54,11 +69,11 @@ export async function getOrCreateSetlist(
       }
       
       setlistId = newSetlist.id;
-      logSuccess(results, "Setlist Creation", `Created new setlist for show: ${show.name}`, {
+      logSuccess(results, "Setlist Creation", `Created new setlist for show: ${show.name} (Database)`, {
         setlistId: setlistId
       });
     } else {
-      logSuccess(results, "Setlist Check", `Found existing setlist for show: ${show.name}`, {
+      logSuccess(results, "Setlist Check", `Found existing setlist for show: ${show.name} (Database)`, {
         setlistId: setlistId
       });
     }
@@ -78,7 +93,7 @@ export async function manageSetlistSongs(
   setlistId: string, 
   tracks: any[]
 ): Promise<any[]> {
-  console.log(`\n📍 STEP 7: Checking setlist songs`);
+  console.log(`\n📍 STEP 7: Loading setlist songs (Simulating viewing the setlist on show page)`);
   
   try {
     // Using let instead of const to allow reassignment
@@ -94,7 +109,7 @@ export async function manageSetlistSongs(
     
     if (!setlistSongs || setlistSongs.length === 0) {
       // Add some songs to the setlist
-      console.log(`No songs in setlist. Adding 5 random tracks...`);
+      console.log(`No songs in setlist. Adding 5 random tracks (Simulating system auto-populating setlist)...`);
       
       // Shuffle tracks and pick 5 random ones
       const shuffledTracks = [...tracks].sort(() => 0.5 - Math.random());
@@ -125,7 +140,7 @@ export async function manageSetlistSongs(
         throw updatedError;
       }
       
-      logSuccess(results, "Add Setlist Songs", `Added ${updatedSongs?.length || 0} songs to the setlist`, {
+      logSuccess(results, "Add Setlist Songs", `Added ${updatedSongs?.length || 0} songs to the setlist (Database)`, {
         songCount: updatedSongs?.length || 0,
         setlistId: setlistId
       });
@@ -135,7 +150,7 @@ export async function manageSetlistSongs(
         setlistSongs = updatedSongs;
       }
     } else {
-      logSuccess(results, "Setlist Songs", `Found ${setlistSongs.length} songs in the setlist`, {
+      logSuccess(results, "Setlist Songs", `Found ${setlistSongs.length} songs in the setlist (Database)`, {
         songCount: setlistSongs.length,
         setlistId: setlistId
       });
@@ -149,62 +164,99 @@ export async function manageSetlistSongs(
 }
 
 /**
- * Step 8: Simulate voting for a song
+ * Step 8: Select a track from the dropdown
+ */
+export async function selectTrackFromDropdown(
+  results: TestResults,
+  availableTracks: any[]
+): Promise<any> {
+  console.log(`\n📍 STEP 8: Selecting a track from dropdown (Simulating user selecting a song to add)`);
+  
+  try {
+    if (!availableTracks || availableTracks.length === 0) {
+      logError(results, "Track Selection", "Client", "No tracks available to select from dropdown");
+      throw new Error("No tracks available to select from dropdown");
+    }
+    
+    // Select a random track from available tracks
+    const selectedTrack = availableTracks[Math.floor(Math.random() * availableTracks.length)];
+    
+    logSuccess(results, "Track Selection", `User selected track "${selectedTrack.name}" from dropdown (Client action)`, {
+      trackId: selectedTrack.id,
+      trackName: selectedTrack.name
+    });
+    
+    return selectedTrack;
+  } catch (error) {
+    logError(results, "Track Selection", "Client", `Error selecting track: ${(error as Error).message}`, error);
+    throw error;
+  }
+}
+
+/**
+ * Step 9: Vote for a song
  */
 export async function voteForSong(
   results: TestResults, 
-  setlistSongs: any[]
+  setlistSong: any,
+  userId: string = 'test-user-id'
 ): Promise<void> {
-  console.log(`\n📍 STEP 8: Simulating vote for a song`);
+  console.log(`\n📍 STEP 9: Voting for a song (Simulating user clicking upvote button)`);
   
   try {
-    if (setlistSongs && setlistSongs.length > 0) {
-      const songToVoteFor = setlistSongs[0];
-      
-      // First check if we already voted for this song
-      const { data: existingVote, error: voteCheckError } = await supabase
+    if (!setlistSong) {
+      logError(results, "Vote", "Client", "No song available to vote for");
+      throw new Error("No song available to vote for");
+    }
+    
+    // First check if we already voted for this song
+    const { data: existingVote, error: voteCheckError } = await supabase
+      .from('votes')
+      .select('*')
+      .eq('setlist_song_id', setlistSong.id)
+      .eq('user_id', userId)
+      .maybeSingle();
+    
+    if (voteCheckError) {
+      logError(results, "Vote Check", "Database", `Database error checking existing vote: ${voteCheckError.message}`, voteCheckError);
+      // Continue anyway - this is just a test
+    }
+    
+    if (!existingVote) {
+      // Insert a new vote
+      const { error: voteError } = await supabase
         .from('votes')
-        .select('*')
-        .eq('setlist_song_id', songToVoteFor.id)
-        .eq('user_id', 'test-user-id') // Use a test user ID
-        .maybeSingle();
+        .insert({
+          setlist_song_id: setlistSong.id,
+          user_id: userId
+        });
       
-      if (voteCheckError) {
-        logError(results, "Vote Check", "Database", `Database error checking existing vote: ${voteCheckError.message}`, voteCheckError);
-        // Continue anyway - this is just a test
+      if (voteError) {
+        logError(results, "Vote", "Database", `Database error voting for song: ${voteError.message}`, voteError);
+        throw voteError;
       }
       
-      if (!existingVote) {
-        // Insert a new vote
-        const { error: voteError } = await supabase
-          .from('votes')
-          .insert({
-            setlist_song_id: songToVoteFor.id,
-            user_id: 'test-user-id' // Use a test user ID
-          });
-        
-        if (voteError) {
-          logError(results, "Vote", "Database", `Database error voting for song: ${voteError.message}`, voteError);
-          throw voteError;
-        }
-        
-        // Increment the vote count
-        const { error: incrementError } = await supabase.rpc(
-          'increment_votes',
-          { song_id: songToVoteFor.id }
-        );
-        
-        if (incrementError) {
-          logError(results, "Vote Increment", "Database", `Database error incrementing vote count: ${incrementError.message}`, incrementError);
-          throw incrementError;
-        }
-        
-        logSuccess(results, "Vote", `Successfully voted for song ID: ${songToVoteFor.id}`);
-      } else {
-        logSuccess(results, "Vote Check", `Already voted for song ID: ${songToVoteFor.id}`);
+      // Increment the vote count
+      const { error: incrementError } = await supabase.rpc(
+        'increment_votes',
+        { song_id: setlistSong.id }
+      );
+      
+      if (incrementError) {
+        logError(results, "Vote Increment", "Database", `Database error incrementing vote count: ${incrementError.message}`, incrementError);
+        throw incrementError;
       }
+      
+      logSuccess(results, "Vote", `Successfully voted for song ID: ${setlistSong.id} (Database & Client action)`, {
+        songId: setlistSong.id,
+        userId: userId
+      });
     } else {
-      logError(results, "Vote", "Client", "No songs available to vote for");
+      logSuccess(results, "Vote Check", `Already voted for song ID: ${setlistSong.id} (Database check)`, {
+        voteId: existingVote.id,
+        songId: setlistSong.id,
+        userId: userId
+      });
     }
   } catch (error) {
     logError(results, "Vote", "Database", `Error voting for song: ${(error as Error).message}`, error);

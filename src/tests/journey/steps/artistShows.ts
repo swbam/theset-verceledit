@@ -12,9 +12,10 @@ export async function getArtistShows(
   artistId: string, 
   artistName: string
 ): Promise<any[]> {
-  console.log(`\n📍 STEP 3: Fetching upcoming shows for artist: "${artistName}"`);
+  console.log(`\n📍 STEP 3: Fetching upcoming shows for artist: "${artistName}" (Simulating viewing artist page with shows)`);
   
   try {
+    // This function fetches shows from Ticketmaster API and saves to database
     await fetchAndSaveArtistShows(artistId);
     
     // Verify shows were saved to database
@@ -33,7 +34,7 @@ export async function getArtistShows(
       throw new Error(`No upcoming shows found for artist: ${artistName}`);
     }
     
-    logSuccess(results, "Upcoming Shows", `Found ${shows.length} upcoming shows for artist: ${artistName}`, {
+    logSuccess(results, "Upcoming Shows", `Found ${shows.length} upcoming shows for artist: ${artistName} (Database)`, {
       showCount: shows.length,
       firstShowId: shows[0].id,
       firstShowName: shows[0].name,

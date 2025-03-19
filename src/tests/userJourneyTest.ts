@@ -7,7 +7,13 @@ import { searchForArtist } from './journey/steps/artistSearch';
 import { getArtistDetails } from './journey/steps/artistDetails';
 import { getArtistShows } from './journey/steps/artistShows';
 import { getArtistTracks } from './journey/steps/artistTracks';
-import { getOrCreateSetlist, manageSetlistSongs, voteForSong } from './journey/steps/setlistOperations';
+import { 
+  selectShow,
+  getOrCreateSetlist, 
+  manageSetlistSongs, 
+  selectTrackFromDropdown,
+  voteForSong 
+} from './journey/steps/setlistOperations';
 
 /**
  * Comprehensive test to simulate the complete user journey
@@ -25,28 +31,37 @@ export async function runUserJourneyTest(): Promise<TestResults> {
     console.log(`🧪 Starting User Journey Test: ${TEST_ARTIST_NAME}`);
     console.log('---------------------------------------------');
 
-    // Step 1: Search for an artist
+    // Step 1: Search for an artist (API + Database)
     const artists = await searchForArtist(results, TEST_ARTIST_NAME);
     
-    // Step 2: Get artist details for the first result
+    // Step 2: Get artist details for the first result (Database + API fallback)
     const selectedArtist = artists[0];
     const artistDetails = await getArtistDetails(results, selectedArtist.id, selectedArtist.name);
     
-    // Step 3: Get artist's upcoming shows
+    // Step 3: Get artist's upcoming shows (API → Database)
     const shows = await getArtistShows(results, artistDetails.id, artistDetails.name);
     
-    // Step 4: Get artist's tracks
+    // Step 4: Get artist's tracks (Database or API)
     const tracks = await getArtistTracks(results, artistDetails);
     
-    // Step 5-6: Select a show and get/create its setlist
-    const selectedShow = shows[0]; // Select the first show
+    // Step 5: Select a show (Client action)
+    const selectedShow = await selectShow(results, shows[0]);
+    
+    // Step 6: Get/create setlist for the selected show (Database)
     const setlistId = await getOrCreateSetlist(results, selectedShow);
     
-    // Step 7: Check setlist songs and add songs if needed
+    // Step 7: Check setlist songs and add songs if needed (Database)
     const setlistSongs = await manageSetlistSongs(results, setlistId, tracks);
     
-    // Step 8: Simulate voting for a song
-    await voteForSong(results, setlistSongs);
+    // Step 8: Select a track from the dropdown (Client action)
+    const selectedTrack = await selectTrackFromDropdown(results, tracks);
+    
+    // Step 9: Vote for a song (Client + Database)
+    if (setlistSongs.length > 0) {
+      await voteForSong(results, setlistSongs[0]);
+    } else {
+      logError(results, "Voting", "Client", "No songs available in setlist to vote for");
+    }
     
     // Complete the test
     console.log(`\n✅ User journey test completed successfully!`);
