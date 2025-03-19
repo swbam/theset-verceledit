@@ -40,6 +40,8 @@ export async function runUserJourneyTest(customArtistId?: string): Promise<TestR
     // Update test results from context
     results.errors = testContext.errors;
     results.successes = testContext.successes;
+    results.success = tracksResult.success;
+    results.message = tracksResult.message;
     
     if (tracksResult.success) {
       console.log("Artist tracks test succeeded:", tracksResult.message);

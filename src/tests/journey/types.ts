@@ -6,7 +6,7 @@
 // Test step function and result types
 export interface TestContext {
   artistId?: string;
-  spotifyArtistId?: string;
+  spotifyArtistId?: string | null;
   supabase: any;
   artistTracks?: any[];
   errors: ErrorLog[];
@@ -46,8 +46,10 @@ export interface TestResults {
   errors: ErrorLog[];
   successes: SuccessLog[];
   completed: boolean;
-  supabase: any; // Changed from optional to required to match TestContext
+  supabase: any;
   artistId?: string;
-  spotifyArtistId?: string;
+  spotifyArtistId?: string | null;
   artistTracks?: any[];
+  success?: boolean; // Added to fix type errors
+  message?: string;  // Added to fix type errors
 }
