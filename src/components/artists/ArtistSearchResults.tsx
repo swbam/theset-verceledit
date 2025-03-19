@@ -53,6 +53,7 @@ const ArtistSearchResults = ({ query, onSelect }: ArtistSearchResultsProps) => {
   }
 
   const handleArtistClick = (artist: any) => {
+    console.log("Artist selected:", artist); // Log the selected artist
     if (onSelect) {
       onSelect(artist);
     } else {

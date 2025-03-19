@@ -1,45 +1,48 @@
 
 import React from 'react';
-import { Link as RouterLink } from 'react-router-dom';
+import { Link as ReactRouterLink } from 'react-router-dom';
 
 interface LinkProps {
   href: string;
-  as?: string;
+  children: React.ReactNode;
+  className?: string;
+  prefetch?: boolean;
   replace?: boolean;
   scroll?: boolean;
-  prefetch?: boolean;
-  shallow?: boolean;
-  passHref?: boolean;
-  className?: string;
+  onClick?: (e: React.MouseEvent<HTMLAnchorElement>) => void;
   target?: string;
   rel?: string;
-  children: React.ReactNode;
-  onClick?: (event: React.MouseEvent<HTMLAnchorElement>) => void;
+  style?: React.CSSProperties;
+  [key: string]: any;
 }
 
-/**
- * Shim for Next.js Link component - reimplemented for React Router
- */
-const Link = ({
-  href,
+// This is a simple shim for Next.js Link component
+const Link = ({ 
+  href, 
+  children, 
   className,
-  children,
+  prefetch,
+  replace,
+  scroll,
   onClick,
   target,
   rel,
-  ...props
+  style,
+  ...props 
 }: LinkProps) => {
-  // Check if link is external
+  // External links should use regular anchor tags
   const isExternal = href.startsWith('http') || href.startsWith('mailto:') || href.startsWith('tel:');
 
   if (isExternal) {
     return (
       <a 
-        href={href}
+        href={href} 
         className={className}
-        target={target || '_blank'}
-        rel={rel || 'noopener noreferrer'}
         onClick={onClick}
+        target={target || '_blank'} 
+        rel={rel || 'noopener noreferrer'}
+        style={style}
+        {...props}
       >
         {children}
       </a>
@@ -47,15 +50,15 @@ const Link = ({
   }
 
   return (
-    <RouterLink
-      to={href}
+    <ReactRouterLink 
+      to={href} 
       className={className}
       onClick={onClick}
-      target={target}
-      rel={rel}
+      style={style}
+      {...props}
     >
       {children}
-    </RouterLink>
+    </ReactRouterLink>
   );
 };
 

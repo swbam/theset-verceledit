@@ -6,51 +6,46 @@ interface ImageProps {
   alt: string;
   width?: number;
   height?: number;
-  className?: string;
-  priority?: boolean;
-  quality?: number;
-  placeholder?: 'blur' | 'empty';
-  style?: React.CSSProperties;
   fill?: boolean;
+  className?: string;
+  style?: React.CSSProperties;
+  quality?: number;
+  priority?: boolean;
+  placeholder?: 'blur' | 'empty';
   blurDataURL?: string;
-  loading?: 'eager' | 'lazy';
-  onLoad?: (event: React.SyntheticEvent<HTMLImageElement, Event>) => void;
-  onError?: (event: React.SyntheticEvent<HTMLImageElement, Event>) => void;
 }
 
-/**
- * Shim for Next.js Image component - reimplemented for non-Next.js environments
- */
-const Image = ({
-  src,
-  alt,
-  width,
-  height,
-  className,
+// This is a simple shim for Next.js Image component
+const Image = ({ 
+  src, 
+  alt, 
+  width, 
+  height, 
+  fill, 
+  className, 
   style,
-  fill,
-  quality,
   priority,
-  onLoad,
-  onError,
-  ...props
+  ...props 
 }: ImageProps) => {
-  const imgStyle: React.CSSProperties = {
+  const imgStyle = {
     ...style,
-    ...(fill ? { objectFit: 'cover', width: '100%', height: '100%', position: 'absolute' } : {})
+    ...(fill ? { objectFit: 'cover', width: '100%', height: '100%', position: 'absolute' as const } : {})
   };
+
+  // For local public images, we need to prepend /
+  const imgSrc = src.startsWith('/') 
+    ? src
+    : (src.startsWith('http') ? src : `/${src}`);
 
   return (
     <img
-      src={src}
+      src={imgSrc}
       alt={alt}
       width={width}
       height={height}
       className={className}
       style={imgStyle}
       loading={priority ? 'eager' : 'lazy'}
-      onLoad={onLoad}
-      onError={onError}
       {...props}
     />
   );

@@ -1,13 +1,17 @@
+
 import { toast } from "sonner";
 import { callTicketmasterApi } from "./ticketmaster-config";
 import { supabase } from "@/integrations/supabase/client";
-import { saveArtistToDatabase, saveShowToDatabase, saveVenueToDatabase } from "./database";
+import { saveArtistToDatabase, saveShowToDatabase, saveVenueToDatabase } from "./database-utils";
+import { getArtistByName } from "@/lib/spotify";
 
 /**
  * Fetch upcoming shows for an artist
  */
 export async function fetchArtistEvents(artistIdentifier: string): Promise<any[]> {
   try {
+    console.log(`Fetching events for artist ID: ${artistIdentifier}`);
+    
     // First check if we have shows in the database for this artist
     const { data: dbShows, error: dbError } = await supabase
       .from('shows')
@@ -29,6 +33,8 @@ export async function fetchArtistEvents(artistIdentifier: string): Promise<any[]
     
     // If we have shows in the database, fetch venue details for each show
     if (dbShows && dbShows.length > 0) {
+      console.log(`Found ${dbShows.length} shows in database for artist ${artistIdentifier}`);
+      
       const showsWithVenues = await Promise.all(dbShows.map(async (show) => {
         if (show.venue_id) {
           const { data: venue } = await supabase
@@ -66,6 +72,8 @@ export async function fetchArtistEvents(artistIdentifier: string): Promise<any[]
       searchParam = { keyword: artistIdentifier };
     }
     
+    console.log(`Fetching from Ticketmaster API with params:`, searchParam);
+    
     // Fetch from Ticketmaster API
     const data = await callTicketmasterApi('events.json', {
       ...searchParam,
@@ -74,9 +82,12 @@ export async function fetchArtistEvents(artistIdentifier: string): Promise<any[]
     });
 
     if (!data._embedded?.events) {
+      console.log(`No events found for artist ID: ${artistIdentifier}`);
       return [];
     }
 
+    console.log(`Found ${data._embedded.events.length} events from Ticketmaster for artist ID: ${artistIdentifier}`);
+    
     const shows = await Promise.all(data._embedded.events.map(async (event: any) => {
       // Get artist info from the event
       let artistName = '';
@@ -88,12 +99,14 @@ export async function fetchArtistEvents(artistIdentifier: string): Promise<any[]
         artistId = attraction.id;
         
         // Save artist to database
-        await saveArtistToDatabase({
+        const savedArtist = await saveArtistToDatabase({
           id: artistId,
           name: artistName,
           image: attraction.images?.find((img: any) => img.ratio === "16_9" && img.width > 500)?.url,
           upcoming_shows: 1
         });
+        
+        console.log(`Saved artist: ${artistName} to database:`, savedArtist ? "Success" : "Failed");
       } else {
         // Fallback to extracting from event name
         artistName = event.name.split(' at ')[0].split(' - ')[0].trim();
@@ -115,7 +128,8 @@ export async function fetchArtistEvents(artistIdentifier: string): Promise<any[]
         venueId = venueData.id;
         
         // Save venue to database
-        await saveVenueToDatabase(venue);
+        const savedVenue = await saveVenueToDatabase(venue);
+        console.log(`Saved venue: ${venue.name} to database:`, savedVenue ? "Success" : "Failed");
       }
       
       // Create show object
@@ -131,7 +145,8 @@ export async function fetchArtistEvents(artistIdentifier: string): Promise<any[]
       };
       
       // Save show to database
-      await saveShowToDatabase(show);
+      const savedShow = await saveShowToDatabase(show);
+      console.log(`Saved show: ${show.name} to database:`, savedShow ? "Success" : "Failed");
       
       return show;
     }));
@@ -149,6 +164,8 @@ export async function fetchArtistEvents(artistIdentifier: string): Promise<any[]
  */
 export async function fetchShowDetails(eventId: string): Promise<any> {
   try {
+    console.log(`Fetching details for show ID: ${eventId}`);
+    
     // First check if we have this show in the database
     const { data: dbShow, error: dbError } = await supabase
       .from('shows')
@@ -169,6 +186,8 @@ export async function fetchShowDetails(eventId: string): Promise<any> {
     }
     
     if (dbShow) {
+      console.log(`Found show in database: ${dbShow.name}`);
+      
       // Fetch related artist and venue
       const [artistResult, venueResult] = await Promise.all([
         dbShow.artist_id ? supabase
@@ -183,7 +202,7 @@ export async function fetchShowDetails(eventId: string): Promise<any> {
           .maybeSingle() : null
       ]);
       
-      return {
+      const enrichedShow = {
         id: dbShow.id,
         name: dbShow.name,
         date: dbShow.date,
@@ -194,10 +213,21 @@ export async function fetchShowDetails(eventId: string): Promise<any> {
         artist_id: dbShow.artist_id,
         venue_id: dbShow.venue_id
       };
+      
+      console.log("Returning enriched show from database:", enrichedShow);
+      return enrichedShow;
     }
     
     // If not in database, fetch from Ticketmaster
+    console.log(`Show not found in database, fetching from Ticketmaster API...`);
     const event = await callTicketmasterApi(`events/${eventId}.json`);
+    
+    if (!event) {
+      console.error(`No event found with ID: ${eventId}`);
+      throw new Error("Show not found");
+    }
+    
+    console.log(`Fetched show from Ticketmaster: ${event.name}`);
     
     // Get artist from attractions if available
     let artistName = '';
@@ -218,7 +248,8 @@ export async function fetchShowDetails(eventId: string): Promise<any> {
       };
       
       // Save artist to database
-      await saveArtistToDatabase(artistData);
+      const savedArtist = await saveArtistToDatabase(artistData);
+      console.log(`Saved artist from show details: ${artistName}`, savedArtist ? "Success" : "Failed");
     } else {
       // Fallback to extracting from event name
       artistName = event.name.split(' at ')[0].split(' - ')[0].trim();
@@ -229,6 +260,9 @@ export async function fetchShowDetails(eventId: string): Promise<any> {
         id: artistId,
         name: artistName
       };
+      
+      // Save this minimal artist too
+      await saveArtistToDatabase(artistData);
     }
     
     // Process venue
@@ -247,7 +281,8 @@ export async function fetchShowDetails(eventId: string): Promise<any> {
       venueId = venueData.id;
       
       // Save venue to database
-      await saveVenueToDatabase(venue);
+      const savedVenue = await saveVenueToDatabase(venue);
+      console.log(`Saved venue from show details: ${venue.name}`, savedVenue ? "Success" : "Failed");
     }
     
     // Create show object
@@ -264,7 +299,8 @@ export async function fetchShowDetails(eventId: string): Promise<any> {
     };
     
     // Save show to database
-    await saveShowToDatabase(show);
+    const savedShow = await saveShowToDatabase(show);
+    console.log(`Saved show from show details: ${show.name}`, savedShow ? "Success" : "Failed");
     
     return show;
   } catch (error) {
