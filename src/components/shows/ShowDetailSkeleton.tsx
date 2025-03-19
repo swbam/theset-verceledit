@@ -7,29 +7,30 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 
 const ShowDetailSkeleton = () => {
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen flex flex-col bg-black">
       <Navbar />
       <main className="flex-grow">
         {/* Header Section Skeleton */}
-        <section className="relative bg-secondary/70 py-20">
+        <section className="relative bg-secondary/70 py-16 md:py-20">
           <div className="px-6 md:px-8 lg:px-12 relative z-10">
             <div className="max-w-7xl mx-auto">
-              <Skeleton className="h-4 w-32 mb-6" />
+              <Skeleton className="h-4 w-32 mb-4" />
               <Skeleton className="h-10 w-3/4 mb-3" />
               <Skeleton className="h-6 w-1/2 mb-6" />
               
-              <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-8 mt-8">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-8 mt-6">
                 <Skeleton className="h-6 w-48" />
                 <Skeleton className="h-6 w-48" />
               </div>
               
-              <Skeleton className="h-10 w-36 mt-8" />
+              <Skeleton className="h-10 w-36 mt-6" />
             </div>
           </div>
+          <div className="absolute inset-0 bg-gradient-to-b from-transparent to-background" />
         </section>
         
-        {/* Setlist Section Skeleton */}
-        <section className="px-6 md:px-8 lg:px-12 py-12 bg-secondary/20">
+        {/* Setlist Section Skeleton - More compact to load faster */}
+        <section className="px-6 md:px-8 lg:px-12 py-8 md:py-12">
           <div className="max-w-5xl mx-auto">
             <Card className="bg-card shadow-md border-border/50">
               <CardHeader className="pb-4 border-b border-border/60">
@@ -41,12 +42,11 @@ const ShowDetailSkeleton = () => {
                   <div className="flex items-center gap-4">
                     <Skeleton className="h-6 w-20 rounded-full" />
                     <Skeleton className="h-6 w-28 rounded-full" />
-                    <Skeleton className="h-8 w-8 rounded-full" />
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className="p-6 space-y-4">
-                {Array(8).fill(0).map((_, i) => (
+              <CardContent className="p-4 md:p-6 space-y-3">
+                {Array(5).fill(0).map((_, i) => (
                   <div key={i} className="flex items-center justify-between">
                     <div className="flex items-center">
                       <Skeleton className="h-6 w-6 mr-3" />
@@ -60,8 +60,6 @@ const ShowDetailSkeleton = () => {
                 ))}
               </CardContent>
             </Card>
-            
-            <Skeleton className="h-24 w-full mt-8 rounded-lg" />
           </div>
         </section>
       </main>

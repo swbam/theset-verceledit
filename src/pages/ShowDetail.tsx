@@ -22,11 +22,6 @@ const ShowDetail = () => {
     window.scrollTo(0, 0);
   }, []);
   
-  // Log the show ID on component mount for debugging
-  useEffect(() => {
-    console.log("ShowDetail component mounted with ID:", id);
-  }, [id]);
-  
   const { 
     show, 
     isLoadingShow, 
@@ -77,6 +72,7 @@ const ShowDetail = () => {
     }
   }, [show, isLoadingShow, isError, showError, navigate]);
   
+  // Optimize track loading with better caching
   const { 
     initialSongs, 
     isLoadingTracks, 
@@ -96,26 +92,41 @@ const ShowDetail = () => {
     anonymousVoteCount
   } = useSongManagement(id || '', initialSongs, isAuthenticated, login);
   
-  console.log("ShowDetail render state:", {
-    showId: id,
-    hasShow: !!show,
-    isLoadingShow,
-    spotifyArtistId,
-    setlistLength: setlist?.length || 0,
-    isLoadingTracks,
-    isLoadingAllTracks,
-    initialSongsLength: initialSongs?.length || 0,
-    allTracksDataLength: allTracksData?.tracks?.length || 0,
-    storedTracksDataLength: storedTracksData?.length || 0,
-    isConnected
-  });
-  
-  // Fix the getAvailableTracks usage in useMemo
-  const availableTracks = React.useMemo(() => {
-    console.log("Calculating available tracks. Current setlist:", setlist?.length || 0);
+  // Show partial content with loading indicators
+  const renderPartialContent = () => {
+    if (!show) return <ShowDetailSkeleton />;
     
+    return (
+      <div className="min-h-screen flex flex-col bg-black">
+        <Navbar />
+        
+        <main className="flex-grow">
+          <ShowHeader show={show} />
+          <SetlistSection 
+            setlist={setlist || []}
+            isConnected={isConnected}
+            isLoadingTracks={isLoadingTracks}
+            handleVote={handleVote}
+            showId={id || ''}
+            showName={show.name || ''}
+            artistName={show.artist?.name || 'Artist'}
+            availableTracks={[]} // Empty during loading
+            isLoadingAllTracks={isLoadingAllTracks}
+            selectedTrack={selectedTrack}
+            setSelectedTrack={setSelectedTrack}
+            handleAddSong={handleAddSong}
+            anonymousVoteCount={anonymousVoteCount}
+          />
+        </main>
+        
+        <Footer />
+      </div>
+    );
+  };
+  
+  // Compute available tracks with memoization to prevent recalculations
+  const availableTracks = React.useMemo(() => {
     if (storedTracksData && Array.isArray(storedTracksData) && storedTracksData.length > 0) {
-      console.log("Using stored tracks for available tracks list:", storedTracksData.length);
       const setlistIds = new Set((setlist || []).map(song => song.id));
       return storedTracksData.filter((track: any) => !setlistIds.has(track.id));
     }
@@ -129,20 +140,22 @@ const ShowDetail = () => {
   
   const handleAddSongClick = () => {
     if (storedTracksData && Array.isArray(storedTracksData) && storedTracksData.length > 0) {
-      console.log("Adding song using stored tracks data:", storedTracksData.length);
       handleAddSong({ tracks: storedTracksData });
     } else if (allTracksData && allTracksData.tracks) {
-      console.log("Add song clicked, passing all tracks data:", allTracksData.tracks.length);
       handleAddSong(allTracksData);
     } else {
-      console.log("No tracks available to add");
       toast.error("No tracks available to add");
     }
   };
   
   // Show loading state while fetching show details
-  if (isLoadingShow) {
+  if (isLoadingShow && !show) {
     return <ShowDetailSkeleton />;
+  }
+  
+  // Show partial content while fetching additional data
+  if (isLoadingTracks && !setlist?.length) {
+    return renderPartialContent();
   }
   
   // Handle error states with fallback UI

@@ -6,6 +6,7 @@ import { searchArtistsWithEvents } from '@/lib/api/artist';
 import { Avatar } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
+import { debounce } from '@/lib/utils';
 
 interface ArtistSearchResultsProps {
   query: string;
@@ -15,10 +16,31 @@ interface ArtistSearchResultsProps {
 const ArtistSearchResults = ({ query, onSelect }: ArtistSearchResultsProps) => {
   const navigate = useNavigate();
   
+  // Debounce the search query to avoid excessive API calls
+  const debouncedQuery = React.useMemo(() => {
+    return debounce((q: string) => q, 300);
+  }, []);
+  
+  const [effectiveQuery, setEffectiveQuery] = React.useState('');
+  
+  React.useEffect(() => {
+    if (query.length > 2) {
+      const handler = debouncedQuery(query);
+      const timer = setTimeout(() => {
+        setEffectiveQuery(handler);
+      }, 300);
+      return () => clearTimeout(timer);
+    } else {
+      setEffectiveQuery('');
+    }
+  }, [query, debouncedQuery]);
+  
   const { data: artists = [], isLoading, isError } = useQuery({
-    queryKey: ['artistSearch', query],
-    queryFn: () => searchArtistsWithEvents(query),
-    enabled: query.length > 2,
+    queryKey: ['artistSearch', effectiveQuery],
+    queryFn: () => searchArtistsWithEvents(effectiveQuery),
+    enabled: effectiveQuery.length > 2,
+    staleTime: 1000 * 60 * 5, // 5 minutes
+    cacheTime: 1000 * 60 * 15, // 15 minutes
     onError: (error) => {
       console.error("Artist search error:", error);
       // Only show user-facing toast for network errors, not DB permission issues
@@ -69,7 +91,7 @@ const ArtistSearchResults = ({ query, onSelect }: ArtistSearchResultsProps) => {
   }
 
   const handleArtistClick = (artist: any) => {
-    console.log("Artist selected:", artist); // Log the selected artist
+    console.log("Artist selected:", artist);
     if (onSelect) {
       onSelect(artist);
     } else {
