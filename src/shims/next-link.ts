@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Link as ReactRouterLink } from 'react-router-dom';
+import { Link as RouterLink } from 'react-router-dom';
 
 interface LinkProps {
   href: string;
@@ -9,56 +9,61 @@ interface LinkProps {
   prefetch?: boolean;
   replace?: boolean;
   scroll?: boolean;
-  onClick?: (e: React.MouseEvent<HTMLAnchorElement>) => void;
+  shallow?: boolean;
+  passHref?: boolean;
   target?: string;
   rel?: string;
+  locale?: string;
+  onClick?: (e: React.MouseEvent<HTMLAnchorElement>) => void;
   style?: React.CSSProperties;
-  [key: string]: any;
 }
 
-// This is a simple shim for Next.js Link component
-const Link = ({ 
-  href, 
-  children, 
+/**
+ * A simple Next.js Link component shim for React Router
+ * This provides a compatible API surface with the Next.js Link component
+ * but uses React Router's Link component underneath
+ */
+const Link = ({
+  href,
+  children,
   className,
-  prefetch,
-  replace,
-  scroll,
-  onClick,
   target,
   rel,
+  onClick,
   style,
-  ...props 
+  ...rest
 }: LinkProps) => {
-  // External links should use regular anchor tags
-  const isExternal = href.startsWith('http') || href.startsWith('mailto:') || href.startsWith('tel:');
-
+  // Handle external links (starting with http:// or https://)
+  const isExternal = href.startsWith('http://') || href.startsWith('https://');
+  
+  // For external links, use regular anchor tags
   if (isExternal) {
     return (
-      <a 
-        href={href} 
+      <a
+        href={href}
         className={className}
-        onClick={onClick}
-        target={target || '_blank'} 
+        target={target || '_blank'}
         rel={rel || 'noopener noreferrer'}
+        onClick={onClick}
         style={style}
-        {...props}
       >
         {children}
       </a>
     );
   }
-
+  
+  // For internal links, use React Router's Link
   return (
-    <ReactRouterLink 
-      to={href} 
+    <RouterLink
+      to={href}
       className={className}
       onClick={onClick}
       style={style}
-      {...props}
+      target={target}
+      rel={rel}
     >
       {children}
-    </ReactRouterLink>
+    </RouterLink>
   );
 };
 

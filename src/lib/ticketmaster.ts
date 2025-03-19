@@ -12,7 +12,7 @@ export {
   fetchVenueDetails,
   fetchShowsByGenre,
   fetchFeaturedShows
-} from './api/shows-api';
+} from './api/shows';  // Updated import path to use the shows/index.ts
 
 // Export utility functions for saving data to the database
 export { 
