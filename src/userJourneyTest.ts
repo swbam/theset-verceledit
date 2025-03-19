@@ -29,8 +29,8 @@ export async function runUserJourneyTest(customArtistId?: string): Promise<TestR
     errors: [],
     successes: [],
     completed: false,
-    supabase,
-    artistId: artistId
+    artistId: artistId,
+    supabase
   };
   
   try {

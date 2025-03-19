@@ -1,11 +1,10 @@
 
 import { testArtistHasTracks } from './journey/steps/artistTracks';
 import { supabase } from '@/integrations/supabase/client';
-import { TestContext } from './journey/types';
 import { TEST_ARTIST_ID } from './journey/config';
 
 // Import types
-import type { TestResults } from './journey/types';
+import type { TestContext, TestResults } from './journey/types';
 
 /**
  * Runs the complete user journey test
@@ -29,15 +28,13 @@ export async function runUserJourneyTest(customArtistId?: string): Promise<TestR
     errors: [],
     successes: [],
     completed: false,
-    supabase,
-    artistId: artistId
+    artistId: artistId,
+    supabase
   };
   
   try {
     // Run the test steps
-    
-    // For now, just check the artist tracks
-    // This is a placeholder for the actual step-by-step test process
+    console.log(`Running artist tracks test for: ${artistId}`);
     const tracksResult = await testArtistHasTracks(testContext);
     
     // Update test results from context
@@ -69,6 +66,3 @@ export async function runUserJourneyTest(customArtistId?: string): Promise<TestR
     return results;
   }
 }
-
-// Export types correctly using 'export type' syntax
-export type { TestResults, TestContext } from './journey/types';
