@@ -19,7 +19,10 @@ import {
 /**
  * Comprehensive test to simulate the complete user journey
  */
-export async function runUserJourneyTest(): Promise<TestResults> {
+export async function runUserJourneyTest(
+  artistId: string = TEST_ARTIST_ID, 
+  artistName: string = TEST_ARTIST_NAME
+): Promise<TestResults> {
   const results: TestResults = {
     startTime: new Date(),
     endTime: null,
@@ -29,11 +32,11 @@ export async function runUserJourneyTest(): Promise<TestResults> {
   };
 
   try {
-    console.log(`🧪 Starting User Journey Test with artist ID: ${TEST_ARTIST_ID} (${TEST_ARTIST_NAME})`);
+    console.log(`🧪 Starting User Journey Test with artist ID: ${artistId} (${artistName})`);
     console.log('---------------------------------------------');
     
     // Step 1: Get artist details directly using ID (Database + API fallback)
-    const artistDetails = await getArtistDetails(results, TEST_ARTIST_ID, TEST_ARTIST_NAME);
+    const artistDetails = await getArtistDetails(results, artistId, artistName);
     
     // Step 2: Get artist's upcoming shows (API → Database)
     const shows = await getArtistShows(results, artistDetails.id, artistDetails.name);
@@ -90,6 +93,7 @@ export async function runUserJourneyTest(): Promise<TestResults> {
     // Print summary
     console.log('\n---------------------------------------------');
     console.log(`🧪 User Journey Test Summary:`);
+    console.log(`Artist: ${artistName} (ID: ${artistId})`);
     console.log(`Start time: ${results.startTime.toLocaleString()}`);
     console.log(`End time: ${results.endTime.toLocaleString()}`);
     console.log(`Duration: ${(duration / 1000).toFixed(2)} seconds`);

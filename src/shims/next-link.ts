@@ -7,36 +7,52 @@ interface LinkProps {
   as?: string;
   replace?: boolean;
   scroll?: boolean;
-  shallow?: boolean;
   prefetch?: boolean;
+  shallow?: boolean;
+  passHref?: boolean;
   className?: string;
+  target?: string;
+  rel?: string;
   children: React.ReactNode;
-  onClick?: (e: React.MouseEvent<HTMLAnchorElement>) => void;
-  [key: string]: any;
+  onClick?: (event: React.MouseEvent<HTMLAnchorElement>) => void;
 }
 
 /**
- * Mock implementation of Next.js Link component
- * This is a simplified version that emulates the Next.js Link component
- * for compatibility purposes, using React Router's Link.
+ * Shim for Next.js Link component - reimplemented for React Router
  */
-const Link = ({ 
-  href, 
-  as, 
-  className, 
-  children, 
+const Link = ({
+  href,
+  className,
+  children,
   onClick,
-  ...props 
+  target,
+  rel,
+  ...props
 }: LinkProps) => {
-  // Convert Next.js dynamic routes to React Router format if needed
-  const to = as || href;
-  
+  // Check if link is external
+  const isExternal = href.startsWith('http') || href.startsWith('mailto:') || href.startsWith('tel:');
+
+  if (isExternal) {
+    return (
+      <a 
+        href={href}
+        className={className}
+        target={target || '_blank'}
+        rel={rel || 'noopener noreferrer'}
+        onClick={onClick}
+      >
+        {children}
+      </a>
+    );
+  }
+
   return (
-    <RouterLink 
-      to={to} 
+    <RouterLink
+      to={href}
       className={className}
       onClick={onClick}
-      {...props}
+      target={target}
+      rel={rel}
     >
       {children}
     </RouterLink>

@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { searchArtistsWithEvents } from '@/lib/api/artist';
 import { Avatar } from '@/components/ui/avatar';
@@ -8,9 +8,12 @@ import { Skeleton } from '@/components/ui/skeleton';
 
 interface ArtistSearchResultsProps {
   query: string;
+  onSelect?: (artist: any) => void;
 }
 
-const ArtistSearchResults = ({ query }: ArtistSearchResultsProps) => {
+const ArtistSearchResults = ({ query, onSelect }: ArtistSearchResultsProps) => {
+  const navigate = useNavigate();
+  
   const { data: artists = [], isLoading } = useQuery({
     queryKey: ['artistSearch', query],
     queryFn: () => searchArtistsWithEvents(query),
@@ -49,14 +52,22 @@ const ArtistSearchResults = ({ query }: ArtistSearchResultsProps) => {
     );
   }
 
+  const handleArtistClick = (artist: any) => {
+    if (onSelect) {
+      onSelect(artist);
+    } else {
+      navigate(`/artists/${artist.id}`);
+    }
+  };
+
   return (
     <div className="bg-background rounded-xl shadow-lg border border-border overflow-hidden">
       <div className="max-h-80 overflow-y-auto">
         {artists.map((artist) => (
-          <Link
+          <div
             key={artist.id}
-            to={`/artists/${artist.id}`}
-            className="flex items-center gap-3 p-3 hover:bg-secondary/50 transition-colors border-b border-border last:border-0"
+            onClick={() => handleArtistClick(artist)}
+            className="flex items-center gap-3 p-3 hover:bg-secondary/50 transition-colors border-b border-border last:border-0 cursor-pointer"
           >
             <Avatar className="h-10 w-10">
               {artist.image ? (
@@ -73,7 +84,7 @@ const ArtistSearchResults = ({ query }: ArtistSearchResultsProps) => {
                 {artist.upcomingShows} upcoming {artist.upcomingShows === 1 ? 'show' : 'shows'}
               </p>
             </div>
-          </Link>
+          </div>
         ))}
       </div>
     </div>

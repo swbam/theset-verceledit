@@ -1,4 +1,5 @@
-import React, { useState, useRef } from 'react';
+
+import React, { useState, useRef, useEffect } from 'react';
 import { runUserJourneyTest } from '@/tests/userJourneyTest';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,6 +9,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
+import { TEST_ARTIST_ID, TEST_ARTIST_NAME } from '@/tests/journey/config';
 
 interface ErrorLog {
   step: string;
@@ -32,12 +34,25 @@ interface TestResults {
   completed: boolean;
 }
 
-const UserJourneyTest = () => {
+interface UserJourneyTestProps {
+  customArtistId?: string;
+  customArtistName?: string;
+}
+
+const UserJourneyTest = ({ customArtistId, customArtistName }: UserJourneyTestProps) => {
   const [isRunning, setIsRunning] = useState(false);
   const [results, setResults] = useState<TestResults | null>(null);
   const [expandedLogs, setExpandedLogs] = useState<Record<string, boolean>>({});
   const [activeTab, setActiveTab] = useState<string>("visual");
   const copyableTextRef = useRef<HTMLPreElement>(null);
+
+  // Reset results when artist changes
+  useEffect(() => {
+    if (customArtistId) {
+      setResults(null);
+      setExpandedLogs({});
+    }
+  }, [customArtistId]);
 
   const runTest = async () => {
     setIsRunning(true);
@@ -45,10 +60,15 @@ const UserJourneyTest = () => {
     setExpandedLogs({});
     
     try {
-      const testResults = await runUserJourneyTest();
+      // Use custom artist if provided, otherwise use default from config
+      const artistId = customArtistId || TEST_ARTIST_ID;
+      const artistName = customArtistName || TEST_ARTIST_NAME;
+      
+      const testResults = await runUserJourneyTest(artistId, artistName);
       setResults(testResults);
     } catch (error) {
       console.error("Error running test:", error);
+      toast.error("Test failed to complete");
     } finally {
       setIsRunning(false);
     }
@@ -84,6 +104,7 @@ const UserJourneyTest = () => {
     
     let text = `USER JOURNEY TEST RESULTS\n`;
     text += `==============================\n`;
+    text += `Artist: ${customArtistName || TEST_ARTIST_NAME} (${customArtistId || TEST_ARTIST_ID})\n`;
     text += `Start time: ${results.startTime.toLocaleString()}\n`;
     text += `End time: ${results.endTime?.toLocaleString() || 'N/A'}\n`;
     text += `Duration: ${formatDuration()}\n`;
@@ -128,13 +149,22 @@ const UserJourneyTest = () => {
         </CardTitle>
         <CardDescription>
           Tests the complete user flow from artist search to song selection, adding to setlist, and voting
+          {customArtistId && customArtistName && (
+            <span className="block mt-1 font-medium">
+              Testing: {customArtistName} (ID: {customArtistId})
+            </span>
+          )}
         </CardDescription>
       </CardHeader>
       
       <CardContent>
         {!results && !isRunning && (
           <div className="py-20 text-center">
-            <p className="text-muted-foreground mb-5">Click the button below to run the user journey test</p>
+            <p className="text-muted-foreground mb-5">
+              {customArtistId 
+                ? `Click the button below to run the test for ${customArtistName}`
+                : 'Click the button below to run the user journey test with the default artist'}
+            </p>
             <Button onClick={runTest} className="mx-auto" size="lg">
               <Play className="mr-2 h-4 w-4" />
               Run Test
