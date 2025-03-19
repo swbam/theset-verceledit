@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 interface SearchBarProps {
   placeholder?: string;
   onChange?: (value: string) => void;
+  onSearch?: (value: string) => void;
   value?: string;
   className?: string;
   children?: ReactNode;
@@ -16,6 +17,7 @@ interface SearchBarProps {
 const SearchBar: React.FC<SearchBarProps> = ({
   placeholder = "Search for artists...",
   onChange,
+  onSearch,
   value,
   className = "",
   children,
@@ -49,8 +51,12 @@ const SearchBar: React.FC<SearchBarProps> = ({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && query.trim() && !disableRedirect) {
-      navigate(`/search?q=${encodeURIComponent(query.trim())}`);
+    if (e.key === 'Enter' && query.trim()) {
+      if (onSearch) {
+        onSearch(query.trim());
+      } else if (!disableRedirect) {
+        navigate(`/search?q=${encodeURIComponent(query.trim())}`);
+      }
     }
   };
 

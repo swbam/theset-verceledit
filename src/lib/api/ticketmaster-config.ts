@@ -7,6 +7,24 @@ const TICKETMASTER_API_KEY = import.meta.env.VITE_TICKETMASTER_API_KEY || 'k8GrS
 // Ticketmaster API base URL
 const API_BASE_URL = 'https://app.ticketmaster.com/discovery/v2/';
 
+// Popular music genres for filtering
+export const popularMusicGenres = [
+  { id: 'KnvZfZ7vAeA', name: 'Rock' },
+  { id: 'KnvZfZ7vAev', name: 'Pop' },
+  { id: 'KnvZfZ7vAvt', name: 'Electronic' },
+  { id: 'KnvZfZ7vAvd', name: 'R&B' },
+  { id: 'KnvZfZ7vAee', name: 'Folk' },
+  { id: 'KnvZfZ7vAe6', name: 'Country' },
+  { id: 'KnvZfZ7vAeJ', name: 'Hip-Hop/Rap' },
+  { id: 'KnvZfZ7vAeI', name: 'Reggae' },
+  { id: 'KnvZfZ7vAv6', name: 'Blues' },
+  { id: 'KnvZfZ7vAvE', name: 'Jazz' },
+  { id: 'KnvZfZ7vAv1', name: 'Classical' },
+  { id: 'KnvZfZ7vAde', name: 'Alternative' },
+  { id: 'KnvZfZ7vAdt', name: 'World' },
+  { id: 'KnvZfZ7vAda', name: 'Metal' }
+];
+
 /**
  * Call Ticketmaster API with specified endpoint and parameters
  */

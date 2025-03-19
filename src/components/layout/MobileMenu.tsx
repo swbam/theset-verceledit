@@ -1,10 +1,7 @@
 
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Search } from 'lucide-react';
-import { useLocation } from 'react-router-dom';
 import SearchBar from '@/components/ui/SearchBar';
-import ArtistSearchResults from '@/components/search/ArtistSearchResults';
 import UserProfile from '@/components/auth/UserProfile';
 
 interface MobileMenuProps {
@@ -50,7 +47,7 @@ const MobileMenu = ({
   };
 
   return (
-    <div className="fixed inset-0 top-16 z-50 bg-black animate-in slide-in-from-top-5">
+    <div className="fixed inset-0 top-16 z-50 bg-background animate-in slide-in-from-top-5">
       <nav className="container flex flex-col gap-6 p-6">
         <Link
           to="/"
@@ -93,12 +90,27 @@ const MobileMenu = ({
               className="w-full"
               disableRedirect={isSearchPage}
             >
-              {searchQuery.length > 2 && (
-                <ArtistSearchResults
-                  artists={artists}
-                  isLoading={isLoading}
-                  onSelect={(artist) => handleNavAndClose(artist.id)}
-                />
+              {searchQuery.length > 2 && artists.length > 0 && (
+                <div className="bg-background border border-border rounded-md shadow-md">
+                  {isLoading ? (
+                    <div className="p-4 text-center">Loading artists...</div>
+                  ) : artists.length === 0 ? (
+                    <div className="p-4 text-center">No artists found</div>
+                  ) : (
+                    <ul className="max-h-[300px] overflow-y-auto">
+                      {artists.map((artist) => (
+                        <li key={artist.id}>
+                          <button
+                            className="w-full p-3 text-left hover:bg-muted flex items-center"
+                            onClick={() => handleNavAndClose(artist.id)}
+                          >
+                            {artist.name}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
               )}
             </SearchBar>
           </div>
