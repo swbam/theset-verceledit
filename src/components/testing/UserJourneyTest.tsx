@@ -1,344 +1,286 @@
 
-import React, { useState, useRef, useEffect } from 'react';
-import { runUserJourneyTest } from '@/tests/userJourneyTest';
+import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { AlertCircle, CheckCircle, Clock, Copy, Play, RefreshCw } from 'lucide-react';
-import { ScrollArea } from '@/components/ui/scroll-area';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Separator } from '@/components/ui/separator';
+import { AlertCircle, CheckCircle2, Play, RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
+import { runUserJourneyTest } from '@/tests/userJourneyTest';
+import { ErrorLog, SuccessLog, TestResults } from '@/tests/journey/types';
 import { TEST_ARTIST_ID, TEST_ARTIST_NAME } from '@/tests/journey/config';
-
-interface ErrorLog {
-  step: string;
-  source: "API" | "Database" | "Client";
-  message: string;
-  timestamp: Date;
-  details?: any;
-}
-
-interface SuccessLog {
-  step: string;
-  message: string;
-  timestamp: Date;
-  details?: any;
-}
-
-interface TestResults {
-  startTime: Date;
-  endTime: Date | null;
-  errors: ErrorLog[];
-  successes: SuccessLog[];
-  completed: boolean;
-}
 
 interface UserJourneyTestProps {
   customArtistId?: string;
   customArtistName?: string;
 }
 
-const UserJourneyTest = ({ customArtistId, customArtistName }: UserJourneyTestProps) => {
-  const [isRunning, setIsRunning] = useState(false);
+const UserJourneyTest: React.FC<UserJourneyTestProps> = ({ 
+  customArtistId,
+  customArtistName
+}) => {
+  const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<TestResults | null>(null);
-  const [expandedLogs, setExpandedLogs] = useState<Record<string, boolean>>({});
-  const [activeTab, setActiveTab] = useState<string>("visual");
-  const copyableTextRef = useRef<HTMLPreElement>(null);
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
-  // Reset results when artist changes
-  useEffect(() => {
-    if (customArtistId) {
-      setResults(null);
-      setExpandedLogs({});
-    }
-  }, [customArtistId]);
+  const artistId = customArtistId || TEST_ARTIST_ID;
+  const artistName = customArtistName || TEST_ARTIST_NAME;
 
   const runTest = async () => {
-    setIsRunning(true);
-    setResults(null);
-    setExpandedLogs({});
-    
     try {
-      // Use custom artist if provided, otherwise use default from config
-      const artistId = customArtistId || TEST_ARTIST_ID;
-      const artistName = customArtistName || TEST_ARTIST_NAME;
+      setLoading(true);
+      setResults(null);
+      toast.info(`Starting test with artist: ${artistName}`);
       
       const testResults = await runUserJourneyTest(artistId, artistName);
       setResults(testResults);
+      
+      if (testResults.completed) {
+        toast.success("Test completed successfully!");
+      } else {
+        toast.error("Test failed. See details for more information.");
+      }
     } catch (error) {
       console.error("Error running test:", error);
-      toast.error("Test failed to complete");
+      toast.error("An unexpected error occurred while running the test");
     } finally {
-      setIsRunning(false);
+      setLoading(false);
     }
   };
 
-  const toggleLogExpansion = (id: string) => {
-    setExpandedLogs(prev => ({
-      ...prev,
-      [id]: !prev[id]
-    }));
+  const toggleExpand = (key: string) => {
+    setExpanded(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
-  const formatDuration = () => {
-    if (!results?.startTime || !results?.endTime) return "N/A";
-    const duration = results.endTime.getTime() - results.startTime.getTime();
-    return `${(duration / 1000).toFixed(2)} seconds`;
-  };
-
-  const copyLogsToClipboard = () => {
-    if (!copyableTextRef.current) return;
-    
-    const text = copyableTextRef.current.innerText;
-    navigator.clipboard.writeText(text)
-      .then(() => toast.success("Logs copied to clipboard"))
-      .catch(() => toast.error("Failed to copy logs"));
-  };
-
-  const generateCopyableText = () => {
-    if (!results) return "";
-    
-    const logEntries = [...results.successes, ...results.errors]
-      .sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
-    
-    let text = `USER JOURNEY TEST RESULTS\n`;
-    text += `==============================\n`;
-    text += `Artist: ${customArtistName || TEST_ARTIST_NAME} (${customArtistId || TEST_ARTIST_ID})\n`;
-    text += `Start time: ${results.startTime.toLocaleString()}\n`;
-    text += `End time: ${results.endTime?.toLocaleString() || 'N/A'}\n`;
-    text += `Duration: ${formatDuration()}\n`;
-    text += `Status: ${results.completed ? 'PASSED ✅' : 'FAILED ❌'}\n`;
-    text += `Success steps: ${results.successes.length}\n`;
-    text += `Error steps: ${results.errors.length}\n\n`;
-    text += `DETAILED LOGS:\n`;
-    text += `==============================\n\n`;
-    
-    logEntries.forEach((log, index) => {
-      const isError = 'source' in log;
-      const timestamp = new Date(log.timestamp).toLocaleTimeString();
-      
-      text += `[${timestamp}] ${isError ? '❌ ERROR' : '✅ SUCCESS'}: ${log.step}\n`;
-      if (isError) {
-        text += `  Source: ${(log as ErrorLog).source}\n`;
-      }
-      text += `  Message: ${log.message}\n`;
-      
-      if (log.details) {
-        text += `  Details: ${JSON.stringify(log.details, null, 2)}\n`;
-      }
-      text += `\n`;
-    });
-    
-    return text;
+  const resetTest = () => {
+    setResults(null);
+    setExpanded({});
   };
 
   return (
-    <Card className="w-full max-w-4xl mx-auto">
-      <CardHeader>
-        <CardTitle className="flex items-center justify-between">
-          <span>Complete User Journey Test</span>
-          {results && (
-            <Badge 
-              variant={results.completed ? "success" : "destructive"}
-              className={results.completed ? "bg-green-500 hover:bg-green-600" : ""}
-            >
-              {results.completed ? "Passed" : "Failed"}
-            </Badge>
-          )}
-        </CardTitle>
-        <CardDescription>
-          Tests the complete user flow from artist search to song selection, adding to setlist, and voting
-          {customArtistId && customArtistName && (
-            <span className="block mt-1 font-medium">
-              Testing: {customArtistName} (ID: {customArtistId})
-            </span>
-          )}
-        </CardDescription>
-      </CardHeader>
-      
-      <CardContent>
-        {!results && !isRunning && (
-          <div className="py-20 text-center">
-            <p className="text-muted-foreground mb-5">
-              {customArtistId 
-                ? `Click the button below to run the test for ${customArtistName}`
-                : 'Click the button below to run the user journey test with the default artist'}
-            </p>
-            <Button onClick={runTest} className="mx-auto" size="lg">
-              <Play className="mr-2 h-4 w-4" />
-              Run Test
-            </Button>
-          </div>
-        )}
-        
-        {isRunning && (
-          <div className="py-20 text-center">
-            <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4 text-primary" />
-            <p className="text-lg font-medium">Running test...</p>
-            <p className="text-muted-foreground mt-2">This may take a few moments</p>
-          </div>
-        )}
-        
-        {results && (
-          <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="bg-muted rounded-lg p-4">
-                <div className="flex items-center text-sm text-muted-foreground mb-2">
-                  <Clock className="mr-2 h-4 w-4" />
-                  Duration
-                </div>
-                <p className="text-xl font-medium">{formatDuration()}</p>
-              </div>
-              
-              <div className="bg-muted rounded-lg p-4">
-                <div className="flex items-center text-sm text-muted-foreground mb-2">
-                  <CheckCircle className="mr-2 h-4 w-4 text-green-500" />
-                  Success Steps
-                </div>
-                <p className="text-xl font-medium">{results.successes.length}</p>
-              </div>
-              
-              <div className="bg-muted rounded-lg p-4">
-                <div className="flex items-center text-sm text-muted-foreground mb-2">
-                  <AlertCircle className="mr-2 h-4 w-4 text-red-500" />
-                  Error Steps
-                </div>
-                <p className="text-xl font-medium">{results.errors.length}</p>
-              </div>
-            </div>
-            
-            {results.errors.length > 0 && (
-              <Alert variant="destructive">
-                <AlertCircle className="h-4 w-4" />
-                <AlertTitle>Test Failed</AlertTitle>
-                <AlertDescription>
-                  {results.errors.length} errors encountered during the test
-                </AlertDescription>
-              </Alert>
+    <div className="space-y-8">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center justify-between">
+            <span>User Journey Test</span>
+            {results && (
+              <Badge variant={results.completed ? "success" : "destructive"}>
+                {results.completed ? "PASSED" : "FAILED"}
+              </Badge>
             )}
-            
-            <Tabs defaultValue="visual" value={activeTab} onValueChange={setActiveTab}>
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="visual">Visual Log</TabsTrigger>
-                <TabsTrigger value="copyable">Copyable Log</TabsTrigger>
-              </TabsList>
-              
-              <TabsContent value="visual" className="mt-4">
-                <ScrollArea className="h-[400px] rounded-md border">
-                  <div className="p-4 space-y-4">
-                    {[...results.successes, ...results.errors]
-                      .sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime())
-                      .map((log, index) => {
-                        const isError = 'source' in log;
-                        const logId = `log-${index}`;
-                        const isExpanded = expandedLogs[logId] || false;
-                        
-                        return (
-                          <div 
-                            key={logId}
-                            className={`rounded-lg p-4 ${isError ? 'bg-red-500/10 border border-red-500/20' : 'bg-green-500/10 border border-green-500/20'}`}
-                          >
-                            <div 
-                              className="flex items-start justify-between cursor-pointer"
-                              onClick={() => toggleLogExpansion(logId)}
-                            >
-                              <div>
-                                <div className="flex items-center">
-                                  {isError ? (
-                                    <AlertCircle className="h-4 w-4 text-red-500 mr-2" />
-                                  ) : (
-                                    <CheckCircle className="h-4 w-4 text-green-500 mr-2" />
-                                  )}
-                                  <span className="font-medium">
-                                    {log.step}
-                                  </span>
-                                  {isError && (
-                                    <Badge 
-                                      variant="outline"
-                                      className="ml-2 text-red-500 border-red-500/50"
-                                    >
-                                      {(log as ErrorLog).source}
-                                    </Badge>
-                                  )}
-                                </div>
-                                <p className="text-sm mt-1 text-muted-foreground">{log.message}</p>
-                              </div>
-                              <span className="text-xs text-muted-foreground">
-                                {new Date(log.timestamp).toLocaleTimeString()}
-                              </span>
-                            </div>
-                            
-                            {isExpanded && log.details && (
-                              <div className="mt-3 pt-3 border-t border-border">
-                                <pre className="text-xs overflow-auto p-2 bg-muted rounded">
-                                  {JSON.stringify(log.details, null, 2)}
-                                </pre>
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                  </div>
-                </ScrollArea>
-              </TabsContent>
-              
-              <TabsContent value="copyable" className="mt-4">
-                <div className="relative">
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    className="absolute right-2 top-2 z-10"
-                    onClick={copyLogsToClipboard}
-                  >
-                    <Copy className="h-4 w-4 mr-1" />
-                    Copy
-                  </Button>
-                  <ScrollArea className="h-[400px] rounded-md border bg-muted">
-                    <pre 
-                      ref={copyableTextRef}
-                      className="p-4 text-xs font-mono whitespace-pre-wrap"
-                    >
-                      {generateCopyableText()}
-                    </pre>
-                  </ScrollArea>
-                </div>
-              </TabsContent>
-            </Tabs>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="rounded-md bg-muted p-4">
+            <h3 className="text-sm font-medium mb-2">Test Configuration</h3>
+            <div className="grid grid-cols-2 gap-2 text-sm">
+              <div>
+                <span className="text-muted-foreground">Artist ID:</span>
+              </div>
+              <div>{artistId}</div>
+              <div>
+                <span className="text-muted-foreground">Artist Name:</span>
+              </div>
+              <div>{artistName}</div>
+            </div>
           </div>
-        )}
-      </CardContent>
-      
-      <CardFooter className="flex justify-between">
-        <Button
-          variant="outline" 
-          onClick={() => {
-            setResults(null);
-            setExpandedLogs({});
-          }}
-          disabled={!results || isRunning}
-        >
-          Clear Results
-        </Button>
-        
-        <Button 
-          onClick={runTest} 
-          disabled={isRunning}
-        >
-          {isRunning ? (
-            <>
-              <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-              Running...
-            </>
+          
+          {!results ? (
+            <div className="flex justify-center">
+              <Button 
+                onClick={runTest} 
+                disabled={loading}
+                size="lg"
+                className="gap-2"
+              >
+                {loading ? (
+                  <>
+                    <RotateCcw className="h-4 w-4 animate-spin" />
+                    Running Test...
+                  </>
+                ) : (
+                  <>
+                    <Play className="h-4 w-4" />
+                    Start Test
+                  </>
+                )}
+              </Button>
+            </div>
           ) : (
             <>
-              <Play className="mr-2 h-4 w-4" />
-              {results ? 'Run Again' : 'Run Test'}
+              <div className="space-y-4">
+                <div className="rounded-md bg-muted p-4">
+                  <h3 className="text-sm font-medium mb-2">Test Results</h3>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div>
+                      <span className="text-muted-foreground">Start time:</span>
+                    </div>
+                    <div>{results.startTime.toLocaleString()}</div>
+                    
+                    <div>
+                      <span className="text-muted-foreground">End time:</span>
+                    </div>
+                    <div>{results.endTime?.toLocaleString()}</div>
+                    
+                    <div>
+                      <span className="text-muted-foreground">Duration:</span>
+                    </div>
+                    <div>
+                      {results.endTime 
+                        ? `${((results.endTime.getTime() - results.startTime.getTime()) / 1000).toFixed(2)} seconds` 
+                        : 'N/A'}
+                    </div>
+                    
+                    <div>
+                      <span className="text-muted-foreground">Success steps:</span>
+                    </div>
+                    <div>{results.successes.length}</div>
+                    
+                    <div>
+                      <span className="text-muted-foreground">Error steps:</span>
+                    </div>
+                    <div>{results.errors.length}</div>
+                    
+                    <div>
+                      <span className="text-muted-foreground">Status:</span>
+                    </div>
+                    <div>
+                      {results.completed ? (
+                        <span className="text-green-600 font-medium">PASSED ✓</span>
+                      ) : (
+                        <span className="text-red-600 font-medium">FAILED ❌</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                
+                {results.errors.length > 0 && (
+                  <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertTitle>Test Failed</AlertTitle>
+                    <AlertDescription>
+                      {results.errors.length} errors encountered during the test.
+                    </AlertDescription>
+                  </Alert>
+                )}
+                
+                <Separator />
+                
+                <div className="space-y-4">
+                  <h3 className="font-medium">Detailed Logs:</h3>
+                  
+                  {/* Success Logs */}
+                  {results.successes.length > 0 && (
+                    <div className="space-y-2">
+                      <h4 className="text-sm font-medium text-green-600">Success Steps:</h4>
+                      {results.successes.map((success: SuccessLog, index: number) => (
+                        <div 
+                          key={`success-${index}`}
+                          className="rounded-md border border-green-200 bg-green-50 p-3"
+                        >
+                          <div className="flex items-start gap-2">
+                            <CheckCircle2 className="h-5 w-5 text-green-600 mt-0.5 flex-shrink-0" />
+                            <div className="flex-1">
+                              <div className="flex justify-between">
+                                <span className="font-medium">{success.step}</span>
+                                <span className="text-xs text-muted-foreground">
+                                  {new Date(success.timestamp).toLocaleTimeString()}
+                                </span>
+                              </div>
+                              <p className="text-sm mt-1">{success.message}</p>
+                              
+                              {success.details && (
+                                <div className="mt-2">
+                                  <Button 
+                                    variant="outline" 
+                                    size="sm"
+                                    onClick={() => toggleExpand(`success-${index}`)}
+                                    className="text-xs h-7 px-2"
+                                  >
+                                    {expanded[`success-${index}`] ? 'Hide' : 'Show'} Details
+                                  </Button>
+                                  
+                                  {expanded[`success-${index}`] && (
+                                    <pre className="mt-2 p-2 bg-muted rounded-md text-xs overflow-auto">
+                                      {JSON.stringify(success.details, null, 2)}
+                                    </pre>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  
+                  {/* Error Logs */}
+                  {results.errors.length > 0 && (
+                    <div className="space-y-2">
+                      <h4 className="text-sm font-medium text-red-600">Error Steps:</h4>
+                      {results.errors.map((error: ErrorLog, index: number) => (
+                        <div 
+                          key={`error-${index}`}
+                          className="rounded-md border border-red-200 bg-red-50 p-3"
+                        >
+                          <div className="flex items-start gap-2">
+                            <AlertCircle className="h-5 w-5 text-red-600 mt-0.5 flex-shrink-0" />
+                            <div className="flex-1">
+                              <div className="flex justify-between">
+                                <span className="font-medium">{error.step}</span>
+                                <span className="text-xs text-muted-foreground">
+                                  {new Date(error.timestamp).toLocaleTimeString()}
+                                </span>
+                              </div>
+                              <span className="text-xs bg-red-100 text-red-800 px-1.5 py-0.5 rounded mt-1 inline-block">
+                                {error.source}
+                              </span>
+                              <p className="text-sm mt-1">{error.message}</p>
+                              
+                              {error.details && (
+                                <div className="mt-2">
+                                  <Button 
+                                    variant="outline" 
+                                    size="sm"
+                                    onClick={() => toggleExpand(`error-${index}`)}
+                                    className="text-xs h-7 px-2"
+                                  >
+                                    {expanded[`error-${index}`] ? 'Hide' : 'Show'} Details
+                                  </Button>
+                                  
+                                  {expanded[`error-${index}`] && (
+                                    <pre className="mt-2 p-2 bg-muted rounded-md text-xs overflow-auto">
+                                      {JSON.stringify(error.details, null, 2)}
+                                    </pre>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
             </>
           )}
-        </Button>
-      </CardFooter>
-    </Card>
+        </CardContent>
+        {results && (
+          <CardFooter className="flex justify-center">
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={resetTest}>
+                Reset Test
+              </Button>
+              <Button onClick={runTest} disabled={loading}>
+                {loading ? 'Running...' : 'Run Again'}
+              </Button>
+            </div>
+          </CardFooter>
+        )}
+      </Card>
+    </div>
   );
 };
 

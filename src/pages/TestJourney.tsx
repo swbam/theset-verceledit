@@ -4,6 +4,8 @@ import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
 import UserJourneyTest from '@/components/testing/UserJourneyTest';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { toast } from 'sonner';
 import SearchBar from '@/components/ui/SearchBar';
 import ArtistSearchResults from '@/components/artists/ArtistSearchResults';
 import { TEST_ARTIST_ID, TEST_ARTIST_NAME } from '@/tests/journey/config';
@@ -15,6 +17,12 @@ const TestJourney = () => {
   const handleArtistSelect = (artist: any) => {
     setSelectedArtist(artist);
     setSearchQuery(''); // Clear search after selection
+    toast.success(`Selected artist: ${artist.name}`);
+  };
+
+  const clearSelection = () => {
+    setSelectedArtist(null);
+    toast.info(`Using default artist: ${TEST_ARTIST_NAME}`);
   };
 
   return (
@@ -53,8 +61,19 @@ const TestJourney = () => {
                   
                   {selectedArtist ? (
                     <div className="mt-4 p-4 bg-secondary/30 rounded-lg">
-                      <p className="font-medium">Selected Artist: {selectedArtist.name}</p>
-                      <p className="text-sm text-muted-foreground">ID: {selectedArtist.id}</p>
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <p className="font-medium">Selected Artist: {selectedArtist.name}</p>
+                          <p className="text-sm text-muted-foreground">ID: {selectedArtist.id}</p>
+                        </div>
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={clearSelection}
+                        >
+                          Reset to Default
+                        </Button>
+                      </div>
                       <p className="text-xs mt-2">
                         Default artist: {TEST_ARTIST_NAME} (ID: {TEST_ARTIST_ID})
                       </p>
