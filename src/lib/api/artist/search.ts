@@ -5,6 +5,7 @@ import { saveArtistToDatabase } from "../database-utils";
 import { fetchAndStoreArtistTracks } from "../database";
 import { getArtistByName } from "@/lib/spotify";
 import { supabase } from "@/integrations/supabase/client";
+import { ErrorSource, handleError } from "@/lib/error-handling";
 
 /**
  * Search for artists with upcoming events
@@ -16,35 +17,40 @@ export async function searchArtistsWithEvents(query: string, limit = 10): Promis
     console.log(`Searching for artists with query: "${query}"`);
     
     // First check if we already have this artist in our database
-    const { data: existingArtists, error: dbError } = await supabase
-      .from('artists')
-      .select('*')
-      .ilike('name', `%${query}%`)
-      .limit(limit);
-      
-    if (dbError) {
-      console.error("Error searching database for artists:", dbError);
-      console.error("Detailed error info:", JSON.stringify(dbError));
-      // Continue with Ticketmaster search even if DB search fails
-    } else if (existingArtists && existingArtists.length > 0) {
-      console.log(`Found ${existingArtists.length} artists in database matching '${query}'`);
-      
-      // Return the existing artists but still do the API call in the background to refresh data
-      // Don't await this so we return results quickly
-      callTicketmasterApi('events.json', {
-        keyword: query,
-        segmentName: 'Music',
-        sort: 'date,asc',
-        size: limit.toString()
-      }).then(data => {
-        if (data._embedded?.events) {
-          processAndSaveTicketmasterArtists(data, limit);
-        }
-      }).catch(err => {
-        console.error("Background Ticketmaster refresh error:", err);
-      });
-      
-      return existingArtists;
+    try {
+      const { data: existingArtists, error: dbError } = await supabase
+        .from('artists')
+        .select('*')
+        .ilike('name', `%${query}%`)
+        .limit(limit);
+        
+      if (dbError) {
+        console.error("Error searching database for artists:", dbError);
+        console.error("Detailed error info:", JSON.stringify(dbError));
+        // Continue with Ticketmaster search even if DB search fails
+      } else if (existingArtists && existingArtists.length > 0) {
+        console.log(`Found ${existingArtists.length} artists in database matching '${query}'`);
+        
+        // Return the existing artists but still do the API call in the background to refresh data
+        // Don't await this so we return results quickly
+        callTicketmasterApi('events.json', {
+          keyword: query,
+          segmentName: 'Music',
+          sort: 'date,asc',
+          size: limit.toString()
+        }).then(data => {
+          if (data._embedded?.events) {
+            processAndSaveTicketmasterArtists(data, limit);
+          }
+        }).catch(err => {
+          console.error("Background Ticketmaster refresh error:", err);
+        });
+        
+        return existingArtists;
+      }
+    } catch (dbSearchError) {
+      console.error("Database search error:", dbSearchError);
+      // Continue with API search if DB search fails
     }
     
     // If not found in DB or we want fresh data, search Ticketmaster
@@ -67,7 +73,11 @@ export async function searchArtistsWithEvents(query: string, limit = 10): Promis
     return artists;
   } catch (error) {
     console.error("Ticketmaster artist search error:", error);
-    toast.error("Failed to search for artists");
+    handleError({
+      message: "Failed to search for artists",
+      source: ErrorSource.API,
+      originalError: error
+    });
     return [];
   }
 }
@@ -114,39 +124,43 @@ async function processAndSaveTicketmasterArtists(data: any, limit: number): Prom
     }
   });
   
-  // Process artists - save to database and fetch Spotify data
+  // Process artists - even if DB operations fail, return the artists from API
   const artists = Array.from(artistsMap.values());
-  const enrichedArtists = [];
-  
   console.log(`Found ${artists.length} unique artists from events`);
   
-  for (const artist of artists) {
-    console.log(`Processing artist: ${artist.name} (ID: ${artist.id})`);
-    
-    // Try to fetch Spotify data for this artist
-    try {
-      const spotifyArtist = await getArtistByName(artist.name);
-      if (spotifyArtist && spotifyArtist.id) {
-        console.log(`Found Spotify ID ${spotifyArtist.id} for artist ${artist.name}`);
-        artist.spotify_id = spotifyArtist.id;
-        artist.spotify_url = spotifyArtist.external_urls?.spotify;
-      } else {
-        console.log(`No Spotify artist found for ${artist.name}`);
+  // Try to save to DB but don't block returning results if it fails
+  try {
+    for (const artist of artists) {
+      try {
+        console.log(`Processing artist: ${artist.name} (ID: ${artist.id})`);
+        
+        // Try to fetch Spotify data for this artist
+        try {
+          const spotifyArtist = await getArtistByName(artist.name);
+          if (spotifyArtist && spotifyArtist.id) {
+            console.log(`Found Spotify ID ${spotifyArtist.id} for artist ${artist.name}`);
+            artist.spotify_id = spotifyArtist.id;
+            artist.spotify_url = spotifyArtist.external_urls?.spotify;
+          } else {
+            console.log(`No Spotify artist found for ${artist.name}`);
+          }
+        } catch (spotifyError) {
+          console.error(`Error fetching Spotify details for ${artist.name}:`, spotifyError);
+        }
+        
+        // Save to database (with or without Spotify data)
+        saveArtistToDatabase(artist).catch(saveError => {
+          console.error(`Error saving artist ${artist.name} to database:`, saveError);
+        });
+      } catch (artistError) {
+        console.error(`Error processing artist ${artist.name}:`, artistError);
+        // Continue with next artist
       }
-    } catch (spotifyError) {
-      console.error(`Error fetching Spotify details for ${artist.name}:`, spotifyError);
     }
-    
-    // Save to database (with or without Spotify data)
-    const savedArtist = await saveArtistToDatabase(artist);
-    console.log(`Saved artist ${artist.name} result:`, savedArtist ? "Success" : "Failed");
-    
-    if (savedArtist) {
-      enrichedArtists.push(savedArtist);
-    } else {
-      enrichedArtists.push(artist);
-    }
+  } catch (processingError) {
+    console.error("Error processing artists:", processingError);
+    // Even if DB operations fail, we still return the artists from the API
   }
   
-  return enrichedArtists;
+  return artists;
 }

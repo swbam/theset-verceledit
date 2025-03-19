@@ -15,7 +15,7 @@ interface ArtistSearchResultsProps {
 const ArtistSearchResults = ({ query, onSelect }: ArtistSearchResultsProps) => {
   const navigate = useNavigate();
   
-  const { data: artists = [], isLoading } = useQuery({
+  const { data: artists = [], isLoading, isError } = useQuery({
     queryKey: ['artistSearch', query],
     queryFn: () => searchArtistsWithEvents(query),
     enabled: query.length > 2,
@@ -49,6 +49,14 @@ const ArtistSearchResults = ({ query, onSelect }: ArtistSearchResultsProps) => {
     );
   }
 
+  if (isError) {
+    return (
+      <div className="bg-background rounded-xl shadow-lg border border-border p-4">
+        <p className="text-muted-foreground text-sm">Error searching for artists. Please try again.</p>
+      </div>
+    );
+  }
+
   if (artists.length === 0) {
     return (
       <div className="bg-background rounded-xl shadow-lg border border-border p-4">
@@ -62,8 +70,6 @@ const ArtistSearchResults = ({ query, onSelect }: ArtistSearchResultsProps) => {
     if (onSelect) {
       onSelect(artist);
     } else {
-      // Show success message when an artist is selected
-      toast.success(`Viewing ${artist.name}`);
       navigate(`/artists/${artist.id}`);
     }
   };
