@@ -1,79 +1,96 @@
 
-import { supabase } from "@/integrations/supabase/client";
-import { TestResults } from '../types';
-import { logError, logSuccess, DETAILED_LOGGING } from '../logger';
+import { TestStep, TestStepResult, TestContext } from '../types';
+import { logInfo, logSuccess, logWarning, logError } from '../logger';
 
-/**
- * Step 3: Get artist's tracks
- */
-export async function getArtistTracks(
-  results: TestResults, 
-  artistDetails: any
-): Promise<any[]> {
-  console.log(`\n📍 STEP 3: Fetching tracks for artist: "${artistDetails.name}" (Simulating loading artist's songs)`);
+export const testArtistHasTracks: TestStep = async (context: TestContext): Promise<TestStepResult> => {
+  const { artistId, spotifyArtistId } = context;
+  
+  if (!artistId || !spotifyArtistId) {
+    logError('Artist ID or Spotify Artist ID is missing');
+    return {
+      success: false,
+      message: 'Test prerequisites missing: Need both artistId and spotifyArtistId'
+    };
+  }
+  
+  logInfo(`Testing tracks for artist ID ${artistId} (Spotify ID: ${spotifyArtistId})`);
   
   try {
-    // Check for stored tracks in the artist record first
-    if (artistDetails.stored_tracks && Array.isArray(artistDetails.stored_tracks) && artistDetails.stored_tracks.length > 0) {
-      logSuccess(results, "Artist Tracks", `Using ${artistDetails.stored_tracks.length} stored tracks from artist record (Database)`, {
-        trackCount: artistDetails.stored_tracks.length,
-        sampleTrack: artistDetails.stored_tracks[0]?.name || 'N/A'
-      });
+    // Attempt to fetch tracks from our database first
+    const { data: artistData } = await context.supabase
+      .from('artists')
+      .select('stored_tracks')
+      .eq('id', artistId)
+      .single();
+    
+    if (artistData?.stored_tracks && artistData.stored_tracks.length > 0) {
+      logSuccess(`Found ${artistData.stored_tracks.length} tracks in database for artist ${artistId}`);
+      context.artistTracks = artistData.stored_tracks;
+      return {
+        success: true,
+        message: `Artist has ${artistData.stored_tracks.length} tracks stored in database`
+      };
+    }
+    
+    // If no tracks in DB, fetch from Spotify API
+    logInfo('No tracks in database, fetching from Spotify API');
+    
+    // Fetch tracks from Spotify API
+    try {
+      const response = await fetch(`/api/artist/${spotifyArtistId}/tracks`);
       
-      return artistDetails.stored_tracks;
-    }
-    
-    // Otherwise, try to get tracks from the top_tracks table
-    const { data: topTracks, error: tracksError } = await supabase
-      .from('top_tracks')
-      .select('*')
-      .eq('artist_id', artistDetails.spotify_id || artistDetails.id)
-      .limit(50);
-    
-    if (tracksError) {
-      logError(results, "Artist Tracks", "Database", `Database error fetching tracks: ${tracksError.message}`, tracksError);
-      throw tracksError;
-    }
-    
-    if (topTracks && topTracks.length > 0) {
-      logSuccess(results, "Artist Tracks", `Found ${topTracks.length} tracks in top_tracks table (Database)`, {
-        trackCount: topTracks.length,
-        firstTrackName: topTracks[0]?.name || 'N/A'
-      });
+      if (!response.ok) {
+        throw new Error(`Failed to fetch tracks: ${response.statusText}`);
+      }
       
-      return topTracks;
+      const tracksData = await response.json();
+      
+      if (!tracksData.tracks || tracksData.tracks.length === 0) {
+        logWarning(`No tracks found for artist ${artistId} via API`);
+        return {
+          success: false,
+          message: 'No tracks found via Spotify API'
+        };
+      }
+      
+      logSuccess(`Found ${tracksData.tracks.length} tracks via Spotify API`);
+      context.artistTracks = tracksData.tracks;
+      
+      // Save tracks to database in background
+      try {
+        const { error } = await context.supabase
+          .from('artists')
+          .update({
+            stored_tracks: tracksData.tracks,
+            tracks_last_updated: new Date().toISOString()
+          })
+          .eq('id', artistId);
+        
+        if (error) {
+          logError(`Error saving tracks to database: ${error.message}`);
+        } else {
+          logSuccess('Saved tracks to database for future use');
+        }
+      } catch (dbError) {
+        logError('Database error when saving tracks', "API or Database");
+      }
+      
+      return {
+        success: true,
+        message: `Artist has ${tracksData.tracks.length} tracks from Spotify API`
+      };
+    } catch (apiError) {
+      logError(`API Error fetching tracks: ${apiError instanceof Error ? apiError.message : String(apiError)}`);
+      return {
+        success: false,
+        message: 'Error fetching tracks from Spotify API'
+      };
     }
-    
-    // If no tracks found, create some mock tracks for testing
-    const mockTracks = Array.from({ length: 10 }, (_, i) => ({
-      id: `mock-track-${i}`,
-      name: `${artistDetails.name} - Test Song ${i + 1}`,
-      artist_id: artistDetails.id,
-      popularity: Math.floor(Math.random() * 100),
-      album_name: "Test Album",
-      album_image_url: "https://example.com/image.jpg",
-      preview_url: "",
-      spotify_url: ""
-    }));
-    
-    logSuccess(results, "Artist Tracks", `Created ${mockTracks.length} mock tracks for testing (Client)`, {
-      trackCount: mockTracks.length,
-      note: "Mock tracks created because no real tracks found"
-    });
-    
-    return mockTracks;
   } catch (error) {
-    logError(results, "Artist Tracks", "API/Database", `Error fetching artist tracks: ${(error as Error).message}`, error);
-    
-    // Return a small set of mock tracks to allow test to continue
-    return Array.from({ length: 5 }, (_, i) => ({
-      id: `mock-track-${i}`,
-      name: `${artistDetails.name} - Emergency Mock Song ${i + 1}`,
-      artist_id: artistDetails.id,
-      album_name: "Test Album",
-      album_image_url: "https://example.com/image.jpg",
-      preview_url: "",
-      spotify_url: ""
-    }));
+    logError(`General error testing artist tracks: ${error instanceof Error ? error.message : String(error)}`);
+    return {
+      success: false,
+      message: 'Error testing artist tracks'
+    };
   }
-}
+};

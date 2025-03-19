@@ -49,14 +49,17 @@ export function useShowDetail(id: string | undefined) {
   }, [show, isLoadingShow]);
   
   // Optimize track loading with better caching
-  const { 
-    initialSongs, 
-    isLoadingTracks, 
-    isLoadingAllTracks, 
-    allTracksData,
-    getAvailableTracks,
-    storedTracksData
-  } = useArtistTracks(show?.artist_id, spotifyArtistId);
+  const artistTracksData = useArtistTracks(show?.artist_id, spotifyArtistId);
+  
+  // Extract the needed fields from the useArtistTracks response
+  const {
+    initialSongs = [],
+    isLoading: isLoadingTracks = false,
+    isLoadingAllTracks = false,
+    allTracksData = { tracks: [] },
+    getAvailableTracks = () => [],
+    storedTracksData = []
+  } = artistTracksData.data || {};
   
   // Song management (voting, adding songs)
   const {

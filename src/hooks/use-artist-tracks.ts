@@ -5,7 +5,12 @@ import { getArtistAllTracks } from '@/lib/spotify';
 import { getStoredTracksForArtist, updateArtistStoredTracks, fetchAndStoreArtistTracks } from '@/lib/api/database';
 
 export function useArtistTracks(artistId: string | undefined, spotifyArtistId: string | undefined) {
-  return useQuery({
+  const { 
+    data,
+    isLoading,
+    error,
+    isError
+  } = useQuery({
     queryKey: ['artistTracks', artistId, spotifyArtistId],
     queryFn: async () => {
       if (!artistId && !spotifyArtistId) {
@@ -20,7 +25,15 @@ export function useArtistTracks(artistId: string | undefined, spotifyArtistId: s
           
           if (storedTracks && storedTracks.length > 0) {
             console.log(`Using ${storedTracks.length} stored tracks for artist ${artistId}`);
-            return { tracks: storedTracks };
+            return { 
+              tracks: storedTracks,
+              initialSongs: storedTracks,
+              storedTracksData: storedTracks,
+              getAvailableTracks: (setlist: any[]) => {
+                const setlistIds = new Set(setlist.map(song => song.id));
+                return storedTracks.filter((track: any) => !setlistIds.has(track.id));
+              }
+            };
           }
         }
         
@@ -32,7 +45,15 @@ export function useArtistTracks(artistId: string | undefined, spotifyArtistId: s
             // Use the dedicated function that stores tracks and handles errors
             const tracks = await fetchAndStoreArtistTracks(artistId, spotifyArtistId, "Unknown Artist");
             if (tracks && tracks.length > 0) {
-              return { tracks };
+              return { 
+                tracks,
+                initialSongs: tracks,
+                storedTracksData: tracks,
+                getAvailableTracks: (setlist: any[]) => {
+                  const setlistIds = new Set(setlist.map(song => song.id));
+                  return tracks.filter((track: any) => !setlistIds.has(track.id));
+                }
+              };
             }
           }
           
@@ -46,17 +67,43 @@ export function useArtistTracks(artistId: string | undefined, spotifyArtistId: s
               .catch(err => console.error("Background track storage error:", err));
           }
           
-          return result;
+          return {
+            ...result,
+            initialSongs: result.tracks,
+            isLoadingTracks: false,
+            isLoadingAllTracks: false,
+            allTracksData: result,
+            storedTracksData: result.tracks,
+            getAvailableTracks: (setlist: any[]) => {
+              const setlistIds = new Set(setlist.map(song => song.id));
+              return result.tracks.filter((track: any) => !setlistIds.has(track.id));
+            }
+          };
         }
         
         throw new Error('No stored tracks and no Spotify Artist ID available');
       } catch (error) {
         console.error("Error in useArtistTracks:", error);
         toast.error("Failed to load artist tracks");
-        return { tracks: [] };
+        return { 
+          tracks: [],
+          initialSongs: [],
+          isLoadingTracks: false,
+          isLoadingAllTracks: false,
+          allTracksData: { tracks: [] },
+          storedTracksData: [],
+          getAvailableTracks: () => []
+        };
       }
     },
     enabled: !!(artistId || spotifyArtistId),
     staleTime: 1000 * 60 * 60, // 1 hour - tracks don't change often
   });
+
+  return {
+    ...data,
+    isLoading,
+    error,
+    isError
+  };
 }

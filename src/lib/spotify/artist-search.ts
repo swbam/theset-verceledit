@@ -103,12 +103,14 @@ export const resolveArtistId = async (artistId: string, artistName: string): Pro
     
     // Update or insert the artist with the Spotify ID
     if (spotifyArtist && spotifyArtist.id) {
+      const imageUrl = spotifyArtist.images?.[0]?.url;
+      
       if (artistData) {
         // Update existing artist
         await supabase
           .from('artists')
           .update({ 
-            image: spotifyArtist.images?.[0]?.url,
+            image_url: imageUrl,
           })
           .eq('id', artistId);
         
@@ -120,7 +122,7 @@ export const resolveArtistId = async (artistId: string, artistName: string): Pro
           .insert({
             id: artistId,
             name: artistName,
-            image: spotifyArtist.images?.[0]?.url,
+            image_url: imageUrl,
           })
           .select()
           .single();

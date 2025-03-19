@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import SearchBar from '@/components/ui/SearchBar';
 import UserProfile from '@/components/auth/UserProfile';
 

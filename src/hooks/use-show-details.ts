@@ -103,10 +103,12 @@ export function useShowDetails(id: string | undefined) {
     retry: 1,
     retryDelay: 1000,
     staleTime: 1000 * 60 * 15, // 15 minutes
-    cacheTime: 1000 * 60 * 60, // 1 hour
+    gcTime: 1000 * 60 * 60, // 1 hour - replaced cacheTime with gcTime
     refetchOnWindowFocus: false,
-    onError: (error) => {
-      console.error("Show details query error:", error);
+    meta: {
+      onError: (error: any) => {
+        console.error("Show details query error:", error);
+      }
     }
   });
 

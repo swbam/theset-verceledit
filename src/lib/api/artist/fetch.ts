@@ -2,7 +2,7 @@
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { callTicketmasterApi } from "../ticketmaster-config";
-import { saveArtistToDatabase } from "../database";
+import { saveArtistToDatabase } from "../database-utils";
 import { searchArtistsWithEvents } from "./search";
 import { getArtistByName, getArtistAllTracks } from "@/lib/spotify";
 import { fetchAndSaveArtistShows } from "./shows";
@@ -62,12 +62,14 @@ export async function fetchArtistById(artistId: string): Promise<any> {
           throw new Error("Artist not found");
         }
         
-        const artistData = {
+        const artistData: any = {
           id: data.id,
           name: data.name,
           image: data.images?.find((img: any) => img.ratio === "16_9" && img.width > 500)?.url,
           genres: [],
-          upcomingShows: 0  // We'll count these when we fetch shows
+          upcomingShows: 0,  // We'll count these when we fetch shows
+          spotify_id: null,
+          stored_tracks: null
         };
         
         if (data.classifications && data.classifications.length > 0) {
@@ -90,6 +92,7 @@ export async function fetchArtistById(artistId: string): Promise<any> {
             const tracks = await getArtistAllTracks(spotifyArtist.id);
             if (tracks && tracks.tracks && tracks.tracks.length > 0) {
               console.log(`Found ${tracks.tracks.length} tracks for artist ${artistData.name}`);
+              // Convert tracks to JSON-compatible format
               artistData.stored_tracks = tracks.tracks;
             }
           }
@@ -142,10 +145,13 @@ export async function fetchAndUpdateArtistTracks(artistId: string, spotifyId: st
     if (tracks && tracks.tracks && tracks.tracks.length > 0) {
       console.log(`Found ${tracks.tracks.length} tracks for artist ${artistName}`);
       
+      // Convert tracks to a format that can be stored as JSON
+      const tracksAsJson = JSON.parse(JSON.stringify(tracks.tracks));
+      
       await supabase
         .from('artists')
         .update({ 
-          stored_tracks: tracks.tracks,
+          stored_tracks: tracksAsJson,
           tracks_last_updated: new Date().toISOString(),
           updated_at: new Date().toISOString()
         })

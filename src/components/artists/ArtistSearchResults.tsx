@@ -53,11 +53,13 @@ const ArtistSearchResults = ({ query, onSelect }: ArtistSearchResultsProps) => {
     enabled: effectiveQuery.length > 2,
     staleTime: 1000 * 60 * 5, // 5 minutes
     gcTime: 1000 * 60 * 15, // 15 minutes - using gcTime instead of cacheTime
-    onError: (error) => {
-      console.error("Artist search error:", error);
-      // Only show user-facing toast for network errors, not DB permission issues
-      if (!(error instanceof Error && error.message.includes('permission denied'))) {
-        toast.error("Failed to search for artists. Please try again.");
+    meta: {
+      onError: (error: any) => {
+        console.error("Artist search error:", error);
+        // Only show user-facing toast for network errors, not DB permission issues
+        if (!(error instanceof Error && error.message.includes('permission denied'))) {
+          toast.error("Failed to search for artists. Please try again.");
+        }
       }
     }
   });

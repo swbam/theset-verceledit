@@ -67,6 +67,8 @@ const Search = () => {
     navigate(`/artists/${artist.id}`);
   };
 
+  const showSearchResults = searchQuery.length > 2 && artists.length > 0;
+
   return (
     <div className="min-h-screen flex flex-col">
       <Navbar />
@@ -80,13 +82,12 @@ const Search = () => {
               placeholder="Search for artists with upcoming shows..." 
               onSearch={handleSearch}
               onChange={setSearchQuery}
-              isLoading={isLoading}
-              autoFocus
               className="w-full"
               value={searchQuery}
               disableRedirect={true}
+              autoFocus
             >
-              {searchQuery.length > 2 && (
+              {showSearchResults && (
                 <ArtistSearchResults 
                   artists={artists} 
                   isLoading={isLoading}

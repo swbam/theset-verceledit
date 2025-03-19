@@ -41,8 +41,8 @@ export async function saveArtistToDatabase(artist: any) {
         const needsUpdate = 
           daysSinceUpdate > 7 || // More than 7 days old
           !existingArtist.stored_tracks || // No stored tracks
-          artist.spotify_id && !existingArtist.spotify_id || // New Spotify ID available
-          artist.upcoming_shows && artist.upcoming_shows > (existingArtist.upcoming_shows || 0); // More upcoming shows
+          (artist.spotify_id && !existingArtist.spotify_id) || // New Spotify ID available
+          (artist.upcoming_shows && artist.upcoming_shows > (existingArtist.upcoming_shows || 0)); // More upcoming shows
         
         if (!needsUpdate) {
           console.log(`No update needed for artist ${artist.name}`);
@@ -59,7 +59,7 @@ export async function saveArtistToDatabase(artist: any) {
     }
     
     // Prepare artist data for upsert
-    const artistData = {
+    const artistData: any = {
       id: artist.id,
       name: artist.name,
       image_url: artist.image || artist.image_url,
@@ -69,6 +69,12 @@ export async function saveArtistToDatabase(artist: any) {
       spotify_id: artist.spotify_id || null,
       updated_at: new Date().toISOString()
     };
+    
+    // Only add stored_tracks if they exist
+    if (artist.stored_tracks) {
+      // Convert to JSON-compatible format
+      artistData.stored_tracks = JSON.parse(JSON.stringify(artist.stored_tracks));
+    }
     
     // For debugging: log what we're trying to insert
     console.log("Inserting/updating artist with data:", JSON.stringify(artistData, null, 2));
@@ -152,9 +158,12 @@ export async function fetchAndStoreArtistTracks(artistId: string, spotifyId: str
     
     console.log(`Found ${tracksData.tracks.length} tracks for artist ${artistName}, storing in database`);
     
+    // Convert to JSON-compatible format
+    const tracksAsJson = JSON.parse(JSON.stringify(tracksData.tracks));
+    
     // Store tracks in database - wrapped in try/catch to handle permission errors
     try {
-      await updateArtistStoredTracks(artistId, tracksData.tracks);
+      await updateArtistStoredTracks(artistId, tracksAsJson);
       
       // Update artist record with last update time
       await supabase
@@ -162,7 +171,7 @@ export async function fetchAndStoreArtistTracks(artistId: string, spotifyId: str
         .update({ 
           tracks_last_updated: new Date().toISOString(),
           updated_at: new Date().toISOString(),
-          stored_tracks: tracksData.tracks
+          stored_tracks: tracksAsJson
         })
         .eq('id', artistId);
       
