@@ -1,60 +1,75 @@
 
 import React from 'react';
 
-type ImageProps = {
+interface ImageProps {
   src: string;
   alt: string;
   width?: number;
   height?: number;
-  priority?: boolean;
   className?: string;
+  priority?: boolean;
+  placeholder?: 'blur' | 'empty' | 'data:image/...' | undefined;
+  blurDataURL?: string;
   style?: React.CSSProperties;
   sizes?: string;
   quality?: number;
   fill?: boolean;
-  placeholder?: 'blur' | 'empty';
-  blurDataURL?: string;
-  loading?: 'lazy' | 'eager';
-  objectFit?: React.CSSProperties['objectFit'];
-  objectPosition?: React.CSSProperties['objectPosition'];
-  onLoad?: (event: React.SyntheticEvent<HTMLImageElement, Event>) => void;
-  onError?: (event: React.SyntheticEvent<HTMLImageElement, Event>) => void;
-};
+  loading?: 'eager' | 'lazy';
+  onLoad?: () => void;
+  onError?: () => void;
+}
 
-// Create a polyfill for Next.js Image component
-function Image({
+/**
+ * This is a simple shim for Next.js Image component to allow using it in non-Next.js projects
+ * It behaves like a regular img element with additional React props
+ */
+const NextImage = ({
   src,
   alt,
   width,
   height,
-  priority,
   className,
+  priority,
+  placeholder,
+  blurDataURL,
   style,
   sizes,
+  quality,
   fill,
+  loading,
+  onLoad,
+  onError,
   ...props
-}: ImageProps) {
-  const imgStyle = {
-    ...style,
-    objectFit: props.objectFit,
-    objectPosition: props.objectPosition,
-    ...(fill ? { position: 'absolute', height: '100%', width: '100%', left: 0, top: 0, right: 0, bottom: 0 } : {})
-  };
+}: ImageProps) => {
+  const imgRef = React.useRef<HTMLImageElement>(null);
+
+  React.useEffect(() => {
+    if (priority) {
+      // Simulate priority loading by setting loading to 'eager'
+      if (imgRef.current) {
+        imgRef.current.loading = 'eager';
+      }
+    }
+  }, [priority]);
 
   return (
     <img
+      ref={imgRef}
       src={src}
-      alt={alt}
+      alt={alt || ''}
       width={width}
       height={height}
       className={className}
-      style={imgStyle}
-      loading={priority ? 'eager' : props.loading || 'lazy'}
-      onLoad={props.onLoad}
-      onError={props.onError}
-      sizes={sizes}
+      style={{
+        ...(fill ? { objectFit: 'cover', width: '100%', height: '100%' } : {}),
+        ...style
+      }}
+      loading={priority ? 'eager' : loading || 'lazy'}
+      onLoad={onLoad}
+      onError={onError}
+      {...props}
     />
   );
-}
+};
 
-export default Image;
+export default NextImage;
