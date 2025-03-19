@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { runUserJourneyTest, TestResults } from '@/tests/userJourneyTest';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -38,7 +37,7 @@ const UserJourneyTest: React.FC = () => {
           User Journey Test
           {results && (
             <Badge 
-              variant={results.errors.length === 0 ? "outline" : "destructive"}
+              variant="secondary"
               className="ml-2"
             >
               {results.errors.length === 0 ? 'All Tests Passed' : `${results.errors.length} Errors`}

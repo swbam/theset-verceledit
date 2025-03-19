@@ -59,8 +59,8 @@ export function useShowDetail(id: string | undefined) {
     error: tracksError = null,
     initialSongs = [],
     storedTracksData = [],
-    getAvailableTracks = (setlist: any[]) => []
-  } = artistTracksResponse;
+    getAvailableTracks = (setlist: any[]) => [],
+  } = artistTracksResponse || {};
   
   // For backward compatibility, create these properties
   const isLoadingAllTracks = isLoadingTracks;
