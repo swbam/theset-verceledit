@@ -2,6 +2,7 @@
 import { testArtistHasTracks } from './tests/journey/steps/artistTracks';
 import { supabase } from '@/integrations/supabase/client';
 import { TestContext } from './tests/journey/types';
+import { TEST_ARTIST_ID } from './tests/journey/config';
 
 // Import types
 import type { TestResults } from './tests/journey/types';
@@ -9,12 +10,13 @@ import type { TestResults } from './tests/journey/types';
 /**
  * Runs the complete user journey test
  */
-export async function runUserJourneyTest(): Promise<TestResults> {
-  console.log('Starting user journey test...');
+export async function runUserJourneyTest(customArtistId?: string): Promise<TestResults> {
+  const artistId = customArtistId || TEST_ARTIST_ID;
+  console.log('Starting user journey test for artist ID:', artistId);
   
   // Create test context
   const testContext: TestContext = {
-    artistId: null,
+    artistId: artistId,
     spotifyArtistId: null,
     supabase,
     errors: [],
@@ -27,7 +29,8 @@ export async function runUserJourneyTest(): Promise<TestResults> {
     errors: [],
     successes: [],
     completed: false,
-    supabase // Make sure supabase is required in TestResults
+    supabase,
+    artistId: artistId
   };
   
   try {

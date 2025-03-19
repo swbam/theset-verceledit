@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { runUserJourneyTest } from '@/tests/userJourneyTest';
 import type { TestResults } from '@/tests/journey/types';
@@ -17,22 +16,21 @@ const UserJourneyTest: React.FC<UserJourneyTestProps> = ({ customArtistId, custo
   const [running, setRunning] = useState(false);
 
   useEffect(() => {
-    // Cleanup function to prevent memory leaks
+    if (customArtistId) {
+      setResults(null);
+    }
+    
     return () => {
       // Intentionally left empty
     };
-  }, []);
+  }, [customArtistId]);
 
   const handleRunTest = async () => {
     setRunning(true);
     setResults(null);
     
     try {
-      const testResults = await runUserJourneyTest();
-      // Add custom artist ID if provided
-      if (customArtistId) {
-        testResults.artistId = customArtistId;
-      }
+      const testResults = await runUserJourneyTest(customArtistId);
       setResults(testResults);
     } catch (error) {
       console.error('Error running test:', error);
