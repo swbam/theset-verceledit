@@ -1,39 +1,57 @@
+import React from "react";
+import { Link as RouterLink } from "react-router-dom";
 
-import React from 'react';
-import { Link as RouterLink } from 'react-router-dom';
-
-// Mock Next.js Link component for compatibility with React Router
-const NextLink = ({
-  href,
-  as,
-  replace,
-  scroll,
-  shallow,
-  passHref,
-  prefetch,
-  locale,
-  children,
-  ...props
-}: {
+type LinkProps = {
   href: string;
   as?: string;
   replace?: boolean;
   scroll?: boolean;
+  prefetch?: boolean;
   shallow?: boolean;
   passHref?: boolean;
-  prefetch?: boolean;
-  locale?: string;
   children: React.ReactNode;
-  [key: string]: any;
-}) => {
-  // Convert Next.js paths to React Router format (remove base path if needed)
-  const to = href.startsWith('/') ? href : `/${href}`;
+  className?: string;
+  target?: string;
+  rel?: string;
+  onClick?: (e: React.MouseEvent<HTMLAnchorElement>) => void;
+};
 
+const Link = ({ 
+  href, 
+  children, 
+  className,
+  target,
+  rel,
+  onClick,
+  ...props 
+}: LinkProps) => {
+  // Handle external links
+  if (href.startsWith('http') || href.startsWith('mailto:') || href.startsWith('tel:')) {
+    return (
+      <a 
+        href={href} 
+        className={className}
+        target={target || '_blank'} 
+        rel={rel || 'noopener noreferrer'}
+        onClick={onClick}
+      >
+        {children}
+      </a>
+    );
+  }
+
+  // Otherwise, use React Router's Link
   return (
-    <RouterLink to={to} replace={replace} {...props}>
+    <RouterLink 
+      to={href} 
+      className={className}
+      target={target}
+      rel={rel}
+      onClick={onClick}
+    >
       {children}
     </RouterLink>
   );
 };
 
-export default NextLink;
+export default Link;

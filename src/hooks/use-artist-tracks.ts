@@ -2,7 +2,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { getArtistAllTracks } from '@/lib/spotify';
-import { getStoredTracksForArtist, updateArtistStoredTracks } from '@/lib/api/database';
+import { getStoredTracksForArtist, updateArtistStoredTracks, fetchAndStoreArtistTracks } from '@/lib/api/database';
 
 export function useArtistTracks(artistId: string | undefined, spotifyArtistId: string | undefined) {
   return useQuery({
@@ -27,13 +27,23 @@ export function useArtistTracks(artistId: string | undefined, spotifyArtistId: s
         // If no stored tracks but we have a Spotify ID, fetch from Spotify
         if (spotifyArtistId) {
           console.log(`Fetching tracks from Spotify for artist ID: ${spotifyArtistId}`);
+          
+          if (artistId) {
+            // Use the dedicated function that stores tracks and handles errors
+            const tracks = await fetchAndStoreArtistTracks(artistId, spotifyArtistId, "Unknown Artist");
+            if (tracks && tracks.length > 0) {
+              return { tracks };
+            }
+          }
+          
+          // If we don't have artistId or the above failed, fetch directly
           const result = await getArtistAllTracks(spotifyArtistId);
           
-          // If we have the Ticketmaster artist ID, update the stored tracks
+          // If we have the Ticketmaster artist ID, update the stored tracks in the background
           if (artistId && result.tracks && result.tracks.length > 0) {
-            import('@/lib/api/database').then(module => {
-              module.updateArtistStoredTracks(artistId, result.tracks);
-            });
+            // Don't await this - let it run in the background
+            updateArtistStoredTracks(artistId, result.tracks)
+              .catch(err => console.error("Background track storage error:", err));
           }
           
           return result;
@@ -47,5 +57,6 @@ export function useArtistTracks(artistId: string | undefined, spotifyArtistId: s
       }
     },
     enabled: !!(artistId || spotifyArtistId),
+    staleTime: 1000 * 60 * 60, // 1 hour - tracks don't change often
   });
 }
