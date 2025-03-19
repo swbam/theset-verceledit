@@ -239,7 +239,8 @@ export async function runUserJourneyTest(): Promise<TestResults> {
           // Step 7: Check setlist songs
           console.log(`\n📍 STEP 7: Checking setlist songs`);
           
-          const { data: setlistSongs, error: songsError } = await supabase
+          // Using let instead of const to allow reassignment
+          let { data: setlistSongs, error: songsError } = await supabase
             .from('setlist_songs')
             .select('*')
             .eq('setlist_id', setlistId);
@@ -282,8 +283,8 @@ export async function runUserJourneyTest(): Promise<TestResults> {
               throw updatedError;
             }
             
-            logSuccess("Add Setlist Songs", `Added ${updatedSongs.length} songs to the setlist`, {
-              songCount: updatedSongs.length,
+            logSuccess("Add Setlist Songs", `Added ${updatedSongs?.length || 0} songs to the setlist`, {
+              songCount: updatedSongs?.length || 0,
               setlistId: setlistId
             });
             
