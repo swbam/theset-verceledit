@@ -1,15 +1,16 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { TestResults } from '../types';
 import { logError, logSuccess, DETAILED_LOGGING } from '../logger';
 
 /**
- * Step 4: Get artist's tracks
+ * Step 3: Get artist's tracks
  */
 export async function getArtistTracks(
   results: TestResults, 
   artistDetails: any
 ): Promise<any[]> {
-  console.log(`\n📍 STEP 4: Fetching tracks for artist: "${artistDetails.name}" (Simulating loading artist's songs)`);
+  console.log(`\n📍 STEP 3: Fetching tracks for artist: "${artistDetails.name}" (Simulating loading artist's songs)`);
   
   try {
     // Check for stored tracks in the artist record first
@@ -46,9 +47,13 @@ export async function getArtistTracks(
     // If no tracks found, create some mock tracks for testing
     const mockTracks = Array.from({ length: 10 }, (_, i) => ({
       id: `mock-track-${i}`,
-      name: `Song ${i + 1}`,
+      name: `${artistDetails.name} - Test Song ${i + 1}`,
       artist_id: artistDetails.id,
-      popularity: Math.floor(Math.random() * 100)
+      popularity: Math.floor(Math.random() * 100),
+      album_name: "Test Album",
+      album_image_url: "https://example.com/image.jpg",
+      preview_url: "",
+      spotify_url: ""
     }));
     
     logSuccess(results, "Artist Tracks", `Created ${mockTracks.length} mock tracks for testing (Client)`, {
@@ -63,8 +68,12 @@ export async function getArtistTracks(
     // Return a small set of mock tracks to allow test to continue
     return Array.from({ length: 5 }, (_, i) => ({
       id: `mock-track-${i}`,
-      name: `Emergency Mock Song ${i + 1}`,
-      artist_id: artistDetails.id
+      name: `${artistDetails.name} - Emergency Mock Song ${i + 1}`,
+      artist_id: artistDetails.id,
+      album_name: "Test Album",
+      album_image_url: "https://example.com/image.jpg",
+      preview_url: "",
+      spotify_url: ""
     }));
   }
 }
