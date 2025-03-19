@@ -12,7 +12,7 @@ export async function saveArtistToDatabase(artist: any) {
       return null;
     }
     
-    console.log(`Attempting to save artist to database: ${artist.name}`);
+    console.log(`Attempting to save artist to database: ${artist.name} (ID: ${artist.id})`);
     
     // Check if artist already exists
     const { data: existingArtist, error: checkError } = await supabase
@@ -23,7 +23,7 @@ export async function saveArtistToDatabase(artist: any) {
     
     if (checkError) {
       console.error("Error checking if artist exists:", checkError);
-      return null;
+      // Continue anyway to try the upsert
     }
     
     // Prepare the artist data for upsert
@@ -49,13 +49,17 @@ export async function saveArtistToDatabase(artist: any) {
     
     if (error) {
       console.error("Error saving artist to database:", error);
+      console.error("Detailed error info:", JSON.stringify(error));
+      toast.error(`Failed to save artist: ${error.message}`);
       return existingArtist || artist;
     }
     
-    console.log(`Successfully saved artist ${artist.name} to database`);
+    console.log(`Successfully saved artist ${artist.name} to database:`, data);
+    toast.success(`Artist ${artist.name} saved to database`);
     return data?.[0] || existingArtist || artist;
   } catch (error) {
     console.error("Error in saveArtistToDatabase:", error);
+    toast.error(`Error saving artist: ${(error as Error).message}`);
     // Return the original artist object to not break downstream code
     return artist; 
   }
@@ -82,7 +86,7 @@ export async function saveShowToDatabase(show: any) {
     
     if (checkError) {
       console.error("Error checking if show exists:", checkError);
-      return null;
+      // Continue anyway to try the upsert
     }
     
     // Prepare the show data for upsert
@@ -109,13 +113,16 @@ export async function saveShowToDatabase(show: any) {
     
     if (error) {
       console.error("Error saving show to database:", error);
+      console.error("Detailed error info:", JSON.stringify(error));
+      toast.error(`Failed to save show: ${error.message}`);
       return existingShow || show;
     }
     
-    console.log(`Successfully saved show ${show.name} to database`);
+    console.log(`Successfully saved show ${show.name} to database:`, data);
     return data?.[0] || existingShow || show;
   } catch (error) {
     console.error("Error in saveShowToDatabase:", error);
+    toast.error(`Error saving show: ${(error as Error).message}`);
     // Return the original show object to not break downstream code
     return show;
   }
@@ -142,7 +149,7 @@ export async function saveVenueToDatabase(venue: any) {
     
     if (checkError) {
       console.error("Error checking if venue exists:", checkError);
-      return null;
+      // Continue anyway to try the upsert
     }
     
     // Prepare the venue data for upsert
@@ -168,13 +175,16 @@ export async function saveVenueToDatabase(venue: any) {
     
     if (error) {
       console.error("Error saving venue to database:", error);
+      console.error("Detailed error info:", JSON.stringify(error));
+      toast.error(`Failed to save venue: ${error.message}`);
       return existingVenue || venue;
     }
     
-    console.log(`Successfully saved venue ${venue.name} to database`);
+    console.log(`Successfully saved venue ${venue.name} to database:`, data);
     return data?.[0] || existingVenue || venue;
   } catch (error) {
     console.error("Error in saveVenueToDatabase:", error);
+    toast.error(`Error saving venue: ${(error as Error).message}`);
     // Return the original venue object to not break downstream code
     return venue;
   }

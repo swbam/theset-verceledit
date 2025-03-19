@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { searchArtistsWithEvents } from '@/lib/api/artist';
 import { Avatar } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
+import { toast } from 'sonner';
 
 interface ArtistSearchResultsProps {
   query: string;
@@ -18,6 +19,10 @@ const ArtistSearchResults = ({ query, onSelect }: ArtistSearchResultsProps) => {
     queryKey: ['artistSearch', query],
     queryFn: () => searchArtistsWithEvents(query),
     enabled: query.length > 2,
+    onError: (error) => {
+      console.error("Artist search error:", error);
+      toast.error("Failed to search for artists. Please try again.");
+    }
   });
 
   if (!query || query.length <= 2) {
@@ -57,6 +62,8 @@ const ArtistSearchResults = ({ query, onSelect }: ArtistSearchResultsProps) => {
     if (onSelect) {
       onSelect(artist);
     } else {
+      // Show success message when an artist is selected
+      toast.success(`Viewing ${artist.name}`);
       navigate(`/artists/${artist.id}`);
     }
   };

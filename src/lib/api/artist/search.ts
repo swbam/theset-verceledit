@@ -1,8 +1,9 @@
 
 import { toast } from "sonner";
 import { callTicketmasterApi } from "../ticketmaster-config";
-import { saveArtistToDatabase, fetchAndStoreArtistTracks } from "../database";
-import { getArtistByName, getArtistAllTracks } from "@/lib/spotify";
+import { saveArtistToDatabase } from "../database-utils";
+import { fetchAndStoreArtistTracks } from "../database";
+import { getArtistByName } from "@/lib/spotify";
 import { supabase } from "@/integrations/supabase/client";
 
 /**
@@ -23,6 +24,7 @@ export async function searchArtistsWithEvents(query: string, limit = 10): Promis
       
     if (dbError) {
       console.error("Error searching database for artists:", dbError);
+      console.error("Detailed error info:", JSON.stringify(dbError));
       // Continue with Ticketmaster search even if DB search fails
     } else if (existingArtists && existingArtists.length > 0) {
       console.log(`Found ${existingArtists.length} artists in database matching '${query}'`);
@@ -60,7 +62,9 @@ export async function searchArtistsWithEvents(query: string, limit = 10): Promis
     }
 
     // Process and save the artists
-    return await processAndSaveTicketmasterArtists(data, limit);
+    const artists = await processAndSaveTicketmasterArtists(data, limit);
+    console.log("Processed and returning artists:", artists.length);
+    return artists;
   } catch (error) {
     console.error("Ticketmaster artist search error:", error);
     toast.error("Failed to search for artists");
@@ -126,9 +130,6 @@ async function processAndSaveTicketmasterArtists(data: any, limit: number): Prom
         console.log(`Found Spotify ID ${spotifyArtist.id} for artist ${artist.name}`);
         artist.spotify_id = spotifyArtist.id;
         artist.spotify_url = spotifyArtist.external_urls?.spotify;
-        
-        // Instead of fetching tracks here, we'll save the artist with Spotify ID,
-        // and let the background process handle track fetching
       } else {
         console.log(`No Spotify artist found for ${artist.name}`);
       }
@@ -138,13 +139,7 @@ async function processAndSaveTicketmasterArtists(data: any, limit: number): Prom
     
     // Save to database (with or without Spotify data)
     const savedArtist = await saveArtistToDatabase(artist);
-    
-    // If we have a Spotify ID but no tracks, initiate background track fetch
-    if (artist.spotify_id && savedArtist && !savedArtist.stored_tracks) {
-      // Don't await - let this run in background
-      fetchAndStoreArtistTracks(artist.id, artist.spotify_id, artist.name)
-        .catch(err => console.error(`Background track fetch error for ${artist.name}:`, err));
-    }
+    console.log(`Saved artist ${artist.name} result:`, savedArtist ? "Success" : "Failed");
     
     if (savedArtist) {
       enrichedArtists.push(savedArtist);
