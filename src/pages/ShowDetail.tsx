@@ -22,6 +22,11 @@ const ShowDetail = () => {
     window.scrollTo(0, 0);
   }, []);
   
+  // Log the show ID on component mount for debugging
+  useEffect(() => {
+    console.log("ShowDetail component mounted with ID:", id);
+  }, [id]);
+  
   const { 
     show, 
     isLoadingShow, 
@@ -60,8 +65,15 @@ const ShowDetail = () => {
   
   useEffect(() => {
     if (!isLoadingShow && isError && showError) {
-      toast.error("Could not find show details");
-      navigate('/shows', { replace: true });
+      console.error("Show detail error:", showError);
+      toast.error("Could not find show details. Returning to shows page.");
+      
+      // Add a small delay before navigating to allow the toast to be seen
+      const timer = setTimeout(() => {
+        navigate('/shows', { replace: true });
+      }, 3000);
+      
+      return () => clearTimeout(timer);
     }
   }, [show, isLoadingShow, isError, showError, navigate]);
   
@@ -84,12 +96,19 @@ const ShowDetail = () => {
     anonymousVoteCount
   } = useSongManagement(id || '', initialSongs, isAuthenticated, login);
   
-  console.log("Current setlist length:", setlist?.length || 0);
-  console.log("Is loading tracks:", isLoadingTracks);
-  console.log("Is loading all tracks:", isLoadingAllTracks);
-  console.log("Initial songs length:", initialSongs?.length || 0);
-  console.log("All tracks data length:", allTracksData?.tracks?.length || 0);
-  console.log("Stored tracks data length:", storedTracksData?.length || 0);
+  console.log("ShowDetail render state:", {
+    showId: id,
+    hasShow: !!show,
+    isLoadingShow,
+    spotifyArtistId,
+    setlistLength: setlist?.length || 0,
+    isLoadingTracks,
+    isLoadingAllTracks,
+    initialSongsLength: initialSongs?.length || 0,
+    allTracksDataLength: allTracksData?.tracks?.length || 0,
+    storedTracksDataLength: storedTracksData?.length || 0,
+    isConnected
+  });
   
   const availableTracks = React.useMemo(() => {
     console.log("Calculating available tracks. Current setlist:", setlist?.length || 0);
@@ -116,10 +135,12 @@ const ShowDetail = () => {
     }
   };
   
+  // Show loading state while fetching show details
   if (isLoadingShow) {
     return <ShowDetailSkeleton />;
   }
   
+  // Handle error states with fallback UI
   if (isError || !show) {
     return <ShowNotFound />;
   }
