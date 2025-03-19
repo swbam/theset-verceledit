@@ -1,7 +1,7 @@
 
 import { toast } from "sonner";
 import { callTicketmasterApi } from "../ticketmaster-config";
-import { saveArtistToDatabase } from "../database-utils";
+import { saveArtistToDatabase, updateArtistStoredTracks } from "../database";
 import { getArtistByName, getArtistAllTracks } from "@/lib/spotify";
 import { supabase } from "@/integrations/supabase/client";
 

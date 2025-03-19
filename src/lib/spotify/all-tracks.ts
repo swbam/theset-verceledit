@@ -1,9 +1,8 @@
-
 import { getAccessToken } from './auth';
 import { saveTracksToDb, getStoredTracksFromDb } from './utils';
 import { SpotifyTrack, SpotifyTracksResponse } from './types';
 import { supabase } from '@/integrations/supabase/client';
-import { updateArtistStoredTracks } from '@/lib/api/database-utils';
+import { updateArtistStoredTracks } from '@/lib/api/database';
 
 const SPOTIFY_API_BASE = 'https://api.spotify.com/v1';
 

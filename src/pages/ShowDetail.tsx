@@ -22,7 +22,6 @@ const ShowDetail = () => {
     window.scrollTo(0, 0);
   }, []);
   
-  // Fetch show details
   const { 
     show, 
     isLoadingShow, 
@@ -31,7 +30,6 @@ const ShowDetail = () => {
     spotifyArtistId 
   } = useShowDetails(id);
   
-  // Set document title with appropriate format
   useEffect(() => {
     if (show && !isLoadingShow) {
       const artistName = show.artist?.name || 'Artist';
@@ -40,7 +38,6 @@ const ShowDetail = () => {
       const venueState = show.venue?.state || '';
       const venueLocation = venueCity && venueState ? `${venueCity}, ${venueState}` : (venueCity || venueState || 'Location');
       
-      // Format date
       const showDate = new Date(show.date);
       const formattedDate = showDate.toLocaleDateString('en-US', {
         weekday: 'short',
@@ -54,7 +51,6 @@ const ShowDetail = () => {
       
       document.title = `TheSet | ${title}`;
       
-      // Update meta description
       const metaDescription = document.querySelector('meta[name="description"]');
       if (metaDescription) {
         metaDescription.setAttribute('content', description);
@@ -62,7 +58,6 @@ const ShowDetail = () => {
     }
   }, [show, isLoadingShow]);
   
-  // Handle navigation on error
   useEffect(() => {
     if (!isLoadingShow && isError && showError) {
       toast.error("Could not find show details");
@@ -70,7 +65,6 @@ const ShowDetail = () => {
     }
   }, [show, isLoadingShow, isError, showError, navigate]);
   
-  // Fetch artist tracks - this will prioritize stored tracks before making API calls
   const { 
     initialSongs, 
     isLoadingTracks, 
@@ -80,7 +74,6 @@ const ShowDetail = () => {
     storedTracksData
   } = useArtistTracks(spotifyArtistId, isLoadingShow);
   
-  // Manage songs and voting
   const {
     setlist,
     isConnected,
@@ -98,25 +91,19 @@ const ShowDetail = () => {
   console.log("All tracks data length:", allTracksData?.tracks?.length);
   console.log("Stored tracks data length:", storedTracksData?.length);
   
-  // Calculate available tracks for dropdown - prioritize stored tracks
   const availableTracks = React.useMemo(() => {
-    // Log the current state to debug
     console.log("Calculating available tracks. Current setlist:", setlist.length);
     
-    // If we have stored tracks, use those instead of allTracksData
     if (storedTracksData && Array.isArray(storedTracksData) && storedTracksData.length > 0) {
       console.log("Using stored tracks for available tracks list:", storedTracksData.length);
       const setlistIds = new Set(setlist.map(song => song.id));
       return storedTracksData.filter((track: any) => !setlistIds.has(track.id));
     }
     
-    // Otherwise use the standard function with allTracksData
     return getAvailableTracks(setlist);
   }, [storedTracksData, allTracksData, setlist, getAvailableTracks]);
   
-  // Handle song addition
   const handleAddSongClick = () => {
-    // If we have stored tracks, wrap them in the expected format
     if (storedTracksData && Array.isArray(storedTracksData) && storedTracksData.length > 0) {
       console.log("Adding song using stored tracks data:", storedTracksData.length);
       handleAddSong({ tracks: storedTracksData });

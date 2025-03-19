@@ -2,7 +2,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { getArtistAllTracks } from '@/lib/spotify';
-import { getStoredTracksForArtist } from '@/lib/api/database-utils';
+import { getStoredTracksForArtist, updateArtistStoredTracks } from '@/lib/api/database';
 
 export function useArtistTracks(artistId: string | undefined, spotifyArtistId: string | undefined) {
   return useQuery({
@@ -31,7 +31,7 @@ export function useArtistTracks(artistId: string | undefined, spotifyArtistId: s
           
           // If we have the Ticketmaster artist ID, update the stored tracks
           if (artistId && result.tracks && result.tracks.length > 0) {
-            import('@/lib/api/database-utils').then(module => {
+            import('@/lib/api/database').then(module => {
               module.updateArtistStoredTracks(artistId, result.tracks);
             });
           }
