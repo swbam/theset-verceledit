@@ -1,4 +1,3 @@
-
 import React, { useState, useRef } from 'react';
 import { runUserJourneyTest } from '@/tests/userJourneyTest';
 import { Button } from '@/components/ui/button';
@@ -117,7 +116,7 @@ const UserJourneyTest = () => {
     <Card className="w-full max-w-4xl mx-auto">
       <CardHeader>
         <CardTitle className="flex items-center justify-between">
-          <span>User Journey Test</span>
+          <span>Complete User Journey Test</span>
           {results && (
             <Badge 
               variant={results.completed ? "success" : "destructive"}
@@ -128,7 +127,7 @@ const UserJourneyTest = () => {
           )}
         </CardTitle>
         <CardDescription>
-          Tests the complete user flow from artist search to setlist voting
+          Tests the complete user flow from artist search to song selection, adding to setlist, and voting
         </CardDescription>
       </CardHeader>
       

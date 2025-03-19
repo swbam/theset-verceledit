@@ -1,7 +1,7 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import { TestResults } from '../types';
-import { logError, logSuccess } from '../logger';
+import { logError, logSuccess, DETAILED_LOGGING } from '../logger';
 
 /**
  * Step 5: Select a show
@@ -194,14 +194,81 @@ export async function selectTrackFromDropdown(
 }
 
 /**
- * Step 9: Vote for a song
+ * Step 9: Add selected song to setlist
+ */
+export async function addSongToSetlist(
+  results: TestResults,
+  setlistId: string,
+  selectedTrack: any
+): Promise<any> {
+  console.log(`\n📍 STEP 9: Adding selected song to setlist (Simulating user clicking "Add to Setlist" button)`);
+  
+  try {
+    if (!selectedTrack || !selectedTrack.id) {
+      logError(results, "Add Song", "Client", "No track selected to add to setlist");
+      throw new Error("No track selected to add to setlist");
+    }
+    
+    // First check if the song already exists in the setlist
+    const { data: existingSong, error: checkError } = await supabase
+      .from('setlist_songs')
+      .select('*')
+      .eq('setlist_id', setlistId)
+      .eq('track_id', selectedTrack.id)
+      .maybeSingle();
+    
+    if (checkError) {
+      logError(results, "Add Song Check", "Database", `Database error checking if song exists: ${checkError.message}`, checkError);
+      throw checkError;
+    }
+    
+    if (existingSong) {
+      logSuccess(results, "Add Song Check", `Song "${selectedTrack.name}" already exists in setlist (Database)`, {
+        songId: existingSong.id,
+        trackId: selectedTrack.id,
+        setlistId: setlistId
+      });
+      
+      return existingSong;
+    }
+    
+    // Add the song to the setlist
+    const { data: newSong, error: addError } = await supabase
+      .from('setlist_songs')
+      .insert({
+        setlist_id: setlistId,
+        track_id: selectedTrack.id
+      })
+      .select()
+      .single();
+    
+    if (addError) {
+      logError(results, "Add Song", "Database", `Database error adding song to setlist: ${addError.message}`, addError);
+      throw addError;
+    }
+    
+    logSuccess(results, "Add Song", `Successfully added "${selectedTrack.name}" to setlist (Database)`, {
+      songId: newSong.id,
+      trackId: selectedTrack.id,
+      setlistId: setlistId
+    });
+    
+    return newSong;
+  } catch (error) {
+    logError(results, "Add Song", "Database", `Error adding song to setlist: ${(error as Error).message}`, error);
+    throw error;
+  }
+}
+
+/**
+ * Step 10: Vote for a song
  */
 export async function voteForSong(
   results: TestResults, 
   setlistSong: any,
   userId: string = 'test-user-id'
 ): Promise<void> {
-  console.log(`\n📍 STEP 9: Voting for a song (Simulating user clicking upvote button)`);
+  console.log(`\n📍 STEP 10: Voting for a song (Simulating user clicking upvote button)`);
   
   try {
     if (!setlistSong) {
@@ -258,8 +325,72 @@ export async function voteForSong(
         userId: userId
       });
     }
+    
+    // Check vote count after voting
+    const { data: updatedSong, error: checkError } = await supabase
+      .from('setlist_songs')
+      .select('*')
+      .eq('id', setlistSong.id)
+      .single();
+    
+    if (!checkError && updatedSong) {
+      logSuccess(results, "Vote Result", `Current vote count for song: ${updatedSong.votes} (Database)`, {
+        songId: updatedSong.id,
+        votes: updatedSong.votes
+      });
+    }
   } catch (error) {
     logError(results, "Vote", "Database", `Error voting for song: ${(error as Error).message}`, error);
+    throw error;
+  }
+}
+
+/**
+ * Step 11: Verify setlist reordering by votes
+ */
+export async function verifySetlistOrder(
+  results: TestResults, 
+  setlistId: string
+): Promise<void> {
+  console.log(`\n📍 STEP 11: Verifying setlist reordering (Simulating checking the updated setlist order)`);
+  
+  try {
+    // Get the updated setlist songs
+    const { data: setlistSongs, error: songsError } = await supabase
+      .from('setlist_songs')
+      .select('*')
+      .eq('setlist_id', setlistId)
+      .order('votes', { ascending: false });
+    
+    if (songsError) {
+      logError(results, "Setlist Order", "Database", `Database error fetching ordered setlist: ${songsError.message}`, songsError);
+      throw songsError;
+    }
+    
+    if (!setlistSongs || setlistSongs.length === 0) {
+      logError(results, "Setlist Order", "Database", "No songs found in setlist after voting");
+      throw new Error("No songs found in setlist after voting");
+    }
+    
+    // Check if setlist is ordered by votes (descending)
+    let isOrdered = true;
+    for (let i = 0; i < setlistSongs.length - 1; i++) {
+      if (setlistSongs[i].votes < setlistSongs[i + 1].votes) {
+        isOrdered = false;
+        break;
+      }
+    }
+    
+    if (isOrdered) {
+      logSuccess(results, "Setlist Order", `Setlist is correctly ordered by votes (Database)`, {
+        songCount: setlistSongs.length,
+        topSongVotes: setlistSongs[0]?.votes || 0
+      });
+    } else {
+      logError(results, "Setlist Order", "Database", "Setlist is not properly ordered by votes");
+    }
+  } catch (error) {
+    logError(results, "Setlist Order", "Database", `Error verifying setlist order: ${(error as Error).message}`, error);
     throw error;
   }
 }

@@ -12,7 +12,9 @@ import {
   getOrCreateSetlist, 
   manageSetlistSongs, 
   selectTrackFromDropdown,
-  voteForSong 
+  addSongToSetlist,
+  voteForSong,
+  verifySetlistOrder
 } from './journey/steps/setlistOperations';
 
 /**
@@ -56,12 +58,20 @@ export async function runUserJourneyTest(): Promise<TestResults> {
     // Step 8: Select a track from the dropdown (Client action)
     const selectedTrack = await selectTrackFromDropdown(results, tracks);
     
-    // Step 9: Vote for a song (Client + Database)
+    // Step 9: Add selected song to setlist (Database)
+    const addedSong = await addSongToSetlist(results, setlistId, selectedTrack);
+    
+    // Step 10: Vote for a song (Client + Database)
     if (setlistSongs.length > 0) {
       await voteForSong(results, setlistSongs[0]);
+    } else if (addedSong) {
+      await voteForSong(results, addedSong);
     } else {
       logError(results, "Voting", "Client", "No songs available in setlist to vote for");
     }
+    
+    // Step 11: Verify setlist reordering by votes (Database)
+    await verifySetlistOrder(results, setlistId);
     
     // Complete the test
     console.log(`\n✅ User journey test completed successfully!`);
