@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { runUserJourneyTest } from '@/tests/userJourneyTest';
 import type { TestResults } from '@/tests/journey/types';
@@ -30,6 +31,7 @@ const UserJourneyTest: React.FC<UserJourneyTestProps> = ({ customArtistId, custo
     setResults(null);
     
     try {
+      console.log(`Running test with artist ID: ${customArtistId || 'default'}`);
       const testResults = await runUserJourneyTest(customArtistId);
       setResults(testResults);
     } catch (error) {
@@ -81,11 +83,15 @@ const UserJourneyTest: React.FC<UserJourneyTestProps> = ({ customArtistId, custo
             <div>
               <h3 className="text-lg font-medium mb-2">Success Log ({results.successes.length})</h3>
               <div className="space-y-2 max-h-40 overflow-y-auto p-2 border rounded-lg bg-background">
-                {results.successes.map((success, i) => (
-                  <div key={i} className="text-sm p-2 border-l-4 border-green-500 pl-2 bg-green-500/5">
-                    <span className="font-medium">{success.step}:</span> {success.message}
-                  </div>
-                ))}
+                {results.successes.length > 0 ? (
+                  results.successes.map((success, i) => (
+                    <div key={i} className="text-sm p-2 border-l-4 border-green-500 pl-2 bg-green-500/5">
+                      <span className="font-medium">{success.step}:</span> {success.message}
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-sm p-2">No successes logged</div>
+                )}
               </div>
             </div>
             
@@ -97,6 +103,14 @@ const UserJourneyTest: React.FC<UserJourneyTestProps> = ({ customArtistId, custo
                     <div key={i} className="text-sm p-2 border-l-4 border-destructive pl-2 bg-destructive/5">
                       <div className="font-medium">{error.step} ({error.source})</div>
                       <div>{error.message}</div>
+                      {error.details && (
+                        <details className="mt-1">
+                          <summary className="text-xs text-muted-foreground cursor-pointer">View details</summary>
+                          <pre className="text-xs mt-1 p-2 bg-muted rounded overflow-x-auto">
+                            {JSON.stringify(error.details, null, 2)}
+                          </pre>
+                        </details>
+                      )}
                     </div>
                   ))
                 ) : (

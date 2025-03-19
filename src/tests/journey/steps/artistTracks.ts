@@ -1,96 +1,109 @@
 
-import { TestStep, TestStepResult, TestContext } from '../types';
-import { logInfo, logError, logSuccess, logWarning } from '../logger';
-import { getArtistAllTracks } from '@/lib/spotify';
+import { TestContext, TestResult } from '../types';
+import { supabase } from '@/integrations/supabase/client';
+import { fetchArtistById } from '@/lib/api/artist/fetch';
+import { logError, logSuccess } from '../logger';
 
 /**
- * Tests that an artist has tracks that can be fetched
+ * Test if an artist has tracks stored
  */
-export const testArtistHasTracks: TestStep = async (context: TestContext): Promise<TestStepResult> => {
+export async function testArtistHasTracks(context: TestContext): Promise<TestResult> {
+  console.log(`ℹ️ INFO: Starting artist tracks test for artist ID: ${context.artistId} `);
+  
   try {
-    // Log test start
-    logInfo(`Starting artist tracks test for artist ID: ${context.artistId || 'K8vZ917GbGV'}`);
+    // First try to get artist from database
+    let artist;
     
-    // Use a hardcoded artist ID if one isn't provided
-    const artistId = context.artistId || 'K8vZ917GbGV'; // Dua Lipa ID
-    
-    // First get the artist's details from the database
-    const { data: artist, error: artistError } = await context.supabase
-      .from('artists')
-      .select('name, spotify_id')
-      .eq('id', artistId)
-      .maybeSingle();
-    
-    if (artistError) {
-      logError(context, 'Get Artist', 'Database', `Failed to fetch artist from database: ${artistError.message}`, artistError);
-      return {
-        success: false,
-        message: `Database error when fetching artist: ${artistError.message}`
-      };
-    }
-    
-    if (!artist) {
-      // Not a critical error as we can test with a known Spotify ID
-      logWarning(`Artist with ID ${artistId} not found in database. Using fallback values.`);
-      
-      // Use Dua Lipa's Spotify ID as a fallback
-      context.spotifyArtistId = '6M2wZ9GZgrQXHCFfjv46we';
-    } else {
-      logSuccess(context, 'Get Artist', `Successfully fetched artist "${artist.name}" (ID: ${artistId})`, artist);
-      
-      context.spotifyArtistId = artist.spotify_id;
-    }
-    
-    // If we don't have a Spotify ID at this point, we can't proceed
-    if (!context.spotifyArtistId) {
-      logError(context, 'Get Artist Tracks', 'API', 'No Spotify ID available for this artist');
-      return {
-        success: false,
-        message: 'No Spotify ID available for this artist'
-      };
-    }
-    
-    // Now try to fetch tracks from Spotify
     try {
-      logInfo(`Fetching tracks for Spotify artist ID: ${context.spotifyArtistId}`);
+      const { data, error } = await supabase
+        .from('artists')
+        .select('*')
+        .eq('id', context.artistId)
+        .maybeSingle();
       
-      const tracksResult = await getArtistAllTracks(context.spotifyArtistId);
-      
-      if (tracksResult && tracksResult.tracks && tracksResult.tracks.length > 0) {
-        logSuccess(context, 'Get Artist Tracks', `Successfully fetched ${tracksResult.tracks.length} tracks`, {
-          trackCount: tracksResult.tracks.length,
-          firstTrack: tracksResult.tracks[0]
-        });
+      if (error) {
+        logError(context, "Get Artist", "Database", `Failed to fetch artist from database: ${error.message}`, error);
+        console.log("Will try API fetch instead since database fetch failed");
+      } else if (data) {
+        artist = data;
+        logSuccess(context, "Get Artist", `Successfully fetched artist from database: ${artist.name}`);
+      }
+    } catch (dbError) {
+      logError(context, "Get Artist", "Database", `Error querying database: ${(dbError as Error).message}`, dbError);
+      console.log("Will try API fetch instead due to database error");
+    }
+    
+    // If not found in database or error occurred, try fetching from API
+    if (!artist) {
+      try {
+        artist = await fetchArtistById(context.artistId);
         
-        // Store tracks in context for later use
-        context.artistTracks = tracksResult.tracks;
+        if (!artist) {
+          logError(context, "Get Artist", "API", `Artist not found with ID: ${context.artistId}`);
+          return { 
+            success: false, 
+            message: `Artist not found with ID: ${context.artistId}` 
+          };
+        }
         
-        return {
-          success: true,
-          message: `Successfully fetched ${tracksResult.tracks.length} tracks for the artist`,
-          details: {
-            trackCount: tracksResult.tracks.length
+        logSuccess(context, "Get Artist", `Successfully fetched artist from API: ${artist.name}`);
+        
+        // Try to save to database but don't fail the test if this fails
+        try {
+          const { error: insertError } = await supabase
+            .from('artists')
+            .upsert({
+              id: artist.id,
+              name: artist.name,
+              image_url: artist.image_url || artist.image,
+              spotify_id: artist.spotify_id,
+              updated_at: new Date().toISOString()
+            });
+            
+          if (insertError) {
+            console.log(`Note: Could not save artist to database: ${insertError.message}`);
+          } else {
+            logSuccess(context, "Save Artist", `Successfully saved artist to database: ${artist.name}`);
           }
-        };
-      } else {
-        logError(context, 'Get Artist Tracks', 'API', `No tracks found for Spotify artist ID: ${context.spotifyArtistId}`);
-        return {
-          success: false,
-          message: `No tracks found for this artist`
+        } catch (saveError) {
+          console.log(`Note: Error saving artist to database: ${(saveError as Error).message}`);
+        }
+      } catch (apiError) {
+        logError(context, "Get Artist", "API", `Failed to fetch artist from API: ${(apiError as Error).message}`, apiError);
+        return { 
+          success: false, 
+          message: `Failed to fetch artist: ${(apiError as Error).message}` 
         };
       }
-    } catch (spotifyError) {
-      logError(context, 'Get Artist Tracks', 'API', `Spotify API error: ${spotifyError.message}`, spotifyError);
-      return {
-        success: false,
-        message: `Failed to fetch artist tracks from Spotify: ${spotifyError.message}`
+    }
+    
+    // Check if artist has stored tracks
+    if (artist.stored_tracks && Array.isArray(artist.stored_tracks) && artist.stored_tracks.length > 0) {
+      logSuccess(context, "Check Tracks", `Artist has ${artist.stored_tracks.length} tracks stored`);
+      return { 
+        success: true, 
+        message: `Artist ${artist.name} has ${artist.stored_tracks.length} tracks stored` 
+      };
+    } else if (artist.spotify_id) {
+      // If artist has Spotify ID but no tracks, log this as a warning
+      logError(context, "Check Tracks", "Data", `Artist has Spotify ID but no stored tracks. Should trigger track fetch.`);
+      return { 
+        success: false, 
+        message: `Artist has Spotify ID (${artist.spotify_id}) but no stored tracks` 
+      };
+    } else {
+      // If artist has no Spotify ID and no tracks, this is expected in some cases
+      logError(context, "Check Tracks", "Data", `Artist has no Spotify ID and no stored tracks.`);
+      return { 
+        success: false, 
+        message: `Artist has no Spotify ID or stored tracks` 
       };
     }
   } catch (error) {
-    logError(context, 'Artist Tracks Test', 'Client', `Unexpected error: ${error.message}`, error);
-    return {
-      success: false,
-      message: `Unexpected error in artist tracks test: ${error.message}`
+    logError(context, "Artist Tracks Test", "Client", `Error running artist tracks test: ${(error as Error).message}`, error);
+    return { 
+      success: false, 
+      message: `Error running artist tracks test: ${(error as Error).message}` 
     };
   }
-};
+}
