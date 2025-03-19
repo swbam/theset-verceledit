@@ -1,9 +1,6 @@
 
 import React from 'react';
 import { useParams } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
-import { fetchArtistEvents } from '@/lib/ticketmaster';
-import { fetchArtistById } from '@/lib/api/artist';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
 import ArtistHeader from '@/components/artist/ArtistHeader';
@@ -11,54 +8,19 @@ import UpcomingShows from '@/components/artist/UpcomingShows';
 import ArtistDetailSkeleton from '@/components/artist/ArtistDetailSkeleton';
 import ArtistNotFound from '@/components/artist/ArtistNotFound';
 import PastSetlists from '@/components/artists/PastSetlists';
-import { useDocumentTitle } from '@/hooks/use-document-title';
+import { useArtistDetail } from '@/hooks/use-artist-detail';
 
 const ArtistDetail = () => {
   const { id } = useParams<{ id: string }>();
-  
-  // Fetch artist details with improved caching
-  const {
-    data: artist,
-    isLoading: artistLoading,
-    error: artistError
-  } = useQuery({
-    queryKey: ['artist', id],
-    queryFn: () => fetchArtistById(id as string),
-    enabled: !!id,
-    staleTime: 1000 * 60 * 30, // 30 minutes
-    cacheTime: 1000 * 60 * 60, // 1 hour
-    retry: 1,
-    refetchOnWindowFocus: false
-  });
-  
-  // Fetch upcoming shows for this artist with improved caching
-  const {
-    data: shows = [],
-    isLoading: showsLoading,
-    error: showsError
-  } = useQuery({
-    queryKey: ['artistEvents', id],
-    queryFn: () => fetchArtistEvents(id as string),
-    enabled: !!id,
-    staleTime: 1000 * 60 * 30, // 30 minutes
-    cacheTime: 1000 * 60 * 60, // 1 hour
-    retry: 1,
-    refetchOnWindowFocus: false
-  });
-  
-  // Set document title
-  useDocumentTitle(
-    artist?.name || 'Artist',
-    artist?.name ? `View upcoming concerts and vote on setlists for ${artist.name}` : undefined
-  );
+  const { artist, shows, loading, error } = useArtistDetail(id);
   
   // Show skeleton immediately during initial load
-  if (artistLoading && !artist) {
+  if (loading.artist && !artist) {
     return <ArtistDetailSkeleton />;
   }
 
-  if (artistError || !id || !artist) {
-    console.error("Artist detail error:", artistError);
+  if (error.artist || !id || !artist) {
+    console.error("Artist detail error:", error.artist);
     return <ArtistNotFound />;
   }
 
@@ -76,7 +38,7 @@ const ArtistDetail = () => {
         <UpcomingShows 
           shows={shows}
           artistName={artist.name}
-          isLoading={showsLoading}
+          isLoading={loading.shows}
         />
         
         <PastSetlists 
