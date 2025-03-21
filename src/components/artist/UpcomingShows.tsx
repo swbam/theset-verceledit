@@ -40,9 +40,6 @@ const UpcomingShows = ({ shows, artistName, isLoading = false }: UpcomingShowsPr
     <>
       {Array(3).fill(0).map((_, i) => (
         <Card key={`loading-${i}`} className="overflow-hidden">
-          <div className="relative w-full aspect-[16/9]">
-            <Skeleton className="absolute inset-0" />
-          </div>
           <CardContent className="p-4 space-y-3">
             <Skeleton className="h-6 w-3/4" />
             <div className="flex items-center gap-2">
@@ -80,19 +77,6 @@ const UpcomingShows = ({ shows, artistName, isLoading = false }: UpcomingShowsPr
             ) : (
               shows.map((show) => (
                 <Card key={show.id} className="overflow-hidden">
-                  <div className="relative w-full aspect-[16/9] bg-secondary/50">
-                    {show.image_url ? (
-                      <img
-                        src={show.image_url}
-                        alt={show.name}
-                        className="object-cover w-full h-full"
-                      />
-                    ) : (
-                      <div className="absolute inset-0 flex items-center justify-center bg-secondary/80">
-                        <span className="text-xl font-medium">{artistName}</span>
-                      </div>
-                    )}
-                  </div>
                   <CardContent className="p-4">
                     <h3 className="font-medium text-lg mb-2 line-clamp-1">{show.name}</h3>
                     <div className="text-sm text-muted-foreground space-y-2 mb-4">

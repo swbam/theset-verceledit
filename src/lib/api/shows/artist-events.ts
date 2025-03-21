@@ -28,12 +28,12 @@ export async function fetchArtistEvents(artistIdentifier: string): Promise<any[]
     
     console.log(`Fetching from Ticketmaster API with params:`, searchParam);
     
-    // Fetch from Ticketmaster API
+    // Fetch from Ticketmaster API with increased size to get all shows
     const data = await callTicketmasterApi('events.json', {
       ...searchParam,
       segmentName: 'Music',
       sort: 'date,asc',
-      size: '20' // Get up to 20 shows
+      size: '100' // Increased from 20 to 100 to get more shows
     });
 
     if (!data._embedded?.events) {

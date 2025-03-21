@@ -1,110 +1,60 @@
 
-import React, { useState, useEffect } from 'react';
+import React from 'react';
+import { Link } from 'react-router-dom';
+import { Music, CalendarDays } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { useQuery } from '@tanstack/react-query';
-import { Loader2, Music, CalendarDays } from 'lucide-react';
 import { searchArtistsWithEvents } from '@/lib/api/artist';
 
+interface Artist {
+  id: string;
+  name: string;
+  image?: string;
+  upcomingShows: number;
+}
+
 interface ArtistSearchResultsProps {
-  query: string;
-  onSelect?: (artist: any) => void;
+  query?: string;
+  artists?: Artist[];
+  isLoading?: boolean;
+  onSelect?: (artist: Artist) => void;
+  className?: string;
   simplified?: boolean;
 }
 
-const ArtistSearchResults: React.FC<ArtistSearchResultsProps> = ({ 
-  query, 
+const ArtistSearchResults = ({ 
+  query,
+  artists: propArtists,
+  isLoading: propIsLoading,
   onSelect,
-  simplified = false
-}) => {
-  const [debouncedQuery, setDebouncedQuery] = useState(query);
-  
-  // Implement proper debounce with useCallback and useEffect
-  useEffect(() => {
-    const timerId = setTimeout(() => {
-      setDebouncedQuery(query);
-    }, 300);
-    
-    return () => {
-      clearTimeout(timerId);
-    };
-  }, [query]);
-  
-  const { 
-    data: artists = [], 
-    isLoading, 
-    isError,
-    error 
+  className,
+  simplified = false 
+}: ArtistSearchResultsProps) => {
+  // Use provided artists or fetch them based on query
+  const {
+    data: fetchedArtists = [],
+    isLoading: isFetching
   } = useQuery({
-    queryKey: ['artistSearch', debouncedQuery],
-    queryFn: () => searchArtistsWithEvents(debouncedQuery),
-    enabled: debouncedQuery.length > 1,
+    queryKey: ['artistSearch', query],
+    queryFn: () => searchArtistsWithEvents(query || ''),
+    enabled: !!query && !propArtists,
     staleTime: 1000 * 60 * 5, // 5 minutes
-    gcTime: 1000 * 60 * 30,   // 30 minutes
-    meta: {
-      onError: (err: any) => {
-        console.error('Artist search error:', err);
-      }
-    }
   });
 
-  // Early return for empty queries
-  if (debouncedQuery.length < 2) {
-    return (
-      <div className="text-center py-4">
-        <p className="text-muted-foreground text-sm">Type at least 2 characters to search</p>
-      </div>
-    );
-  }
+  const artists = propArtists || fetchedArtists;
+  const isLoading = propIsLoading || isFetching;
 
-  // Loading state
   if (isLoading) {
     return (
-      <div className="text-center py-6">
-        <Loader2 className="h-5 w-5 animate-spin mx-auto mb-2" />
-        <p className="text-muted-foreground text-sm">Searching for artists...</p>
-      </div>
-    );
-  }
-
-  // Error state
-  if (isError) {
-    return (
-      <div className="text-center py-4">
-        <p className="text-destructive text-sm mb-1">Error searching for artists</p>
-        <p className="text-muted-foreground text-xs">{error instanceof Error ? error.message : 'An unknown error occurred'}</p>
-      </div>
-    );
-  }
-
-  // No results
-  if (artists.length === 0) {
-    return (
-      <div className="text-center py-6">
-        <p className="font-medium text-sm mb-1">No artists found</p>
-        <p className="text-muted-foreground text-xs">
-          Try searching for another artist who has upcoming shows
-        </p>
-      </div>
-    );
-  }
-
-  // Simplified results for homepage search (no images, compact layout)
-  if (simplified) {
-    return (
-      <div className="py-1">
-        {artists.slice(0, 8).map((artist) => (
-          <div
-            key={artist.id}
-            onClick={() => onSelect && onSelect(artist)}
-            className="px-4 py-2.5 hover:bg-secondary/80 cursor-pointer transition-colors"
-          >
-            <div className="flex items-center justify-between">
-              <div className="font-medium">{artist.name}</div>
-              {typeof artist.upcomingShows === 'number' && (
-                <div className="text-xs flex items-center text-muted-foreground">
-                  <CalendarDays size={12} className="mr-1" />
-                  {artist.upcomingShows} {artist.upcomingShows === 1 ? 'show' : 'shows'}
-                </div>
-              )}
+      <div className={cn("py-1 bg-background border border-border rounded-lg shadow-lg", className)}>
+        {[...Array(3)].map((_, i) => (
+          <div key={i} className="flex items-center gap-3 px-3 py-2">
+            {!simplified && (
+              <div className="w-10 h-10 rounded-md bg-secondary animate-pulse"></div>
+            )}
+            <div className="flex-1">
+              <div className="h-4 w-24 bg-secondary rounded animate-pulse"></div>
+              <div className="h-3 w-16 bg-secondary rounded mt-1 animate-pulse"></div>
             </div>
           </div>
         ))}
@@ -112,16 +62,66 @@ const ArtistSearchResults: React.FC<ArtistSearchResultsProps> = ({
     );
   }
 
-  // Regular grid results for search page
-  return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-      {artists.map((artist) => (
-        <div key={artist.id} onClick={() => onSelect && onSelect(artist)}>
-          <ArtistCard 
+  if (artists.length === 0) {
+    return null;
+  }
+
+  const handleSelect = (artist: Artist) => {
+    if (onSelect) {
+      console.log(`Artist selected: ${artist.name} (ID: ${artist.id})`);
+      onSelect(artist);
+    }
+  };
+
+  if (simplified) {
+    return (
+      <div className={cn("py-1 bg-background border border-border rounded-lg shadow-lg divide-y divide-border", className)}>
+        {artists.map((artist) => (
+          <Link
             key={artist.id}
-            artist={artist}
-          />
-        </div>
+            to={`/artists/${artist.id}`}
+            className="flex items-center justify-between px-4 py-2.5 hover:bg-secondary/80 transition-colors"
+            onClick={() => handleSelect(artist)}
+          >
+            <div className="font-medium">{artist.name}</div>
+            <div className="text-xs flex items-center text-muted-foreground">
+              <CalendarDays size={12} className="mr-1" />
+              {artist.upcomingShows} {artist.upcomingShows === 1 ? 'show' : 'shows'}
+            </div>
+          </Link>
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div className={cn("py-1 bg-background border border-border rounded-lg shadow-lg divide-y divide-border", className)}>
+      {artists.map((artist) => (
+        <Link
+          key={artist.id}
+          to={`/artists/${artist.id}`}
+          className="flex items-center gap-3 px-3 py-2 hover:bg-secondary transition-colors"
+          onClick={() => handleSelect(artist)}
+        >
+          {artist.image ? (
+            <img 
+              src={artist.image} 
+              alt={artist.name} 
+              className="w-10 h-10 rounded-md object-cover"
+            />
+          ) : (
+            <div className="w-10 h-10 rounded-md bg-secondary flex items-center justify-center">
+              <Music className="h-5 w-5 text-muted-foreground" />
+            </div>
+          )}
+          
+          <div>
+            <div className="font-medium">{artist.name}</div>
+            <div className="text-xs text-muted-foreground">
+              {artist.upcomingShows} upcoming {artist.upcomingShows === 1 ? 'show' : 'shows'}
+            </div>
+          </div>
+        </Link>
       ))}
     </div>
   );
