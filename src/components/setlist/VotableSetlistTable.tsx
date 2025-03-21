@@ -118,7 +118,12 @@ const VotableSetlistTable = ({ songs, onVote, className, anonymousVoteCount = 0 
                 </TableCell>
                 <TableCell className="py-4 px-4 text-right">
                   <div className="flex items-center justify-end">
-                    <span className="mr-2 text-sm font-medium sm:hidden text-white">
+                    {/* Vote count for mobile - moved closer to the button */}
+                    <span className={cn(
+                      "font-mono font-medium mr-2 text-sm",
+                      song.votes > 0 ? "text-white" : "text-white/60",
+                      animatingSongId === song.id && "text-primary"
+                    )}>
                       {song.votes}
                     </span>
                     <button
