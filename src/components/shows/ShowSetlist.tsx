@@ -49,7 +49,16 @@ const ShowSetlist = ({
   login,
   anonymousVoteCount = 0
 }: ShowSetlistProps) => {
+  // Log for debugging
+  useEffect(() => {
+    console.log("ShowSetlist component mounted");
+    console.log("Available tracks:", availableTracks?.length || 0);
+    console.log("Is loading tracks:", isLoadingAllTracks);
+    console.log("Current setlist size:", setlist?.length || 0);
+  }, [availableTracks, isLoadingAllTracks, setlist]);
+  
   const handleTrackSelect = (value: string) => {
+    console.log("Track selected:", value);
     setSelectedTrack(value);
   };
   

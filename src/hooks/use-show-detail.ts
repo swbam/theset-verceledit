@@ -48,12 +48,11 @@ export function useShowDetail(id: string | undefined) {
     }
   }, [show, isLoadingShow]);
   
-  // Get artist tracks with better optimized loading (lazy load this data)
+  // Get artist tracks - we need to enable immediate fetching to restore previous behavior
   const artistTracksResponse = useArtistTracks(
     show?.artist_id, 
     spotifyArtistId,
-    // Delay loading tracks until explicitly requested
-    { immediate: false }
+    { immediate: true }  // Changed to true to load tracks immediately
   );
   
   // Function to load tracks manually when needed
@@ -93,25 +92,44 @@ export function useShowDetail(id: string | undefined) {
   // Compute available tracks with memoization to prevent recalculations
   const availableTracks = useMemo(() => {
     if (storedTracksData && Array.isArray(storedTracksData) && storedTracksData.length > 0) {
+      console.log(`Computing available tracks from ${storedTracksData.length} stored tracks`);
       const setlistIds = new Set((setlist || []).map(song => song.id));
       return storedTracksData.filter((track: any) => !setlistIds.has(track.id));
     }
     
     if (typeof getAvailableTracks === 'function') {
+      console.log("Using getAvailableTracks function");
       return getAvailableTracks(setlist || []);
     }
     
+    console.log("No available tracks found");
     return [];
   }, [storedTracksData, setlist, getAvailableTracks]);
   
   // Add song handler
-  const handleAddSongClick = useCallback(() => {
+  const handleAddSongClick = useCallback((trackId?: string) => {
+    const trackToUse = trackId || selectedTrack;
+    
+    if (!trackToUse) {
+      console.log("No track selected for adding");
+      return;
+    }
+    
     if (storedTracksData && Array.isArray(storedTracksData) && storedTracksData.length > 0) {
-      handleAddSong({ tracks: storedTracksData });
-    } else if (allTracksData && allTracksData.tracks) {
+      console.log(`Looking for track ${trackToUse} in ${storedTracksData.length} stored tracks`);
+      const track = storedTracksData.find((t: any) => t.id === trackToUse);
+      if (track) {
+        console.log(`Found track to add: ${track.name}`);
+        handleAddSong({ tracks: storedTracksData });
+        return;
+      }
+    }
+    
+    if (allTracksData && allTracksData.tracks) {
+      console.log(`Looking for track ${trackToUse} in allTracksData`);
       handleAddSong(allTracksData);
     }
-  }, [storedTracksData, allTracksData, handleAddSong]);
+  }, [storedTracksData, allTracksData, handleAddSong, selectedTrack]);
   
   return {
     show,
