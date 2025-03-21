@@ -21,6 +21,7 @@ import MyArtists from './pages/MyArtists';
 import CreateShow from './pages/CreateShow';
 import NotFound from './pages/NotFound';
 import TestJourney from './pages/TestJourney';
+import Admin from './pages/Admin';
 
 // Google Analytics tracking ID
 const GA_TRACKING_ID = "G-CNM6621HGW";
@@ -63,6 +64,7 @@ function App() {
               <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
               <Route path="/my-artists" element={<ProtectedRoute><MyArtists /></ProtectedRoute>} />
               <Route path="/create-show" element={<ProtectedRoute><CreateShow /></ProtectedRoute>} />
+              <Route path="/admin" element={<Admin />} />
               <Route path="/test-journey" element={<TestJourney />} />
               <Route path="*" element={<NotFound />} />
             </Routes>

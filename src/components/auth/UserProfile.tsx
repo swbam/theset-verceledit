@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { LogOut, User, Settings } from 'lucide-react';
+import { LogOut, User, Settings, ShieldCheck } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -88,6 +88,20 @@ const UserProfile = () => {
             Settings
           </Link>
         </DropdownMenuItem>
+        
+        {/* Show Admin Link for admin users */}
+        {profile?.is_admin && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem asChild>
+              <Link to="/admin" className="flex items-center">
+                <ShieldCheck className="mr-2 h-4 w-4" />
+                Admin Dashboard
+              </Link>
+            </DropdownMenuItem>
+          </>
+        )}
+        
         <DropdownMenuSeparator />
         <DropdownMenuItem
           className="text-destructive focus:text-destructive cursor-pointer"
