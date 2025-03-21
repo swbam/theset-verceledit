@@ -83,20 +83,22 @@ export async function fetchFeaturedArtists(limit = 4): Promise<any[]> {
     setTimeout(() => {
       artists.forEach(artist => {
         try {
-          // Use a simple fetch approach that won't block if it fails
-          supabase
-            .from('artists')
-            .upsert({
-              id: artist.id,
-              name: artist.name,
-              image_url: artist.image,
-              genres: artist.genres,
-              popularity: artist.popularity,
-              upcoming_shows: artist.upcoming_shows,
-              updated_at: new Date().toISOString()
-            })
-            .then(() => console.log(`Saved artist ${artist.name} to database`))
-            .catch((err: Error) => console.log(`Database save failed for ${artist.name}: ${err.message}`));
+          // Use a promise-based approach that handles errors properly
+          Promise.resolve(
+            supabase
+              .from('artists')
+              .upsert({
+                id: artist.id,
+                name: artist.name,
+                image_url: artist.image,
+                genres: artist.genres,
+                popularity: artist.popularity,
+                upcoming_shows: artist.upcoming_shows,
+                updated_at: new Date().toISOString()
+              })
+          )
+          .then(() => console.log(`Saved artist ${artist.name} to database`))
+          .catch((err: any) => console.log(`Database save failed for ${artist.name}: ${err.message}`));
         } catch (e) {
           // Ignore any errors in the background save
           console.log(`Error in background save for artist ${artist.name}`);

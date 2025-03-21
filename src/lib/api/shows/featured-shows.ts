@@ -122,51 +122,57 @@ export async function fetchFeaturedShows(limit = 4): Promise<any[]> {
         try {
           // Save artist
           if (show.artist) {
-            supabase
-              .from('artists')
-              .upsert({
-                id: show.artist.id,
-                name: show.artist.name,
-                image_url: show.artist.image,
-                genres: show.artist.genres,
-                updated_at: new Date().toISOString()
-              })
-              .then(() => console.log(`Saved artist ${show.artist.name} to database`))
-              .catch((err: Error) => console.log(`Database save failed for artist ${show.artist.name}: ${err.message}`));
+            Promise.resolve(
+              supabase
+                .from('artists')
+                .upsert({
+                  id: show.artist.id,
+                  name: show.artist.name,
+                  image_url: show.artist.image,
+                  genres: show.artist.genres,
+                  updated_at: new Date().toISOString()
+                })
+            )
+            .then(() => console.log(`Saved artist ${show.artist.name} to database`))
+            .catch((err: any) => console.log(`Database save failed for artist ${show.artist.name}: ${err.message}`));
           }
           
           // Save venue
           if (show.venue) {
-            supabase
-              .from('venues')
-              .upsert({
-                id: show.venue.id,
-                name: show.venue.name,
-                city: show.venue.city,
-                state: show.venue.state,
-                country: show.venue.country,
-                updated_at: new Date().toISOString()
-              })
-              .then(() => console.log(`Saved venue ${show.venue.name} to database`))
-              .catch((err: Error) => console.log(`Database save failed for venue ${show.venue.name}: ${err.message}`));
+            Promise.resolve(
+              supabase
+                .from('venues')
+                .upsert({
+                  id: show.venue.id,
+                  name: show.venue.name,
+                  city: show.venue.city,
+                  state: show.venue.state,
+                  country: show.venue.country,
+                  updated_at: new Date().toISOString()
+                })
+            )
+            .then(() => console.log(`Saved venue ${show.venue.name} to database`))
+            .catch((err: any) => console.log(`Database save failed for venue ${show.venue.name}: ${err.message}`));
           }
           
           // Save show
-          supabase
-            .from('shows')
-            .upsert({
-              id: show.id,
-              name: show.name,
-              date: show.date,
-              artist_id: show.artist_id,
-              venue_id: show.venue_id,
-              ticket_url: show.ticket_url,
-              image_url: show.image_url,
-              popularity: show.popularity,
-              updated_at: new Date().toISOString()
-            })
-            .then(() => console.log(`Saved show ${show.name} to database`))
-            .catch((err: Error) => console.log(`Database save failed for show ${show.name}: ${err.message}`));
+          Promise.resolve(
+            supabase
+              .from('shows')
+              .upsert({
+                id: show.id,
+                name: show.name,
+                date: show.date,
+                artist_id: show.artist_id,
+                venue_id: show.venue_id,
+                ticket_url: show.ticket_url,
+                image_url: show.image_url,
+                popularity: show.popularity,
+                updated_at: new Date().toISOString()
+              })
+          )
+          .then(() => console.log(`Saved show ${show.name} to database`))
+          .catch((err: any) => console.log(`Database save failed for show ${show.name}: ${err.message}`));
         } catch (e) {
           // Ignore any errors in the background save
           console.log(`Error in background save for show ${show.name}`);
