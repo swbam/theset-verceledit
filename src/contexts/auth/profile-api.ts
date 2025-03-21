@@ -25,6 +25,15 @@ export async function fetchUserProfile(userId: string): Promise<UserProfile | nu
     // Track user ID in Google Analytics
     setUserId(userId);
     
+    // Identify user in PostHog if available
+    if (window.posthog && data) {
+      window.posthog.identify(userId, {
+        name: data.username || data.display_name,
+        email: data.email,
+        spotify_connected: !!data.spotify_id
+      });
+    }
+    
     return data;
   } catch (error) {
     console.error('Error fetching user profile:', error);

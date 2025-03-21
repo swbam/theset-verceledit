@@ -15,8 +15,16 @@ export async function loginWithEmail(email: string, password: string) {
 
     if (error) throw error;
     
-    // Track login event
+    // Track login event in Google Analytics
     trackEvent('User', 'Login', 'Email');
+    
+    // Identify user in PostHog if available
+    if (window.posthog && data.user) {
+      window.posthog.identify(data.user.id, {
+        email: data.user.email,
+        name: data.user.user_metadata?.username || data.user.email
+      });
+    }
     
     toast.success('Logged in successfully!');
     return { data, error: null };
@@ -103,6 +111,14 @@ export async function signup(email: string, password: string, username?: string)
     // Track signup event
     trackEvent('User', 'Signup', 'Email');
     
+    // Identify user in PostHog if available
+    if (window.posthog && data.user) {
+      window.posthog.identify(data.user.id, {
+        email: data.user.email,
+        name: data.user.user_metadata?.username || data.user.email
+      });
+    }
+    
     toast.success('Account created successfully!');
     
     return { data, error: null, needsEmailConfirmation: data.user && !data.user.confirmed_at };
@@ -119,6 +135,12 @@ export async function signup(email: string, password: string, username?: string)
 export async function logout() {
   try {
     console.log("Logging out...");
+    
+    // Reset PostHog identity if available
+    if (window.posthog) {
+      window.posthog.reset();
+    }
+    
     const { error } = await supabase.auth.signOut();
     
     if (error) throw error;
