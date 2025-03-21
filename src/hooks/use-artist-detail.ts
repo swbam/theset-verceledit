@@ -1,25 +1,34 @@
+
 import { useQuery } from '@tanstack/react-query';
 import { useDocumentTitle } from '@/hooks/use-document-title';
 import { fetchArtistById } from '@/lib/api/artist';
 import { fetchArtistEvents } from '@/lib/ticketmaster';
+import { toast } from 'sonner';
 
 export function useArtistDetail(id: string | undefined) {
-  // Fetch artist details with improved caching and optimizations
+  // Fetch artist details with improved error handling
   const {
     data: artist,
     isLoading: artistLoading,
     error: artistError
   } = useQuery({
     queryKey: ['artist', id],
-    queryFn: () => fetchArtistById(id as string),
+    queryFn: async () => {
+      try {
+        const artistData = await fetchArtistById(id as string);
+        return artistData;
+      } catch (error) {
+        console.error("Error fetching artist:", error);
+        toast.error("Could not load artist details");
+        throw error;
+      }
+    },
     enabled: !!id,
     staleTime: 1000 * 60 * 60, // 60 minutes
-    gcTime: 1000 * 60 * 120, // 2 hours
-    retry: 1,
-    refetchOnWindowFocus: false
+    retry: 2
   });
   
-  // Fetch upcoming shows for this artist with optimized caching
+  // Fetch upcoming shows for this artist with better error handling
   const {
     data: shows = [],
     isLoading: showsLoading,
@@ -27,23 +36,19 @@ export function useArtistDetail(id: string | undefined) {
   } = useQuery({
     queryKey: ['artistEvents', id],
     queryFn: async () => {
-      console.log('Fetching shows for artist:', id);
-      // First check if the artist already has shows in memory
-      if (artist && artist.stored_shows && artist.stored_shows.length > 0) {
-        console.log('Using cached shows from artist object', artist.stored_shows.length);
-        return artist.stored_shows;
+      try {
+        console.log('Fetching shows for artist:', id);
+        // Always fetch fresh show data from the API
+        return await fetchArtistEvents(id as string);
+      } catch (error) {
+        console.error("Error fetching shows:", error);
+        toast.error("Could not load upcoming shows");
+        return [];
       }
-      
-      // Otherwise fetch from API
-      const fetchedShows = await fetchArtistEvents(id as string);
-      console.log('Fetched shows from API:', fetchedShows?.length);
-      return fetchedShows;
     },
     enabled: !!id,
-    staleTime: 1000 * 60 * 30, // 30 minutes (reduced from 60)
-    gcTime: 1000 * 60 * 60, // 1 hour (reduced from 2)
-    retry: 1,
-    refetchOnWindowFocus: false
+    staleTime: 1000 * 60 * 10, // 10 minutes - fetch more frequently
+    retry: 2
   });
   
   // Set document title
