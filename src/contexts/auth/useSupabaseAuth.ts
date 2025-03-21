@@ -1,10 +1,17 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { AuthState, UserProfile } from './types';
-import { setUserId, trackEvent } from '@/integrations/google-analytics';
+import { 
+  loginWithEmail as apiLoginWithEmail,
+  loginWithGoogle as apiLoginWithGoogle,
+  loginWithSpotify as apiLoginWithSpotify,
+  signup as apiSignup,
+  logout as apiLogout,
+  getSession as apiGetSession
+} from './auth-api';
+import { fetchUserProfile } from './profile-api';
 
 export function useSupabaseAuth(): AuthState & {
   loginWithEmail: (email: string, password: string) => Promise<void>;
@@ -20,49 +27,34 @@ export function useSupabaseAuth(): AuthState & {
   const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
 
-  const fetchUserProfile = useCallback(async (userId: string) => {
-    try {
-      console.log("Fetching user profile for:", userId);
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single();
-      
-      if (error) {
-        console.error('Error fetching user profile:', error);
-        return;
-      }
-      
-      console.log("User profile fetched:", data);
-      setProfile(data);
-      
-      // Track user ID in Google Analytics
-      setUserId(userId);
-    } catch (error) {
-      console.error('Error fetching user profile:', error);
+  // Handle profile fetching (extracted from the original implementation)
+  const handleProfileFetch = useCallback(async (userId: string) => {
+    const userProfile = await fetchUserProfile(userId);
+    if (userProfile) {
+      setProfile(userProfile);
     }
   }, []);
 
+  // Session check and auth state management
   useEffect(() => {
     const checkSession = async () => {
       try {
         setIsLoading(true);
         console.log("Checking session...");
-        const { data, error } = await supabase.auth.getSession();
+        const { session, error } = await apiGetSession();
         
         if (error) {
           console.error('Error checking session:', error);
           return;
         }
 
-        console.log("Session check result:", data.session ? "Active session found" : "No active session");
-        setSession(data.session);
+        console.log("Session check result:", session ? "Active session found" : "No active session");
+        setSession(session);
         
-        if (data.session?.user) {
-          console.log("User found in session:", data.session.user.id);
-          setUser(data.session.user);
-          await fetchUserProfile(data.session.user.id);
+        if (session?.user) {
+          console.log("User found in session:", session.user.id);
+          setUser(session.user);
+          await handleProfileFetch(session.user.id);
         } else {
           console.log("No user in session");
           setUser(null);
@@ -77,6 +69,7 @@ export function useSupabaseAuth(): AuthState & {
 
     checkSession();
 
+    // Set up auth state change listener
     const { data: authListener } = supabase.auth.onAuthStateChange(
       async (event, currentSession) => {
         console.log('Auth state changed:', event);
@@ -87,7 +80,7 @@ export function useSupabaseAuth(): AuthState & {
         
         if (currentSession?.user) {
           console.log("User in auth change:", currentSession.user.id);
-          await fetchUserProfile(currentSession.user.id);
+          await handleProfileFetch(currentSession.user.id);
         } else {
           console.log("No user in auth change");
           setProfile(null);
@@ -100,132 +93,70 @@ export function useSupabaseAuth(): AuthState & {
     return () => {
       authListener?.subscription?.unsubscribe();
     };
-  }, [fetchUserProfile]);
+  }, [handleProfileFetch]);
 
+  // Redirect to auth page
   const login = useCallback(() => {
     navigate('/auth');
   }, [navigate]);
 
+  // Email login handler
   const loginWithEmail = useCallback(async (email: string, password: string) => {
     setIsLoading(true);
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
+      const { data, error } = await apiLoginWithEmail(email, password);
       if (error) throw error;
-      
-      // Track login event
-      trackEvent('User', 'Login', 'Email');
-      
-      toast.success('Logged in successfully!');
       navigate('/');
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to login');
-      console.error('Login error:', error);
+    } catch (error) {
+      console.error('Login process error:', error);
     } finally {
       setIsLoading(false);
     }
   }, [navigate]);
 
+  // Google login handler
   const loginWithGoogle = useCallback(async () => {
-    try {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: `${window.location.origin}/auth/callback?provider=google`,
-        },
-      });
-
-      if (error) throw error;
-      
-      // Track login attempt
-      trackEvent('User', 'Login Attempt', 'Google');
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to login with Google');
-      console.error('Google login error:', error);
-    }
+    await apiLoginWithGoogle();
   }, []);
 
+  // Spotify login handler
   const loginWithSpotify = useCallback(async () => {
-    try {
-      console.log('Starting Spotify login process');
-      const { error, data } = await supabase.auth.signInWithOAuth({
-        provider: 'spotify',
-        options: {
-          redirectTo: `${window.location.origin}/auth/callback?provider=spotify`,
-          scopes: 'user-read-email user-read-private user-top-read user-follow-read',
-        },
-      });
-
-      if (error) {
-        console.error('Spotify login error:', error);
-        throw error;
-      }
-      
-      // Track login attempt
-      trackEvent('User', 'Login Attempt', 'Spotify');
-      
-      console.log('Spotify auth initiated successfully:', data);
-    } catch (error: any) {
-      console.error('Spotify login error:', error);
-      toast.error(error.message || 'Failed to login with Spotify');
-    }
+    await apiLoginWithSpotify();
   }, []);
 
+  // Signup handler
   const signup = useCallback(async (email: string, password: string, username?: string) => {
     setIsLoading(true);
     try {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            username: username || email.split('@')[0],
-          },
-        },
-      });
-
+      const { error, needsEmailConfirmation } = await apiSignup(email, password, username);
+      
       if (error) throw error;
       
-      // Track signup event
-      trackEvent('User', 'Signup', 'Email');
-      
-      toast.success('Account created successfully!');
-      
-      if (data.user && !data.user.confirmed_at) {
-        toast.info('Please check your email to confirm your account');
+      if (needsEmailConfirmation) {
+        // Stay on the current page if email confirmation is needed
       } else {
         navigate('/');
       }
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to create account');
-      console.error('Signup error:', error);
+    } catch (error) {
+      console.error('Signup process error:', error);
     } finally {
       setIsLoading(false);
     }
   }, [navigate]);
 
+  // Logout handler
   const logout = useCallback(async () => {
     try {
-      console.log("Logging out...");
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
+      const { success } = await apiLogout();
       
-      console.log("Signed out successfully");
-      setUser(null);
-      setProfile(null);
-      setSession(null);
-      
-      // Track logout event
-      trackEvent('User', 'Logout');
-      
-      toast.info('Logged out successfully');
-      navigate('/');
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to log out');
-      console.error('Logout error:', error);
+      if (success) {
+        setUser(null);
+        setProfile(null);
+        setSession(null);
+        navigate('/');
+      }
+    } catch (error) {
+      console.error('Logout process error:', error);
     }
   }, [navigate]);
 
