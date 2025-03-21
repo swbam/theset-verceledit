@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { AuthState, UserProfile } from './types';
+import { setUserId, trackEvent } from '@/integrations/google-analytics';
 
 export function useSupabaseAuth(): AuthState & {
   loginWithEmail: (email: string, password: string) => Promise<void>;
@@ -35,6 +36,9 @@ export function useSupabaseAuth(): AuthState & {
       
       console.log("User profile fetched:", data);
       setProfile(data);
+      
+      // Track user ID in Google Analytics
+      setUserId(userId);
     } catch (error) {
       console.error('Error fetching user profile:', error);
     }
@@ -112,6 +116,9 @@ export function useSupabaseAuth(): AuthState & {
 
       if (error) throw error;
       
+      // Track login event
+      trackEvent('User', 'Login', 'Email');
+      
       toast.success('Logged in successfully!');
       navigate('/');
     } catch (error: any) {
@@ -132,6 +139,9 @@ export function useSupabaseAuth(): AuthState & {
       });
 
       if (error) throw error;
+      
+      // Track login attempt
+      trackEvent('User', 'Login Attempt', 'Google');
     } catch (error: any) {
       toast.error(error.message || 'Failed to login with Google');
       console.error('Google login error:', error);
@@ -154,6 +164,9 @@ export function useSupabaseAuth(): AuthState & {
         throw error;
       }
       
+      // Track login attempt
+      trackEvent('User', 'Login Attempt', 'Spotify');
+      
       console.log('Spotify auth initiated successfully:', data);
     } catch (error: any) {
       console.error('Spotify login error:', error);
@@ -175,6 +188,9 @@ export function useSupabaseAuth(): AuthState & {
       });
 
       if (error) throw error;
+      
+      // Track signup event
+      trackEvent('User', 'Signup', 'Email');
       
       toast.success('Account created successfully!');
       
@@ -201,6 +217,9 @@ export function useSupabaseAuth(): AuthState & {
       setUser(null);
       setProfile(null);
       setSession(null);
+      
+      // Track logout event
+      trackEvent('User', 'Logout');
       
       toast.info('Logged out successfully');
       navigate('/');

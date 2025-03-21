@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { ArrowBigUp, Music, Trophy, Star, Crown } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { trackEvent } from '@/integrations/google-analytics';
 import { 
   Table,
   TableBody,
@@ -31,6 +32,10 @@ const VotableSetlistTable = ({ songs, onVote, className, anonymousVoteCount = 0 
   const handleVote = (songId: string) => {
     setAnimatingSongId(songId);
     onVote(songId);
+    
+    // Track voting event in analytics
+    const songName = songs.find(song => song.id === songId)?.name || 'unknown';
+    trackEvent('Setlist', 'Vote', songName);
     
     // Remove animation class after animation completes
     setTimeout(() => {

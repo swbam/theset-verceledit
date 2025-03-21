@@ -1,9 +1,10 @@
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { AuthProvider } from './contexts/auth/AuthContext';
+import { initGA, trackPageView } from './integrations/google-analytics';
 import Index from './pages/Index';
 import ArtistDetail from './pages/ArtistDetail';
 import ShowDetail from './pages/ShowDetail';
@@ -21,12 +22,33 @@ import CreateShow from './pages/CreateShow';
 import NotFound from './pages/NotFound';
 import TestJourney from './pages/TestJourney';
 
+// Google Analytics tracking ID - replace with your own
+const GA_TRACKING_ID = "G-XXXXXXXXXX"; // Replace this with your actual GA tracking ID
+
+// RouteChangeTracker component to track page views
+const RouteChangeTracker = () => {
+  const location = useLocation();
+  
+  useEffect(() => {
+    trackPageView(location.pathname + location.search);
+  }, [location]);
+  
+  return null;
+};
+
 function App() {
+  useEffect(() => {
+    // Initialize Google Analytics
+    initGA(GA_TRACKING_ID);
+  }, []);
+
   return (
     <QueryClientProvider client={new QueryClient()}>
       <BrowserRouter>
         <TooltipProvider>
           <AuthProvider>
+            {/* Add the route tracker component */}
+            <RouteChangeTracker />
             <Routes>
               <Route path="/" element={<Index />} />
               <Route path="/artists/:id" element={<ArtistDetail />} />
