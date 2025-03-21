@@ -96,7 +96,7 @@ export async function fetchFeaturedArtists(limit = 4): Promise<any[]> {
               updated_at: new Date().toISOString()
             })
             .then(() => console.log(`Saved artist ${artist.name} to database`))
-            .catch(err => console.log(`Database save failed for ${artist.name}: ${err.message}`));
+            .catch((err: Error) => console.log(`Database save failed for ${artist.name}: ${err.message}`));
         } catch (e) {
           // Ignore any errors in the background save
           console.log(`Error in background save for artist ${artist.name}`);

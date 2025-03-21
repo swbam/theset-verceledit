@@ -132,7 +132,7 @@ export async function fetchFeaturedShows(limit = 4): Promise<any[]> {
                 updated_at: new Date().toISOString()
               })
               .then(() => console.log(`Saved artist ${show.artist.name} to database`))
-              .catch(err => console.log(`Database save failed for artist ${show.artist.name}: ${err.message}`));
+              .catch((err: Error) => console.log(`Database save failed for artist ${show.artist.name}: ${err.message}`));
           }
           
           // Save venue
@@ -148,7 +148,7 @@ export async function fetchFeaturedShows(limit = 4): Promise<any[]> {
                 updated_at: new Date().toISOString()
               })
               .then(() => console.log(`Saved venue ${show.venue.name} to database`))
-              .catch(err => console.log(`Database save failed for venue ${show.venue.name}: ${err.message}`));
+              .catch((err: Error) => console.log(`Database save failed for venue ${show.venue.name}: ${err.message}`));
           }
           
           // Save show
@@ -166,7 +166,7 @@ export async function fetchFeaturedShows(limit = 4): Promise<any[]> {
               updated_at: new Date().toISOString()
             })
             .then(() => console.log(`Saved show ${show.name} to database`))
-            .catch(err => console.log(`Database save failed for show ${show.name}: ${err.message}`));
+            .catch((err: Error) => console.log(`Database save failed for show ${show.name}: ${err.message}`));
         } catch (e) {
           // Ignore any errors in the background save
           console.log(`Error in background save for show ${show.name}`);
