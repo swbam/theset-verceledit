@@ -22,8 +22,6 @@ interface Song {
 interface Track {
   id: string;
   name: string;
-  album?: string;
-  popularity?: number;
 }
 
 interface ShowSetlistProps {
@@ -132,11 +130,6 @@ const ShowSetlist = ({
                         className="focus:bg-white/10 focus:text-white data-[highlighted]:bg-white/10 data-[highlighted]:text-white"
                       >
                         {truncateSongName(track.name)}
-                        {track.album && (
-                          <span className="text-white/40 text-xs ml-1">
-                            • {truncateSongName(track.album, 20)}
-                          </span>
-                        )}
                       </SelectItem>
                     ))
                   )}

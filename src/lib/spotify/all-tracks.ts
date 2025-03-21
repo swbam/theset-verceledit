@@ -14,7 +14,7 @@ export const getArtistAllTracks = async (artistId: string): Promise<SpotifyTrack
     // Check if we have stored tracks and they're less than 7 days old
     const { data: artistData, error } = await supabase
       .from('artists')
-      .select('stored_tracks, updated_at, tracks_last_updated')
+      .select('stored_tracks, updated_at, tracks_last_updated, id')
       .eq('spotify_id', artistId)
       .maybeSingle();
     
@@ -65,11 +65,6 @@ export const getArtistAllTracks = async (artistId: string): Promise<SpotifyTrack
     let allTracks: SpotifyTrack[] = topTracksData.tracks.map((track: any) => ({
       id: track.id,
       name: track.name,
-      duration_ms: track.duration_ms,
-      popularity: track.popularity,
-      preview_url: track.preview_url,
-      uri: track.uri,
-      album: track.album?.name || 'Unknown Album',
       votes: 0
     }));
     
@@ -134,7 +129,7 @@ export const getArtistAllTracks = async (artistId: string): Promise<SpotifyTrack
           
           console.log(`Found ${tracksData.items.length} tracks in album ${album.name}`);
           
-          // Add all tracks from this album, with simpler popularity scoring
+          // Add all tracks from this album, simplified structure with just ID and name
           for (const track of tracksData.items) {
             // Skip if we already have this track from top tracks
             if (allTracks.some((t) => t.id === track.id)) {
@@ -144,11 +139,6 @@ export const getArtistAllTracks = async (artistId: string): Promise<SpotifyTrack
             allTracks.push({
               id: track.id,
               name: track.name,
-              duration_ms: track.duration_ms || 0,
-              popularity: 50, // Default medium popularity for album tracks
-              preview_url: track.preview_url,
-              uri: track.uri,
-              album: album.name,
               votes: 0
             });
           }
@@ -171,7 +161,7 @@ export const getArtistAllTracks = async (artistId: string): Promise<SpotifyTrack
     
     // Try to store tracks in the database, but don't fail if it doesn't work
     try {
-      if (artistData) {
+      if (artistData && artistData.id) {
         await updateArtistStoredTracks(artistData.id, uniqueTracks);
         console.log(`Updated stored tracks for artist ${artistId}`);
       }
