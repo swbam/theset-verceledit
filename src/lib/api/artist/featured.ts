@@ -1,29 +1,16 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { callTicketmasterApi } from "../ticketmaster-config";
-import { saveArtistToDatabase } from "../database";
+import { ErrorSource, handleError } from "@/lib/error-handling";
 
 /**
  * Fetch featured artists with upcoming shows
  */
 export async function fetchFeaturedArtists(limit = 4): Promise<any[]> {
   try {
-    // First, check if we have artists in the database
-    const { data: dbArtists, error: dbError } = await supabase
-      .from('artists')
-      .select('*')
-      .order('popularity', { ascending: false })
-      .limit(limit);
+    console.log(`Fetching ${limit} featured artists from Ticketmaster`);
     
-    if (dbError) {
-      console.error("Error fetching artists from database:", dbError);
-    }
-    
-    // If we have enough artists in database, use them
-    if (dbArtists && dbArtists.length >= limit) {
-      return dbArtists;
-    }
-    
-    // Otherwise, fetch from Ticketmaster
+    // Fetch directly from Ticketmaster instead of checking DB first
     const data = await callTicketmasterApi('events.json', {
       size: '100', // Fetch more events to get better data
       segmentName: 'Music',
@@ -33,6 +20,7 @@ export async function fetchFeaturedArtists(limit = 4): Promise<any[]> {
     });
 
     if (!data._embedded?.events) {
+      console.log('No events found in Ticketmaster response');
       return [];
     }
 
@@ -91,14 +79,39 @@ export async function fetchFeaturedArtists(limit = 4): Promise<any[]> {
       .sort((a, b) => b.popularity - a.popularity || b.upcoming_shows - a.upcoming_shows)
       .slice(0, limit);
     
-    // Save artists to database
-    for (const artist of artists) {
-      await saveArtistToDatabase(artist);
-    }
+    // Try to save artists to database in the background without blocking the response
+    setTimeout(() => {
+      artists.forEach(artist => {
+        try {
+          // Use a simple fetch approach that won't block if it fails
+          supabase
+            .from('artists')
+            .upsert({
+              id: artist.id,
+              name: artist.name,
+              image_url: artist.image,
+              genres: artist.genres,
+              popularity: artist.popularity,
+              upcoming_shows: artist.upcoming_shows,
+              updated_at: new Date().toISOString()
+            })
+            .then(() => console.log(`Saved artist ${artist.name} to database`))
+            .catch(err => console.log(`Database save failed for ${artist.name}: ${err.message}`));
+        } catch (e) {
+          // Ignore any errors in the background save
+          console.log(`Error in background save for artist ${artist.name}`);
+        }
+      });
+    }, 0);
     
     return artists;
   } catch (error) {
     console.error("Ticketmaster featured artists error:", error);
+    handleError({
+      message: "Failed to fetch featured artists",
+      source: ErrorSource.API,
+      originalError: error
+    });
     return [];
   }
 }

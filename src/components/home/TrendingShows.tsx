@@ -11,35 +11,45 @@ const TrendingShows = () => {
   const { data: showsData = [], isLoading, error } = useQuery({
     queryKey: ['trendingShows'],
     queryFn: () => fetchFeaturedShows(8), // Fetch more to ensure we have enough after filtering
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    retry: 2,
   });
 
   // Format date helper function
   const formatDate = (dateString: string) => {
     try {
       const date = new Date(dateString);
+      if (isNaN(date.getTime())) {
+        throw new Error("Invalid date");
+      }
       return {
         day: date.getDate(),
         month: date.toLocaleDateString('en-US', { month: 'short' }),
         year: date.getFullYear()
       };
     } catch (error) {
+      console.warn("Date formatting error:", error, dateString);
       return { day: "TBA", month: "", year: "" };
     }
   };
 
   // Ensure unique shows by ID and only use the top 4
   const uniqueShows = React.useMemo(() => {
+    if (!showsData || !Array.isArray(showsData) || showsData.length === 0) {
+      return [];
+    }
+    
     const uniqueMap = new Map();
     
     showsData.forEach(show => {
-      if (!uniqueMap.has(show.id) && show.artist?.popularity >= 60) {
+      if (!uniqueMap.has(show.id)) {
         uniqueMap.set(show.id, show);
       }
     });
 
     // Sort by popularity (descending)
     return Array.from(uniqueMap.values())
-      .sort((a, b) => (b.artist?.popularity || 0) - (a.artist?.popularity || 0))
+      .sort((a, b) => (b.popularity || 0) - (a.popularity || 0))
       .slice(0, 4);
   }, [showsData]);
 
@@ -48,15 +58,17 @@ const TrendingShows = () => {
     return Math.floor(Math.random() * 3000) + 500;
   };
 
-  // Generate star rating element
-  const renderStarRating = (rating = 5) => {
-    return (
-      <div className="flex items-center">
-        {Array(rating).fill(0).map((_, i) => (
-          <Star key={i} size={14} className="fill-white text-white" />
-        ))}
-      </div>
-    );
+  // Determine show genre
+  const getShowGenre = (show: any) => {
+    if (!show) return 'Pop';
+    
+    if (show.artist?.genres && show.artist.genres.length > 0) {
+      return show.artist.genres[0];
+    }
+    
+    // Assign a random genre for demo purposes if none exists
+    const genres = ['Pop', 'Rock', 'Hip-hop', 'Latin', 'R&B', 'Country', 'Electronic'];
+    return genres[Math.floor(Math.random() * genres.length)];
   };
 
   return (
@@ -105,6 +117,7 @@ const TrendingShows = () => {
             {uniqueShows.map((show) => {
               const formattedDate = formatDate(show.date);
               const votes = getRandomVotes();
+              const genre = getShowGenre(show);
               
               return (
                 <Link 
@@ -127,11 +140,15 @@ const TrendingShows = () => {
                     <Badge 
                       className="absolute top-3 right-3 bg-black/60 hover:bg-black/60 text-white"
                     >
-                      {show.genre || show.artist?.genres?.[0] || 'Pop'}
+                      {genre}
                     </Badge>
                     <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black to-transparent pt-16 pb-4 px-4">
                       <div className="flex justify-between items-center">
-                        <div>{renderStarRating()}</div>
+                        <div className="flex">
+                          {[...Array(5)].map((_, i) => (
+                            <Star key={i} size={14} className="fill-white text-white" />
+                          ))}
+                        </div>
                         <span className="text-white font-medium text-sm">{votes}</span>
                       </div>
                     </div>
