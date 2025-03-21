@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Music } from 'lucide-react';
+import { Music, CalendarDays } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface Artist {
@@ -16,20 +16,24 @@ interface ArtistSearchResultsProps {
   isLoading: boolean;
   onSelect?: (artist: Artist) => void;
   className?: string;
+  simplified?: boolean;
 }
 
 const ArtistSearchResults = ({ 
   artists, 
   isLoading, 
   onSelect,
-  className 
+  className,
+  simplified = false
 }: ArtistSearchResultsProps) => {
   if (isLoading) {
     return (
       <div className={cn("py-1 bg-background border border-border rounded-lg shadow-lg", className)}>
         {[...Array(3)].map((_, i) => (
           <div key={i} className="flex items-center gap-3 px-3 py-2">
-            <div className="w-10 h-10 rounded-md bg-secondary animate-pulse"></div>
+            {!simplified && (
+              <div className="w-10 h-10 rounded-md bg-secondary animate-pulse"></div>
+            )}
             <div className="flex-1">
               <div className="h-4 w-24 bg-secondary rounded animate-pulse"></div>
               <div className="h-3 w-16 bg-secondary rounded mt-1 animate-pulse"></div>
@@ -50,6 +54,27 @@ const ArtistSearchResults = ({
       onSelect(artist);
     }
   };
+
+  if (simplified) {
+    return (
+      <div className={cn("py-1 bg-background border border-border rounded-lg shadow-lg divide-y divide-border", className)}>
+        {artists.map((artist) => (
+          <Link
+            key={artist.id}
+            to={`/artists/${artist.id}`}
+            className="flex items-center justify-between px-4 py-2.5 hover:bg-secondary/80 transition-colors"
+            onClick={() => handleSelect(artist)}
+          >
+            <div className="font-medium">{artist.name}</div>
+            <div className="text-xs flex items-center text-muted-foreground">
+              <CalendarDays size={12} className="mr-1" />
+              {artist.upcomingShows} {artist.upcomingShows === 1 ? 'show' : 'shows'}
+            </div>
+          </Link>
+        ))}
+      </div>
+    );
+  }
 
   return (
     <div className={cn("py-1 bg-background border border-border rounded-lg shadow-lg divide-y divide-border", className)}>

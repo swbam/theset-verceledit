@@ -1,16 +1,20 @@
 
 import React, { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Music, CalendarDays } from 'lucide-react';
 import { searchArtistsWithEvents } from '@/lib/api/artist';
-import ArtistCard from '@/components/artist/ArtistCard';
 
 interface ArtistSearchResultsProps {
   query: string;
   onSelect?: (artist: any) => void;
+  simplified?: boolean;
 }
 
-const ArtistSearchResults: React.FC<ArtistSearchResultsProps> = ({ query, onSelect }) => {
+const ArtistSearchResults: React.FC<ArtistSearchResultsProps> = ({ 
+  query, 
+  onSelect,
+  simplified = false
+}) => {
   const [debouncedQuery, setDebouncedQuery] = useState(query);
   
   // Implement proper debounce with useCallback and useEffect
@@ -45,8 +49,8 @@ const ArtistSearchResults: React.FC<ArtistSearchResultsProps> = ({ query, onSele
   // Early return for empty queries
   if (debouncedQuery.length < 2) {
     return (
-      <div className="text-center py-8">
-        <p className="text-muted-foreground">Type at least 2 characters to search</p>
+      <div className="text-center py-4">
+        <p className="text-muted-foreground text-sm">Type at least 2 characters to search</p>
       </div>
     );
   }
@@ -54,9 +58,9 @@ const ArtistSearchResults: React.FC<ArtistSearchResultsProps> = ({ query, onSele
   // Loading state
   if (isLoading) {
     return (
-      <div className="text-center py-16">
-        <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
-        <p className="text-muted-foreground">Searching for artists...</p>
+      <div className="text-center py-6">
+        <Loader2 className="h-5 w-5 animate-spin mx-auto mb-2" />
+        <p className="text-muted-foreground text-sm">Searching for artists...</p>
       </div>
     );
   }
@@ -64,9 +68,9 @@ const ArtistSearchResults: React.FC<ArtistSearchResultsProps> = ({ query, onSele
   // Error state
   if (isError) {
     return (
-      <div className="text-center py-12">
-        <p className="text-destructive mb-2">Error searching for artists</p>
-        <p className="text-muted-foreground text-sm">{error instanceof Error ? error.message : 'An unknown error occurred'}</p>
+      <div className="text-center py-4">
+        <p className="text-destructive text-sm mb-1">Error searching for artists</p>
+        <p className="text-muted-foreground text-xs">{error instanceof Error ? error.message : 'An unknown error occurred'}</p>
       </div>
     );
   }
@@ -74,16 +78,41 @@ const ArtistSearchResults: React.FC<ArtistSearchResultsProps> = ({ query, onSele
   // No results
   if (artists.length === 0) {
     return (
-      <div className="text-center py-12">
-        <p className="font-medium mb-2">No artists found</p>
-        <p className="text-muted-foreground text-sm">
+      <div className="text-center py-6">
+        <p className="font-medium text-sm mb-1">No artists found</p>
+        <p className="text-muted-foreground text-xs">
           Try searching for another artist who has upcoming shows
         </p>
       </div>
     );
   }
 
-  // Results
+  // Simplified results for homepage search (no images, compact layout)
+  if (simplified) {
+    return (
+      <div className="py-1">
+        {artists.slice(0, 8).map((artist) => (
+          <div
+            key={artist.id}
+            onClick={() => onSelect && onSelect(artist)}
+            className="px-4 py-2.5 hover:bg-secondary/80 cursor-pointer transition-colors"
+          >
+            <div className="flex items-center justify-between">
+              <div className="font-medium">{artist.name}</div>
+              {typeof artist.upcomingShows === 'number' && (
+                <div className="text-xs flex items-center text-muted-foreground">
+                  <CalendarDays size={12} className="mr-1" />
+                  {artist.upcomingShows} {artist.upcomingShows === 1 ? 'show' : 'shows'}
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  // Regular grid results for search page
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
       {artists.map((artist) => (

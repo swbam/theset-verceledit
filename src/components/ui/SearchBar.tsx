@@ -13,6 +13,7 @@ interface SearchBarProps {
   children?: ReactNode;
   disableRedirect?: boolean;
   autoFocus?: boolean;
+  simplified?: boolean;
 }
 
 const SearchBar: React.FC<SearchBarProps> = ({
@@ -23,7 +24,8 @@ const SearchBar: React.FC<SearchBarProps> = ({
   className = "",
   children,
   disableRedirect = false,
-  autoFocus = false
+  autoFocus = false,
+  simplified = false
 }) => {
   const [query, setQuery] = useState(value || '');
   const [showResults, setShowResults] = useState(false);
@@ -119,7 +121,7 @@ const SearchBar: React.FC<SearchBarProps> = ({
       </div>
       
       {children && showResults && (
-        <div className="absolute w-full z-50 mt-1 max-h-[70vh] overflow-hidden">
+        <div className={`absolute w-full z-50 mt-1 max-h-[70vh] overflow-hidden ${simplified ? 'bg-[#0A0A10]/95 border border-white/10 rounded-md shadow-lg' : ''}`}>
           {children}
         </div>
       )}

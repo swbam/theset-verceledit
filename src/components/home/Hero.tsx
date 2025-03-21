@@ -76,8 +76,9 @@ const Hero = () => {
           {shouldFetch && searchQuery && (
             <div className="absolute w-full z-50 mt-1 bg-[#0A0A10]/95 border border-white/10 rounded-md shadow-lg max-h-[70vh] overflow-auto">
               <ArtistSearchResults 
-                query={debouncedQuery} 
-                onSelect={handleArtistSelect} 
+                query={debouncedQuery}
+                onSelect={handleArtistSelect}
+                simplified={true}
               />
             </div>
           )}
