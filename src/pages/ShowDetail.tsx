@@ -1,5 +1,5 @@
 
-import React, { useEffect } from 'react';
+import React, { useEffect, Suspense } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import Navbar from '@/components/layout/Navbar';
@@ -59,34 +59,6 @@ const ShowDetail = () => {
   // Show loading state while fetching show details
   if (loading.show && !show) {
     return <ShowDetailSkeleton />;
-  }
-  
-  // Show partial content while fetching additional data
-  if (loading.tracks && !setlist?.length) {
-    return (
-      <div className="min-h-screen flex flex-col bg-black">
-        <Navbar />
-        {show && <main className="flex-grow">
-          <ShowHeader show={show} />
-          <SetlistSection 
-            setlist={[]}
-            isConnected={connected}
-            isLoadingTracks={loading.tracks}
-            handleVote={songManagement.handleVote}
-            showId={id || ''}
-            showName={show.name || ''}
-            artistName={show.artist?.name || 'Artist'}
-            availableTracks={[]}
-            isLoadingAllTracks={loading.allTracks}
-            selectedTrack={songManagement.selectedTrack}
-            setSelectedTrack={songManagement.setSelectedTrack}
-            handleAddSong={songManagement.handleAddSong}
-            anonymousVoteCount={songManagement.anonymousVoteCount}
-          />
-        </main>}
-        <Footer />
-      </div>
-    );
   }
   
   // Handle error states with fallback UI

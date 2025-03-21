@@ -12,7 +12,7 @@ export function useShowDetail(id: string | undefined) {
   });
   const { isAuthenticated, login } = useAuth();
   
-  // Get show details and Spotify artist ID
+  // Get show details immediately
   const { 
     show, 
     isLoadingShow, 
@@ -48,8 +48,13 @@ export function useShowDetail(id: string | undefined) {
     }
   }, [show, isLoadingShow]);
   
-  // Get artist tracks with better optimized caching
-  const artistTracksResponse = useArtistTracks(show?.artist_id, spotifyArtistId);
+  // Get artist tracks with better optimized loading (lazy load this data)
+  const artistTracksResponse = useArtistTracks(
+    show?.artist_id, 
+    spotifyArtistId,
+    // Limit immediate loading to just what we need initially
+    { immediate: false }
+  );
   
   // Extract all needed properties with defaults to avoid undefined errors
   const {

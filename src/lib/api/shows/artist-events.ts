@@ -11,8 +11,6 @@ export async function fetchArtistEvents(artistIdentifier: string): Promise<any[]
     console.log(`Fetching events for artist ID: ${artistIdentifier}`);
     
     // Skip database check and go straight to API
-    // since we're encountering permission errors
-    
     // Determine search parameter based on ID format
     let searchParam: any = {};
     

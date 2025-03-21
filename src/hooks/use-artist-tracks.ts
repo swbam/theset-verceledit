@@ -4,7 +4,11 @@ import { toast } from 'sonner';
 import { getArtistAllTracks } from '@/lib/spotify';
 import { getStoredTracksForArtist, updateArtistStoredTracks, fetchAndStoreArtistTracks } from '@/lib/api/database';
 
-export function useArtistTracks(artistId: string | undefined, spotifyArtistId: string | undefined) {
+export function useArtistTracks(
+  artistId: string | undefined, 
+  spotifyArtistId: string | undefined,
+  options: { immediate?: boolean } = { immediate: true }
+) {
   const { 
     data,
     isLoading,
@@ -25,7 +29,7 @@ export function useArtistTracks(artistId: string | undefined, spotifyArtistId: s
           if (storedTracks && storedTracks.length > 0) {
             return { 
               tracks: storedTracks,
-              initialSongs: storedTracks,
+              initialSongs: storedTracks.slice(0, 10), // Only return top 10 for initial setlist
               storedTracksData: storedTracks,
               getAvailableTracks: (setlist: any[]) => {
                 const setlistIds = new Set(setlist.map(song => song.id));
@@ -43,7 +47,7 @@ export function useArtistTracks(artistId: string | undefined, spotifyArtistId: s
             if (tracks && tracks.length > 0) {
               return { 
                 tracks,
-                initialSongs: tracks,
+                initialSongs: tracks.slice(0, 10), // Only use top 10 tracks initially
                 storedTracksData: tracks,
                 getAvailableTracks: (setlist: any[]) => {
                   const setlistIds = new Set(setlist.map(song => song.id));
@@ -65,7 +69,7 @@ export function useArtistTracks(artistId: string | undefined, spotifyArtistId: s
           
           return {
             ...result,
-            initialSongs: result.tracks,
+            initialSongs: result.tracks.slice(0, 10), // Only use top 10 tracks initially
             isLoadingTracks: false,
             isLoadingAllTracks: false,
             allTracksData: result,
@@ -99,7 +103,7 @@ export function useArtistTracks(artistId: string | undefined, spotifyArtistId: s
         };
       }
     },
-    enabled: !!(artistId || spotifyArtistId),
+    enabled: !!(artistId || spotifyArtistId) && options.immediate !== false,
     staleTime: 1000 * 60 * 60, // 1 hour - tracks don't change often
     gcTime: 1000 * 60 * 120,   // 2 hours
   });
