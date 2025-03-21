@@ -8,6 +8,7 @@ export interface UserProfile {
   avatar_url?: string;
   provider?: string;
   provider_id?: string;
+  is_admin?: boolean;
   created_at?: string;
   updated_at?: string;
 }
