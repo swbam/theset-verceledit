@@ -130,11 +130,34 @@ export async function fetchShowDetails(eventId: string): Promise<any> {
       console.log(`Saved venue from show details: ${venue.name}`, savedVenue ? "Success" : "Failed");
     }
     
+    // Process and validate date
+    let formattedDate = null;
+    if (event.dates?.start?.dateTime) {
+      try {
+        // Validate the date string from Ticketmaster
+        const dateObject = new Date(event.dates.start.dateTime);
+        if (!isNaN(dateObject.getTime())) {
+          formattedDate = dateObject.toISOString();
+        } else {
+          console.error('Invalid date from Ticketmaster:', event.dates.start.dateTime);
+          // Fallback to localDate if available
+          if (event.dates.start.localDate) {
+            const localDate = new Date(event.dates.start.localDate);
+            if (!isNaN(localDate.getTime())) {
+              formattedDate = localDate.toISOString();
+            }
+          }
+        }
+      } catch (dateError) {
+        console.error('Error processing show date:', dateError);
+      }
+    }
+    
     // Create show object
     const show = {
       id: event.id,
       name: event.name,
-      date: event.dates.start.dateTime,
+      date: formattedDate,
       artist: artistData,
       venue: venue,
       ticket_url: event.url,

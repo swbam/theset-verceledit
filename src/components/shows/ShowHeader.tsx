@@ -24,17 +24,31 @@ interface ShowHeaderProps {
 }
 
 const ShowHeader: React.FC<ShowHeaderProps> = ({ show }) => {
-  // Format date for display
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return new Intl.DateTimeFormat('en-US', {
-      weekday: 'long',
-      month: 'long', 
-      day: 'numeric',
-      year: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit'
-    }).format(date);
+  // Format date for display with proper error handling
+  const formatDate = (dateString: string | null | undefined) => {
+    if (!dateString) return 'Date TBD';
+    
+    try {
+      const date = new Date(dateString);
+      
+      // Check if date is valid before formatting
+      if (isNaN(date.getTime())) {
+        console.error('Invalid date value:', dateString);
+        return 'Date TBD';
+      }
+      
+      return new Intl.DateTimeFormat('en-US', {
+        weekday: 'long',
+        month: 'long', 
+        day: 'numeric',
+        year: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit'
+      }).format(date);
+    } catch (error) {
+      console.error('Error formatting date:', error, dateString);
+      return 'Date TBD';
+    }
   };
 
   // Format the show name to remove artist name and delivery info
@@ -87,7 +101,7 @@ const ShowHeader: React.FC<ShowHeaderProps> = ({ show }) => {
           
           <div className="mb-3">
             <span className="inline-block bg-white/20 text-white text-xs px-3 py-1 rounded-full">
-              {new Date(show.date) > new Date() ? 'Upcoming' : 'Past'}
+              {show.date && new Date(show.date) > new Date() ? 'Upcoming' : 'Past'}
             </span>
           </div>
           

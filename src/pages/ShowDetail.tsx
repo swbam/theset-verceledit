@@ -29,7 +29,7 @@ const ShowDetail = () => {
     documentMetadata
   } = useShowDetail(id);
 
-  // Set document metadata
+  // Set document metadata with error handling
   useEffect(() => {
     if (documentMetadata.title) {
       document.title = documentMetadata.title;

@@ -24,27 +24,48 @@ export function useShowDetail(id: string | undefined) {
   // Set document metadata when show data is available
   useEffect(() => {
     if (show && !isLoadingShow) {
-      const artistName = show.artist?.name || 'Artist';
-      const venueName = show.venue?.name || 'Venue';
-      const venueCity = show.venue?.city || '';
-      const venueState = show.venue?.state || '';
-      const venueLocation = venueCity && venueState ? `${venueCity}, ${venueState}` : (venueCity || venueState || 'Location');
-      
-      const showDate = new Date(show.date);
-      const formattedDate = showDate.toLocaleDateString('en-US', {
-        weekday: 'short',
-        month: 'short', 
-        day: 'numeric', 
-        year: 'numeric'
-      });
-      
-      const title = `TheSet | ${artistName} at ${venueName} in ${venueLocation} | ${formattedDate}`;
-      const description = `Vote on ${artistName}'s setlist for their show at ${venueName} in ${venueLocation} on ${formattedDate}. Influence what songs they'll play live!`;
-      
-      setDocumentMetadata({
-        title,
-        description
-      });
+      try {
+        const artistName = show.artist?.name || 'Artist';
+        const venueName = show.venue?.name || 'Venue';
+        const venueCity = show.venue?.city || '';
+        const venueState = show.venue?.state || '';
+        const venueLocation = venueCity && venueState ? `${venueCity}, ${venueState}` : (venueCity || venueState || 'Location');
+        
+        let formattedDate = 'TBD';
+        
+        // Safely format the date
+        if (show.date) {
+          try {
+            const showDate = new Date(show.date);
+            
+            // Check if date is valid
+            if (!isNaN(showDate.getTime())) {
+              formattedDate = showDate.toLocaleDateString('en-US', {
+                weekday: 'short',
+                month: 'short', 
+                day: 'numeric', 
+                year: 'numeric'
+              });
+            }
+          } catch (dateError) {
+            console.error('Error formatting show date:', dateError);
+          }
+        }
+        
+        const title = `TheSet | ${artistName} at ${venueName} in ${venueLocation} | ${formattedDate}`;
+        const description = `Vote on ${artistName}'s setlist for their show at ${venueName} in ${venueLocation} on ${formattedDate}. Influence what songs they'll play live!`;
+        
+        setDocumentMetadata({
+          title,
+          description
+        });
+      } catch (error) {
+        console.error('Error setting document metadata:', error);
+        setDocumentMetadata({
+          title: 'Show Details | TheSet',
+          description: 'Vote on setlists for upcoming concerts and shows on TheSet.'
+        });
+      }
     }
   }, [show, isLoadingShow]);
   
