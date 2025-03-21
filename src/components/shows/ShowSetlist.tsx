@@ -1,5 +1,5 @@
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { PlusCircle, RefreshCw, Music } from 'lucide-react';
 import { toast } from 'sonner';
 import VotableSetlistTable from '@/components/setlist/VotableSetlistTable';
@@ -49,16 +49,12 @@ const ShowSetlist = ({
   login,
   anonymousVoteCount = 0
 }: ShowSetlistProps) => {
-  // Log for debugging
+  // Optimize rendering with proper memoization
   useEffect(() => {
-    console.log("ShowSetlist component mounted");
-    console.log("Available tracks:", availableTracks?.length || 0);
-    console.log("Is loading tracks:", isLoadingAllTracks);
-    console.log("Current setlist size:", setlist?.length || 0);
-  }, [availableTracks, isLoadingAllTracks, setlist]);
+    console.log("ShowSetlist component mounted with setlist size:", setlist?.length || 0);
+  }, []);
   
   const handleTrackSelect = (value: string) => {
-    console.log("Track selected:", value);
     setSelectedTrack(value);
   };
   
@@ -72,17 +68,17 @@ const ShowSetlist = ({
     
     // Call the handleAddSong function from the parent component
     handleAddSong();
-    console.log("Add song triggered with track:", selectedTrack);
   };
   
-  // Truncate long song names
-  const truncateSongName = (name: string, maxLength = 50) => {
-    return name.length > maxLength ? `${name.substring(0, maxLength)}...` : name;
-  };
+  // Truncate long song names - memoized
+  const truncateSongName = useMemo(() => {
+    return (name: string, maxLength = 50) => {
+      return name.length > maxLength ? `${name.substring(0, maxLength)}...` : name;
+    };
+  }, []);
   
-  // Sort tracks alphabetically by name and filter duplicates
-  const sortedTracks = React.useMemo(() => {
-    console.log(`Sorting available tracks: ${availableTracks?.length || 0}`);
+  // Sort tracks alphabetically by name and filter duplicates - memoized
+  const sortedTracks = useMemo(() => {
     if (!availableTracks || !Array.isArray(availableTracks)) return [];
     
     // Filter out duplicates by name (case-insensitive)
@@ -173,4 +169,5 @@ const ShowSetlist = ({
   );
 };
 
-export default ShowSetlist;
+// Use React.memo to prevent unnecessary re-renders
+export default React.memo(ShowSetlist);

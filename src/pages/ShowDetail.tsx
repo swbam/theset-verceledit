@@ -45,7 +45,6 @@ const ShowDetail = () => {
   useEffect(() => {
     if (!loading.show && error.show) {
       console.error("Show detail error:", error.show);
-      toast.error("Could not find show details. Returning to shows page.");
       
       // Add a small delay before navigating to allow the toast to be seen
       const timer = setTimeout(() => {
@@ -65,10 +64,6 @@ const ShowDetail = () => {
   if (error.show || !show) {
     return <ShowNotFound />;
   }
-  
-  // Log data for debugging
-  console.log("Available tracks:", availableTracks?.length || 0);
-  console.log("Current setlist:", setlist?.length || 0);
   
   return (
     <div className="min-h-screen flex flex-col bg-black">

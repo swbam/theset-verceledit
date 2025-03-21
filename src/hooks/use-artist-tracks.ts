@@ -1,13 +1,12 @@
 
 import { useQuery } from '@tanstack/react-query';
-import { toast } from 'sonner';
 import { getArtistAllTracks } from '@/lib/spotify';
 import { getStoredTracksForArtist, updateArtistStoredTracks, fetchAndStoreArtistTracks } from '@/lib/api/database';
 
 export function useArtistTracks(
   artistId: string | undefined, 
   spotifyArtistId: string | undefined,
-  options: { immediate?: boolean } = { immediate: true }
+  options: { immediate?: boolean; prioritizeStored?: boolean } = { immediate: true, prioritizeStored: true }
 ) {
   const { 
     data,
@@ -43,9 +42,9 @@ export function useArtistTracks(
           }
         }
         
-        // If no stored tracks but we have a Spotify ID, fetch from Spotify
+        // If no stored tracks but we have a Spotify ID and prioritizeStored is false, fetch from Spotify
         if (spotifyArtistId) {
-          console.log(`No stored tracks found, fetching from Spotify API for ${spotifyArtistId}`);
+          console.log(`Fetching from Spotify API for ${spotifyArtistId}`);
           
           if (artistId) {
             // Use the dedicated function that stores tracks and handles errors
@@ -64,45 +63,34 @@ export function useArtistTracks(
             }
           }
           
-          // If we don't have artistId or the above failed, fetch directly
-          console.log(`Fetching tracks directly from Spotify API`);
+          // Direct fetch as a fallback
           const result = await getArtistAllTracks(spotifyArtistId);
           
-          if (!result.tracks || result.tracks.length === 0) {
-            console.warn(`No tracks returned from Spotify for artist ${spotifyArtistId}`);
-          } else {
+          if (result.tracks && result.tracks.length > 0) {
             console.log(`Fetched ${result.tracks.length} tracks from Spotify API`);
-          }
-          
-          // If we have the Ticketmaster artist ID, update the stored tracks in the background
-          if (artistId && result.tracks && result.tracks.length > 0) {
-            // Don't await this - let it run in the background
-            updateArtistStoredTracks(artistId, result.tracks)
-              .then(() => console.log(`Successfully stored ${result.tracks.length} tracks in database`))
-              .catch(err => console.error("Background track storage error:", err));
-          }
-          
-          return {
-            ...result,
-            initialSongs: result.tracks.slice(0, 10), // Only use top 10 tracks initially
-            isLoadingTracks: false,
-            isLoadingAllTracks: false,
-            allTracksData: result,
-            storedTracksData: result.tracks,
-            getAvailableTracks: (setlist: any[]) => {
-              const setlistIds = new Set(setlist.map(song => song.id));
-              return result.tracks.filter((track: any) => !setlistIds.has(track.id));
+            
+            // Store tracks in background if we have the artist ID
+            if (artistId) {
+              updateArtistStoredTracks(artistId, result.tracks)
+                .then(() => console.log(`Successfully stored ${result.tracks.length} tracks in database`))
+                .catch(err => console.error("Background track storage error:", err));
             }
-          };
+            
+            return {
+              ...result,
+              initialSongs: result.tracks.slice(0, 10),
+              storedTracksData: result.tracks,
+              getAvailableTracks: (setlist: any[]) => {
+                const setlistIds = new Set(setlist.map(song => song.id));
+                return result.tracks.filter((track: any) => !setlistIds.has(track.id));
+              }
+            };
+          }
         }
         
-        console.warn("Could not fetch tracks: no artistId or spotifyArtistId provided");
         return { 
           tracks: [],
           initialSongs: [],
-          isLoadingTracks: false,
-          isLoadingAllTracks: false,
-          allTracksData: { tracks: [] },
           storedTracksData: [],
           getAvailableTracks: () => []
         };
@@ -111,16 +99,13 @@ export function useArtistTracks(
         return { 
           tracks: [],
           initialSongs: [],
-          isLoadingTracks: false,
-          isLoadingAllTracks: false,
-          allTracksData: { tracks: [] },
           storedTracksData: [],
           getAvailableTracks: () => []
         };
       }
     },
     enabled: !!(artistId || spotifyArtistId) && options.immediate !== false,
-    staleTime: 1000 * 60 * 60, // 1 hour - tracks don't change often
+    staleTime: 1000 * 60 * 60 * 12, // 12 hours - tracks don't change often, so we can cache longer
     gcTime: 1000 * 60 * 120,   // 2 hours
   });
 

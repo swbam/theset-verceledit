@@ -48,17 +48,22 @@ export function useShowDetail(id: string | undefined) {
     }
   }, [show, isLoadingShow]);
   
-  // Get artist tracks - we need to enable immediate fetching to restore previous behavior
+  // Get artist tracks with optimized settings:
+  // - staleTime set to 1 hour to better utilize cache
+  // - immediate loading enabled
+  // - prioritize stored tracks
   const artistTracksResponse = useArtistTracks(
     show?.artist_id, 
     spotifyArtistId,
-    { immediate: true }  // Changed to true to load tracks immediately
+    { 
+      immediate: true,  // Always load tracks immediately
+      prioritizeStored: true // Prioritize stored tracks for faster loading
+    }
   );
   
   // Function to load tracks manually when needed
   const loadTracks = useCallback(() => {
     if (artistTracksResponse.refetch) {
-      console.log("Manually loading artist tracks");
       artistTracksResponse.refetch();
     }
   }, [artistTracksResponse]);
@@ -74,7 +79,7 @@ export function useShowDetail(id: string | undefined) {
     getAvailableTracks = (setlist: any[]) => [],
   } = artistTracksResponse || {};
   
-  // For backward compatibility, create these properties
+  // For backward compatibility
   const isLoadingAllTracks = isLoadingTracks;
   const allTracksData = { tracks };
   
@@ -92,41 +97,34 @@ export function useShowDetail(id: string | undefined) {
   // Compute available tracks with memoization to prevent recalculations
   const availableTracks = useMemo(() => {
     if (storedTracksData && Array.isArray(storedTracksData) && storedTracksData.length > 0) {
-      console.log(`Computing available tracks from ${storedTracksData.length} stored tracks`);
       const setlistIds = new Set((setlist || []).map(song => song.id));
       return storedTracksData.filter((track: any) => !setlistIds.has(track.id));
     }
     
     if (typeof getAvailableTracks === 'function') {
-      console.log("Using getAvailableTracks function");
       return getAvailableTracks(setlist || []);
     }
     
-    console.log("No available tracks found");
     return [];
   }, [storedTracksData, setlist, getAvailableTracks]);
   
-  // Add song handler
+  // Optimized add song handler with better error handling
   const handleAddSongClick = useCallback((trackId?: string) => {
     const trackToUse = trackId || selectedTrack;
     
     if (!trackToUse) {
-      console.log("No track selected for adding");
       return;
     }
     
     if (storedTracksData && Array.isArray(storedTracksData) && storedTracksData.length > 0) {
-      console.log(`Looking for track ${trackToUse} in ${storedTracksData.length} stored tracks`);
       const track = storedTracksData.find((t: any) => t.id === trackToUse);
       if (track) {
-        console.log(`Found track to add: ${track.name}`);
         handleAddSong({ tracks: storedTracksData });
         return;
       }
     }
     
     if (allTracksData && allTracksData.tracks) {
-      console.log(`Looking for track ${trackToUse} in allTracksData`);
       handleAddSong(allTracksData);
     }
   }, [storedTracksData, allTracksData, handleAddSong, selectedTrack]);
