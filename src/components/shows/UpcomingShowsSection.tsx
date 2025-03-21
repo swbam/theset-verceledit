@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -6,7 +5,6 @@ import { ArrowRight, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import ShowCard from '@/components/shows/ShowCard';
 import { fetchShowsByGenre, popularMusicGenres } from '@/lib/ticketmaster';
-import { toast } from 'sonner';
 
 interface UpcomingShowsSectionProps {
   searchQuery: string;
@@ -49,7 +47,6 @@ const UpcomingShowsSection = ({
         }
       } catch (error) {
         console.error("Error fetching shows:", error);
-        toast.error("Failed to load shows");
         return [];
       }
     }

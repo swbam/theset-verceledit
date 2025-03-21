@@ -3,7 +3,6 @@ import { useQuery } from '@tanstack/react-query';
 import { useDocumentTitle } from '@/hooks/use-document-title';
 import { fetchArtistById } from '@/lib/api/artist';
 import { fetchArtistEvents } from '@/lib/ticketmaster';
-import { toast } from 'sonner';
 
 export function useArtistDetail(id: string | undefined) {
   // Fetch artist details with improved error handling
@@ -19,7 +18,7 @@ export function useArtistDetail(id: string | undefined) {
         return artistData;
       } catch (error) {
         console.error("Error fetching artist:", error);
-        toast.error("Could not load artist details");
+        // Removed toast.error notification
         throw error;
       }
     },
@@ -42,7 +41,7 @@ export function useArtistDetail(id: string | undefined) {
         return await fetchArtistEvents(id as string);
       } catch (error) {
         console.error("Error fetching shows:", error);
-        toast.error("Could not load upcoming shows");
+        // Removed toast.error notification
         return [];
       }
     },

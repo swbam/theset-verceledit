@@ -1,5 +1,3 @@
-
-import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { callTicketmasterApi } from "../ticketmaster-config";
 import { saveArtistToDatabase } from "../database";
@@ -101,7 +99,6 @@ export async function fetchFeaturedArtists(limit = 4): Promise<any[]> {
     return artists;
   } catch (error) {
     console.error("Ticketmaster featured artists error:", error);
-    toast.error("Failed to load featured artists");
     return [];
   }
 }

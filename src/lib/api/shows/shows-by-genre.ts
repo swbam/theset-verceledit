@@ -1,5 +1,3 @@
-
-import { toast } from "sonner";
 import { callTicketmasterApi } from "../ticketmaster-config";
 import { supabase } from "@/integrations/supabase/client";
 import { saveArtistToDatabase, saveShowToDatabase, saveVenueToDatabase } from "../database-utils";
@@ -150,7 +148,6 @@ export async function fetchShowsByGenre(genreId: string, limit = 8): Promise<any
     return shows;
   } catch (error) {
     console.error("Ticketmaster events by genre error:", error);
-    toast.error("Failed to load shows for this genre");
     return [];
   }
 }

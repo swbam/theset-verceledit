@@ -5,12 +5,12 @@ import { Loader2, RefreshCw, AlertTriangle } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { getMyTopArtists } from '@/lib/spotify';
-import ArtistCard from '@/components/artist/ArtistCard'; // Fixed path: artist instead of artists
+import ArtistCard from '@/components/artist/ArtistCard';
 import { Button } from '@/components/ui/button';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
 import { useAuth } from '@/contexts/auth/AuthContext';
-import { supabase } from '@/integrations/supabase/client'; // Added missing import
+import { supabase } from '@/integrations/supabase/client';
 
 const MyArtists = () => {
   const navigate = useNavigate();
