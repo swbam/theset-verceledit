@@ -1,32 +1,48 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { useQuery } from '@tanstack/react-query';
 import { Input } from '@/components/ui/input';
+import { searchArtistsWithEvents } from '@/lib/api/artist';
+import ArtistSearchResults from '@/components/artists/ArtistSearchResults';
 
 const Hero = () => {
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
   const navigate = useNavigate();
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (searchQuery.trim()) {
-      navigate(`/search?q=${encodeURIComponent(searchQuery)}`);
-    }
+  // Debounce search query
+  useEffect(() => {
+    const timerId = setTimeout(() => {
+      setDebouncedQuery(searchQuery);
+    }, 300);
+    
+    return () => {
+      clearTimeout(timerId);
+    };
+  }, [searchQuery]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchQuery(e.target.value);
   };
 
-  const handlePopularSearch = (query: string) => {
-    navigate(`/search?q=${encodeURIComponent(query)}`);
+  const handleArtistSelect = (artist: any) => {
+    navigate(`/artists/${artist.id}`);
   };
 
-  // Popular search terms from the design
-  const popularSearches = [
-    { name: "Taylor Swift", path: "Taylor Swift" },
-    { name: "Coldplay", path: "Coldplay" },
-    { name: "Bad Bunny", path: "Bad Bunny" },
-    { name: "New York", path: "New York" }
-  ];
+  // Only query when we have at least 2 characters
+  const shouldFetch = debouncedQuery.length > 1;
+
+  const { 
+    data: artists = [], 
+    isLoading 
+  } = useQuery({
+    queryKey: ['artistSearch', debouncedQuery],
+    queryFn: () => searchArtistsWithEvents(debouncedQuery),
+    enabled: shouldFetch,
+    staleTime: 1000 * 60 * 5, // 5 minutes
+  });
 
   return (
     <section className="relative bg-gradient-to-b from-black to-[#0A0A10] text-white py-16 md:py-20">
@@ -42,7 +58,7 @@ const Hero = () => {
           </p>
         </div>
 
-        <form onSubmit={handleSearch} className="max-w-xl mx-auto mb-8">
+        <div className="max-w-xl mx-auto mb-8 relative">
           <div className="relative">
             <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
               <Search className="h-5 w-5 text-white/60" />
@@ -51,24 +67,20 @@ const Hero = () => {
               type="text"
               placeholder="Search for artists, venues, or cities..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={handleChange}
               className="pl-10 py-6 h-12 bg-white/10 border-white/10 text-white placeholder:text-white/60 rounded-md w-full focus-visible:ring-white/30"
             />
           </div>
-        </form>
-
-        <div className="flex flex-wrap justify-center gap-2 mt-4">
-          {popularSearches.map((search) => (
-            <Button
-              key={search.name}
-              variant="secondary"
-              size="sm"
-              className="bg-white/10 hover:bg-white/20 border border-white/20 text-white rounded-full px-4 py-1"
-              onClick={() => handlePopularSearch(search.path)}
-            >
-              {search.name}
-            </Button>
-          ))}
+          
+          {/* Display search results */}
+          {shouldFetch && searchQuery && (
+            <div className="absolute w-full z-50 mt-1 bg-[#0A0A10]/95 border border-white/10 rounded-md shadow-lg max-h-[70vh] overflow-auto">
+              <ArtistSearchResults 
+                query={debouncedQuery} 
+                onSelect={handleArtistSelect} 
+              />
+            </div>
+          )}
         </div>
       </div>
     </section>
