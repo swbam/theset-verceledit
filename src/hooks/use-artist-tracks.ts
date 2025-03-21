@@ -13,7 +13,8 @@ export function useArtistTracks(
     data,
     isLoading,
     error,
-    isError
+    isError,
+    refetch
   } = useQuery({
     queryKey: ['artistTracks', artistId, spotifyArtistId],
     queryFn: async () => {
@@ -22,11 +23,14 @@ export function useArtistTracks(
       }
 
       try {
-        // First check if we have stored tracks for this artist
+        console.log(`Fetching tracks for artist: ${artistId || spotifyArtistId}`);
+        
+        // First check if we have stored tracks for this artist in database
         if (artistId) {
           const storedTracks = await getStoredTracksForArtist(artistId);
           
           if (storedTracks && storedTracks.length > 0) {
+            console.log(`Using ${storedTracks.length} stored tracks from database for ${artistId}`);
             return { 
               tracks: storedTracks,
               initialSongs: storedTracks.slice(0, 10), // Only return top 10 for initial setlist
@@ -41,10 +45,13 @@ export function useArtistTracks(
         
         // If no stored tracks but we have a Spotify ID, fetch from Spotify
         if (spotifyArtistId) {
+          console.log(`No stored tracks found, fetching from Spotify API for ${spotifyArtistId}`);
+          
           if (artistId) {
             // Use the dedicated function that stores tracks and handles errors
             const tracks = await fetchAndStoreArtistTracks(artistId, spotifyArtistId, "Unknown Artist");
             if (tracks && tracks.length > 0) {
+              console.log(`Successfully fetched and stored ${tracks.length} tracks from Spotify`);
               return { 
                 tracks,
                 initialSongs: tracks.slice(0, 10), // Only use top 10 tracks initially
@@ -58,12 +65,20 @@ export function useArtistTracks(
           }
           
           // If we don't have artistId or the above failed, fetch directly
+          console.log(`Fetching tracks directly from Spotify API`);
           const result = await getArtistAllTracks(spotifyArtistId);
+          
+          if (!result.tracks || result.tracks.length === 0) {
+            console.warn(`No tracks returned from Spotify for artist ${spotifyArtistId}`);
+          } else {
+            console.log(`Fetched ${result.tracks.length} tracks from Spotify API`);
+          }
           
           // If we have the Ticketmaster artist ID, update the stored tracks in the background
           if (artistId && result.tracks && result.tracks.length > 0) {
             // Don't await this - let it run in the background
             updateArtistStoredTracks(artistId, result.tracks)
+              .then(() => console.log(`Successfully stored ${result.tracks.length} tracks in database`))
               .catch(err => console.error("Background track storage error:", err));
           }
           
@@ -81,6 +96,7 @@ export function useArtistTracks(
           };
         }
         
+        console.warn("Could not fetch tracks: no artistId or spotifyArtistId provided");
         return { 
           tracks: [],
           initialSongs: [],
@@ -112,6 +128,7 @@ export function useArtistTracks(
     ...data,
     isLoading,
     error,
-    isError
+    isError,
+    refetch
   };
 }

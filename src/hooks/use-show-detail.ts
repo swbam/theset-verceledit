@@ -52,9 +52,17 @@ export function useShowDetail(id: string | undefined) {
   const artistTracksResponse = useArtistTracks(
     show?.artist_id, 
     spotifyArtistId,
-    // Limit immediate loading to just what we need initially
+    // Delay loading tracks until explicitly requested
     { immediate: false }
   );
+  
+  // Function to load tracks manually when needed
+  const loadTracks = useCallback(() => {
+    if (artistTracksResponse.refetch) {
+      console.log("Manually loading artist tracks");
+      artistTracksResponse.refetch();
+    }
+  }, [artistTracksResponse]);
   
   // Extract all needed properties with defaults to avoid undefined errors
   const {
@@ -125,6 +133,7 @@ export function useShowDetail(id: string | undefined) {
       anonymousVoteCount
     },
     availableTracks,
-    documentMetadata
+    documentMetadata,
+    loadTracks
   };
 }

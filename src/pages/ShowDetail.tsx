@@ -1,5 +1,5 @@
 
-import React, { useEffect, Suspense } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import Navbar from '@/components/layout/Navbar';
@@ -13,6 +13,7 @@ import { useShowDetail } from '@/hooks/use-show-detail';
 const ShowDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [tracksLoaded, setTracksLoaded] = useState(false);
   
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -26,9 +27,18 @@ const ShowDetail = () => {
     connected,
     songManagement,
     availableTracks,
-    documentMetadata
+    documentMetadata,
+    loadTracks
   } = useShowDetail(id);
 
+  // Load track data once show data is available
+  useEffect(() => {
+    if (!loading.show && show && !tracksLoaded) {
+      loadTracks();
+      setTracksLoaded(true);
+    }
+  }, [loading.show, show, loadTracks, tracksLoaded]);
+  
   // Set document metadata
   useEffect(() => {
     if (documentMetadata.title) {

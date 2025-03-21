@@ -1,6 +1,6 @@
 
-import React from 'react';
-import { PlusCircle } from 'lucide-react';
+import React, { useEffect } from 'react';
+import { PlusCircle, RefreshCw, Music } from 'lucide-react';
 import { toast } from 'sonner';
 import VotableSetlistTable from '@/components/setlist/VotableSetlistTable';
 import { Button } from '@/components/ui/button';
@@ -75,7 +75,7 @@ const ShowSetlist = ({
   
   // Sort tracks alphabetically by name and filter duplicates
   const sortedTracks = React.useMemo(() => {
-    console.log("Sorting available tracks:", availableTracks?.length);
+    console.log(`Sorting available tracks: ${availableTracks?.length || 0}`);
     if (!availableTracks || !Array.isArray(availableTracks)) return [];
     
     // Filter out duplicates by name (case-insensitive)
@@ -91,6 +91,9 @@ const ShowSetlist = ({
     // Sort alphabetically by name
     return [...uniqueTracks].sort((a, b) => a.name.localeCompare(b.name));
   }, [availableTracks]);
+
+  // If no tracks are available but not loading, show a message
+  const noTracksAvailable = !isLoadingAllTracks && (!sortedTracks || sortedTracks.length === 0);
   
   return (
     <div className="flex flex-col">
@@ -99,7 +102,7 @@ const ShowSetlist = ({
         <div className="flex flex-col gap-3">
           <p className="text-sm font-medium text-white/80">Add a song to this setlist:</p>
           <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
-            <div className="flex-grow w-full sm:w-auto">
+            <div className="flex-grow w-full sm:w-auto relative">
               <Select
                 value={selectedTrack}
                 onValueChange={handleTrackSelect}
@@ -108,15 +111,19 @@ const ShowSetlist = ({
                 <SelectTrigger className="w-full bg-black border-white/10 text-white">
                   <SelectValue placeholder="Select a song" />
                 </SelectTrigger>
-                <SelectContent className="bg-black border-white/10 text-white z-50 max-h-80">
+                <SelectContent className="bg-[#0A0A0A] border-white/10 text-white z-50 max-h-80">
                   {isLoadingAllTracks ? (
-                    <SelectItem value="loading" disabled className="text-white/60">Loading songs...</SelectItem>
-                  ) : sortedTracks.length === 0 ? (
-                    <SelectItem value="empty" disabled>
-                      <div className="text-center py-2 text-white/60">
-                        No songs available. We'll add some default tracks soon!
-                      </div>
-                    </SelectItem>
+                    <div className="flex items-center justify-center py-4 text-white/60">
+                      <RefreshCw className="h-4 w-4 animate-spin mr-2" />
+                      <span>Loading songs...</span>
+                    </div>
+                  ) : noTracksAvailable ? (
+                    <div className="flex flex-col items-center justify-center py-6 px-4">
+                      <Music className="h-8 w-8 text-white/20 mb-2" />
+                      <p className="text-center text-white/60">
+                        No songs available yet. We'll add some default tracks soon!
+                      </p>
+                    </div>
                   ) : (
                     sortedTracks.map((track) => (
                       <SelectItem 
@@ -125,6 +132,11 @@ const ShowSetlist = ({
                         className="focus:bg-white/10 focus:text-white data-[highlighted]:bg-white/10 data-[highlighted]:text-white"
                       >
                         {truncateSongName(track.name)}
+                        {track.album && (
+                          <span className="text-white/40 text-xs ml-1">
+                            • {truncateSongName(track.album, 20)}
+                          </span>
+                        )}
                       </SelectItem>
                     ))
                   )}
@@ -133,7 +145,7 @@ const ShowSetlist = ({
             </div>
             <Button 
               onClick={handleAddTrack}
-              disabled={isLoadingAllTracks || !availableTracks.length}
+              disabled={isLoadingAllTracks || !availableTracks.length || !selectedTrack}
               className="mt-2 sm:mt-0 flex-shrink-0 bg-white text-[#0A0A16] hover:bg-white/90" 
               size="sm"
             >
@@ -141,6 +153,11 @@ const ShowSetlist = ({
               Add to Setlist
             </Button>
           </div>
+          {availableTracks && availableTracks.length > 0 && (
+            <p className="text-xs text-white/40 mt-1">
+              {availableTracks.length} songs available in the catalog
+            </p>
+          )}
         </div>
       </div>
       
