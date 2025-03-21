@@ -28,9 +28,9 @@ export async function fetchUserProfile(userId: string): Promise<UserProfile | nu
     // Identify user in PostHog if available
     if (window.posthog && data) {
       window.posthog.identify(userId, {
-        name: data.username || data.display_name,
-        email: data.email,
-        spotify_connected: !!data.spotify_id
+        name: data.username || data.full_name,
+        provider: data.provider,
+        provider_id: data.provider_id
       });
     }
     
