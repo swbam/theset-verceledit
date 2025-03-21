@@ -22,8 +22,8 @@ import CreateShow from './pages/CreateShow';
 import NotFound from './pages/NotFound';
 import TestJourney from './pages/TestJourney';
 
-// Google Analytics tracking ID - replace with your own
-const GA_TRACKING_ID = "G-XXXXXXXXXX"; // Replace this with your actual GA tracking ID
+// Google Analytics tracking ID
+const GA_TRACKING_ID = "G-CNM6621HGW";
 
 // RouteChangeTracker component to track page views
 const RouteChangeTracker = () => {
