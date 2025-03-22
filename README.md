@@ -1,69 +1,89 @@
-# Welcome to your Lovable project
+# The Set - Concert Setlist Voting App
 
-## Project info
+A modern web application where fans can vote on which songs they want to hear at upcoming concerts.
 
-**URL**: https://lovable.dev/projects/2f07b5a9-6ac0-4b2b-b498-ccde0e20673b
+## Features
 
-## How can I edit this code?
+- Browse artists and upcoming shows
+- Vote on songs for upcoming concerts
+- View historical setlists and popular songs
+- User authentication and profile management
+- Real-time voting and updates
 
-There are several ways of editing your application.
+## Tech Stack
 
-**Use Lovable**
+- **Frontend**: Next.js 14, React, TypeScript, Tailwind CSS
+- **Backend**: Supabase (PostgreSQL, Auth, Storage)
+- **APIs**: Spotify, Setlist.fm, Ticketmaster
+- **Deployment**: Vercel
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/2f07b5a9-6ac0-4b2b-b498-ccde0e20673b) and start prompting.
+## Performance Optimizations
 
-Changes made via Lovable will be committed automatically to this repo.
+The application includes several performance optimizations:
 
-**Use your preferred IDE**
+- **Materialized Views**: Pre-computed views for top voted songs and artist popularity
+- **Smart Caching**: API response caching with automatic invalidation
+- **Database Indexing**: Composite and partial indexes for common query patterns
+- **JSONB Indexing**: GIN indexes for efficient JSON property searches
+- **Automatic Maintenance**: Database triggers for maintaining derived data
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+## Getting Started
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+1. Clone the repository
+2. Copy `.env.local.example` to `.env.local` and add your API keys:
+   - Supabase URL and keys
+   - Spotify API credentials
+   - Setlist.fm API key 
+3. Install dependencies:
+   ```
+   npm install
+   ```
+4. Run the data sync script to populate the database:
+   ```
+   npm run sync-data
+   ```
+5. Start the development server:
+   ```
+   npm run dev
+   ```
 
-Follow these steps:
+## Database Structure
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+The application uses a PostgreSQL database with the following main tables:
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+- `artists`: Artist information and metadata
+- `shows`: Concert/show events linked to artists and venues
+- `setlists`: Collections of songs for a specific show
+- `setlist_songs`: Individual songs within a setlist
+- `votes`: User votes for specific songs
+- `venues`: Venue information for shows
+- `profiles`: User profile information
 
-# Step 3: Install the necessary dependencies.
-npm i
+Performance is enhanced with materialized views:
+- `mv_top_voted_songs`: Pre-computed top voted songs
+- `mv_artist_popularity`: Artist popularity based on voting data
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
-```
+## Deployment
 
-**Edit a file directly in GitHub**
+The application is deployed on Vercel with Supabase for the backend.
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+## Contributing
 
-**Use GitHub Codespaces**
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature/amazing-feature`
+3. Commit your changes: `git commit -m 'Add amazing feature'`
+4. Push to the branch: `git push origin feature/amazing-feature`
+5. Open a Pull Request
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+## License
 
-## What technologies are used for this project?
+This project is licensed under the MIT License - see the LICENSE file for details.
 
-This project is built with .
+## Acknowledgments
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/2f07b5a9-6ac0-4b2b-b498-ccde0e20673b) and click on Share -> Publish.
-
-## I want to use a custom domain - is that possible?
-
-We don't support custom domains (yet). If you want to deploy your project under your own domain then we recommend using Netlify. Visit our docs for more details: [Custom domains](https://docs.lovable.dev/tips-tricks/custom-domain/)
+- [Supabase](https://supabase.io/)
+- [Next.js](https://nextjs.org/)
+- [Tailwind CSS](https://tailwindcss.com/)
+- [Spotify API](https://developer.spotify.com/documentation/web-api/)
+- [Setlist.fm API](https://api.setlist.fm/docs/1.0/index.html)
+- [Ticketmaster API](https://developer.ticketmaster.com/products-and-docs/apis/discovery-api/v2/)

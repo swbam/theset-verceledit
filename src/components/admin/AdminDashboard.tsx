@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import AdminOverview from './AdminOverview';
@@ -6,6 +5,7 @@ import AdminArtists from './AdminArtists';
 import AdminShows from './AdminShows';
 import AdminSetlists from './AdminSetlists';
 import AdminUsers from './AdminUsers';
+import AdminSeedData from './AdminSeedData';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
 
@@ -28,6 +28,7 @@ const AdminDashboard = () => {
             <TabsTrigger value="shows">Shows</TabsTrigger>
             <TabsTrigger value="setlists">Setlists</TabsTrigger>
             <TabsTrigger value="users">Users</TabsTrigger>
+            <TabsTrigger value="seed-data">Seed Data</TabsTrigger>
           </TabsList>
           
           <TabsContent value="overview">
@@ -48,6 +49,10 @@ const AdminDashboard = () => {
           
           <TabsContent value="users">
             <AdminUsers />
+          </TabsContent>
+          
+          <TabsContent value="seed-data">
+            <AdminSeedData />
           </TabsContent>
         </Tabs>
       </main>
