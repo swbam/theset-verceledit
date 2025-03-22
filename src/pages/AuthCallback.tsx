@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
@@ -42,12 +41,16 @@ const AuthCallback = () => {
           
           // Check if auth was with Spotify - use both the URL parameter and session info
           if (provider === 'spotify' || session.provider_token) {
-            console.log('Redirecting to my-artists page since this was a Spotify login');
+            console.log('Redirecting to personalized dashboard since this was a Spotify login');
+            
+            // Store authentication state in localStorage for persistence
+            localStorage.setItem('auth_provider', 'spotify');
+            localStorage.setItem('user_id', session.user.id);
             
             // Force a slight delay to ensure state updates are complete
             setTimeout(() => {
-              console.log('Now navigating to /my-artists');
-              navigate('/my-artists');
+              console.log('Now navigating to /dashboard');
+              navigate('/dashboard');
             }, 1000);
           } else {
             console.log('Non-Spotify login, redirecting to home page');

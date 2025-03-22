@@ -1,5 +1,87 @@
-
 import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
+
+/**
+ * Get user's top artists directly from Spotify API
+ */
+export const getUserTopArtists = async () => {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    
+    if (!session?.provider_token) {
+      console.log("No provider token available");
+      toast.error("Please sign in with Spotify to see your top artists");
+      return [];
+    }
+    
+    const response = await fetch('https://api.spotify.com/v1/me/top/artists?limit=10', {
+      headers: {
+        Authorization: `Bearer ${session.provider_token}`,
+      },
+    });
+    
+    if (!response.ok) {
+      if (response.status === 401) {
+        toast.error("Spotify session expired. Please sign in again.");
+        await supabase.auth.signOut();
+      } else {
+        toast.error(`Failed to fetch your top artists (${response.status})`);
+      }
+      throw new Error(`Error fetching top artists: ${response.statusText}`);
+    }
+    
+    const data = await response.json();
+    return data.items || [];
+  } catch (error) {
+    console.error("Failed to fetch user's top artists:", error);
+    return [];
+  }
+};
+
+/**
+ * Get recommendations based on seed artists from Spotify API
+ */
+export const getRecommendations = async (seedArtists: string[]) => {
+  try {
+    if (!seedArtists.length) {
+      console.log("No seed artists provided for recommendations");
+      return [];
+    }
+    
+    const { data: { session } } = await supabase.auth.getSession();
+    
+    if (!session?.provider_token) {
+      console.log("No provider token available");
+      toast.error("Please sign in with Spotify to get recommendations");
+      return [];
+    }
+    
+    const response = await fetch(
+      `https://api.spotify.com/v1/recommendations?seed_artists=${seedArtists.slice(0, 5).join(',')}&limit=10`,
+      {
+        headers: {
+          Authorization: `Bearer ${session.provider_token}`,
+        },
+      }
+    );
+    
+    if (!response.ok) {
+      if (response.status === 401) {
+        toast.error("Spotify session expired. Please sign in again.");
+        await supabase.auth.signOut();
+      } else {
+        toast.error(`Failed to fetch recommendations (${response.status})`);
+      }
+      throw new Error(`Error fetching recommendations: ${response.statusText}`);
+    }
+    
+    const data = await response.json();
+    return data.tracks || [];
+  } catch (error) {
+    console.error("Failed to fetch recommendations:", error);
+    return [];
+  }
+};
 
 /**
  * Get user's top artists from Spotify

@@ -23,11 +23,29 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Valid action (increment/decrement) is required' }, { status: 400 });
     }
 
-    // Initialize Supabase client with cookies
-    const supabase = createRouteHandlerClient({ cookies });
+    // Initialize Supabase client with cookies and better configuration
+    const cookieStore = cookies();
+    const supabase = createRouteHandlerClient({ 
+      cookies: () => cookieStore 
+    }, {
+      supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
+      supabaseKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+      options: {
+        global: {
+          headers: {
+            'x-application-name': 'theset-client'
+          }
+        }
+      }
+    });
     
     // Get user from session
-    const { data: { session } } = await supabase.auth.getSession();
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    
+    if (sessionError) {
+      console.error('Session verification error:', sessionError);
+      return NextResponse.json({ error: 'Authentication failed' }, { status: 401 });
+    }
     
     if (!session) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });

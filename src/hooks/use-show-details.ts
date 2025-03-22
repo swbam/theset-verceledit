@@ -1,10 +1,11 @@
-
 import { useQuery } from '@tanstack/react-query';
 import { useState, useEffect, useCallback } from 'react';
 import { fetchShowDetails } from '@/lib/ticketmaster';
 import { searchArtists } from '@/lib/spotify';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import { createSetlistForShow } from '@/lib/api/database/setlists';
+import { v4 as uuidv4 } from 'uuid';
 
 export function useShowDetails(id: string | undefined) {
   const [spotifyArtistId, setSpotifyArtistId] = useState<string>('');
@@ -90,6 +91,17 @@ export function useShowDetails(id: string | undefined) {
         setSpotifyArtistId('mock-artist');
       }
       
+      // Create or update setlist for this show
+      if (showDetails && showDetails.artist_id) {
+        try {
+          // This will create a setlist if one doesn't exist
+          // And populate it with 5 random songs from the artist's catalog
+          await createSetlistForShow(id, showDetails.artist_id);
+        } catch (error) {
+          console.error("Error creating setlist for show:", error);
+        }
+      }
+      
       return showDetails;
     },
     enabled: !!id,
@@ -105,11 +117,76 @@ export function useShowDetails(id: string | undefined) {
     }
   });
 
+  // vote for a song in the database
+  const voteForSong = useCallback(async (songId: string) => {
+    if (!songId) return false;
+    
+    try {
+      // Get the current votes for this song
+      const { data: songData, error: fetchError } = await supabase
+        .from('setlist_songs')
+        .select('votes')
+        .eq('id', songId)
+        .single();
+      
+      if (fetchError) {
+        console.error("Error fetching song votes:", fetchError);
+        return false;
+      }
+      
+      // Increment the votes
+      const { error: updateError } = await supabase
+        .from('setlist_songs')
+        .update({ votes: (songData.votes || 0) + 1 })
+        .eq('id', songId);
+      
+      if (updateError) {
+        console.error("Error updating song votes:", updateError);
+        return false;
+      }
+      
+      console.log(`Vote recorded for song ${songId}`);
+      return true;
+    } catch (error) {
+      console.error("Error voting for song:", error);
+      return false;
+    }
+  }, []);
+  
+  // Add new song to setlist in database
+  const addSongToSetlist = useCallback(async (setlistId: string, track: any) => {
+    if (!setlistId || !track) return false;
+    
+    try {
+      const { error } = await supabase
+        .from('setlist_songs')
+        .insert({
+          id: uuidv4(),
+          setlist_id: setlistId,
+          track_id: track.id,
+          name: track.name,
+          votes: 0
+        });
+      
+      if (error) {
+        console.error("Error adding song to setlist:", error);
+        return false;
+      }
+      
+      return true;
+    } catch (error) {
+      console.error("Error adding song to setlist:", error);
+      return false;
+    }
+  }, []);
+
   return {
     show,
     isLoadingShow,
     showError,
     isError,
-    spotifyArtistId
+    spotifyArtistId,
+    voteForSong,
+    addSongToSetlist
   };
 }

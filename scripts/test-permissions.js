@@ -2,7 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 
 // Initialize the Supabase client with linked project and service role key
 const supabase = createClient(
-  'https://otccjilgjjzrexmmtlhi.supabase.co',
+  'https://kzjnkqeosrycfpxjwhil.supabase.co',
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im90Y2NqaWxnamp6cmV4bW10bGhpIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0MjE0NzY3NCwiZXhwIjoyMDU3NzIzNjc0fQ.uLLzEPKeTqS0zEZd38DLRlBMOQLdSoHZFDsH0I0TeQA'
 );
 

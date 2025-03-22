@@ -1,4 +1,3 @@
-
 import { toast } from "sonner";
 import { callTicketmasterApi } from "../ticketmaster-config";
 import { saveArtistToDatabase } from "../database-utils";
@@ -30,7 +29,15 @@ export async function searchArtistsWithEvents(query: string, limit = 10): Promis
         // Continue with Ticketmaster search if DB search fails
       } else if (data && data.length > 0) {
         console.log(`Found ${data.length} artists in database matching '${query}'`);
-        existingArtists = data;
+        // Format artists to have consistent structure
+        existingArtists = data.map(artist => ({
+          id: artist.id,
+          name: artist.name,
+          image: artist.image_url,
+          upcomingShows: artist.upcoming_shows || 0,
+          genres: artist.genres || [],
+          spotify_id: artist.spotify_id || null
+        }));
         
         // Return the existing artists but still do the API call in the background to refresh data
         // Don't await this so we return results quickly
@@ -40,7 +47,7 @@ export async function searchArtistsWithEvents(query: string, limit = 10): Promis
           sort: 'date,asc',
           size: limit.toString()
         }).then(data => {
-          if (data._embedded?.events) {
+          if (data && data._embedded?.events) {
             processAndSaveTicketmasterArtists(data, limit);
           }
         }).catch(err => {
@@ -55,33 +62,64 @@ export async function searchArtistsWithEvents(query: string, limit = 10): Promis
     }
     
     // If not found in DB or we want fresh data, search Ticketmaster
-    console.log(`Searching Ticketmaster for artists matching '${query}'`);
-    const data = await callTicketmasterApi('events.json', {
-      keyword: query,
-      segmentName: 'Music',
-      sort: 'date,asc',
-      size: limit.toString()
-    });
+    try {
+      console.log(`Searching Ticketmaster for artists matching '${query}'`);
+      const data = await callTicketmasterApi('events.json', {
+        keyword: query,
+        segmentName: 'Music',
+        sort: 'date,asc',
+        size: limit.toString()
+      });
 
-    if (!data._embedded?.events) {
-      console.log(`No events found on Ticketmaster for query '${query}'`);
-      return existingArtists.length > 0 ? existingArtists : [];
-    }
+      if (!data || !data._embedded?.events) {
+        console.log(`No events found on Ticketmaster for query '${query}'`);
+        
+        // If we have existing artists from DB, return those
+        if (existingArtists.length > 0) {
+          return existingArtists;
+        }
+        
+        // Attempt a direct artist search as fallback
+        try {
+          const fallbackArtists = await searchFallbackArtists(query, limit);
+          return fallbackArtists;
+        } catch (fallbackError) {
+          console.error("Error during fallback artist search:", fallbackError);
+          return [];
+        }
+      }
 
-    // Process and save the artists
-    const artists = await processAndSaveTicketmasterArtists(data, limit);
-    console.log("Processed and returning artists:", artists.length);
-    
-    // Combine with existing artists if any, removing duplicates
-    if (existingArtists.length > 0) {
-      const existingIds = new Set(existingArtists.map(a => a.id));
-      const newArtists = artists.filter(a => !existingIds.has(a.id));
-      return [...existingArtists, ...newArtists];
+      // Process and save the artists
+      const artists = await processAndSaveTicketmasterArtists(data, limit);
+      console.log("Processed and returning artists:", artists.length);
+      
+      // Combine with existing artists if any, removing duplicates
+      if (existingArtists.length > 0) {
+        const existingIds = new Set(existingArtists.map(a => a.id));
+        const newArtists = artists.filter(a => !existingIds.has(a.id));
+        return [...existingArtists, ...newArtists];
+      }
+      
+      return artists;
+    } catch (ticketmasterError) {
+      console.error("Ticketmaster API error:", ticketmasterError);
+      
+      // If we have DB results, return those even if API call fails
+      if (existingArtists.length > 0) {
+        return existingArtists;
+      }
+      
+      // Try fallback search
+      try {
+        const fallbackArtists = await searchFallbackArtists(query, limit);
+        return fallbackArtists;
+      } catch (fallbackError) {
+        console.error("Error during fallback artist search:", fallbackError);
+        return [];
+      }
     }
-    
-    return artists;
   } catch (error) {
-    console.error("Ticketmaster artist search error:", error);
+    console.error("Artist search error:", error);
     handleError({
       message: "Failed to search for artists",
       source: ErrorSource.API,
@@ -92,9 +130,80 @@ export async function searchArtistsWithEvents(query: string, limit = 10): Promis
 }
 
 /**
+ * Fallback search for artists when Ticketmaster API fails
+ */
+async function searchFallbackArtists(query: string, limit = 10): Promise<any[]> {
+  console.log(`Using fallback artist search for query: ${query}`);
+  
+  try {
+    // Try a direct Spotify search
+    const spotifyArtist = await getArtistByName(query);
+    if (spotifyArtist && spotifyArtist.id) {
+      console.log(`Found artist on Spotify: ${spotifyArtist.name}`);
+      
+      const artistId = `sp-${spotifyArtist.id}`;
+      const artist = {
+        id: artistId,
+        name: spotifyArtist.name,
+        image: spotifyArtist.images && spotifyArtist.images.length > 0 ? spotifyArtist.images[0].url : null,
+        upcomingShows: 0,
+        genres: spotifyArtist.genres || [],
+        spotify_id: spotifyArtist.id
+      };
+      
+      // Save to database in the background
+      try {
+        await saveArtistToDatabase({
+          ...artist,
+          image_url: artist.image
+        });
+      } catch (saveError) {
+        console.error(`Error saving Spotify artist to database:`, saveError);
+      }
+      
+      return [artist];
+    }
+    
+    // If no results, check if we have any similar artists in database
+    const { data, error } = await supabase
+      .from('artists')
+      .select('*')
+      .or(`name.ilike.%${query}%,genres.cs.{"${query}"}`)
+      .limit(limit);
+      
+    if (error) {
+      console.error("Error in fallback database search:", error);
+      return [];
+    }
+    
+    if (data && data.length > 0) {
+      console.log(`Found ${data.length} similar artists in database`);
+      return data.map(artist => ({
+        id: artist.id,
+        name: artist.name,
+        image: artist.image_url,
+        upcomingShows: artist.upcoming_shows || 0,
+        genres: artist.genres || [],
+        spotify_id: artist.spotify_id || null
+      }));
+    }
+    
+    return [];
+  } catch (error) {
+    console.error("Fallback artist search error:", error);
+    return [];
+  }
+}
+
+/**
  * Helper function to process and save artists from Ticketmaster response
  */
 async function processAndSaveTicketmasterArtists(data: any, limit: number): Promise<any[]> {
+  if (!data || !data._embedded || !data._embedded.events) {
+    console.warn("Invalid Ticketmaster data format for processing artists");
+    return [];
+  }
+  
   console.log(`Processing ${data._embedded.events.length} events from Ticketmaster`);
   
   // Extract unique artists from events
@@ -115,20 +224,20 @@ async function processAndSaveTicketmasterArtists(data: any, limit: number): Prom
       // Fallback to extracting from event name if no attractions
       artistName = event.name.split(' at ')[0].split(' - ')[0].trim();
       artistId = `tm-${encodeURIComponent(artistName.toLowerCase().replace(/\s+/g, '-'))}`;
-      artistImage = event.images.find((img: any) => img.ratio === "16_9" && img.width > 500)?.url;
+      artistImage = event.images?.find((img: any) => img.ratio === "16_9" && img.width > 500)?.url;
     }
     
-    if (!artistsMap.has(artistId)) {
+    if (!artistsMap.has(artistId) && artistName) {
       artistsMap.set(artistId, {
         id: artistId,
         name: artistName,
         image: artistImage,
         upcomingShows: 1
       });
-    } else {
+    } else if (artistName) {
       // Increment upcoming shows count for this artist
       const artist = artistsMap.get(artistId);
-      artist.upcomingShows += 1;
+      artist.upcomingShows = (artist.upcomingShows || 0) + 1;
       artistsMap.set(artistId, artist);
     }
   });
@@ -160,7 +269,10 @@ async function processAndSaveTicketmasterArtists(data: any, limit: number): Prom
         
         // Save to database (with or without Spotify data)
         try {
-          await saveArtistToDatabase(artist);
+          await saveArtistToDatabase({
+            ...artist,
+            image_url: artist.image
+          });
         } catch (saveError) {
           console.error(`Error saving artist ${artist.name} to database:`, saveError);
           // Continue even if database save fails - we'll still return API results

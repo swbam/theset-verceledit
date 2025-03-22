@@ -1,8 +1,40 @@
-
 import { toast } from "sonner";
 import { callTicketmasterApi } from "../ticketmaster-config";
 import { supabase } from "@/integrations/supabase/client";
 import { ErrorSource, handleError } from "@/lib/error-handling";
+
+/**
+ * Save data to Supabase with better error handling and retries
+ */
+async function saveToSupabase(table: string, data: any, onConflict?: string): Promise<boolean> {
+  try {
+    // Add updated_at timestamp
+    const dataWithTimestamp = {
+      ...data,
+      updated_at: new Date().toISOString()
+    };
+    
+    let query = supabase.from(table).upsert(dataWithTimestamp);
+    
+    // Add on_conflict handling if specified
+    if (onConflict) {
+      query = query.onConflict(onConflict);
+    }
+    
+    const { error } = await query;
+    
+    if (error) {
+      console.error(`Error saving to ${table}:`, error);
+      return false;
+    }
+    
+    console.log(`Successfully saved to ${table}`);
+    return true;
+  } catch (err) {
+    console.error(`Failed to save to ${table}:`, err);
+    return false;
+  }
+}
 
 /**
  * Fetch featured shows
@@ -19,7 +51,7 @@ export async function fetchFeaturedShows(limit = 4): Promise<any[]> {
       includeFamily: 'no' // Filter out family events
     });
 
-    if (!data._embedded?.events) {
+    if (!data?._embedded?.events) {
       console.log("No events found in Ticketmaster response");
       return [];
     }
@@ -52,7 +84,7 @@ export async function fetchFeaturedShows(limit = 4): Promise<any[]> {
           artistData = {
             id: artistId,
             name: artistName,
-            image: attraction.images?.find((img: any) => img.ratio === "16_9" && img.width > 500)?.url,
+            image_url: attraction.images?.find((img: any) => img.ratio === "16_9" && img.width > 500)?.url,
             upcoming_shows: 1,
             genres: attraction.classifications && attraction.classifications.length > 0 
               ? [attraction.classifications[0].genre?.name, attraction.classifications[0].subGenre?.name].filter(Boolean)
@@ -116,69 +148,73 @@ export async function fetchFeaturedShows(limit = 4): Promise<any[]> {
       .sort((a, b) => b.qualityScore - a.qualityScore)
       .slice(0, limit);
     
-    // Try to save shows and related data to database in the background without blocking
-    setTimeout(() => {
-      topShows.forEach(show => {
-        try {
-          // Save artist
-          if (show.artist) {
-            Promise.resolve(
-              supabase
-                .from('artists')
-                .upsert({
-                  id: show.artist.id,
-                  name: show.artist.name,
-                  image_url: show.artist.image,
-                  genres: show.artist.genres,
-                  updated_at: new Date().toISOString()
-                })
-            )
-            .then(() => console.log(`Saved artist ${show.artist.name} to database`))
-            .catch((err: any) => console.log(`Database save failed for artist ${show.artist.name}: ${err.message}`));
-          }
+    // Create a better data syncing process for Supabase
+    Promise.all(
+      topShows.map(async (show) => {
+        const syncResults = [];
+        
+        // 1. Save the artist
+        if (show.artist) {
+          // Extract only database fields for artist
+          const artistData = {
+            id: show.artist.id,
+            name: show.artist.name,
+            image_url: show.artist.image_url || null,
+            genres: Array.isArray(show.artist.genres) ? show.artist.genres : null
+          };
           
-          // Save venue
-          if (show.venue) {
-            Promise.resolve(
-              supabase
-                .from('venues')
-                .upsert({
-                  id: show.venue.id,
-                  name: show.venue.name,
-                  city: show.venue.city,
-                  state: show.venue.state,
-                  country: show.venue.country,
-                  updated_at: new Date().toISOString()
-                })
-            )
-            .then(() => console.log(`Saved venue ${show.venue.name} to database`))
-            .catch((err: any) => console.log(`Database save failed for venue ${show.venue.name}: ${err.message}`));
-          }
-          
-          // Save show
-          Promise.resolve(
-            supabase
-              .from('shows')
-              .upsert({
-                id: show.id,
-                name: show.name,
-                date: show.date,
-                artist_id: show.artist_id,
-                venue_id: show.venue_id,
-                ticket_url: show.ticket_url,
-                image_url: show.image_url,
-                popularity: show.popularity,
-                updated_at: new Date().toISOString()
-              })
-          )
-          .then(() => console.log(`Saved show ${show.name} to database`))
-          .catch((err: any) => console.log(`Database save failed for show ${show.name}: ${err.message}`));
-        } catch (e) {
-          // Ignore any errors in the background save
-          console.log(`Error in background save for show ${show.name}`);
+          const artistSaved = await saveToSupabase('artists', artistData, 'id');
+          syncResults.push({ type: 'artist', success: artistSaved });
         }
-      });
-    }, 0);
+        
+        // 2. Save the venue
+        if (show.venue) {
+          // Extract only database fields for venue
+          const venueData = {
+            id: show.venue.id,
+            name: show.venue.name,
+            city: show.venue.city || null,
+            state: show.venue.state || null,
+            country: show.venue.country || null
+          };
+          
+          const venueSaved = await saveToSupabase('venues', venueData, 'id');
+          syncResults.push({ type: 'venue', success: venueSaved });
+        }
+        
+        // 3. Save the show
+        const showData = {
+          id: show.id,
+          name: show.name,
+          date: show.date,
+          artist_id: show.artist_id,
+          venue_id: show.venue_id,
+          ticket_url: show.ticket_url || null,
+          image_url: show.image_url || null,
+          popularity: show.popularity || 0
+        };
+        
+        const showSaved = await saveToSupabase('shows', showData, 'id');
+        syncResults.push({ type: 'show', success: showSaved });
+        
+        console.log(`Sync results for show ${show.name}:`, syncResults);
+        return syncResults;
+      })
+    ).then((results) => {
+      // Count successful syncs
+      const totalArtists = results.flat().filter(r => r.type === 'artist').length;
+      const successfulArtists = results.flat().filter(r => r.type === 'artist' && r.success).length;
+      
+      const totalVenues = results.flat().filter(r => r.type === 'venue').length;
+      const successfulVenues = results.flat().filter(r => r.type === 'venue' && r.success).length;
+      
+      const totalShows = results.flat().filter(r => r.type === 'show').length;
+      const successfulShows = results.flat().filter(r => r.type === 'show' && r.success).length;
+      
+      console.log(`Sync complete. Artists: ${successfulArtists}/${totalArtists}, Venues: ${successfulVenues}/${totalVenues}, Shows: ${successfulShows}/${totalShows}`);
+    }).catch(err => {
+      console.error("Error in data syncing:", err);
+    });
     
     return topShows;
   } catch (error) {

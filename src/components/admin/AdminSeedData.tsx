@@ -22,31 +22,51 @@ const AdminSeedData = () => {
           id: uuidv4(),
           name: 'Taylor Swift',
           image_url: 'https://i.scdn.co/image/ab6761610000e5eb6a224073987b930f99adc8bc',
-          spotify_id: '06HL4z0CvFAxyc27GXpf02'
+          spotify_id: '06HL4z0CvFAxyc27GXpf02',
+          tm_id: 'K8vZ917G7x0',
+          spotify_followers: 95000000,
+          spotify_popularity: 100,
+          spotify_genres: ['pop', 'pop rock']
         },
         {
           id: uuidv4(),
           name: 'The Weeknd',
           image_url: 'https://i.scdn.co/image/ab6761610000e5eb214f3cf1cbe7139c1e26ffbb',
-          spotify_id: '1Xyo4u8uXC1ZmMpatF05PJ'
+          spotify_id: '1Xyo4u8uXC1ZmMpatF05PJ',
+          tm_id: 'K8vZ917pG-f',
+          spotify_followers: 55000000,
+          spotify_popularity: 95,
+          spotify_genres: ['canadian pop', 'pop', 'r&b']
         },
         {
           id: uuidv4(),
           name: 'Drake',
           image_url: 'https://i.scdn.co/image/ab6761610000e5eb4293385d324db8558179afd9',
-          spotify_id: '3TVXtAsR1Inumwj472S9r4'
+          spotify_id: '3TVXtAsR1Inumwj472S9r4',
+          tm_id: 'K8vZ917pz7V',
+          spotify_followers: 75000000,
+          spotify_popularity: 98,
+          spotify_genres: ['canadian hip hop', 'rap']
         },
         {
           id: uuidv4(),
           name: 'Billie Eilish',
           image_url: 'https://i.scdn.co/image/ab6761610000e5eb7b9745078c6a3d3ccafebbe5',
-          spotify_id: '6qqNVTkY8uBg9cP3Jd7DAH'
+          spotify_id: '6qqNVTkY8uBg9cP3Jd7DAH',
+          tm_id: 'K8vZ917_bOf',
+          spotify_followers: 50000000,
+          spotify_popularity: 92,
+          spotify_genres: ['pop', 'electropop']
         },
         {
           id: uuidv4(),
           name: 'Coldplay',
           image_url: 'https://i.scdn.co/image/ab6761610000e5eb989ed05e1f0570cc4726c2d3',
-          spotify_id: '4gzpq5DPGxSnKTe4SA8HAU'
+          spotify_id: '4gzpq5DPGxSnKTe4SA8HAU',
+          tm_id: 'K8vZ9175BV7',
+          spotify_followers: 45000000,
+          spotify_popularity: 90,
+          spotify_genres: ['permanent wave', 'pop', 'rock']
         }
       ];
       
@@ -68,7 +88,7 @@ const AdminSeedData = () => {
       }
       
       setStatus({
-        message: `Successfully added ${addedCount} artists.`,
+        message: `Successfully added ${addedCount} artists with Ticketmaster and Spotify IDs.`,
         success: addedCount > 0
       });
     } catch (error: unknown) {

@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAndStoreArtistTracks } from "./database";
 
@@ -241,6 +240,12 @@ export async function saveShowToDatabase(show: any) {
         // Only update if it's been more than 24 hours
         if (hoursSinceUpdate < 24) {
           console.log(`Show ${show.name} was updated ${hoursSinceUpdate.toFixed(1)} hours ago, skipping update`);
+          
+          // Even if we're skipping the update, ensure the show has a setlist
+          if (!existingShow.setlist_id) {
+            await ensureSetlistExists(existingShow.id, existingShow.artist_id);
+          }
+          
           return existingShow;
         }
         
@@ -253,25 +258,21 @@ export async function saveShowToDatabase(show: any) {
       // Continue to try adding the show anyway
     }
     
-    // Ensure venue is saved first if provided
-    let venueId = show.venue_id;
-    if (show.venue && !venueId) {
-      const savedVenue = await saveVenueToDatabase(show.venue);
-      if (savedVenue) {
-        venueId = savedVenue.id;
-      }
-    }
-    
-    // Ensure artist is saved if provided
+    // Save the artist and venue first if needed
     let artistId = show.artist_id;
-    if (show.artist && !artistId) {
+    let venueId = show.venue_id;
+    
+    if (show.artist && typeof show.artist === 'object') {
       const savedArtist = await saveArtistToDatabase(show.artist);
-      if (savedArtist) {
-        artistId = savedArtist.id;
-      }
+      artistId = savedArtist?.id || artistId;
     }
     
-    // Insert or update show
+    if (show.venue && typeof show.venue === 'object') {
+      const savedVenue = await saveVenueToDatabase(show.venue);
+      venueId = savedVenue?.id || venueId;
+    }
+    
+    // Insert or update the show
     try {
       const { data, error } = await supabase
         .from('shows')
@@ -279,35 +280,189 @@ export async function saveShowToDatabase(show: any) {
           id: show.id,
           name: show.name,
           date: show.date,
-          artist_id: artistId || show.artist_id,
-          venue_id: venueId || show.venue_id,
           ticket_url: show.ticket_url,
           image_url: show.image_url,
-          genre_ids: show.genre_ids || [],
-          popularity: show.popularity || 0,
+          artist_id: artistId,
+          venue_id: venueId,
           updated_at: new Date().toISOString()
         })
         .select();
       
       if (error) {
-        // If we get a permission error, log but continue (return the original show)
-        if (error.code === '42501') { // permission denied error
-          console.log(`Permission denied when saving show ${show.name} to database - continuing with API data`);
+        // If we get a permission error, log but continue
+        if (error.code === '42501') {
+          console.log(`Permission denied when saving show ${show.name}`);
           return show;
         }
         
         console.error("Error saving show to database:", error);
-        return show; // Return the original show even if DB save fails
+        return show;
       }
       
+      const savedShow = data?.[0] || show;
       console.log(`Successfully saved show ${show.name} to database`);
-      return data?.[0] || show;
+      
+      // IMPORTANT: Ensure this show has a setlist automatically
+      const setlistId = await ensureSetlistExists(savedShow.id, artistId);
+      console.log(`Ensured setlist exists for show ${savedShow.id}, setlist ID: ${setlistId}`);
+      
+      if (setlistId) {
+        // Update the show with the setlist ID if needed
+        if (!savedShow.setlist_id) {
+          const { error: updateError } = await supabase
+            .from('shows')
+            .update({ setlist_id: setlistId })
+            .eq('id', savedShow.id);
+          
+          if (updateError) {
+            console.warn(`Couldn't update show with setlist ID: ${updateError.message}`);
+          }
+        }
+        
+        // Return the full data with setlist info
+        return { ...savedShow, setlist_id: setlistId };
+      }
+      
+      return savedShow;
     } catch (saveError) {
       console.error("Error in saveShowToDatabase:", saveError);
-      return show; // Return the original show even if DB save fails
+      return show;
     }
   } catch (error) {
     console.error("Unexpected error in saveShowToDatabase:", error);
-    return show; // Return the original show even if unexpected error occurs
+    return show;
+  }
+}
+
+/**
+ * Ensure a setlist exists for a show, creating one if needed
+ */
+async function ensureSetlistExists(showId: string, artistId: string) {
+  try {
+    // Check if this show already has a setlist
+    const { data: existingSetlist, error: checkError } = await supabase
+      .from('setlists')
+      .select('id')
+      .eq('show_id', showId)
+      .maybeSingle();
+    
+    if (checkError) {
+      console.error(`Error checking for existing setlist: ${checkError.message}`);
+      return null;
+    }
+    
+    // If setlist already exists, return its ID
+    if (existingSetlist) {
+      console.log(`Setlist already exists for show ${showId}: ${existingSetlist.id}`);
+      return existingSetlist.id;
+    }
+    
+    // Create a new setlist
+    console.log(`Creating new setlist for show ${showId}`);
+    const { data: newSetlist, error: createError } = await supabase
+      .from('setlists')
+      .insert({ show_id: showId })
+      .select()
+      .single();
+    
+    if (createError) {
+      console.error(`Error creating setlist: ${createError.message}`);
+      return null;
+    }
+    
+    // Now populate the setlist with songs from the artist's catalog
+    await populateSetlistWithSongs(newSetlist.id, artistId);
+    
+    return newSetlist.id;
+  } catch (error) {
+    console.error(`Error ensuring setlist exists: ${(error as Error).message}`);
+    return null;
+  }
+}
+
+/**
+ * Populate a setlist with songs from the artist's catalog
+ */
+async function populateSetlistWithSongs(setlistId: string, artistId: string) {
+  try {
+    // Get the artist's Spotify ID
+    const { data: artist, error: artistError } = await supabase
+      .from('artists')
+      .select('spotify_id')
+      .eq('id', artistId)
+      .maybeSingle();
+    
+    if (artistError || !artist?.spotify_id) {
+      console.log(`Can't get Spotify ID for artist ${artistId}: ${artistError?.message || 'No Spotify ID'}`);
+      return false;
+    }
+    
+    // Try to get tracks from our database first
+    const { data: tracks, error: tracksError } = await supabase
+      .from('artist_tracks')
+      .select('*')
+      .eq('artist_id', artistId)
+      .order('popularity', { ascending: false })
+      .limit(10);
+    
+    if (tracksError || !tracks?.length) {
+      console.log(`No stored tracks for artist ${artistId}, fetching from Spotify`);
+      
+      // Import the required function dynamically to avoid circular dependencies
+      const { getArtistTopTracks } = await import('../spotify/top-tracks');
+      if (!getArtistTopTracks) {
+        console.error('Could not import getArtistTopTracks function');
+        return false;
+      }
+      
+      // Fetch top tracks from Spotify
+      const spotifyTracks = await getArtistTopTracks(artist.spotify_id);
+      if (!spotifyTracks?.length) {
+        console.log(`No tracks found on Spotify for artist ${artistId}`);
+        return false;
+      }
+      
+      // Add 5 random tracks from top tracks to the setlist
+      const randomTracks = spotifyTracks
+        .sort(() => 0.5 - Math.random())
+        .slice(0, 5);
+      
+      for (const track of randomTracks) {
+        await supabase.from('setlist_songs').insert({
+          setlist_id: setlistId,
+          spotify_id: track.id,
+          title: track.name,
+          duration_ms: track.duration_ms,
+          preview_url: track.preview_url,
+          album_name: track.album?.name,
+          album_image_url: track.album?.images?.[0]?.url,
+          votes: 0
+        });
+      }
+    } else {
+      // Use tracks from database
+      const randomTracks = tracks
+        .sort(() => 0.5 - Math.random())
+        .slice(0, 5);
+      
+      for (const track of randomTracks) {
+        await supabase.from('setlist_songs').insert({
+          setlist_id: setlistId,
+          spotify_id: track.spotify_id,
+          title: track.name,
+          duration_ms: track.duration_ms,
+          preview_url: track.preview_url,
+          album_name: track.album_name,
+          album_image_url: track.album_image_url,
+          votes: 0
+        });
+      }
+    }
+    
+    console.log(`Successfully populated setlist ${setlistId} with songs`);
+    return true;
+  } catch (error) {
+    console.error(`Error populating setlist: ${(error as Error).message}`);
+    return false;
   }
 }

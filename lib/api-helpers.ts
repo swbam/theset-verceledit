@@ -1,10 +1,38 @@
 import { createClient } from '@supabase/supabase-js';
 
-// Initialize Supabase client
+// Initialize Supabase client with better error handling
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+if (!supabaseUrl || !supabaseServiceKey) {
+  throw new Error(
+    'Missing required environment variables for Supabase: ' +
+    (!supabaseUrl ? 'NEXT_PUBLIC_SUPABASE_URL ' : '') +
+    (!supabaseServiceKey ? 'SUPABASE_SERVICE_ROLE_KEY' : '')
+  );
+}
+
 const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
+  supabaseUrl,
+  supabaseServiceKey,
+  {
+    auth: {
+      persistSession: false, // Don't persist auth state for server functions
+      autoRefreshToken: false, // Don't auto refresh token for server environment
+    },
+    global: {
+      headers: {
+        'x-application-name': 'theset-server',
+      },
+    },
+  }
 );
+
+// Export direct reference for use in other modules
+export { supabase };
+
+// Export typesafe client for specific functions
+export type SupabaseClient = typeof supabase;
 
 /**
  * Get cached data or fetch fresh data and cache it

@@ -1,4 +1,3 @@
-
 import React, { useEffect } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
@@ -22,6 +21,7 @@ import CreateShow from './pages/CreateShow';
 import NotFound from './pages/NotFound';
 import TestJourney from './pages/TestJourney';
 import Admin from './pages/Admin';
+import Dashboard from './pages/Dashboard';
 
 // Google Analytics tracking ID
 const GA_TRACKING_ID = "G-CNM6621HGW";
@@ -63,6 +63,7 @@ function App() {
               <Route path="/auth/callback" element={<AuthCallback />} />
               <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
               <Route path="/my-artists" element={<ProtectedRoute><MyArtists /></ProtectedRoute>} />
+              <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
               <Route path="/create-show" element={<ProtectedRoute><CreateShow /></ProtectedRoute>} />
               <Route path="/admin" element={<Admin />} />
               <Route path="/test-journey" element={<TestJourney />} />
