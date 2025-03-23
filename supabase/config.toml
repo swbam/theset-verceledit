@@ -7,8 +7,18 @@ project_id = "kzjnkqeosrycfpxjwhil"
 # The port on which the server will run
 port = 8080
 
-# CORS settings
-cors = ["http://localhost:8080", "http://localhost:8081", "https://theset.live"]
+# CORS settings - Allow both local development and production URLs
+cors = ["http://localhost:8080", "http://localhost:8081", "https://theset.live", "https://theset-verceledit.vercel.app"]
+
+# Site URL configuration
+site_url = "https://theset-verceledit.vercel.app"  # Production URL for Supabase dashboard
+
+# Additional redirect URLs for authentication
+additional_redirect_urls = [
+  "http://localhost:8080/auth/callback",
+  "http://localhost:8081/auth/callback",
+  "https://theset-verceledit.vercel.app/auth/callback"
+]
 
 [database]
 # Database connection settings
@@ -18,6 +28,24 @@ url = "postgresql://postgres.kzjnkqeosrycfpxjwhil:Bambseth1590@aws-0-us-east-1.p
 # Authentication settings
 jwt_secret = "hgoLkvqEkJ31kikwlvBhHvbT+72eVcxdqqtRSFd83ss="
 
+# Enable local URL detection for development
+# This allows the auth system to detect localhost URLs during development
+# while still using the production URL in the Supabase dashboard
+enable_local_url_detection = true
+
 [api]
 # API settings
 enable = true
+
+[auth.redirect_urls]
+# Explicitly list all allowed redirect URLs
+allow_list = [
+  "http://localhost:8080",
+  "http://localhost:8080/*",
+  "http://localhost:8081",
+  "http://localhost:8081/*",
+  "https://theset-verceledit.vercel.app",
+  "https://theset-verceledit.vercel.app/*",
+  "https://theset.live",
+  "https://theset.live/*"
+]
