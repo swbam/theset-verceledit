@@ -1,4 +1,3 @@
-
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
@@ -25,4 +24,52 @@ export default defineConfig(({ mode }) => ({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  build: {
+    // Increase the warning limit to avoid unnecessary warnings
+    chunkSizeWarningLimit: 1000,
+    rollupOptions: {
+      output: {
+        // Manually split chunks for better performance
+        manualChunks: {
+          // Vendor chunk for third-party libraries
+          vendor: [
+            'react', 
+            'react-dom', 
+            'react-router-dom', 
+            '@supabase/supabase-js',
+            '@tanstack/react-query'
+          ],
+          // UI components chunk
+          ui: [
+            '@radix-ui',
+            'lucide-react',
+            'class-variance-authority',
+            'clsx',
+            'tailwind-merge'
+          ],
+          // API services chunk
+          api: [
+            'src/lib/api',
+            'src/lib/ticketmaster.ts',
+            'src/integrations/supabase'
+          ],
+          // Auth related code
+          auth: [
+            'src/contexts/auth',
+            'src/pages/Auth.tsx',
+            'src/pages/AuthCallback.tsx'
+          ]
+        }
+      }
+    }
+  },
+  // Optimize dependencies
+  optimizeDeps: {
+    include: [
+      'react', 
+      'react-dom', 
+      'react-router-dom',
+      '@supabase/supabase-js'
+    ]
+  }
 }));

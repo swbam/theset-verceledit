@@ -3,9 +3,16 @@ import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 import { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 
-// Supabase configuration
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+// Supabase configuration - with fallbacks for when environment variables aren't available
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 
+                     "https://kzjnkqeosrycfpxjwhil.supabase.co";
+
+const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || 
+                                "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt6am5rcWVvc3J5Y2ZweGp3aGlsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDI2ODM3ODMsImV4cCI6MjA1ODI1OTc4M30.KOriVTUxlnfiBpWmVrlO4xHM7nniizLgXQ49f2K22UM";
+
+// Log the Supabase configuration for debugging
+console.log('Supabase URL:', SUPABASE_URL);
+console.log('Supabase Key available:', SUPABASE_PUBLISHABLE_KEY ? 'Yes' : 'No');
 
 // Detect if we're in a local development environment
 const isLocalDevelopment = 
@@ -29,53 +36,67 @@ if (typeof window !== 'undefined') {
   console.log(`Auth redirect URL: ${getRedirectUrl()}`);
 }
 
-// Import the supabase client like this:
-// import { supabase } from "@/integrations/supabase/client";
-export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
-  auth: {
-    persistSession: true,
-    autoRefreshToken: true,
-    detectSessionInUrl: true,
-    flowType: 'pkce', // More secure authentication flow for mobile and SPA
-    storage: {
-      getItem: (key) => {
-        try {
-          const storedValue = localStorage.getItem(key);
-          if (!storedValue) return null;
-          return JSON.parse(storedValue);
-        } catch (error) {
-          console.error('Error retrieving auth from storage:', error);
-          return null;
-        }
-      },
-      setItem: (key, value) => {
-        try {
-          localStorage.setItem(key, JSON.stringify(value));
-        } catch (error) {
-          console.error('Error storing auth in storage:', error);
-        }
-      },
-      removeItem: (key) => {
-        try {
-          localStorage.removeItem(key);
-        } catch (error) {
-          console.error('Error removing auth from storage:', error);
+// Create the Supabase client with error handling
+let supabaseClient;
+try {
+  // Import the supabase client like this:
+  // import { supabase } from "@/integrations/supabase/client";
+  supabaseClient = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+      flowType: 'pkce', // More secure authentication flow for mobile and SPA
+      storage: {
+        getItem: (key) => {
+          try {
+            if (typeof window === 'undefined') return null;
+            const storedValue = localStorage.getItem(key);
+            if (!storedValue) return null;
+            return JSON.parse(storedValue);
+          } catch (error) {
+            console.error('Error retrieving auth from storage:', error);
+            return null;
+          }
+        },
+        setItem: (key, value) => {
+          try {
+            if (typeof window === 'undefined') return;
+            localStorage.setItem(key, JSON.stringify(value));
+          } catch (error) {
+            console.error('Error storing auth in storage:', error);
+          }
+        },
+        removeItem: (key) => {
+          try {
+            if (typeof window === 'undefined') return;
+            localStorage.removeItem(key);
+          } catch (error) {
+            console.error('Error removing auth from storage:', error);
+          }
         }
       }
-    }
-  },
-  realtime: {
-    params: {
-      eventsPerSecond: 10
-    }
-  },
-  global: {
-    headers: {
-      'x-application-name': isLocalDevelopment ? 'theset-local' : 'theset-client'
     },
-    fetch: fetch // Explicitly provide the fetch implementation
-  }
-});
+    realtime: {
+      params: {
+        eventsPerSecond: 10
+      }
+    },
+    global: {
+      headers: {
+        'x-application-name': isLocalDevelopment ? 'theset-local' : 'theset-client'
+      },
+      fetch: fetch // Explicitly provide the fetch implementation
+    }
+  });
+  console.log('Supabase client created successfully');
+} catch (error) {
+  console.error('Error creating Supabase client:', error);
+  // Create a fallback client with minimal configuration
+  supabaseClient = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+}
+
+export const supabase = supabaseClient;
 
 /**
  * Sign in with a specific provider and use the appropriate redirect URL
@@ -83,6 +104,7 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
  */
 export const signInWithProvider = async (provider: 'spotify' | 'google') => {
   try {
+    console.log(`Signing in with ${provider}...`);
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider,
       options: {
@@ -90,7 +112,12 @@ export const signInWithProvider = async (provider: 'spotify' | 'google') => {
       }
     });
     
-    if (error) throw error;
+    if (error) {
+      console.error(`Error signing in with ${provider}:`, error);
+      throw error;
+    }
+    
+    console.log(`${provider} sign-in initiated:`, data);
     return data;
   } catch (error) {
     console.error(`Error signing in with ${provider}:`, error);
