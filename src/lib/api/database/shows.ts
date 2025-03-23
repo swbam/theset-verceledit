@@ -1,5 +1,3 @@
-
-import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
 /**
@@ -131,5 +129,194 @@ export async function getShowFromDatabase(showId: string) {
   } catch (error) {
     console.error("Error in getShowFromDatabase:", error);
     return null;
+  }
+}
+
+/**
+ * Get a single show with detailed venue and artist information
+ * @param showId ID of the show to fetch
+ * @returns Show details or null if not found
+ */
+export async function getShow(showId: string) {
+  try {
+    if (!showId) {
+      console.error("Missing show ID");
+      return null;
+    }
+    
+    const { data: show, error } = await supabase
+      .from('shows')
+      .select(`
+        id,
+        name,
+        date,
+        time,
+        description,
+        cover_image,
+        venue_id,
+        artist_id,
+        venue:venue_id (
+          id, 
+          name, 
+          city, 
+          state, 
+          address,
+          maps_url,
+          image
+        ),
+        artist:artist_id (
+          id, 
+          name, 
+          image
+        )
+      `)
+      .eq('id', showId)
+      .maybeSingle();
+    
+    if (error) {
+      console.error(`Error fetching show: ${error.message}`);
+      return null;
+    }
+    
+    if (!show) {
+      return null;
+    }
+    
+    return {
+      ...show,
+      date: show.date || null,
+    };
+  } catch (error) {
+    console.error(`Error in getShow: ${(error as Error).message}`);
+    return null;
+  }
+}
+
+/**
+ * Get upcoming shows, ordered by date
+ */
+export async function getUpcomingShows(limit = 10) {
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    
+    const { data: shows, error } = await supabase
+      .from('shows')
+      .select(`
+        id,
+        name,
+        date,
+        venue_id,
+        artist_id,
+        cover_image,
+        venue:venue_id (
+          id,
+          name,
+          city,
+          state
+        ),
+        artist:artist_id (
+          id,
+          name,
+          image
+        )
+      `)
+      .gte('date', today)
+      .order('date', { ascending: true })
+      .limit(limit);
+    
+    if (error) {
+      console.error(`Error fetching upcoming shows: ${error.message}`);
+      return [];
+    }
+    
+    return shows || [];
+  } catch (error) {
+    console.error(`Error in getUpcomingShows: ${(error as Error).message}`);
+    return [];
+  }
+}
+
+/**
+ * Get shows for a specific artist
+ */
+export async function getShowsByArtist(artistId: string) {
+  try {
+    if (!artistId) {
+      console.error("Missing artist ID");
+      return [];
+    }
+    
+    const today = new Date().toISOString().split('T')[0];
+    
+    const { data: shows, error } = await supabase
+      .from('shows')
+      .select(`
+        id,
+        name,
+        date,
+        venue_id,
+        cover_image,
+        venue:venue_id (
+          id,
+          name,
+          city,
+          state
+        )
+      `)
+      .eq('artist_id', artistId)
+      .gte('date', today)
+      .order('date', { ascending: true });
+    
+    if (error) {
+      console.error(`Error fetching shows for artist: ${error.message}`);
+      return [];
+    }
+    
+    return shows || [];
+  } catch (error) {
+    console.error(`Error in getShowsByArtist: ${(error as Error).message}`);
+    return [];
+  }
+}
+
+/**
+ * Get shows at a specific venue
+ */
+export async function getShowsByVenue(venueId: string) {
+  try {
+    if (!venueId) {
+      console.error("Missing venue ID");
+      return [];
+    }
+    
+    const today = new Date().toISOString().split('T')[0];
+    
+    const { data: shows, error } = await supabase
+      .from('shows')
+      .select(`
+        id,
+        name,
+        date,
+        artist_id,
+        cover_image,
+        artist:artist_id (
+          id,
+          name,
+          image
+        )
+      `)
+      .eq('venue_id', venueId)
+      .gte('date', today)
+      .order('date', { ascending: true });
+    
+    if (error) {
+      console.error(`Error fetching shows for venue: ${error.message}`);
+      return [];
+    }
+    
+    return shows || [];
+  } catch (error) {
+    console.error(`Error in getShowsByVenue: ${(error as Error).message}`);
+    return [];
   }
 }
