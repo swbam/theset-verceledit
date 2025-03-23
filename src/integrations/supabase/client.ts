@@ -4,8 +4,8 @@ import type { Database } from './types';
 import { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 
 // Supabase configuration
-const SUPABASE_URL = "https://kzjnkqeosrycfpxjwhil.supabase.co";
-const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt6am5rcWVvc3J5Y2ZweGp3aGlsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MTcxMzc2MDAsImV4cCI6MjAzMjcxMzYwMH0.gKiueE4GfBw-Y3XNuRU-rjSie2UHAQo_nXcKU4EQvTs";
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 // Detect if we're in a local development environment
 const isLocalDevelopment = 
@@ -36,7 +36,33 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: true,
-    flowType: 'pkce' // More secure authentication flow for mobile and SPA
+    flowType: 'pkce', // More secure authentication flow for mobile and SPA
+    storage: {
+      getItem: (key) => {
+        try {
+          const storedValue = localStorage.getItem(key);
+          if (!storedValue) return null;
+          return JSON.parse(storedValue);
+        } catch (error) {
+          console.error('Error retrieving auth from storage:', error);
+          return null;
+        }
+      },
+      setItem: (key, value) => {
+        try {
+          localStorage.setItem(key, JSON.stringify(value));
+        } catch (error) {
+          console.error('Error storing auth in storage:', error);
+        }
+      },
+      removeItem: (key) => {
+        try {
+          localStorage.removeItem(key);
+        } catch (error) {
+          console.error('Error removing auth from storage:', error);
+        }
+      }
+    }
   },
   realtime: {
     params: {
@@ -48,41 +74,7 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
       'x-application-name': isLocalDevelopment ? 'theset-local' : 'theset-client'
     },
     fetch: fetch // Explicitly provide the fetch implementation
-  },
-  db: {
-    schema: 'public'
   }
-});
-
-// Set the site URL for auth redirects
-if (typeof window !== 'undefined') {
-  // This is a workaround since redirectTo isn't directly available in the client options
-  // We'll set it after client initialization
-  supabase.auth.setSession({
-    access_token: '',
-    refresh_token: ''
-  }).then(() => {
-    console.log('Setting site URL for auth redirects:', getRedirectUrl());
-  }).catch(error => {
-    console.error('Error setting site URL:', error);
-  });
-}
-
-// Connection status tracking
-let isConnected = false;
-let reconnectAttempts = 0;
-const MAX_RECONNECT_ATTEMPTS = 5;
-const RECONNECT_INTERVAL = 3000; // 3 seconds
-
-// Initialize auth state
-supabase.auth.getSession().then(({ data: { session } }) => {
-  if (session) {
-    console.log('Auth session initialized');
-  } else {
-    console.log('No active auth session');
-  }
-}).catch(error => {
-  console.error('Error initializing auth:', error);
 });
 
 /**
@@ -105,6 +97,23 @@ export const signInWithProvider = async (provider: 'spotify' | 'google') => {
     throw error;
   }
 };
+
+// Connection status tracking
+let isConnected = false;
+let reconnectAttempts = 0;
+const MAX_RECONNECT_ATTEMPTS = 5;
+const RECONNECT_INTERVAL = 3000; // 3 seconds
+
+// Initialize auth state
+supabase.auth.getSession().then(({ data: { session } }) => {
+  if (session) {
+    console.log('Auth session initialized');
+  } else {
+    console.log('No active auth session');
+  }
+}).catch(error => {
+  console.error('Error initializing auth:', error);
+});
 
 /**
  * Create a realtime channel subscription for a specific table

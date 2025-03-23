@@ -1,10 +1,15 @@
 import { ErrorSource, handleError } from '@/lib/error-handling';
 
 // Ticketmaster API key
-const TICKETMASTER_API_KEY = import.meta.env.VITE_TICKETMASTER_API_KEY || 'k8GrSAkbFaN0w7qDxGl7ohr8LwdAQm9b';
+const TICKETMASTER_API_KEY = import.meta.env.VITE_TICKETMASTER_API_KEY;
 
-// Ticketmaster API base URL
-const API_BASE_URL = 'https://app.ticketmaster.com/discovery/v2/';
+// Determine if we're in a development environment
+const isDevelopment = import.meta.env.DEV || (typeof window !== 'undefined' && window.location.hostname === 'localhost');
+
+// API base URL - use direct API in development, proxy in production
+const API_BASE_URL = isDevelopment 
+  ? 'https://app.ticketmaster.com/discovery/v2/'
+  : '/api/ticketmaster';
 
 // API request configuration
 const API_CONFIG = {
@@ -39,25 +44,46 @@ const delay = (retryCount: number) => {
   return new Promise(resolve => setTimeout(resolve, delayTime));
 };
 
+// Custom error type with noRetry property
+interface ApiErrorCause {
+  noRetry?: boolean;
+}
+
 /**
  * Call Ticketmaster API with specified endpoint and parameters
  * Includes retry logic with exponential backoff
  */
 export async function callTicketmasterApi(endpoint: string, params: Record<string, string> = {}) {
   let retryCount = 0;
-  let lastError = null;
+  let lastError: Error | null = null;
 
   while (retryCount <= API_CONFIG.maxRetries) {
     try {
-      const url = new URL(endpoint, API_BASE_URL);
+      let url: URL;
       
-      // Add API key to all requests
-      url.searchParams.append('apikey', TICKETMASTER_API_KEY);
-      
-      // Add additional parameters
-      Object.entries(params).forEach(([key, value]) => {
-        url.searchParams.append(key, value);
-      });
+      if (isDevelopment) {
+        // In development, call Ticketmaster API directly
+        url = new URL(endpoint, API_BASE_URL);
+        
+        // Add API key to all requests
+        url.searchParams.append('apikey', TICKETMASTER_API_KEY);
+        
+        // Add additional parameters
+        Object.entries(params).forEach(([key, value]) => {
+          url.searchParams.append(key, value);
+        });
+      } else {
+        // In production, use our proxy API
+        url = new URL(API_BASE_URL, typeof window !== 'undefined' ? window.location.origin : undefined);
+        
+        // Add endpoint as a query parameter
+        url.searchParams.append('endpoint', endpoint);
+        
+        // Add additional parameters
+        Object.entries(params).forEach(([key, value]) => {
+          url.searchParams.append(key, value);
+        });
+      }
       
       console.log(`Calling Ticketmaster API: ${url.toString()} (attempt ${retryCount + 1})`);
       
@@ -81,25 +107,32 @@ export async function callTicketmasterApi(endpoint: string, params: Record<strin
         if ([429, 500, 502, 503, 504].includes(response.status)) {
           // These status codes are likely transient issues, so we should retry
           const errorData = await response.json().catch(() => ({}));
-          throw new Error(`Ticketmaster API error (${response.status}): ${errorData.fault?.faultstring || response.statusText}`);
+          const errorMessage = `Ticketmaster API error (${response.status}): ${errorData.fault?.faultstring || response.statusText}`;
+          throw new Error(errorMessage);
         }
         
         // For other status codes, we shouldn't retry
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(`Ticketmaster API error (${response.status}): ${errorData.fault?.faultstring || response.statusText}`, { cause: { noRetry: true } });
+        const errorMessage = `Ticketmaster API error (${response.status}): ${errorData.fault?.faultstring || response.statusText}`;
+        const error = new Error(errorMessage);
+        // Set the noRetry property
+        (error as Error & { cause: ApiErrorCause }).cause = { noRetry: true };
+        throw error;
       }
       
       const data = await response.json();
       return data;
-    } catch (error: any) {
-      lastError = error;
+    } catch (error) {
+      // Type assertion for the error
+      const typedError = error as Error & { cause?: ApiErrorCause, name?: string };
+      lastError = typedError;
       
       // Don't retry if:
       // 1. It's a timeout error (AbortError)
       // 2. We've explicitly marked it as no retry
       // 3. We've reached max retries
-      const isAbortError = error.name === 'AbortError';
-      const isNoRetry = error.cause?.noRetry === true;
+      const isAbortError = typedError.name === 'AbortError';
+      const isNoRetry = typedError.cause?.noRetry === true;
       
       if (isAbortError || isNoRetry || retryCount >= API_CONFIG.maxRetries) {
         break;
