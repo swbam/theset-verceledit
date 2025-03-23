@@ -11,6 +11,18 @@ interface SetlistDisplayProps {
   artistId: string;
 }
 
+interface Setlist {
+  id: string;
+  date: string;
+  venue: string;
+  city: string;
+  songs: Array<{
+    id: string;
+    name: string;
+    vote_count: number;
+  }>;
+}
+
 const SetlistDisplay = ({ artistId }: SetlistDisplayProps) => {
   const user = useUser();
   const [expandedSetlist, setExpandedSetlist] = useState<string | null>(null);
@@ -42,7 +54,7 @@ const SetlistDisplay = ({ artistId }: SetlistDisplayProps) => {
         filter={{ artist_id: artistId }}
         limit={10}
       >
-        {(setlists) => (
+        {(setlists: Setlist[]) => (
           setlists.length === 0 ? (
             <Card className="p-6 bg-muted/50">
               <p className="text-center text-muted-foreground">No past setlists found</p>
@@ -71,14 +83,14 @@ const SetlistDisplay = ({ artistId }: SetlistDisplayProps) => {
                     <CardContent className="pt-4">
                       {setlist.songs && setlist.songs.length > 0 ? (
                         <ul className="space-y-2">
-                          {setlist.songs.map((song: any) => (
+                          {setlist.songs.map((song: { id: string, name: string, vote_count: number }) => (
                             <li 
                               key={song.id} 
                               className="flex justify-between items-center text-sm p-2 hover:bg-muted/30 rounded-md transition-colors"
                             >
-                              <span>{song.title}</span>
+                              <span>{song.name}</span>
                               <div className="flex items-center gap-2">
-                                <span className="text-muted-foreground">{song.vote_count + (votes[song.id] ? 1 : 0)} votes</span>
+                                <span className="text-muted-foreground">{(song.vote_count || 0) + (votes[song.id] ? 1 : 0)} votes</span>
                                 <Button 
                                   variant="ghost" 
                                   size="icon" 

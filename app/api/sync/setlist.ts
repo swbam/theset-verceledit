@@ -70,7 +70,27 @@ export async function fetchSetlistFmData(artistName: string) {
 /**
  * Process and store setlist data in the database
  */
-export async function processSetlistData(artistId: string, setlists: any[]) {
+interface SetlistItem {
+  eventDate?: string;
+  venue?: {
+    name?: string;
+    city?: {
+      name?: string;
+      country?: {
+        name?: string;
+      };
+    };
+  };
+  sets?: {
+    set: Array<{
+      song?: Array<{
+        name: string;
+      }>;
+    }>;
+  };
+}
+
+export async function processSetlistData(artistId: string, setlists: SetlistItem[]) {
   try {
     // Process each setlist
     for (const setlist of setlists) {
@@ -82,7 +102,7 @@ export async function processSetlistData(artistId: string, setlists: any[]) {
           date: setlist.eventDate ? new Date(`${setlist.eventDate}T20:00:00Z`).toISOString() : new Date().toISOString(),
           venue: setlist.venue?.name || 'Unknown Venue',
           city: `${setlist.venue?.city?.name || 'Unknown'}, ${setlist.venue?.city?.country?.name || 'Unknown'}`,
-          last_updated: new Date().toISOString()
+          updated_at: new Date().toISOString()
         }, { 
           onConflict: 'artist_id,date,venue',
           returning: 'representation'
@@ -122,11 +142,11 @@ export async function processSetlistData(artistId: string, setlists: any[]) {
           if (set.song) {
             for (const song of set.song) {
               songs.push({
-                title: song.name,
+                name: song.name,
                 artist_id: artistId,
                 setlist_id: setlistId,
                 vote_count: 0,
-                last_updated: new Date().toISOString()
+                updated_at: new Date().toISOString()
               });
             }
           }
@@ -137,7 +157,7 @@ export async function processSetlistData(artistId: string, setlists: any[]) {
           const { error: songsError } = await supabase
             .from('setlist_songs')
             .upsert(songs, { 
-              onConflict: 'title,setlist_id'
+              onConflict: 'name,setlist_id'
             });
             
           if (songsError) throw songsError;

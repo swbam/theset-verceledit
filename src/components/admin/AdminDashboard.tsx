@@ -6,6 +6,7 @@ import AdminShows from './AdminShows';
 import AdminSetlists from './AdminSetlists';
 import AdminUsers from './AdminUsers';
 import AdminSeedData from './AdminSeedData';
+import AdminArtistImport from './AdminArtistImport';
 import TestDatabaseIntegration from './TestDatabaseIntegration';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
@@ -26,6 +27,7 @@ const AdminDashboard = () => {
           <TabsList className="mb-6">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="artists">Artists</TabsTrigger>
+            <TabsTrigger value="import-artists">Import Artists</TabsTrigger>
             <TabsTrigger value="shows">Shows</TabsTrigger>
             <TabsTrigger value="setlists">Setlists</TabsTrigger>
             <TabsTrigger value="users">Users</TabsTrigger>
@@ -39,6 +41,10 @@ const AdminDashboard = () => {
           
           <TabsContent value="artists">
             <AdminArtists />
+          </TabsContent>
+          
+          <TabsContent value="import-artists">
+            <AdminArtistImport />
           </TabsContent>
           
           <TabsContent value="shows">

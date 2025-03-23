@@ -1,1 +1,23 @@
 project_id = "kzjnkqeosrycfpxjwhil"
+
+
+ props: {"title": "Supabase-like Configuration for Allowed URLs", "runQuery": "false", "isChart": "false"}
+
+[server]
+# The port on which the server will run
+port = 8080
+
+# CORS settings
+cors = ["http://localhost:8080", "http://localhost:8081", "https://theset.live"]
+
+[database]
+# Database connection settings
+url = "postgresql://postgres.kzjnkqeosrycfpxjwhil:Bambseth1590@aws-0-us-east-1.pooler.supabase.com:5432/postgres"
+
+[auth]
+# Authentication settings
+jwt_secret = "hgoLkvqEkJ31kikwlvBhHvbT+72eVcxdqqtRSFd83ss="
+
+[api]
+# API settings
+enable = true

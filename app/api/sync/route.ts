@@ -87,7 +87,17 @@ export async function GET(request: NextRequest) {
     }
 
     // Define response data
-    let responseData: any = { 
+    const responseData: {
+      success: boolean;
+      timestamp: string;
+      services: Record<string, string>;
+      errors?: Record<string, string>;
+      artist?: {
+        id: string;
+        name: string;
+        mbid?: string;
+      };
+    } = { 
       success: false, 
       timestamp: new Date().toISOString(),
       services: {}
@@ -201,7 +211,7 @@ export async function GET(request: NextRequest) {
 }
 
 // Database sync functions - split into separate methods
-async function syncTicketmasterData(tmData: any) {
+async function syncTicketmasterData(tmData: Record<string, unknown>) {
   // Start a database transaction for atomic updates
   const { error: txError } = await supabase.rpc('begin_transaction');
   if (txError) throw txError;
@@ -261,13 +271,95 @@ async function syncTicketmasterData(tmData: any) {
   }
 }
 
-async function syncSpotifyData(spotifyData: any) {
-  // Process Spotify data
-  if (spotifyData?.playlists?.items) {
-    // Placeholder for Spotify data processing
-    // This will be expanded in a future implementation
-    console.log(`Processed ${spotifyData.playlists.items.length} Spotify playlists`);
+async function syncSpotifyData(spotifyData: Record<string, unknown>) {
+  try {
+    // Process Spotify data for featured playlists
+    if (spotifyData?.playlists?.items) {
+      console.log(`Processing ${spotifyData.playlists.items.length} Spotify playlists`);
+      
+      for (const playlist of spotifyData.playlists.items) {
+        if (!playlist.id || !playlist.name) continue;
+        
+        // Extract artist names from playlist title (common format: "This is Artist Name")
+        const possibleArtistName = playlist.name.replace('This is ', '').trim();
+        
+        // Find if this artist exists in our database
+        const { data: existingArtist } = await supabase
+          .from('artists')
+          .select('id, spotify_id')
+          .ilike('name', possibleArtistName)
+          .maybeSingle();
+          
+        if (existingArtist) {
+          // Fetch top tracks for this artist
+          const spotifyKey = process.env.SPOTIFY_CLIENT_ID;
+          const spotifySecret = process.env.SPOTIFY_CLIENT_SECRET;
+          
+          if (!spotifyKey || !spotifySecret) {
+            console.error('Missing Spotify credentials');
+            continue;
+          }
+          
+          // Get API token
+          const tokenRes = await fetch('https://accounts.spotify.com/api/token', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+              'Authorization': `Basic ${Buffer.from(`${spotifyKey}:${spotifySecret}`).toString('base64')}`
+            },
+            body: 'grant_type=client_credentials'
+          });
+          
+          if (!tokenRes.ok) {
+            console.error(`Spotify token error: ${tokenRes.status}`);
+            continue;
+          }
+          
+          const { access_token } = await tokenRes.json();
+          
+          // Get top tracks
+          const tracksRes = await fetch(
+            `https://api.spotify.com/v1/artists/${existingArtist.spotify_id}/top-tracks?market=US`,
+            {
+              headers: { 'Authorization': `Bearer ${access_token}` }
+            }
+          );
+          
+          if (!tracksRes.ok) {
+            console.error(`Failed to fetch tracks: ${tracksRes.status}`);
+            continue;
+          }
+          
+          const tracksData = await tracksRes.json();
+          
+          if (tracksData?.tracks && Array.isArray(tracksData.tracks)) {
+            // Store these tracks in the songs table
+            for (const track of tracksData.tracks) {
+              const { error: songError } = await supabase
+                .from('songs')
+                .upsert({
+                  name: track.name,
+                  artist_id: existingArtist.id,
+                  spotify_id: track.id,
+                  duration_ms: track.duration_ms,
+                  popularity: track.popularity || 0,
+                  preview_url: track.preview_url
+                }, { onConflict: 'spotify_id' });
+                
+              if (songError) {
+                console.error(`Error storing track: ${songError.message}`);
+              }
+            }
+            
+            console.log(`Stored ${tracksData.tracks.length} tracks for artist ${possibleArtistName}`);
+          }
+        }
+      }
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('Error syncing Spotify data:', error);
+    return false;
   }
-  
-  return true;
 } 

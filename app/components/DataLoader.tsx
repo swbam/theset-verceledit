@@ -10,8 +10,8 @@ type Entity = 'artists' | 'shows' | 'setlists' | 'setlist_songs' | 'past_setlist
 interface DataLoaderProps {
   entity: Entity;
   limit?: number;
-  filter?: Record<string, any>;
-  children: (data: any[]) => React.ReactNode;
+  filter?: Record<string, unknown>;
+  children: (data: unknown[]) => React.ReactNode;
 }
 
 const SkeletonLoader = ({ type }: { type: Entity }) => {
@@ -48,7 +48,7 @@ const DataErrorCard = ({ onRetry }: { onRetry?: () => void }) => (
 );
 
 const DataLoader = ({ entity, limit = 50, filter = {}, children }: DataLoaderProps) => {
-  const [data, setData] = useState<any[]>([]);
+  const [data, setData] = useState<unknown[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const supabase = useSupabaseClient();
@@ -96,9 +96,10 @@ const DataLoader = ({ entity, limit = 50, filter = {}, children }: DataLoaderPro
               // Get songs for this setlist
               const { data: songs, error: songsError } = await supabase
                 .from('setlist_songs')
-                .select('id, title, vote_count')
+                .select('id, name, vote_count, song_id, artist_id, position')
                 .eq('setlist_id', setlist.id)
-                .order('vote_count', { ascending: false });
+                .order('position', { ascending: true })
+                  .order('vote_count', { ascending: false });
                 
               if (songsError) throw songsError;
               
@@ -126,7 +127,7 @@ const DataLoader = ({ entity, limit = 50, filter = {}, children }: DataLoaderPro
         let query = supabase
           .from(entity)
           .select('*')
-          .order('last_updated', { ascending: false })
+          .order('updated_at', { ascending: false })
           .limit(limit);
         
         // Apply filters
@@ -151,7 +152,7 @@ const DataLoader = ({ entity, limit = 50, filter = {}, children }: DataLoaderPro
     fetchData();
 
     // Set up realtime subscription for standard entities
-    let channel: any;
+    let channel: { unsubscribe: () => void } | null = null;
     if (entity !== 'past_setlists') {
       channel = supabase
         .channel('realtime-data')
@@ -166,6 +167,7 @@ const DataLoader = ({ entity, limit = 50, filter = {}, children }: DataLoaderPro
     return () => {
       if (channel) channel.unsubscribe();
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entity, supabase, limit, JSON.stringify(filter)]);
 
   // Function to handle manual refresh
@@ -176,7 +178,8 @@ const DataLoader = ({ entity, limit = 50, filter = {}, children }: DataLoaderPro
   };
 
   // Utility function to fetch data from API
-  const fetchDataFromAPI = async (artistId: string) => {
+  const fetchDataFromAPI = async (artistId: unknown) => {
+    if (typeof artistId !== 'string') return;
     if (!artistId) return;
     
     try {

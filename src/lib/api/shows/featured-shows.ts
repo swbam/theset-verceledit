@@ -3,10 +3,91 @@ import { callTicketmasterApi } from "../ticketmaster-config";
 import { supabase } from "@/integrations/supabase/client";
 import { ErrorSource, handleError } from "@/lib/error-handling";
 
+interface TicketmasterImage {
+  ratio: string;
+  url: string;
+  width: number;
+  height: number;
+}
+
+interface TicketmasterClassification {
+  genre?: { name: string };
+  subGenre?: { name: string };
+}
+
+interface TicketmasterAttraction {
+  id: string;
+  name: string;
+  images?: TicketmasterImage[];
+  classifications?: TicketmasterClassification[];
+}
+
+interface TicketmasterVenue {
+  id: string;
+  name: string;
+  city?: { name: string };
+  state?: { name: string };
+  country?: { name: string };
+  upcomingEvents?: { totalEvents: number };
+}
+
+interface TicketmasterEvent {
+  id: string;
+  name: string;
+  dates: {
+    start: {
+      dateTime: string;
+    };
+    status?: {
+      code: string;
+    };
+  };
+  images: TicketmasterImage[];
+  url?: string;
+  rank?: number;
+  _embedded?: {
+    attractions?: TicketmasterAttraction[];
+    venues?: TicketmasterVenue[];
+  };
+}
+
+interface Artist {
+  id: string;
+  name: string;
+  image_url?: string | null;
+  genres?: string[] | null;
+  updated_at?: string;
+  upcoming_shows?: number;
+}
+
+interface Venue {
+  id: string;
+  name: string;
+  city?: string | null;
+  state?: string | null;
+  country?: string | null;
+  updated_at?: string;
+}
+
+interface Show {
+  id: string;
+  name: string;
+  date: string;
+  artist_id: string;
+  venue_id: string | null;
+  ticket_url?: string | null;
+  image_url?: string | null;
+  popularity?: number;
+  updated_at?: string;
+}
+
+type TableName = 'artists' | 'venues' | 'shows';
+type TableData = Artist | Venue | Show;
+
 /**
  * Save data to Supabase with better error handling and retries
  */
-async function saveToSupabase(table: string, data: any, onConflict?: string): Promise<boolean> {
+async function saveToSupabase(table: TableName, data: TableData, onConflict?: string): Promise<boolean> {
   try {
     // Add updated_at timestamp
     const dataWithTimestamp = {
@@ -14,14 +95,12 @@ async function saveToSupabase(table: string, data: any, onConflict?: string): Pr
       updated_at: new Date().toISOString()
     };
     
-    let query = supabase.from(table).upsert(dataWithTimestamp);
-    
-    // Add on_conflict handling if specified
-    if (onConflict) {
-      query = query.onConflict(onConflict);
-    }
-    
-    const { error } = await query;
+    const { error } = await supabase
+      .from(table)
+      .upsert(dataWithTimestamp, {
+        onConflict: onConflict,
+        ignoreDuplicates: false
+      });
     
     if (error) {
       console.error(`Error saving to ${table}:`, error);
@@ -36,15 +115,27 @@ async function saveToSupabase(table: string, data: any, onConflict?: string): Pr
   }
 }
 
+interface ProcessedShow extends Show {
+  artist: Artist | null;
+  venue: Venue | null;
+  qualityScore: number;
+}
+
+interface TicketmasterApiResponse {
+  _embedded?: {
+    events: TicketmasterEvent[];
+  };
+}
+
 /**
  * Fetch featured shows
  */
-export async function fetchFeaturedShows(limit = 4): Promise<any[]> {
+export async function fetchFeaturedShows(limit = 4): Promise<ProcessedShow[]> {
   try {
     console.log(`Fetching ${limit} featured shows directly from Ticketmaster API`);
     
     // Fetch directly from Ticketmaster API
-    const data = await callTicketmasterApi('events.json', {
+    const data: TicketmasterApiResponse = await callTicketmasterApi('events.json', {
       size: '50', // Get more options to choose from
       segmentName: 'Music',
       sort: 'relevance,desc', // Sort by relevance to get more popular events
@@ -60,20 +151,20 @@ export async function fetchFeaturedShows(limit = 4): Promise<any[]> {
 
     // Filter for events with high-quality images and venue information
     const qualityEvents = data._embedded.events
-      .filter((event: any) => 
+      .filter((event: TicketmasterEvent) => 
         // Must have a good quality image
-        event.images.some((img: any) => img.ratio === "16_9" && img.width > 500) &&
+        event.images.some((img) => img.ratio === "16_9" && img.width > 500) &&
         // Must have venue information
         event._embedded?.venues?.[0]?.name &&
         // Must have a start date
         event.dates?.start?.dateTime
       )
       // Map to show objects
-      .map((event: any) => {
+      .map((event: TicketmasterEvent) => {
         // Get artist from attractions if available
         let artistName = '';
         let artistId = '';
-        let artistData = null;
+        let artistData: Artist | null = null;
         
         if (event._embedded?.attractions && event._embedded.attractions.length > 0) {
           const attraction = event._embedded.attractions[0];
@@ -84,7 +175,7 @@ export async function fetchFeaturedShows(limit = 4): Promise<any[]> {
           artistData = {
             id: artistId,
             name: artistName,
-            image_url: attraction.images?.find((img: any) => img.ratio === "16_9" && img.width > 500)?.url,
+            image_url: attraction.images?.find(img => img.ratio === "16_9" && img.width > 500)?.url,
             upcoming_shows: 1,
             genres: attraction.classifications && attraction.classifications.length > 0 
               ? [attraction.classifications[0].genre?.name, attraction.classifications[0].subGenre?.name].filter(Boolean)
@@ -133,7 +224,7 @@ export async function fetchFeaturedShows(limit = 4): Promise<any[]> {
           artist_id: artistId,
           venue_id: venueId,
           ticket_url: event.url,
-          image_url: event.images.find((img: any) => img.ratio === "16_9" && img.width > 500)?.url,
+          image_url: event.images.find(img => img.ratio === "16_9" && img.width > 500)?.url,
           popularity: qualityScore,
           artist: artistData,
           venue: venue,

@@ -1,15 +1,19 @@
 import { createClient } from '@supabase/supabase-js';
 import { fileURLToPath } from 'url';
 import path from 'path';
+import dotenv from 'dotenv';
+
+// Load environment variables from .env.local
+dotenv.config({ path: '.env.local' });
 
 // Get the directory name of the current module
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Initialize the Supabase client with linked project
+// Initialize the Supabase client with environment variables
 const supabase = createClient(
-  'https://kzjnkqeosrycfpxjwhil.supabase.co',
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im90Y2NqaWxnamp6cmV4bW10bGhpIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0MjE0NzY3NCwiZXhwIjoyMDU3NzIzNjc0fQ.uLLzEPKeTqS0zEZd38DLRlBMOQLdSoHZFDsH0I0TeQA'
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
 // Sample data for artists (removed last_updated field)
@@ -57,7 +61,7 @@ const artists = [
 ];
 
 // Sample data for upcoming shows
-const generateShows = (artistId) => {
+const generateShows = async (artistId, artistName) => {
   const venues = [
     { name: 'Madison Square Garden', city: 'New York, US' },
     { name: 'The O2', city: 'London, UK' },
@@ -75,11 +79,29 @@ const generateShows = (artistId) => {
     const date = new Date();
     date.setDate(date.getDate() + daysToAdd);
     
+    // First create or get venue
+    const { data: venueData, error: venueError } = await supabase
+      .from('venues')
+      .upsert({
+        name: randomVenue.name,
+        city: randomVenue.city.split(',')[0],
+        state: randomVenue.city.includes('US') ? randomVenue.city.split(',')[1].trim() : null,
+        country: randomVenue.city.split(',').pop().trim()
+      })
+      .select('id')
+      .single();
+
+    if (venueError) {
+      console.error(`Error creating venue ${randomVenue.name}:`, venueError);
+      continue;
+    }
+
+    // Create show with venue reference
     shows.push({
       artist_id: artistId,
+      name: `${artistName} at ${randomVenue.name}`,
+      venue_id: venueData.id,
       date: date.toISOString(),
-      venue: randomVenue.name,
-      city: randomVenue.city,
       ticket_url: 'https://www.ticketmaster.com'
     });
   }
@@ -88,7 +110,7 @@ const generateShows = (artistId) => {
 };
 
 // Sample data for past setlists
-const generateSetlists = (artistId) => {
+const generateSetlists = async (artistId) => {
   const venues = [
     { name: 'Madison Square Garden', city: 'New York, US' },
     { name: 'The O2', city: 'London, UK' },
@@ -106,11 +128,27 @@ const generateSetlists = (artistId) => {
     const date = new Date();
     date.setDate(date.getDate() - daysToSubtract);
     
+    // First create or get venue
+    const { data: venueData, error: venueError } = await supabase
+      .from('venues')
+      .upsert({
+        name: randomVenue.name,
+        city: randomVenue.city.split(',')[0],
+        state: randomVenue.city.includes('US') ? randomVenue.city.split(',')[1].trim() : null,
+        country: randomVenue.city.split(',').pop().trim()
+      })
+      .select('id')
+      .single();
+
+    if (venueError) {
+      console.error(`Error creating venue ${randomVenue.name}:`, venueError);
+      continue;
+    }
+
     setlists.push({
       artist_id: artistId,
       date: date.toISOString(),
-      venue: randomVenue.name,
-      venue_city: randomVenue.city,
+      venue_id: venueData.id,
       tour_name: `${artistId === artists[0].name ? 'Eras Tour' : artistId === artists[4].name ? 'Music of the Spheres World Tour' : 'World Tour'} ${new Date().getFullYear()}`,
       setlist_fm_id: `${Date.now()}-${i}-${artistId}` // Generate a unique ID
     });
@@ -153,24 +191,36 @@ async function seedData() {
   try {
     console.log('Starting data seeding process...');
     
-    // Insert artists directly
-    console.log('Inserting artists...');
+    // Use upsert for artists to handle existing records
+    console.log('Upserting artists...');
     const { data: insertedArtists, error: artistError } = await supabase
       .from('artists')
-      .insert(artists)
+      .upsert(artists, { onConflict: 'spotify_id' })
       .select();
       
     if (artistError) {
-      console.error('Error inserting artists:', artistError);
+      console.error('Error upserting artists:', artistError);
       return;
     }
     
-    console.log(`Successfully inserted ${insertedArtists.length} artists`);
+    console.log(`Successfully upserted ${insertedArtists.length} artists`);
     
     // Insert shows for each artist
     console.log('Inserting upcoming shows...');
     for (const artist of insertedArtists) {
-      const shows = generateShows(artist.id);
+      const shows = await generateShows(artist.id, artist.name);
+      
+      // Check if shows already exist for this artist
+      const { data: existingShows } = await supabase
+        .from('shows')
+        .select('id')
+        .eq('artist_id', artist.id);
+        
+      if (existingShows && existingShows.length > 0) {
+        console.log(`Shows already exist for ${artist.name}, skipping...`);
+        continue;
+      }
+      
       const { error: showsError } = await supabase
         .from('shows')
         .insert(shows)
@@ -186,7 +236,18 @@ async function seedData() {
     // Insert setlists for each artist
     console.log('Inserting past setlists...');
     for (const artist of insertedArtists) {
-      const setlists = generateSetlists(artist.id);
+      // Check if setlists already exist for this artist
+      const { data: existingSetlists } = await supabase
+        .from('setlists')
+        .select('id')
+        .eq('artist_id', artist.id);
+        
+      if (existingSetlists && existingSetlists.length > 0) {
+        console.log(`Setlists already exist for ${artist.name}, skipping...`);
+        continue;
+      }
+      
+      const setlists = await generateSetlists(artist.id);
       const { data: insertedSetlists, error: setlistError } = await supabase
         .from('setlists')
         .insert(setlists)
@@ -232,4 +293,4 @@ async function seedData() {
 }
 
 // Run the seeding function
-seedData().catch(console.error); 
+seedData().catch(console.error);
