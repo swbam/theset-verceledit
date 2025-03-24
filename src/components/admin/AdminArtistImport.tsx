@@ -135,8 +135,11 @@ const AdminArtistImport = () => {
         }
         
         // For production, check actual auth status
-        const { data } = await supabase.auth.getSession();
-        setIsAuthenticated(!!data.session);
+        const { data, error } = await supabase.auth.getSession();
+        if (error) {
+          console.error('Error fetching session:', error);
+        }
+        setIsAuthenticated(!!data?.session);
 
         // Subscribe to auth changes
         const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
