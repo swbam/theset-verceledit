@@ -25,7 +25,7 @@ import Dashboard from './pages/Dashboard';
 import AdminSetup from './pages/AdminSetup';
 
 // Google Analytics tracking ID
-const GA_TRACKING_ID = "G-CNM6621HGW";
+const GA_TRACKING_ID = "G-CNM6621HGW"; 
 
 // RouteChangeTracker component to track page views
 const RouteChangeTracker = () => {
