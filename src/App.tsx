@@ -22,6 +22,7 @@ import NotFound from './pages/NotFound';
 import TestJourney from './pages/TestJourney';
 import Admin from './pages/Admin';
 import Dashboard from './pages/Dashboard';
+import AdminSetup from './pages/AdminSetup';
 
 // Google Analytics tracking ID
 const GA_TRACKING_ID = "G-CNM6621HGW";
@@ -66,6 +67,7 @@ function App() {
               <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
               <Route path="/create-show" element={<ProtectedRoute><CreateShow /></ProtectedRoute>} />
               <Route path="/admin" element={<Admin />} />
+              <Route path="/admin/setup" element={<AdminSetup />} />
               <Route path="/test-journey" element={<TestJourney />} />
               <Route path="*" element={<NotFound />} />
             </Routes>

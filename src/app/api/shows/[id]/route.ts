@@ -2,7 +2,7 @@
 // @ts-ignore: Cannot find module 'next/server' type declarations
 import { NextResponse } from 'next/server';
 import { supabase } from '../../../../lib/db';
-import { getArtistTopTracks } from '../../../../lib/spotify/top-tracks';
+import { fetchAndStoreArtistTracks } from '../../../../lib/api/database';
 import { fetchShowDetails } from '../../../../lib/ticketmaster';
 
 export async function GET(
@@ -15,8 +15,12 @@ export async function GET(
       .from('shows')
       .select(`
         id,
-        ticketmaster_id,
+        name,
         artist_id,
+        venue_id,
+        date,
+        image_url,
+        ticket_url,
         updated_at,
         venue:venue_id (
           id,
@@ -25,14 +29,31 @@ export async function GET(
           state,
           country
         ),
-        setlists: setlists (
+        artist:artist_id (
+          id,
+          name,
+          spotify_id,
+          image_url
+        ),
+        setlists (
           id,
           created_at,
-          setlist_songs: setlist_songs (
+          updated_at,
+          setlist_songs (
             id,
-            title,
-            spotify_id,
-            created_at
+            song_id,
+            name,
+            position,
+            vote_count,
+            updated_at,
+            song:song_id (
+              id,
+              name,
+              spotify_id,
+              duration_ms,
+              preview_url,
+              popularity
+            )
           )
         )
       `)
@@ -55,58 +76,12 @@ export async function GET(
     // 2) If the show does not have a setlist, create one using Spotify data
     if (!show.setlists || show.setlists.length === 0) {
       console.log('No setlist found for this show, creating one...');
-      // Fetch artist details to get Spotify ID
-      const { data: artist, error: artistError } = await supabase
-        .from('artists')
-        .select('id, spotify_id')
-        .eq('id', show.artist_id)
-        .single();
-
-      if (artistError || !artist) {
+      
+      if (!show.artist || !show.artist.id) {
         return NextResponse.json(
-          { error: "Artist not found" },
+          { error: "Artist information is missing for this show" },
           { status: 404 }
         );
-      }
-
-      // Define a proper type for Spotify tracks
-      // Use a more generic type to accommodate different Spotify track formats
-      interface SpotifyTrack {
-        id: string;
-        name: string;
-        duration_ms?: number;
-        popularity?: number;
-        preview_url?: string | null;
-        album?: Record<string, unknown>; // Use Record to accommodate different formats
-      }
-      
-      let spotifyTracks: Array<SpotifyTrack> = [];
-      if (artist.spotify_id) {
-        try {
-          const tracksData = await getArtistTopTracks(artist.spotify_id as string);
-          // Convert response to expected format if needed
-          if (tracksData && Array.isArray(tracksData.tracks)) {
-            // Convert to our SpotifyTrack format with proper type handling
-            spotifyTracks = tracksData.tracks.map((track: unknown) => ({
-              id: String(track && typeof track === 'object' && 'id' in track ? track.id : ''),
-              name: String(track && typeof track === 'object' && 'name' in track ? track.name : ''),
-              duration_ms: track && typeof track === 'object' && 'duration_ms' in track ? Number(track.duration_ms) : undefined,
-              popularity: track && typeof track === 'object' && 'popularity' in track ? Number(track.popularity) : undefined,
-              preview_url: track && typeof track === 'object' && 'preview_url' in track ? String(track.preview_url) : null
-            }));
-          } else if (Array.isArray(tracksData)) {
-            // Convert to our SpotifyTrack format with proper type handling
-            spotifyTracks = tracksData.map((track: unknown) => ({
-              id: String(track && typeof track === 'object' && 'id' in track ? track.id : ''),
-              name: String(track && typeof track === 'object' && 'name' in track ? track.name : ''),
-              duration_ms: track && typeof track === 'object' && 'duration_ms' in track ? Number(track.duration_ms) : undefined,
-              popularity: track && typeof track === 'object' && 'popularity' in track ? Number(track.popularity) : undefined,
-              preview_url: track && typeof track === 'object' && 'preview_url' in track ? String(track.preview_url) : null
-            }));
-          }
-        } catch (trackError) {
-          console.error("Error fetching Spotify tracks:", trackError);
-        }
       }
 
       // Create a new setlist for the show
@@ -114,7 +89,10 @@ export async function GET(
         .from('setlists')
         .insert({ 
           show_id: show.id,
-          artist_id: artist.id,
+          artist_id: show.artist.id,
+          date: show.date,
+          venue: show.venue?.name,
+          venue_city: show.venue?.city,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         })
@@ -123,53 +101,63 @@ export async function GET(
 
       if (setlistError || !newSetlist) {
         return NextResponse.json(
-          { error: "Error creating setlist" },
+          { error: "Error creating setlist", details: setlistError?.message },
           { status: 500 }
         );
       }
-
-        // Insert setlist songs based on Spotify tracks
-      if (spotifyTracks.length > 0) {
-        // First insert tracks into songs table
-        const setlistSongs = [];
-        let hasError = false;
+      
+      // Get songs for this artist
+      let songs = [];
+      const { data: existingSongs, error: songsError } = await supabase
+        .from('songs')
+        .select('id, name, spotify_id, duration_ms, preview_url, popularity')
+        .eq('artist_id', show.artist.id)
+        .order('popularity', { ascending: false })
+        .limit(50);
         
-        for (const track of spotifyTracks.slice(0, 10)) { // Limit to 10 tracks
-          try {
-            const { data: song, error: songError } = await supabase
-              .from('songs')
-              .upsert({
-                name: track.name,
-                artist_id: artist.id,
-                spotify_id: track.id,
-                duration_ms: track.duration_ms || 0,
-                popularity: track.popularity || 0,
-                preview_url: track.preview_url || null
-              }, { onConflict: 'spotify_id' })
-              .select('id')
-              .single();
-
-            if (songError) {
-              console.error('Error inserting song:', songError);
-              continue;
-            }
-
-            if (song) {
-              // Add to setlist_songs array for batch insert
-              setlistSongs.push({
-                setlist_id: newSetlist.id,
-                song_id: song.id,
-                name: track.name,
-                artist_id: artist.id,
-                position: spotifyTracks.indexOf(track),
-                vote_count: 0
-              });
-            }
-          } catch (error) {
-            console.error(`Error processing track ${track.name}:`, error);
-            hasError = true;
+      if (!songsError && existingSongs && existingSongs.length > 0) {
+        songs = existingSongs;
+      } else if (show.artist.spotify_id) {
+        // Fetch songs from Spotify if we don't have them
+        try {
+          await fetchAndStoreArtistTracks(
+            show.artist.id, 
+            show.artist.spotify_id, 
+            show.artist.name
+          );
+          
+          // Try again to get songs
+          const { data: refreshedSongs } = await supabase
+            .from('songs')
+            .select('id, name, spotify_id, duration_ms, preview_url, popularity')
+            .eq('artist_id', show.artist.id)
+            .order('popularity', { ascending: false })
+            .limit(50);
+            
+          if (refreshedSongs && refreshedSongs.length > 0) {
+            songs = refreshedSongs;
           }
+        } catch (error) {
+          console.error('Error fetching artist tracks:', error);
         }
+      }
+      
+      // Create setlist songs
+      if (songs.length > 0) {
+        // Select 5 random songs
+        const selectedSongs = songs
+          .sort(() => 0.5 - Math.random())
+          .slice(0, 5);
+        
+        // Prepare setlist songs data
+        const setlistSongs = selectedSongs.map((song, index) => ({
+          setlist_id: newSetlist.id,
+          song_id: song.id,
+          name: song.name,
+          position: index + 1,
+          artist_id: show.artist.id,
+          vote_count: 0
+        }));
         
         // Batch insert all setlist songs
         if (setlistSongs.length > 0) {
@@ -179,12 +167,7 @@ export async function GET(
             
           if (batchError) {
             console.error('Error batch inserting setlist songs:', batchError);
-            hasError = true;
           }
-        }
-        
-        if (hasError) {
-          console.warn('There were some errors during setlist song creation, but continuing...');
         }
       }
 
@@ -193,6 +176,12 @@ export async function GET(
         .from('shows')
         .select(`
           id,
+          name,
+          artist_id,
+          venue_id,
+          date,
+          image_url,
+          ticket_url,
           updated_at,
           venue:venue_id (
             id,
@@ -201,14 +190,31 @@ export async function GET(
             state,
             country
           ),
-          setlists: setlists (
+          artist:artist_id (
+            id,
+            name,
+            spotify_id,
+            image_url
+          ),
+          setlists (
             id,
             created_at,
-            setlist_songs: setlist_songs (
+            updated_at,
+            setlist_songs (
               id,
-              title,
-              spotify_id,
-              created_at
+              song_id,
+              name,
+              position,
+              vote_count,
+              updated_at,
+              song:song_id (
+                id,
+                name,
+                spotify_id,
+                duration_ms,
+                preview_url,
+                popularity
+              )
             )
           )
         `)
@@ -221,108 +227,13 @@ export async function GET(
           { status: 500 }
         );
       }
+      
       return NextResponse.json(updatedShow);
     }
 
-    // 3) If the show data is stale (>24 hours), refresh from Ticketmaster
-    const lastUpdated = new Date(show.updated_at as string).getTime();
-    const now = Date.now();
-    const oneDayMs = 86400000; // 24 hours in milliseconds
-
-    if (now - lastUpdated > oneDayMs) {
-      if (!show.ticketmaster_id) {
-        return NextResponse.json(show, { status: 200 });
-      }
-
-      const tmShow = show.ticketmaster_id ? await fetchShowDetails(show.ticketmaster_id as string) : null;
-      if (!tmShow) {
-        return NextResponse.json(show, { status: 200 });
-      }
-
-      const localDate = tmShow?.dates?.start?.localDate
-        ? new Date(tmShow.dates.start.localDate).toISOString()
-        : new Date().toISOString();
-      const ticketUrl = tmShow?.url || '';
-
-      // Upsert venue data from Ticketmaster
-      const venue = tmShow?._embedded?.venues?.[0];
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      let venueId = show.venue ? (show.venue as any).id : null;
-      if (venue) {
-        const { data: upsertedVenues, error: venueError } = await supabase
-          .from('venues')
-          .upsert({
-            id: venueId ? venueId : undefined,
-            tm_id: venue.id,
-            name: venue.name,
-            city: venue.city?.name,
-            state: venue.state?.stateCode,
-            country: venue.country?.countryCode,
-            updated_at: new Date().toISOString()
-          })
-          .select('id');
-
-        if (!venueError && upsertedVenues && upsertedVenues.length > 0) {
-          venueId = upsertedVenues[0].id;
-        }
-      }
-
-      const { error: updateError } = await supabase
-        .from('shows')
-        .update({
-          date: localDate,
-          ticket_url: ticketUrl,
-          venue_id: venueId,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', show.id);
-
-      if (updateError) {
-        return NextResponse.json(
-          { error: updateError.message },
-          { status: 500 }
-        );
-      }
-
-      const { data: refreshedShow, error: refError } = await supabase
-        .from('shows')
-        .select(`
-          id,
-          date,
-          ticket_url,
-          updated_at,
-          venue:venue_id (
-            id,
-            name,
-            city,
-            state,
-            country
-          ),
-          setlists: setlists (
-            id,
-            created_at,
-            setlist_songs: setlist_songs (
-              id,
-              title,
-              spotify_id,
-              created_at
-            )
-          )
-        `)
-        .eq('id', show.id)
-        .single();
-
-      if (refError) {
-        return NextResponse.json(
-          { error: refError.message },
-          { status: 500 }
-        );
-      }
-      return NextResponse.json(refreshedShow);
-    }
-
-    // 4) Otherwise, return the existing show data
+    // 3) Return the show data with the existing setlist
     return NextResponse.json(show);
+    
   } catch (err: unknown) {
     let errorMessage = "Unknown error";
     if (err instanceof Error) {

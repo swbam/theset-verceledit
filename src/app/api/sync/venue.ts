@@ -2,11 +2,26 @@ import { createClient } from '@supabase/supabase-js';
 import { retryableFetch } from '../../../lib/retry';
 import { saveArtistToDatabase, saveShowToDatabase, saveVenueToDatabase } from '../../../lib/api/database-utils';
 
-// Create Supabase admin client
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+// Create Supabase admin client with error handling
+let supabase;
+try {
+  supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  );
+  
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    console.error('Missing Supabase environment variables');
+  }
+} catch (error) {
+  console.error('Error initializing Supabase client:', error);
+  // Fallback client
+  supabase = {
+    from: () => ({
+      insert: () => ({ error: { message: 'Supabase client initialization failed' } })
+    })
+  };
+}
 
 /**
  * Fetch all upcoming shows at a venue from Ticketmaster API

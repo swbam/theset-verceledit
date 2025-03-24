@@ -4,7 +4,7 @@ import { fetchShowDetails } from '@/lib/ticketmaster';
 import { searchArtists } from '@/lib/spotify';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
-import { createSetlistForShow } from '@/lib/api/database/setlists';
+import { createSetlistForShow } from '@/lib/api/database';
 import { v4 as uuidv4 } from 'uuid';
 
 export function useShowDetails(id: string | undefined) {

@@ -39,9 +39,14 @@ export default defineConfig(({ mode }) => ({
             '@supabase/supabase-js',
             '@tanstack/react-query'
           ],
-          // UI components chunk
+          // UI components chunk - individual Radix packages instead of '@radix-ui'
           ui: [
-            '@radix-ui',
+            '@radix-ui/react-tabs',
+            '@radix-ui/react-tooltip',
+            '@radix-ui/react-dialog',
+            '@radix-ui/react-popover',
+            '@radix-ui/react-select',
+            '@radix-ui/react-slot',
             'lucide-react',
             'class-variance-authority',
             'clsx',
@@ -49,13 +54,13 @@ export default defineConfig(({ mode }) => ({
           ],
           // API services chunk
           api: [
-            'src/lib/api',
+            'src/lib/api/index.ts',
             'src/lib/ticketmaster.ts',
-            'src/integrations/supabase'
+            'src/integrations/supabase/client.ts'
           ],
           // Auth related code
           auth: [
-            'src/contexts/auth',
+            'src/contexts/auth/index.ts',
             'src/pages/Auth.tsx',
             'src/pages/AuthCallback.tsx'
           ]
