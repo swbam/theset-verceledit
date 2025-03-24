@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { retryableFetch } from '../../../lib/retry';
-import { saveArtistToDatabase, saveShowToDatabase, saveVenueToDatabase } from '../../../src/lib/api/database-utils';
+import { saveArtistToDatabase, saveShowToDatabase, saveVenueToDatabase } from '../../../lib/api/database-utils';
 
 // Create Supabase admin client
 const supabase = createClient(

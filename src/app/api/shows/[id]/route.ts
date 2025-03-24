@@ -2,8 +2,8 @@
 // @ts-ignore: Cannot find module 'next/server' type declarations
 import { NextResponse } from 'next/server';
 import { supabase } from '../../../../lib/db';
-import { getArtistTopTracks } from '../../../../src/lib/spotify/top-tracks';
-import { fetchShowDetails } from '../../../../src/lib/ticketmaster';
+import { getArtistTopTracks } from '../../../../lib/spotify/top-tracks';
+import { fetchShowDetails } from '../../../../lib/ticketmaster';
 
 export async function GET(
   request: Request,
