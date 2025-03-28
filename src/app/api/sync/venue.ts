@@ -28,7 +28,7 @@ try {
  */
 export async function fetchVenueShows(venueId: string) {
   try {
-    const apiKey = process.env.TICKETMASTER_API_KEY;
+    const apiKey = process.env.VITE_TICKETMASTER_API_KEY;
     if (!apiKey) throw new Error('Missing Ticketmaster API key');
     
     console.log(`Fetching all upcoming shows for venue ID: ${venueId}`);
