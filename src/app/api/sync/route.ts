@@ -1,22 +1,23 @@
-import { NextRequest, NextResponse } from 'next/server';
+// Use standard Request and Response for Vercel Serverless Functions
+// import { Request, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { retryableFetch } from '@/lib/retry';
 import { fetchSetlistFmData, processSetlistData } from './setlist';
 
-// Create Supabase admin client
+// Create Supabase admin client using VITE_ prefixed variables
 const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
+  process.env.VITE_SUPABASE_URL!,
+  process.env.VITE_SUPABASE_SERVICE_ROLE_KEY!
 );
 
 // External API fetch utilities
 async function fetchTicketmasterData() {
-  const apiKey = process.env.TICKETMASTER_API_KEY;
+  const apiKey = process.env.VITE_TICKETMASTER_API_KEY;
   if (!apiKey) throw new Error('Missing Ticketmaster API key');
   
   const response = await fetch(
-    `https://app.ticketmaster.com/discovery/v2/events.json?apikey=${apiKey}&classificationName=music&size=100`,
-    { next: { revalidate: 3600 } } // Cache for 1 hour
+    `https://app.ticketmaster.com/discovery/v2/events.json?apikey=${apiKey}&classificationName=music&size=100`
+    // Removed: { next: { revalidate: 3600 } } // Caching handled by Supabase cache table
   );
   
   if (!response.ok) {
@@ -51,8 +52,8 @@ async function fetchSpotifyData() {
   const playlistsResponse = await fetch(
     'https://api.spotify.com/v1/browse/featured-playlists?limit=50',
     {
-      headers: { 'Authorization': `Bearer ${access_token}` },
-      next: { revalidate: 3600 } // Cache for 1 hour
+      headers: { 'Authorization': `Bearer ${access_token}` }
+      // Removed: next: { revalidate: 3600 } // Caching handled by Supabase cache table
     }
   );
   
@@ -64,7 +65,7 @@ async function fetchSpotifyData() {
 }
 
 // Main sync endpoint
-export async function GET(request: NextRequest) {
+export async function GET(request: Request) {
   try {
     // Extract artist name from query params if available
     const { searchParams } = new URL(request.url);
@@ -83,7 +84,7 @@ export async function GET(request: NextRequest) {
       .single();
 
     if (cachedData) {
-      return NextResponse.json(cachedData.data);
+      return new Response(JSON.stringify(cachedData.data), { headers: { 'Content-Type': 'application/json' } });
     }
 
     // Define response data
@@ -186,7 +187,7 @@ export async function GET(request: NextRequest) {
         expires_at: new Date(Date.now() + 900000).toISOString() // 15 min cache
       });
 
-    return NextResponse.json(responseData);
+    return new Response(JSON.stringify(responseData), { headers: { 'Content-Type': 'application/json' } });
   } catch (error) {
     console.error('Sync Error:', error);
     
@@ -199,13 +200,14 @@ export async function GET(request: NextRequest) {
         timestamp: new Date().toISOString()
       });
       
-    return NextResponse.json(
-      { 
+    // Use standard Response for error
+    return new Response(
+      JSON.stringify({
         success: false,
-        error: 'Failed to sync data', 
-        details: error instanceof Error ? error.message : 'Unknown error' 
-      },
-      { status: 500 }
+        error: 'Failed to sync data',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      }),
+      { status: 500, headers: { 'Content-Type': 'application/json' } }
     );
   }
 }
@@ -218,8 +220,8 @@ async function syncTicketmasterData(tmData: Record<string, unknown>) {
   
   try {
     // Sync artists
-    if (tmData?._embedded?.events) {
-      for (const event of tmData._embedded.events) {
+    if ((tmData as any)?._embedded?.events) {
+      for (const event of (tmData as any)._embedded.events) {
         if (event?._embedded?.attractions) {
           for (const artist of event._embedded.attractions) {
             const { error: artistError } = await supabase
@@ -274,10 +276,10 @@ async function syncTicketmasterData(tmData: Record<string, unknown>) {
 async function syncSpotifyData(spotifyData: Record<string, unknown>) {
   try {
     // Process Spotify data for featured playlists
-    if (spotifyData?.playlists?.items) {
-      console.log(`Processing ${spotifyData.playlists.items.length} Spotify playlists`);
+    if ((spotifyData as any)?.playlists?.items) {
+      console.log(`Processing ${(spotifyData as any).playlists.items.length} Spotify playlists`);
       
-      for (const playlist of spotifyData.playlists.items) {
+      for (const playlist of (spotifyData as any).playlists.items) {
         if (!playlist.id || !playlist.name) continue;
         
         // Extract artist names from playlist title (common format: "This is Artist Name")

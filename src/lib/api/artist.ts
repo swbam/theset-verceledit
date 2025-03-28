@@ -1,6 +1,6 @@
 import { retryableFetch } from '@/lib/retry';
 
-interface ArtistWithEvents {
+export interface ArtistWithEvents { // Add export keyword
   id: string;
   name: string;
   image?: string;

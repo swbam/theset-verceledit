@@ -5,14 +5,17 @@ import { saveArtistToDatabase, saveShowToDatabase, saveVenueToDatabase } from '.
 // Create Supabase admin client with error handling
 let supabase;
 try {
-  supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  );
-  
-  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
-    console.error('Missing Supabase environment variables');
+  // Use VITE_ prefixed variables
+  const supabaseUrl = process.env.VITE_SUPABASE_URL;
+  const serviceKey = process.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!supabaseUrl || !serviceKey) {
+    console.error('Missing Supabase environment variables (VITE_SUPABASE_URL or VITE_SUPABASE_SERVICE_ROLE_KEY)');
+    throw new Error('Missing Supabase environment variables');
   }
+
+  supabase = createClient(supabaseUrl, serviceKey);
+  
 } catch (error) {
   console.error('Error initializing Supabase client:', error);
   // Fallback client

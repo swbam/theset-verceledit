@@ -6,13 +6,13 @@ const globalForSupabase = globalThis as unknown as {
 };
 
 // Get environment variables directly using process.env for server-side code
-const SUPABASE_URL = process.env.SUPABASE_URL || 
+const SUPABASE_URL = process.env.VITE_SUPABASE_URL ||
                      "https://kzjnkqeosrycfpxjwhil.supabase.co";
 
-const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || 
+const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY ||
                           "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt6am5rcWVvc3J5Y2ZweGp3aGlsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDI2ODM3ODMsImV4cCI6MjA1ODI1OTc4M30.KOriVTUxlnfiBpWmVrlO4xHM7nniizLgXQ49f2K22UM";
 
-const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 
+const SUPABASE_SERVICE_ROLE_KEY = process.env.VITE_SUPABASE_SERVICE_ROLE_KEY ||
                                  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt6am5rcWVvc3J5Y2ZweGp3aGlsIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0MjY4Mzc4MywiZXhwIjoyMDU4MjU5NzgzfQ.4-ITsc97-Ts7gy3e6RhjIbCf2awTWdjaG3zXCxkwJpI";
 
 // Log the Supabase configuration for debugging

@@ -1,6 +1,6 @@
 import { retryableFetch } from '@/lib/retry';
 
-interface Show {
+export interface Show { // Add export keyword
   id: string;
   name: string;
   date: string;
@@ -77,7 +77,8 @@ export async function fetchArtistEvents(artistId: string): Promise<Show[]> {
       return [];
     }
 
-    const apiKey = process.env.NEXT_PUBLIC_TICKETMASTER_API_KEY || process.env.TICKETMASTER_API_KEY;
+    // Use import.meta.env for client-side access in Vite
+    const apiKey = import.meta.env.VITE_TICKETMASTER_API_KEY;
     if (!apiKey) {
       console.error("Ticketmaster API key not configured");
       return [];
@@ -85,6 +86,7 @@ export async function fetchArtistEvents(artistId: string): Promise<Show[]> {
 
     const response = await retryableFetch(async () => {
       const url = `https://app.ticketmaster.com/discovery/v2/events.json?apikey=${apiKey}&attractionId=${artistId}&size=50&sort=date,asc`;
+      console.log(`[fetchArtistEvents] Requesting URL: ${url}`); // Log the URL
       
       const result = await fetch(url, {
         headers: {
@@ -97,9 +99,11 @@ export async function fetchArtistEvents(artistId: string): Promise<Show[]> {
       }
       
       return result.json();
+    console.log('[fetchArtistEvents] Raw API Response:', response); // Log the raw response
     }, { retries: 3 });
 
     if (!response._embedded?.events) {
+      console.log(`[fetchArtistEvents] No _embedded.events found for artistId: ${artistId}`);
       return [];
     }
 
@@ -168,7 +172,7 @@ export async function fetchShowDetails(showId: string): Promise<Show | null> {
       return null;
     }
 
-    const apiKey = process.env.NEXT_PUBLIC_TICKETMASTER_API_KEY || process.env.TICKETMASTER_API_KEY;
+    const apiKey = process.env.VITE_TICKETMASTER_API_KEY;
     if (!apiKey) {
       console.error("Ticketmaster API key not configured");
       return null;
@@ -258,7 +262,7 @@ export async function fetchVenueDetails(venueId: string): Promise<Venue | null> 
       return null;
     }
 
-    const apiKey = process.env.NEXT_PUBLIC_TICKETMASTER_API_KEY || process.env.TICKETMASTER_API_KEY;
+    const apiKey = process.env.VITE_TICKETMASTER_API_KEY;
     if (!apiKey) {
       console.error("Ticketmaster API key not configured");
       return null;
@@ -328,7 +332,7 @@ export async function fetchShowsByGenre(
       return [];
     }
 
-    const apiKey = process.env.NEXT_PUBLIC_TICKETMASTER_API_KEY || process.env.TICKETMASTER_API_KEY;
+    const apiKey = process.env.VITE_TICKETMASTER_API_KEY;
     if (!apiKey) {
       console.error("Ticketmaster API key not configured");
       return [];
@@ -418,7 +422,7 @@ export async function fetchShowsByGenre(
  */
 export async function fetchFeaturedShows(size: number = 10): Promise<Show[]> {
   try {
-    const apiKey = process.env.NEXT_PUBLIC_TICKETMASTER_API_KEY || process.env.TICKETMASTER_API_KEY;
+    const apiKey = process.env.VITE_TICKETMASTER_API_KEY;
     if (!apiKey) {
       console.error("Ticketmaster API key not configured");
       return [];

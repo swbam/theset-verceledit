@@ -1,6 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAndStoreArtistTracks } from "./database";
-import { syncVenueShows } from "@/app/api/sync/venue";
+// import { syncVenueShows } from "@/app/api/sync/venue"; // Removed: Triggering sync is now handled server-side
 // Import createSetlistForShow dynamically to avoid circular dependencies
 
 // Define interfaces for the data objects
@@ -353,20 +353,7 @@ export async function saveShowToDatabase(show: Show, triggeredBySync: boolean = 
     const savedShow = data; // data should be the single saved show object
     console.log(`Successfully saved show ${show.name} to database`);
 
-    // --- Trigger Background Sync ---
-    if (!triggeredBySync && venueId && venueName) {
-      console.log(`Triggering background sync for venue: ${venueName} (${venueId})`);
-      // Call syncVenueShows without awaiting it
-      syncVenueShows(venueId, venueName).catch(syncError => {
-        console.error(`Background venue sync failed for ${venueName} (${venueId}):`, syncError);
-        // Optionally log this specific error to your error_logs table
-      });
-    } else if (triggeredBySync) {
-        console.log(`Skipping venue sync for show ${show.name} because it was triggered by a sync.`);
-    } else if (!venueId || !venueName) {
-        console.warn(`Cannot trigger venue sync for show ${show.name}, missing venueId or venueName.`);
-    }
-    // --- End Trigger Background Sync ---
+    // Venue sync trigger removed - handled by the calling server-side API route
 
     // Create a setlist for *this specific* show (existing logic)
     const setlistId = await createSetlistDirectly(savedShow.id, artistId);
@@ -388,7 +375,7 @@ export async function saveShowToDatabase(show: Show, triggeredBySync: boolean = 
  * Create a setlist for a show and populate it with songs - directly implemented
  * to avoid circular dependencies
  */
-async function createSetlistDirectly(showId: string, artistId: string) {
+export async function createSetlistDirectly(showId: string, artistId: string) { // Add export
   try {
     console.log(`Creating setlist for show ${showId}`);
     
