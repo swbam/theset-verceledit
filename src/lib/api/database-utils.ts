@@ -28,7 +28,45 @@ interface Venue {
   updated_at?: string;
 }
 
-interface Show {
+export interface Show {
+  id: string;
+  name?: string;
+  date?: string;
+  ticket_url?: string;
+  image_url?: string;
+  artist_id?: string;
+  venue_id?: string;
+  popularity?: number;
+  artist?: Artist;
+  venue?: Venue;
+  _embedded?: {
+    attractions?: Array<{
+      id: string;
+      name: string;
+      images?: Array<{ url: string }>;
+    }>;
+    venues?: Array<{
+      id: string;
+      name: string;
+      city?: { name: string };
+      state?: { name: string };
+      country?: { name: string };
+    }>;
+  };
+  dates?: {
+    start?: {
+      dateTime: string;
+      localDate?: string;
+    };
+  };
+  images?: Array<{
+    url: string;
+    ratio?: string;
+    width?: number;
+  }>;
+  url?: string;
+  updated_at?: string;
+  setlist_id?: string;
   id: string;
   name?: string;
   date?: string;

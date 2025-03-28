@@ -1,25 +1,20 @@
 import { retryableFetch } from '@/lib/retry';
+import { saveShowToDatabase } from './database-utils';
+import type { Show } from './database-utils';
 
-export interface Show { // Add export keyword
+interface TicketmasterEvent {
   id: string;
   name: string;
-  date: string;
-  ticket_url?: string;
-  image_url?: string;
-  artist_id?: string; // Added artist_id property
-  venue_id?: string; // Added venue_id property
-  venue?: {
-    id: string;
-    name: string;
-    city?: string;
-    state?: string;
-    country?: string;
-  }; // Added venue property
-  artist?: {
-    id: string;
-    name: string;
-    image?: string;
-  }; // Added artist property
+  dates?: {
+    start?: {
+      dateTime: string;
+    };
+  };
+  images?: Array<{
+    url: string;
+    width?: number;
+  }>;
+  url?: string;
   _embedded?: {
     attractions?: Array<{
       id: string;
@@ -34,18 +29,35 @@ export interface Show { // Add export keyword
       country?: { name: string };
     }>;
   };
+}
+
+interface TicketmasterEvent {
+  id: string;
+  name: string;
   dates?: {
     start?: {
       dateTime: string;
-      localDate?: string;
     };
   };
   images?: Array<{
     url: string;
-    ratio?: string;
     width?: number;
   }>;
   url?: string;
+  _embedded?: {
+    attractions?: Array<{
+      id: string;
+      name: string;
+      images?: Array<{ url: string }>;
+    }>;
+    venues?: Array<{
+      id: string;
+      name: string;
+      city?: { name: string };
+      state?: { name: string };
+      country?: { name: string };
+    }>;
+  };
 }
 
 interface Venue {
@@ -172,7 +184,7 @@ export async function fetchShowDetails(showId: string): Promise<Show | null> {
       return null;
     }
 
-    const apiKey = process.env.VITE_TICKETMASTER_API_KEY;
+    const apiKey = import.meta.env.VITE_TICKETMASTER_API_KEY;
     if (!apiKey) {
       console.error("Ticketmaster API key not configured");
       return null;
@@ -262,7 +274,7 @@ export async function fetchVenueDetails(venueId: string): Promise<Venue | null> 
       return null;
     }
 
-    const apiKey = process.env.VITE_TICKETMASTER_API_KEY;
+    const apiKey = import.meta.env.VITE_TICKETMASTER_API_KEY;
     if (!apiKey) {
       console.error("Ticketmaster API key not configured");
       return null;
@@ -332,7 +344,7 @@ export async function fetchShowsByGenre(
       return [];
     }
 
-    const apiKey = process.env.VITE_TICKETMASTER_API_KEY;
+    const apiKey = import.meta.env.VITE_TICKETMASTER_API_KEY;
     if (!apiKey) {
       console.error("Ticketmaster API key not configured");
       return [];
@@ -420,9 +432,102 @@ export async function fetchShowsByGenre(
 /**
  * Fetch featured shows (popular upcoming events)
  */
+/**
+ * Sync all upcoming shows for a venue
+ */
+export async function syncVenueShows(venueId: string): Promise<void> {
+  try {
+    if (!venueId) {
+      console.error("No venue ID provided for sync");
+      return;
+    }
+
+    const apiKey = import.meta.env.VITE_TICKETMASTER_API_KEY;
+    if (!apiKey) {
+      console.error("Ticketmaster API key not configured");
+      return;
+    }
+
+    // Fetch upcoming shows for this venue
+    const response = await retryableFetch(async () => {
+      const url = `https://app.ticketmaster.com/discovery/v2/events.json?apikey=${apiKey}&venueId=${venueId}&size=100&sort=date,asc`;
+      
+      const result = await fetch(url, {
+        headers: {
+          'Accept': 'application/json'
+        }
+      });
+      
+      if (!result.ok) {
+        throw new Error(`Ticketmaster API error: ${result.status} ${result.statusText}`);
+      }
+      
+      return result.json();
+    }, { retries: 3 });
+
+    if (!response._embedded?.events) {
+      console.log(`No upcoming shows found for venue ${venueId}`);
+      return;
+    }
+
+    // Process and save each show
+    for (const event of response._embedded.events) {
+      const show = {
+        id: event.id,
+        name: event.name,
+        date: event.dates?.start?.dateTime || new Date().toISOString(),
+        ticket_url: event.url,
+        image_url: event.images?.[0]?.url,
+        venue_id: venueId,
+        _embedded: event._embedded,
+        dates: event.dates,
+        images: event.images,
+        url: event.url
+      };
+
+      await saveShowToDatabase(show, true); // Pass true to indicate sync-triggered save
+    }
+
+    console.log(`Successfully synced ${response._embedded.events.length} shows for venue ${venueId}`);
+  } catch (error) {
+    console.error(`Error syncing shows for venue ${venueId}:`, error);
+  }
+}
+
+/**
+ * Sync trending shows and save to database
+ */
+export async function syncTrendingShows(): Promise<Show[]> {
+  try {
+    const apiKey = import.meta.env.VITE_TICKETMASTER_API_KEY;
+    if (!apiKey || apiKey.length !== 32) {
+      console.error("Invalid Ticketmaster API key configuration");
+      return [];
+    }
+
+    // Fetch trending shows
+    const shows = await fetchFeaturedShows(50); // Get more shows for better selection
+
+    // Save shows to database and collect saved shows
+    const savedShows: Show[] = [];
+    for (const show of shows) {
+      const savedShow = await saveShowToDatabase(show);
+      if (savedShow) {
+        savedShows.push(savedShow);
+      }
+    }
+
+    console.log(`Synced ${savedShows.length} trending shows to database`);
+    return savedShows;
+  } catch (error) {
+    console.error("Error syncing trending shows:", error);
+    return [];
+  }
+}
+
 export async function fetchFeaturedShows(size: number = 10): Promise<Show[]> {
   try {
-    const apiKey = process.env.VITE_TICKETMASTER_API_KEY;
+    const apiKey = import.meta.env.VITE_TICKETMASTER_API_KEY;
     if (!apiKey) {
       console.error("Ticketmaster API key not configured");
       return [];
@@ -448,9 +553,34 @@ export async function fetchFeaturedShows(size: number = 10): Promise<Show[]> {
       return [];
     }
 
-    const events = response._embedded.events.map((event: { id: string; name: string; dates?: { start?: { dateTime: string } }; images?: Array<{ url: string; width?: number }>; url?: string; _embedded?: { attractions?: Array<{ id: string; name: string; images?: Array<{ url: string }> }>, venues?: Array<{ id: string; name: string; city?: { name: string }; state?: { name: string }; country?: { name: string } }> } }) => {
+    const events = response._embedded.events.map((event: TicketmasterEvent) => {
       // Get the best image
       let imageUrl;
+      const venue = event._embedded?.venues?.[0];
+      const artist = event._embedded?.attractions?.[0];
+      
+      const show: Show = {
+        id: event.id,
+        name: event.name,
+        date: event.dates?.start?.dateTime || new Date().toISOString(),
+        ticket_url: event.url,
+        image_url: imageUrl,
+        venue_id: venue?.id,
+        artist_id: artist?.id,
+        popularity: 0,
+        artist: artist ? {
+          id: artist.id,
+          name: artist.name,
+          image: artist.images?.[0]?.url
+        } : undefined,
+        venue: venue ? {
+          id: venue.id,
+          name: venue.name,
+          city: venue.city?.name,
+          state: venue.state?.name,
+          country: venue.country?.name
+        } : undefined
+      };
       if (event.images && event.images.length > 0) {
         const sortedImages = [...event.images].sort((a, b) => 
           (b.width || 0) - (a.width || 0)
