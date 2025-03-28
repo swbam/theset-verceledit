@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { getArtistAllTracks } from "@/lib/spotify";
 import { toast } from "sonner";
@@ -134,56 +133,94 @@ export async function saveArtistToDatabase(artist: any) {
 }
 
 /**
- * Fetch and store artist tracks
+ * Fetches artist's tracks from Spotify and stores them individually in the songs table.
  */
 export async function fetchAndStoreArtistTracks(artistId: string, spotifyId: string, artistName: string) {
   console.log(`Fetching tracks for artist ${artistName} (${spotifyId})`);
-  
+
   try {
-    // Check if we already have tracks for this artist
-    const existingTracks = await getStoredTracksForArtist(artistId);
-    
-    if (existingTracks && existingTracks.length > 0) {
-      console.log(`Already have ${existingTracks.length} tracks for artist ${artistName}`);
-      return existingTracks;
-    }
-    
+    // Basic check: Consider adding time-based logic to refetch periodically
+    // For now, we always fetch if spotifyId is provided.
+
     // Fetch tracks from Spotify
-    const tracksData = await getArtistAllTracks(spotifyId);
-    
+    // Ensure getArtistAllTracks is implemented and fetches top tracks or relevant tracks
+    const tracksData = await getArtistAllTracks(spotifyId); 
+
     if (!tracksData || !tracksData.tracks || tracksData.tracks.length === 0) {
       console.log(`No tracks found on Spotify for artist ${artistName}`);
-      return null;
-    }
-    
-    console.log(`Found ${tracksData.tracks.length} tracks for artist ${artistName}, storing in database`);
-    
-    // Convert to JSON-compatible format
-    const tracksAsJson = JSON.parse(JSON.stringify(tracksData.tracks));
-    
-    // Store tracks in database - wrapped in try/catch to handle permission errors
-    try {
-      await updateArtistStoredTracks(artistId, tracksAsJson);
-      
-      // Update artist record with last update time
+      // Update artist record to note that tracks were checked
       await supabase
         .from('artists')
-        .update({ 
-          tracks_last_updated: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          stored_tracks: tracksAsJson
-        })
+        .update({ tracks_last_updated: new Date().toISOString() })
         .eq('id', artistId);
-      
-      console.log(`Successfully updated artist ${artistName} with ${tracksData.tracks.length} tracks`);
-      return tracksData.tracks;
-    } catch (dbError) {
-      console.error("Database error storing tracks:", dbError);
-      return tracksData.tracks; // Return the tracks even if we couldn't store them
+      return []; // Return empty array as no tracks were found/saved
     }
+
+    console.log(`Found ${tracksData.tracks.length} tracks for artist ${artistName}, storing in songs table...`);
+
+    // Map Spotify tracks to the 'songs' table structure
+    const songsToUpsert = tracksData.tracks.map((track: any) => ({
+      // Ensure these fields match your 'songs' table columns
+      spotify_id: track.id, // Using Spotify ID as the unique identifier
+      name: track.name,
+      artist_id: artistId, // Link to the artist in your DB
+      duration_ms: track.duration_ms,
+      popularity: track.popularity,
+      preview_url: track.preview_url,
+      // Add other relevant fields like album info if available and needed in your 'songs' table
+      // Example: album_name: track.album?.name, album_image_url: track.album?.images?.[0]?.url
+      // vote_count: 0, // Initialize vote_count if it exists and needs a default
+    }));
+
+    // Upsert songs into the database
+    // Make sure 'spotify_id' has a UNIQUE constraint in your 'songs' table.
+    const { data: upsertedSongsData, error: upsertError } = await supabase
+      .from('songs')
+      .upsert(songsToUpsert, { 
+          onConflict: 'spotify_id', // The column with the UNIQUE constraint
+          ignoreDuplicates: false // Set to false to update existing matched rows
+      })
+      .select(); // Select the upserted rows to return them
+
+    if (upsertError) {
+      console.error(`Database error storing songs for artist ${artistName}:`, upsertError);
+      // Log the error but potentially update timestamp to prevent immediate retries
+      try {
+        await supabase
+          .from('artists')
+          .update({ tracks_last_updated: new Date().toISOString() })
+          .eq('id', artistId);
+      } catch (tsError) { console.error('Failed to update timestamp after song upsert error:', tsError); }
+      return null; // Indicate failure
+    }
+
+    const savedSongsCount = upsertedSongsData?.length || 0;
+    console.log(`Successfully upserted ${savedSongsCount} songs for artist ${artistName}`);
+
+    // Update artist record with last track update time
+    await supabase
+      .from('artists')
+      .update({
+        tracks_last_updated: new Date().toISOString(),
+        updated_at: new Date().toISOString() // Also update the main updated_at timestamp
+      })
+      .eq('id', artistId);
+
+    // Return the songs as they are in the database after upsert
+    return upsertedSongsData; 
+
   } catch (error) {
     console.error(`Error fetching and storing tracks for artist ${artistName}:`, error);
-    return null;
+    // Attempt to update timestamp even on general error to avoid retrying too quickly
+    try {
+      await supabase
+        .from('artists')
+        .update({ tracks_last_updated: new Date().toISOString() }) 
+        .eq('id', artistId);
+    } catch (updateError) {
+      console.error(`Failed to update artist timestamp after track fetch error:`, updateError);
+    }
+    return null; // Indicate failure
   }
 }
 

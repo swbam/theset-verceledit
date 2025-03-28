@@ -124,12 +124,12 @@ export async function syncVenueShows(venueId: string, venueName: string) {
           venue: savedVenue
         };
         
-        const savedShow = await saveShowToDatabase(show);
+        const savedShow = await saveShowToDatabase(show, true);
         if (savedShow) {
           processedShows.push(savedShow);
         }
       } catch (eventError) {
-        console.error(`Error processing event ${event.id}:`, eventError);
+        console.error(`Error processing event ${event.id} during venue sync:`, eventError);
         // Continue with next event
       }
     }

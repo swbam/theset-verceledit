@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAndStoreArtistTracks } from "./database";
+import { syncVenueShows } from "@/app/api/sync/venue";
 // Import createSetlistForShow dynamically to avoid circular dependencies
 
 // Define interfaces for the data objects
@@ -217,7 +218,8 @@ export async function saveVenueToDatabase(venue: Venue) {
           image_url: venue.image_url,
           updated_at: new Date().toISOString()
         })
-        .select();
+        .select()
+        .single();
 
       if (error) {
         // If we get a permission error log but continue (return the original venue)
@@ -232,11 +234,7 @@ export async function saveVenueToDatabase(venue: Venue) {
 
       console.log(`Successfully saved venue ${venue.name} to database`);
       
-      // Start syncing all shows at this venue in the background
-      syncAllVenueShows(venue.id, venue.name)
-        .catch(err => console.error(`Error syncing venue shows:`, err));
-      
-      return data?.[0] || venue;
+      return data || venue; // Return saved data or original object
     } catch (saveError) {
       console.error("Error in saveVenueToDatabase:", saveError);
       return venue; // Return the original venue even if DB save fails
@@ -248,16 +246,19 @@ export async function saveVenueToDatabase(venue: Venue) {
 }
 
 /**
- * Save a show to the database handling permission errors gracefully
+ * Save a show to the database, optionally triggering a full venue sync.
+ * Handles permission errors gracefully.
+ * @param show The show object to save.
+ * @param triggeredBySync Flag to prevent infinite sync loops. Defaults to false.
  */
-export async function saveShowToDatabase(show: Show) {
+export async function saveShowToDatabase(show: Show, triggeredBySync: boolean = false) {
   try {
     if (!show || !show.id) {
       console.error("Invalid show object:", show);
       return null;
     }
 
-    console.log(`Processing show: ${show.name} (ID: ${show.id})`);
+    console.log(`Processing show: ${show.name} (ID: ${show.id})${triggeredBySync ? ' [Sync Triggered]' : ''}`);
 
     // Check if show already exists
     try {
@@ -299,72 +300,90 @@ export async function saveShowToDatabase(show: Show) {
       // Continue to try adding the show anyway
     }
 
-    // Save the artist and venue first if needed
+    // Ensure artist and venue exist before saving the show
     let artistId = show.artist_id;
     let venueId = show.venue_id;
+    let venueName = show.venue?.name; // Store venue name for the async sync call
 
     if (show.artist && typeof show.artist === 'object') {
+      // Pass triggeredBySync flag down if necessary, though saveArtistToDatabase doesn't trigger venue sync directly
       const savedArtist = await saveArtistToDatabase(show.artist);
       artistId = savedArtist?.id || artistId;
     }
 
     if (show.venue && typeof show.venue === 'object') {
+      // Pass triggeredBySync flag down if saveVenueToDatabase also needs loop prevention
       const savedVenue = await saveVenueToDatabase(show.venue);
       venueId = savedVenue?.id || venueId;
+      venueName = savedVenue?.name || venueName; // Get venue name from saved venue if possible
     }
 
-    // Insert or update the show
-    try {
-      const { data, error } = await supabase
-        .from('shows')
-        .upsert({
-          id: show.id,
-          name: show.name,
-          date: show.date,
-          ticket_url: show.ticket_url,
-          image_url: show.image_url,
-          artist_id: artistId,
-          venue_id: venueId,
-          popularity: show.popularity || 0,
-          updated_at: new Date().toISOString()
-        })
-        .select();
-
-      if (error) {
-        // If we get a permission error log but continue
-        if (error.code === '42501') {
-          console.log(`Permission denied when saving show ${show.name}`);
-          return show;
-        }
-
-        console.error("Error saving show to database:", error);
-        return show;
-      }
-
-      const savedShow = data?.[0] || show;
-      console.log(`Successfully saved show ${show.name} to database`);
-
-      // Create a setlist for this show
-      const setlistId = await createSetlistDirectly(savedShow.id, artistId);
-      if (setlistId) {
-        console.log(`Created setlist for show ${savedShow.id}: ${setlistId}`);
-        return { ...savedShow, setlist_id: setlistId };
-      }
-
-      return savedShow;
-    } catch (saveError) {
-      console.error("Error in saveShowToDatabase:", saveError);
-      return show;
+    // Abort if essential IDs are missing after trying to save artist/venue
+    if (!artistId || !venueId) {
+      console.error(`Cannot save show ${show.name}, missing artistId (${artistId}) or venueId (${venueId})`);
+      return show; // Return original data as we couldn't save properly
     }
+
+    // Upsert the show
+    const { data, error } = await supabase
+      .from('shows')
+      .upsert({
+        id: show.id,
+        name: show.name,
+        date: show.date,
+        ticket_url: show.ticket_url,
+        image_url: show.image_url,
+        artist_id: artistId,
+        venue_id: venueId,
+        popularity: show.popularity || 0,
+        updated_at: new Date().toISOString()
+      })
+      .select()
+      .single(); // Use single() if upsert returns an array with one item
+
+    if (error) {
+      if (error.code === '42501') {
+        console.log(`Permission denied when saving show ${show.name}`);
+        return show; // Return original object on permission error
+      }
+      console.error("Error saving show to database:", error);
+      return show; // Return original object on other errors
+    }
+
+    const savedShow = data; // data should be the single saved show object
+    console.log(`Successfully saved show ${show.name} to database`);
+
+    // --- Trigger Background Sync ---
+    if (!triggeredBySync && venueId && venueName) {
+      console.log(`Triggering background sync for venue: ${venueName} (${venueId})`);
+      // Call syncVenueShows without awaiting it
+      syncVenueShows(venueId, venueName).catch(syncError => {
+        console.error(`Background venue sync failed for ${venueName} (${venueId}):`, syncError);
+        // Optionally log this specific error to your error_logs table
+      });
+    } else if (triggeredBySync) {
+        console.log(`Skipping venue sync for show ${show.name} because it was triggered by a sync.`);
+    } else if (!venueId || !venueName) {
+        console.warn(`Cannot trigger venue sync for show ${show.name}, missing venueId or venueName.`);
+    }
+    // --- End Trigger Background Sync ---
+
+    // Create a setlist for *this specific* show (existing logic)
+    const setlistId = await createSetlistDirectly(savedShow.id, artistId);
+    if (setlistId) {
+      console.log(`Created setlist for show ${savedShow.id}: ${setlistId}`);
+      // Return the saved show merged with its new setlist_id
+      return { ...savedShow, setlist_id: setlistId };
+    }
+
+    return savedShow; // Return the saved show object
+
   } catch (error) {
     console.error("Unexpected error in saveShowToDatabase:", error);
-    return show;
+    return show; // Return original object on unexpected errors
   }
 }
 
-/**
- * Sync all shows at a venue
- */
 /**
  * Create a setlist for a show and populate it with songs - directly implemented
  * to avoid circular dependencies
@@ -539,30 +558,6 @@ async function addSongsToSetlistInternal(setlistId: string, artistId: string, so
     return true;
   } catch (error) {
     console.error("Error in addSongsToSetlistInternal:", error);
-    return false;
-  }
-}
-
-async function syncAllVenueShows(venueId: string, venueName: string) {
-  try {
-    console.log(`Starting background sync of all shows at venue: ${venueName}`);
-    
-    // Import the venue sync function dynamically to avoid circular dependencies
-    const { syncVenueShows } = await import('../../app/api/sync/venue');
-    
-    // Check if we have this import
-    if (!syncVenueShows) {
-      console.error("Could not import syncVenueShows function");
-      return false;
-    }
-    
-    // Start the sync process
-    const result = await syncVenueShows(venueId, venueName);
-    
-    console.log(`Venue sync complete for ${venueName}:`, result);
-    return result.success;
-  } catch (error) {
-    console.error(`Error syncing venue shows for ${venueName}:`, error);
     return false;
   }
 }
