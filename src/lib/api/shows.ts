@@ -534,7 +534,7 @@ export async function fetchFeaturedShows(size: number = 10): Promise<Show[]> {
     }
 
     const response = await retryableFetch(async () => {
-      const url = `https://app.ticketmaster.com/discovery/v2/events.json?apikey=${apiKey}&classificationName=music&size=${size}&sort=popularity,desc`;
+      const url = `https://app.ticketmaster.com/discovery/v2/events.json?apikey=${apiKey}&classificationName=music&size=${size}&sort=relevance,desc`;
       
       const result = await fetch(url, {
         headers: {
