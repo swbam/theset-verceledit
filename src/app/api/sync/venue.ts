@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { retryableFetch } from '../../../lib/retry';
 import { saveArtistToDatabase, saveShowToDatabase, saveVenueToDatabase } from '../../../lib/api/database-utils';
+import { createSetlistForShow } from '../../../lib/api/database';
 
 // Create Supabase admin client with error handling
 let supabase;
@@ -130,6 +131,7 @@ export async function syncVenueShows(venueId: string, venueName: string) {
         const savedShow = await saveShowToDatabase(show, true);
         if (savedShow) {
           processedShows.push(savedShow);
+          await createSetlistForShow(savedShow.id, savedArtist.id);
         }
       } catch (eventError) {
         console.error(`Error processing event ${event.id} during venue sync:`, eventError);

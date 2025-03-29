@@ -25,7 +25,7 @@ export async function saveArtistToDatabase(artist: Artist) {
       const { data: existingArtist, error: checkError } = await adminClient()
         .from('artists')
         .select('id, updated_at, spotify_id')
-        .eq('id', artist.id)
+        .or(`id.eq.${artist.id},spotify_id.eq.${artist.spotify_id}`)
         .maybeSingle();
 
       if (checkError) {
@@ -138,7 +138,7 @@ export async function saveVenueToDatabase(venue: Venue) {
       const { data: existingVenue, error: checkError } = await adminClient()
         .from('venues')
         .select('id, updated_at')
-        .eq('id', venue.id)
+        .or(`id.eq.${venue.id},ticketmaster_id.eq.${venue.ticketmaster_id}`)
         .maybeSingle();
 
       if (checkError) {
@@ -235,7 +235,7 @@ export async function saveShowToDatabase(show: Show, triggeredBySync: boolean = 
       const { data: existingShow, error: checkError } = await adminClient()
         .from('shows')
         .select('id, updated_at, artist_id, venue_id')
-        .eq('id', show.id)
+        .or(`id.eq.${show.id},ticketmaster_id.eq.${show.ticketmaster_id}`)
         .maybeSingle();
 
       if (checkError) {
