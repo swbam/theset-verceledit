@@ -1,85 +1,10 @@
-import { supabase } from "@/integrations/supabase/client";
+import { adminClient } from '@/lib/db'; // Import adminClient to bypass RLS
 import { fetchAndStoreArtistTracks } from "./database";
+import type { Artist, Venue, Show } from '@/lib/types';
 // import { syncVenueShows } from "@/app/api/sync/venue"; // Removed: Triggering sync is now handled server-side
 // Import createSetlistForShow dynamically to avoid circular dependencies
 
-// Define interfaces for the data objects
-interface Artist {
-  id: string;
-  name: string;
-  image?: string;
-  spotify_id?: string;
-  spotify_url?: string;
-  popularity?: number;
-  followers?: number;
-  genres?: string[];
-  updated_at?: string;
-}
-
-interface Venue {
-  id: string;
-  name: string;
-  city?: string;
-  state?: string;
-  country?: string;
-  address?: string;
-  postal_code?: string;
-  image_url?: string;
-  updated_at?: string;
-}
-
-export interface Show {
-  id: string;
-  name?: string;
-  date?: string;
-  ticket_url?: string;
-  image_url?: string;
-  artist_id?: string;
-  venue_id?: string;
-  popularity?: number;
-  artist?: Artist;
-  venue?: Venue;
-  _embedded?: {
-    attractions?: Array<{
-      id: string;
-      name: string;
-      images?: Array<{ url: string }>;
-    }>;
-    venues?: Array<{
-      id: string;
-      name: string;
-      city?: { name: string };
-      state?: { name: string };
-      country?: { name: string };
-    }>;
-  };
-  dates?: {
-    start?: {
-      dateTime: string;
-      localDate?: string;
-    };
-  };
-  images?: Array<{
-    url: string;
-    ratio?: string;
-    width?: number;
-  }>;
-  url?: string;
-  updated_at?: string;
-  setlist_id?: string;
-  id: string;
-  name?: string;
-  date?: string;
-  ticket_url?: string;
-  image_url?: string;
-  artist_id?: string;
-  venue_id?: string;
-  popularity?: number;
-  artist?: Artist;
-  venue?: Venue;
-  updated_at?: string;
-  setlist_id?: string;
-}
+// Types are now imported from @/lib/types
 
 /**
  * Save an artist to the database handling permission errors gracefully
@@ -91,11 +16,13 @@ export async function saveArtistToDatabase(artist: Artist) {
       return null;
     }
 
+    console.log(`[saveArtistToDatabase] Processing artist: ${artist?.name} (ID: ${artist?.id})`);
+
     console.log(`Saving artist to database: ${artist.name} (ID: ${artist.id})`);
 
     // Check if artist already exists
     try {
-      const { data: existingArtist, error: checkError } = await supabase
+      const { data: existingArtist, error: checkError } = await adminClient()
         .from('artists')
         .select('id, updated_at, spotify_id')
         .eq('id', artist.id)
@@ -107,6 +34,8 @@ export async function saveArtistToDatabase(artist: Artist) {
           console.log(`Permission denied when checking artist ${artist.name} in database - continuing with API data`);
           return artist;
         }
+
+        console.log(`[saveArtistToDatabase] Error checking artist ${artist.name}:`, checkError.message);
 
         console.error("Error checking artist in database:", checkError);
         return artist; // Return the original artist even if DB check fails
@@ -134,6 +63,8 @@ export async function saveArtistToDatabase(artist: Artist) {
         console.log(`Artist ${artist.name} needs update (last updated ${daysSinceUpdate.toFixed(1)} days ago)`);
       } else {
         console.log(`Artist ${artist.name} is new, creating in database`);
+        console.log(`[saveArtistToDatabase] Artist ${artist.name} is new.`);
+
       }
     } catch (checkError) {
       console.error("Error checking if artist exists:", checkError);
@@ -144,7 +75,7 @@ export async function saveArtistToDatabase(artist: Artist) {
     const artistData = {
       id: artist.id,
       name: artist.name,
-      image_url: artist.image,
+      image_url: artist.image_url, // Corrected field name
       spotify_id: artist.spotify_id,
       spotify_url: artist.spotify_url,
       popularity: artist.popularity || 0,
@@ -154,21 +85,22 @@ export async function saveArtistToDatabase(artist: Artist) {
 
     // Insert or update artist
     try {
-      const { data, error } = await supabase
+      console.log('[saveArtistToDatabase] Prepared artistData for upsert:', JSON.stringify(artistData));
+      console.log(`[saveArtistToDatabase] Attempting upsert for artist: ${artistData.name}`);
+
+      const { data, error } = await adminClient()
         .from('artists')
         .upsert(artistData)
         .select();
 
       if (error) {
-        // If we get a permission error log but continue (return the original artist)
-        if (error.code === '42501') { // permission denied error
-          console.log(`Permission denied when saving artist ${artist.name} to database - continuing with API data`);
-          return artist;
-        }
-
-        console.error("Error saving artist to database:", error);
-        return artist; // Return the original artist even if DB save fails
+        // !! MODIFICATION: Throw error on ANY upsert failure instead of returning original object
+        console.error(`[saveArtistToDatabase] FAILED upsert for artist ${artist.name}:`, error);
+        throw new Error(`Failed to save artist ${artist.name} to database. Code: ${error.code}, Message: ${error.message}`);
+        // Old logic returning original object removed
       }
+
+      console.log(`[saveArtistToDatabase] Successfully saved/updated artist ${artist.name}`);
 
       console.log(`Successfully saved artist ${artist.name} to database`);
 
@@ -203,7 +135,7 @@ export async function saveVenueToDatabase(venue: Venue) {
 
     // Check if venue already exists
     try {
-      const { data: existingVenue, error: checkError } = await supabase
+      const { data: existingVenue, error: checkError } = await adminClient()
         .from('venues')
         .select('id, updated_at')
         .eq('id', venue.id)
@@ -243,7 +175,7 @@ export async function saveVenueToDatabase(venue: Venue) {
 
     // Insert or update venue
     try {
-      const { data, error } = await supabase
+      const { data, error } = await adminClient()
         .from('venues')
         .upsert({
           id: venue.id,
@@ -300,7 +232,7 @@ export async function saveShowToDatabase(show: Show, triggeredBySync: boolean = 
 
     // Check if show already exists
     try {
-      const { data: existingShow, error: checkError } = await supabase
+      const { data: existingShow, error: checkError } = await adminClient()
         .from('shows')
         .select('id, updated_at, artist_id, venue_id')
         .eq('id', show.id)
@@ -363,7 +295,7 @@ export async function saveShowToDatabase(show: Show, triggeredBySync: boolean = 
     }
 
     // Upsert the show
-    const { data, error } = await supabase
+    const { data, error } = await adminClient()
       .from('shows')
       .upsert({
         id: show.id,
@@ -418,7 +350,7 @@ export async function createSetlistDirectly(showId: string, artistId: string) { 
     console.log(`Creating setlist for show ${showId}`);
     
     // Check if setlist already exists
-    const { data: existingSetlist, error: checkError } = await supabase
+    const { data: existingSetlist, error: checkError } = await adminClient()
       .from('setlists')
       .select('id')
       .eq('show_id', showId)
@@ -436,7 +368,7 @@ export async function createSetlistDirectly(showId: string, artistId: string) { 
     }
     
     // Get show details for date and venue information
-    const { data: show, error: showError } = await supabase
+    const { data: show, error: showError } = await adminClient()
       .from('shows')
       .select('date, venue_id, venues(name, city)')
       .eq('id', showId)
@@ -448,14 +380,14 @@ export async function createSetlistDirectly(showId: string, artistId: string) { 
     }
     
     // Create new setlist
-    const { data: newSetlist, error: createError } = await supabase
+    const { data: newSetlist, error: createError } = await adminClient()
       .from('setlists')
       .insert({
         artist_id: artistId,
         show_id: showId,
         date: show.date,
-        venue: show.venues?.name || null,
-        venue_city: show.venues?.city || null,
+        venue: show.venues?.[0]?.name || null, // Access first element of array
+        venue_city: show.venues?.[0]?.city || null, // Access first element of array
       })
       .select()
       .single();
@@ -483,7 +415,7 @@ export async function createSetlistDirectly(showId: string, artistId: string) { 
 async function populateSetlistSongs(setlistId: string, artistId: string) {
   try {
     // Get artist's songs from the database
-    const { data: songs, error: songsError } = await supabase
+    const { data: songs, error: songsError } = await adminClient()
       .from('songs')
       .select('id, name, spotify_id, duration_ms, preview_url, popularity')
       .eq('artist_id', artistId)
@@ -498,7 +430,7 @@ async function populateSetlistSongs(setlistId: string, artistId: string) {
     // If we don't have songs, fetch them from Spotify
     if (!songs || songs.length === 0) {
       // Get the artist's Spotify ID
-      const { data: artist, error: artistError } = await supabase
+      const { data: artist, error: artistError } = await adminClient()
         .from('artists')
         .select('spotify_id')
         .eq('id', artistId)
@@ -513,7 +445,7 @@ async function populateSetlistSongs(setlistId: string, artistId: string) {
       await fetchAndStoreArtistTracks(artistId, artist.spotify_id, "Artist");
       
       // Try again to get songs
-      const { data: refreshedSongs, error: refreshError } = await supabase
+      const { data: refreshedSongs, error: refreshError } = await adminClient()
         .from('songs')
         .select('id, name, spotify_id, duration_ms, preview_url, popularity')
         .eq('artist_id', artistId)
@@ -570,7 +502,7 @@ async function addSongsToSetlistInternal(setlistId: string, artistId: string, so
     }));
     
     // Insert setlist songs
-    const { error } = await supabase
+    const { error } = await adminClient()
       .from('setlist_songs')
       .insert(setlistSongs);
     

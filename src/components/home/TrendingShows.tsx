@@ -1,16 +1,52 @@
-
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { Calendar, MapPin, Star } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
-import { fetchFeaturedShows } from '@/lib/ticketmaster';
+
+// Define the Show interface
+interface Show {
+  id: string;
+  name?: string;
+  date?: string;
+  image_url?: string;
+  ticket_url?: string;
+  popularity?: number;
+  vote_count?: number;
+  artist?: {
+    id: string;
+    name: string;
+    image_url?: string;
+    genres?: string[];
+  };
+  venue?: {
+    id: string;
+    name: string;
+    city?: string;
+    state?: string;
+    country?: string;
+  };
+}
+
+// Function to fetch trending shows from our API
+const fetchTrendingShowsFromAPI = async (): Promise<Show[]> => {
+  try {
+    const response = await fetch('/api/shows/trending?limit=8');
+    if (!response.ok) {
+      throw new Error(`API error: ${response.status}`);
+    }
+    return response.json();
+  } catch (error) {
+    console.error('Error fetching trending shows:', error);
+    throw error;
+  }
+};
 
 const TrendingShows = () => {
   const { data: showsData = [], isLoading, error } = useQuery({
     queryKey: ['trendingShows'],
-    queryFn: () => fetchFeaturedShows(8), // Fetch more to ensure we have enough after filtering
+    queryFn: fetchTrendingShowsFromAPI,
     staleTime: 5 * 60 * 1000, // 5 minutes
     retry: 2,
   });
@@ -39,7 +75,7 @@ const TrendingShows = () => {
       return [];
     }
     
-    const uniqueMap = new Map();
+    const uniqueMap = new Map<string, Show>();
     
     showsData.forEach(show => {
       if (!uniqueMap.has(show.id)) {
@@ -53,13 +89,8 @@ const TrendingShows = () => {
       .slice(0, 4);
   }, [showsData]);
 
-  // Generate random vote count for demo purposes
-  const getRandomVotes = () => {
-    return Math.floor(Math.random() * 3000) + 500;
-  };
-
   // Determine show genre
-  const getShowGenre = (show: any) => {
+  const getShowGenre = (show: Show): string => {
     if (!show) return 'Pop';
     
     if (show.artist?.genres && show.artist.genres.length > 0) {
@@ -115,8 +146,7 @@ const TrendingShows = () => {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {uniqueShows.map((show) => {
-              const formattedDate = formatDate(show.date);
-              const votes = getRandomVotes();
+              const formattedDate = formatDate(show.date || '');
               const genre = getShowGenre(show);
               
               return (
@@ -129,7 +159,7 @@ const TrendingShows = () => {
                     {show.image_url ? (
                       <img 
                         src={show.image_url} 
-                        alt={show.name} 
+                        alt={show.name || 'Show'} 
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                       />
                     ) : (
@@ -149,13 +179,13 @@ const TrendingShows = () => {
                             <Star key={i} size={14} className="fill-white text-white" />
                           ))}
                         </div>
-                        <span className="text-white font-medium text-sm">{votes}</span>
+                        <span className="text-white font-medium text-sm">{show.vote_count || show.popularity || 0}</span>
                       </div>
                     </div>
                   </div>
                   <div className="p-4">
                     <h3 className="font-bold text-lg mb-1 line-clamp-1">
-                      {show.name?.split(' - ')[0]}
+                      {show.name?.split(' - ')[0] || 'Untitled Show'}
                     </h3>
                     <p className="text-white/70 text-sm mb-3 line-clamp-1">
                       {show.artist?.name || 'Unknown Artist'}

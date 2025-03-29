@@ -1,15 +1,16 @@
 import { createClient } from '@supabase/supabase-js';
+import type { Show } from '@/lib/types'; // Import Show type
 
-// Initialize Supabase client with better error handling
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+// Initialize Supabase client using VITE_ variables for consistency
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseServiceKey = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY; // Use service key for server-side helpers
 
 if (!supabaseUrl || !supabaseServiceKey) {
-  throw new Error(
-    'Missing required environment variables for Supabase: ' +
-    (!supabaseUrl ? 'NEXT_PUBLIC_SUPABASE_URL ' : '') +
-    (!supabaseServiceKey ? 'SUPABASE_SERVICE_ROLE_KEY' : '')
+  // Log error instead of throwing during module load
+  console.error(
+    'CRITICAL: Missing VITE_SUPABASE_URL or VITE_SUPABASE_SERVICE_ROLE_KEY environment variables for api-helpers.'
   );
+  // Allow initialization to proceed but client will likely fail later
 }
 
 const supabase = createClient(
@@ -34,95 +35,8 @@ export { supabase };
 // Export typesafe client for specific functions
 export type SupabaseClient = typeof supabase;
 
-/**
- * Get cached data or fetch fresh data and cache it
- * 
- * @param endpoint Unique identifier for the cached data
- * @param fetchFn Function to fetch fresh data if cache is invalid
- * @param expiryMinutes How long to cache the data (default: 60 minutes)
- */
-export async function getCachedData<T>(
-  endpoint: string,
-  fetchFn: () => Promise<T>,
-  expiryMinutes = 60
-): Promise<T> {
-  try {
-    // Check for existing cache entry
-    const { data: cacheData, error: cacheError } = await supabase
-      .from('api_cache')
-      .select('data, created_at, expires_at')
-      .eq('endpoint', endpoint)
-      .maybeSingle();
-    
-    // If we have valid cache data that hasn't expired, return it
-    if (cacheData && !cacheError) {
-      const now = new Date();
-      const expiresAt = new Date(cacheData.expires_at);
-      
-      if (expiresAt > now) {
-        console.log(`Returning cached data for ${endpoint}`);
-        return cacheData.data as T;
-      }
-      console.log(`Cache expired for ${endpoint}`);
-    }
-    
-    // Fetch fresh data
-    console.log(`Fetching fresh data for ${endpoint}`);
-    const freshData = await fetchFn();
-    
-    // Calculate expiry time
-    const now = new Date();
-    const expiresAt = new Date(now.getTime() + expiryMinutes * 60 * 1000);
-    
-    // Cache the data
-    const { error: upsertError } = await supabase
-      .from('api_cache')
-      .upsert({
-        endpoint,
-        data: freshData,
-        created_at: now.toISOString(),
-        expires_at: expiresAt.toISOString()
-      }, {
-        onConflict: 'endpoint'
-      });
-    
-    if (upsertError) {
-      console.error(`Error caching data for ${endpoint}:`, upsertError);
-    }
-    
-    return freshData;
-  } catch (error) {
-    console.error(`Error in getCachedData for ${endpoint}:`, error);
-    
-    // Log the error
-    await supabase
-      .from('error_logs')
-      .insert({
-        endpoint: `cache-${endpoint}`,
-        error: error instanceof Error ? error.message : String(error),
-        timestamp: new Date().toISOString()
-      });
-    
-    // Try to fetch fresh data anyway as fallback
-    return await fetchFn();
-  }
-}
-
-/**
- * Invalidate a cached item (use when data is updated)
- */
-export async function invalidateCache(endpoint: string): Promise<void> {
-  try {
-    await supabase
-      .from('api_cache')
-      .delete()
-      .eq('endpoint', endpoint);
-      
-    console.log(`Invalidated cache for ${endpoint}`);
-  } catch (error) {
-    console.error(`Error invalidating cache for ${endpoint}:`, error);
-  }
-}
+// Removed getCachedData function - simplify for now
+// Removed invalidateCache function - simplify for now
 
 /**
  * Using optimized materialized view for top voted songs
@@ -175,3 +89,52 @@ export async function getPopularArtists(limit = 10) {
     return [];
   }
 } 
+
+/**
+ * Fetch trending shows directly from the database (ordered by popularity)
+ */
+export async function getTrendingShows(limit = 10): Promise<Show[]> { // Added return type
+  try {
+    console.log(`Fetching top ${limit} trending shows from database...`);
+    
+    // Query the 'shows' table directly
+    // Select necessary fields and join with artists and venues
+    const { data, error } = await supabase
+      .from('shows')
+      .select(`
+        id,
+        name,
+        date,
+        image_url,
+        ticket_url,
+        popularity,
+        artist:artists ( id, name ),
+        venue:venues ( id, name, city, state )
+      `)
+      .order('popularity', { ascending: false, nullsFirst: false }) // Order by popularity descending
+      .limit(limit);
+      
+    
+  if (error) {
+    console.error('Error fetching trending shows from database:', error);
+    // Removed error_logs insertion
+    return [];
+  }
+    console.log(`Successfully fetched ${data?.length || 0} trending shows from database.`);
+    
+    // Map the data to ensure artist and venue are single objects, not arrays
+    const mappedData = data?.map(show => ({
+      ...show,
+      // Supabase might return joins as arrays, take the first element
+      artist: Array.isArray(show.artist) ? show.artist[0] : show.artist,
+      venue: Array.isArray(show.venue) ? show.venue[0] : show.venue,
+    })) || [];
+    
+    return mappedData;
+    
+  } catch (error) {
+    console.error('Unexpected error in getTrendingShows:', error);
+    // Removed error_logs insertion
+    return [];
+  }
+}

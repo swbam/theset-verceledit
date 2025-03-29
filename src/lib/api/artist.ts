@@ -108,22 +108,56 @@ export async function fetchFeaturedArtists(): Promise<ArtistWithEvents[]> {
       console.error("VITE_TICKETMASTER_API_KEY not configured");
       // Return fallback or empty array
       // The existing fallback is okay, but log the warning
-      console.warn("API key missing, returning hardcoded featured artists.");
-      // Return existing hardcoded fallback
-       return [
-         { id: "K8vZ9171u-f", name: "Taylor Swift", image: "https://s1.ticketm.net/dam/a/1dd/d5e86d93-5e1a-49c9-b530-70fefc0f21dd_1877061_ARTIST_PAGE_3_2.jpg", upcomingShows: 30, genres: ["Pop", "Rock"] },
-         { id: "K8vZ9171oZf", name: "Billie Eilish", image: "https://s1.ticketm.net/dam/a/ef8/e282c111-c3e6-4ebc-b115-b9b19b84bef8_1761451_ARTIST_PAGE_3_2.jpg", upcomingShows: 25, genres: ["Pop", "Alternative"] },
-         { id: "K8vZ9175rX7", name: "The Weeknd", image: "https://s1.ticketm.net/dam/a/9cd/215d9bc8-01d1-407f-b2c2-9bd64290c9cd_1780221_ARTIST_PAGE_3_2.jpg", upcomingShows: 18, genres: ["R&B", "Pop"] }
-       ];
+     console.warn("API key missing, returning empty array.");
+     // If no API key, return empty array immediately
+     return [];
+     // Removed hardcoded data and redundant return
+   }
+
+   // API call logic now correctly placed outside the if block
+   // Fetch featured artists (e.g., based on music classification, sorted by relevance/popularity)
+    const response = await retryableFetch(async () => {
+      // Example: Fetch top 10 music attractions sorted by relevance
+      const url = `https://app.ticketmaster.com/discovery/v2/attractions.json?apikey=${apiKey}&classificationName=music&size=10&sort=relevance,desc`;
+      const result = await fetch(url, {
+        headers: { 'Accept': 'application/json' }
+      });
+      if (!result.ok) {
+        throw new Error(`Ticketmaster API error: ${result.status} ${result.statusText}`);
+      }
+      return result.json();
+    }, { retries: 3 });
+
+    if (!response._embedded?.attractions) {
+      console.log("No featured artists found from Ticketmaster.");
+      return [];
     }
 
-    // TODO: Replace fallback with actual Ticketmaster API call using apiKey
-    console.warn("fetchFeaturedArtists is using hardcoded data. Implement actual API call.");
-    return [
-      { id: "K8vZ9171u-f", name: "Taylor Swift", image: "https://s1.ticketm.net/dam/a/1dd/d5e86d93-5e1a-49c9-b530-70fefc0f21dd_1877061_ARTIST_PAGE_3_2.jpg", upcomingShows: 30, genres: ["Pop", "Rock"] },
-      { id: "K8vZ9171oZf", name: "Billie Eilish", image: "https://s1.ticketm.net/dam/a/ef8/e282c111-c3e6-4ebc-b115-b9b19b84bef8_1761451_ARTIST_PAGE_3_2.jpg", upcomingShows: 25, genres: ["Pop", "Alternative"] },
-      { id: "K8vZ9175rX7", name: "The Weeknd", image: "https://s1.ticketm.net/dam/a/9cd/215d9bc8-01d1-407f-b2c2-9bd64290c9cd_1780221_ARTIST_PAGE_3_2.jpg", upcomingShows: 18, genres: ["R&B", "Pop"] }
-    ];
+    // Map response to ArtistWithEvents format
+    const artists = response._embedded.attractions.map((attraction: any): ArtistWithEvents => {
+      let image;
+      if (attraction.images && attraction.images.length > 0) {
+        const sortedImages = [...attraction.images].sort((a, b) => (b.width || 0) - (a.width || 0));
+        image = sortedImages[0]?.url;
+      }
+      let upcomingShows = attraction.upcomingEvents?._total || 0;
+      let genres: string[] = [];
+      if (attraction.classifications?.[0]) {
+        const classification = attraction.classifications[0];
+        genres = [classification.genre?.name, classification.subGenre?.name].filter(Boolean) as string[];
+      }
+
+      return {
+        id: attraction.id,
+        name: attraction.name,
+        image,
+        upcomingShows,
+        genres,
+        url: attraction.url,
+      };
+    });
+
+    return artists;
 
   } catch (error) {
     console.error("Error fetching featured artists:", error);

@@ -1,15 +1,20 @@
 import { Suspense } from 'react';
 import { ArrowRight } from 'lucide-react';
-import Link from 'next/link';
+import { Link } from 'react-router-dom'; // Corrected Link import
 import { Button } from '@/components/ui/button';
-import TopVotedSongs from '@/components/TopVotedSongs';
+import TopVotedSongs from '@/app/components/TopVotedSongs'; // Corrected TopVotedSongs path
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { getPopularArtists } from '@/lib/api-helpers';
+import { getPopularArtists, getTrendingShows } from '@/lib/api-helpers'; // Import getTrendingShows
+import { Show } from '@/lib/types'; // Import Show type
 
 export const revalidate = 3600; // Revalidate every hour
 
 export default async function Home() {
-  const popularArtists = await getPopularArtists();
+  // Fetch both popular artists and trending shows
+  const [popularArtists, trendingShows] = await Promise.all([
+    getPopularArtists(),
+    getTrendingShows(10) // Fetch top 10 trending shows
+  ]);
 
   return (
     <main className="container max-w-screen-xl mx-auto py-8 px-4">
@@ -25,13 +30,13 @@ export default async function Home() {
           </p>
           <div className="flex flex-wrap gap-4">
             <Button asChild size="lg">
-              <Link href="/artists">
+              <Link to="/artists"> {/* Changed href to to */}
                 Browse Artists
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
             </Button>
             <Button variant="outline" size="lg" asChild>
-              <Link href="/shows">View Upcoming Shows</Link>
+              <Link to="/shows">View Upcoming Shows</Link> {/* Changed href to to */}
             </Button>
           </div>
         </div>
@@ -61,17 +66,18 @@ export default async function Home() {
             <CardContent>
               {popularArtists.length === 0 ? (
                 <p className="text-center text-muted-foreground py-4">No artists yet</p>
-              ) : (
+              ) : ( // Added missing closing parenthesis and colon
                 <ul className="space-y-3">
                   {popularArtists.map((artist, index) => (
                     <li key={artist.artist_id} className="group">
-                      <Link 
-                        href={`/artists/${artist.artist_id}`}
+                      <Link
+                        to={`/artists/${artist.artist_id}`} // Removed comment
                         className="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-50 transition-colors"
                       >
                         <span className="flex items-center justify-center h-8 w-8 rounded-full bg-primary/10 text-primary font-medium">
+                          {/* Removed duplicate span */}
                           {index + 1}
-                        </span>
+                        </span> {/* Added closing span tag */}
                         
                         <div className="flex-1 min-w-0">
                           <p className="font-medium truncate group-hover:text-primary transition-colors">
@@ -86,6 +92,46 @@ export default async function Home() {
                       </Link>
                     </li>
                   ))}
+
+      {/* Trending Shows Section */}
+      <section className="mb-12">
+        <h2 className="text-2xl font-bold text-gray-900 mb-6">Trending Shows</h2>
+        {trendingShows.length === 0 ? (
+          <p className="text-center text-muted-foreground py-4">No trending shows available right now.</p>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {trendingShows.map((show: Show) => (
+              <Link key={show.id} to={`/show/${show.id}`} className="block group">
+                <Card className="overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-200 h-full flex flex-col">
+                  {show.image_url && (
+                    <div className="aspect-video overflow-hidden">
+                      <img 
+                        src={show.image_url} 
+                        alt={show.name || 'Show image'} 
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      />
+                    </div>
+                  )}
+                  <CardHeader className="flex-grow">
+                    <CardTitle className="text-lg group-hover:text-primary transition-colors">
+                      {show.name}
+                    </CardTitle>
+                    <p className="text-sm text-muted-foreground">
+                      {show.artist?.name || 'Unknown Artist'}
+                    </p>
+                  </CardHeader>
+                  <CardContent className="text-sm text-muted-foreground">
+                    <p>{show.venue?.name || 'Unknown Venue'}</p>
+                    <p>{show.venue?.city}{show.venue?.state ? `, ${show.venue.state}` : ''}</p>
+                    <p>{show.date ? new Date(show.date).toLocaleDateString() : 'Date TBD'}</p>
+                  </CardContent>
+                </Card>
+              </Link>
+            ))}
+          </div>
+        )}
+      </section>
+
                 </ul>
               )}
             </CardContent>

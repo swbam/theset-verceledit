@@ -1,7 +1,5 @@
-project_id = "kzjnkqeosrycfpxjwhil"
+project_id="kzjnkqeosrycfpxjwhil"
 
-
- props: {"title": "Supabase-like Configuration for Allowed URLs", "runQuery": "false", "isChart": "false"}
 
 [server]
 # The port on which the server will run
@@ -22,11 +20,11 @@ additional_redirect_urls = [
 
 [database]
 # Database connection settings
-url = "postgresql://postgres.kzjnkqeosrycfpxjwhil:Bambseth1590@aws-0-us-east-1.pooler.supabase.com:5432/postgres"
+url="postgresql://postgres.kzjnkqeosrycfpxjwhil:Bambseth1590@aws-0-us-east-1.pooler.supabase.com:5432/postgres"
 
 [auth]
 # Authentication settings
-jwt_secret = "hgoLkvqEkJ31kikwlvBhHvbT+72eVcxdqqtRSFd83ss="
+jwt_secret="Pv1GTNBvpyJxe/tePxQv+3DYzg8gq/5o9prP+bmYq8YK2XKDdVREvCpVb4iBHFBgAM9goHKcAj7+s8cSS+lehg=="
 
 # Enable local URL detection for development
 # This allows the auth system to detect localhost URLs during development

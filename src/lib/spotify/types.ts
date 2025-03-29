@@ -16,3 +16,26 @@ export interface SpotifyTrack {
 export interface SpotifyTracksResponse {
   tracks: SpotifyTrack[];
 }
+
+
+export interface SpotifyArtist {
+  id: string;
+  name: string;
+  external_urls?: {
+    spotify?: string;
+  };
+  popularity?: number;
+  followers?: {
+    href: string | null; // Spotify API includes href, often null
+    total?: number;
+  };
+  images?: {
+    url: string;
+    height: number | null;
+    width: number | null;
+  }[];
+  genres?: string[];
+  href?: string;
+  type?: 'artist';
+  uri?: string;
+}

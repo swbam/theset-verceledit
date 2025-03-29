@@ -23,12 +23,14 @@ import {
 import { Calendar } from '@/components/ui/calendar';
 import { format } from 'date-fns';
 import { CalendarIcon, Search, X } from 'lucide-react';
+import { Artist } from '@/lib/types'; // Import Artist type
 
 const CreateShowForm = () => {
   const navigate = useNavigate();
   const [date, setDate] = useState<Date | undefined>(undefined);
   const [artistSearch, setArtistSearch] = useState('');
-  const [selectedArtist, setSelectedArtist] = useState<any>(null);
+  // Use Artist type, allowing null
+  const [selectedArtist, setSelectedArtist] = useState<Artist | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     venue: '',
@@ -45,17 +47,19 @@ const CreateShowForm = () => {
     enabled: artistSearch.length > 2,
   });
 
-  const artists = artistResults?.artists?.items || [];
+  // Assuming searchArtists returns items compatible with Artist type
+  const artists: Artist[] = artistResults?.artists?.items || [];
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleSelectArtist = (artist: any) => {
+  // Use Artist type for parameter
+  const handleSelectArtist = (artist: Artist) => {
     setSelectedArtist(artist);
     setArtistSearch('');
-    setFormData(prev => ({ 
+    setFormData(prev => ({
       ...prev, 
       name: `${artist.name} Concert`
     }));
@@ -65,7 +69,8 @@ const CreateShowForm = () => {
     setSelectedArtist(null);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // Add async keyword
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!selectedArtist) {
@@ -80,24 +85,57 @@ const CreateShowForm = () => {
     
     if (!formData.venue || !formData.city || !formData.state) {
       toast.error('Please fill in all required fields');
-      return;
-    }
-    
-    // In a real app, this would submit to the backend
-    toast.success('Show created successfully!');
-    console.log('Creating show:', {
-      ...formData,
-      artist: selectedArtist,
-      date: date?.toISOString(),
-    });
-    
-    // Redirect to shows page
-    setTimeout(() => {
-      navigate('/shows');
-    }, 1500);
-  };
+     return;
+   }
 
-  return (
+   // Prepare data for API submission
+   const showPayload = {
+     ...formData,
+     artist: { // Ensure artist object matches expected structure
+       id: selectedArtist.id,
+       name: selectedArtist.name,
+       image: selectedArtist.images?.[0]?.url, // Use optional chaining
+       spotify_id: selectedArtist.id, // Assuming Spotify ID is the same as TM ID for now
+       // Add other relevant artist fields if available from search
+     },
+     date: date?.toISOString(),
+   };
+
+   console.log('Submitting show data to API:', showPayload);
+
+   // Submit to the backend API route
+   try {
+     const response = await fetch('/api/shows/create', {
+       method: 'POST',
+       headers: {
+         'Content-Type': 'application/json',
+       },
+       body: JSON.stringify(showPayload),
+     });
+
+     if (!response.ok) {
+       const errorData = await response.json();
+       throw new Error(errorData.error || `API Error: ${response.status}`);
+     }
+
+     const result = await response.json();
+     toast.success('Show created successfully!');
+     console.log('API Response:', result);
+
+     // Redirect to the newly created show page or shows list
+     // Using result.show.id assumes the API returns the created show object with its ID
+     const redirectPath = result.show?.id ? `/show/${result.show.id}` : '/shows';
+     setTimeout(() => {
+       navigate(redirectPath);
+     }, 1500);
+
+   } catch (error) {
+     console.error('Error creating show:', error);
+     toast.error(`Failed to create show: ${error instanceof Error ? error.message : 'Unknown error'}`);
+   }
+ };
+
+ return (
     <form onSubmit={handleSubmit} className="space-y-6">
       <div className="space-y-4">
         <div>
@@ -147,8 +185,9 @@ const CreateShowForm = () => {
                     <div className="p-4 text-center text-muted-foreground">No artists found</div>
                   ) : (
                     <ul className="max-h-60 overflow-y-auto">
-                      {artists.map((artist: any) => (
-                        <li 
+                      {/* Use Artist type for map parameter */}
+                      {artists.map((artist: Artist) => (
+                        <li
                           key={artist.id}
                           className="flex items-center p-2 hover:bg-accent cursor-pointer"
                           onClick={() => handleSelectArtist(artist)}
