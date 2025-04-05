@@ -10,12 +10,13 @@ export {
 } from './api/artist';
 
 // Show related functions
-export { 
-  fetchArtistEvents, 
-  fetchShowDetails, 
+export {
+  fetchArtistEvents,
+  fetchShowDetails,
   fetchVenueDetails,
   fetchShowsByGenre,
-  fetchFeaturedShows
+  fetchFeaturedShows,
+  fetchVenueEvents // Add the new function here
 } from './api/shows';
 
 // Export utility functions for saving data to the database

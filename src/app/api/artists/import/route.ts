@@ -1,5 +1,6 @@
 import { adminClient } from '../../../../lib/db';
 import { saveArtistToDatabase, saveShowToDatabase } from '../../../../lib/api/database-utils';
+import { saveVenueToDatabase } from '../../../../lib/api/database-utils';
 import { fetchArtistEvents } from '../../../../lib/api/shows';
 import { getArtistByName } from '../../../../lib/spotify/artist-search';
 import { SpotifyArtist } from '../../../../lib/spotify/types';
@@ -56,8 +57,19 @@ export async function POST(request: Request) {
       });
     }
 
+// Removed duplicated venue handling block - it's handled correctly within the loop below.
     let savedCount = 0, failedCount = 0;
     for (const show of shows) {
+      if (show.venue) {
+        const savedVenue = await saveVenueToDatabase(show.venue);
+        if (!savedVenue || !savedVenue.id) {
+          console.error(`[API /artists/import] Failed to save venue for show: ${show.name}`);
+          failedCount++;
+          continue;
+        }
+        show.venue_id = savedVenue.id;
+      }
+
       try {
         const showToSave = { ...show, artist_id: savedArtist.id };
         const savedShow = await saveShowToDatabase(showToSave);

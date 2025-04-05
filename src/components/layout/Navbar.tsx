@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Menu, X } from 'lucide-react';
@@ -20,43 +19,44 @@ const Navbar = ({ showSearch = true }) => {
   const isHomePage = location.pathname === '/';
   const isSearchPage = location.pathname === '/search';
 
-  // Debounce search query
   useEffect(() => {
     const handler = setTimeout(() => {
       setDebouncedQuery(searchQuery);
     }, 300);
 
-    return () => {
-      clearTimeout(handler);
-    };
+    return () => clearTimeout(handler);
   }, [searchQuery]);
 
-  // Fetch artist search results
   const { data: artists = [], isLoading } = useQuery({
     queryKey: ['navSearch', debouncedQuery],
     queryFn: () => searchArtistsWithEvents(debouncedQuery, 5),
     enabled: debouncedQuery.length > 2,
   });
 
-  const toggleMenu = () => {
-    setIsMenuOpen(!isMenuOpen);
-  };
-
-  const closeMenu = () => {
-    setIsMenuOpen(false);
-  };
+  const toggleMenu = () => setIsMenuOpen(!isMenuOpen);
+  const closeMenu = () => setIsMenuOpen(false);
 
   const handleFullSearch = (query: string) => {
-    if (query.trim()) {
-      // Only navigate if we're not already on the search page
-      if (!isSearchPage) {
-        navigate(`/search?q=${encodeURIComponent(query)}`);
-      }
+    if (query.trim() && !isSearchPage) {
+      navigate(`/search?q=${encodeURIComponent(query)}`);
       setSearchQuery('');
     }
   };
 
-  const handleNavigation = (artistId: string) => {
+  const handleNavigation = async (artistId: string) => {
+    const artistData = artists.find(a => a.id === artistId);
+    if (artistData) {
+      try {
+        await fetch('/api/artists/import', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(artistData)
+        });
+      } catch (error) {
+        console.error('Error importing artist:', error);
+      }
+    }
+
     navigate(`/artists/${artistId}`);
     setSearchQuery('');
   };

@@ -65,12 +65,14 @@ export type Show = {
     image_url?: string;
     genres?: string[];
   };
-  venue?: {
-    id: string;
+  venue?: { // Ensure this matches the fields needed/provided by API mapping
+    id: string; // This is likely the Ticketmaster Venue ID from the API
+    ticketmaster_id?: string; // Explicitly add TM ID here too
     name: string;
     city?: string;
     state?: string;
     country?: string;
+    // Add other fields like address, postal_code if needed/available from mapping
   };
   last_updated?: string;
 };

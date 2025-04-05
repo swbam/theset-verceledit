@@ -6,14 +6,23 @@ const globalForSupabase = globalThis as unknown as {
 };
 
 // Get environment variables - using VITE_ prefix for Vite compatibility
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL ||
-                    "https://kzjnkqeosrycfpxjwhil.supabase.co";
+// Get environment variables
+// VITE_ prefix exposes them client-side (needed for URL and Anon Key)
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY ||
-                         "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt6am5rcWVvc3J5Y2ZweGp3aGlsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDI2ODM3ODMsImV4cCI6MjA1ODI1OTc4M30.KOriVTUxlnfiBpWmVrlO4xHM7nniizLgXQ49f2K22UM";
+// Service Role Key should ONLY be accessed server-side (e.g., API routes, Node scripts)
+// Use process.env for server-side environments. Ensure this variable is NOT prefixed with VITE_
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-const SUPABASE_SERVICE_ROLE_KEY = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY ||
-                                "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt6am5rcWVvc3J5Y2ZweGp3aGlsIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0MjY4Mzc4MywiZXhwIjoyMDU4MjU5NzgzfQ.4-ITsc97-Ts7gy3e6RhjIbCf2awTWdjaG3zXCxkwJpI";
+// Validate essential environment variables
+if (!SUPABASE_URL) {
+  throw new Error("Missing environment variable: VITE_SUPABASE_URL");
+}
+if (!SUPABASE_ANON_KEY) {
+  throw new Error("Missing environment variable: VITE_SUPABASE_ANON_KEY");
+}
+// Service role key is only strictly required for the adminClient, check there.
 
 // Log the Supabase configuration for debugging
 console.log('[Server] Supabase URL:', SUPABASE_URL);
@@ -55,10 +64,20 @@ if (process.env.NODE_ENV === 'development') {
 }
 
 // Service role client for admin operations (use with caution)
+// Service role client for admin operations (use ONLY server-side)
 export const adminClient = () => {
+  // Ensure Service Role Key is available in the server environment
+  if (!SUPABASE_SERVICE_ROLE_KEY) {
+    console.error('[Server] Missing environment variable: SUPABASE_SERVICE_ROLE_KEY. Admin client cannot be created.');
+    // Depending on strictness, you might throw an error or return a non-functional client/null
+    // Throwing an error is safer to prevent unexpected behavior.
+    throw new Error("Missing environment variable: SUPABASE_SERVICE_ROLE_KEY required for admin client.");
+  }
+
   try {
+    // Use the server-side fetched key
     return createClient(
-      SUPABASE_URL,
+      SUPABASE_URL!, // Already validated above
       SUPABASE_SERVICE_ROLE_KEY,
       {
         auth: {
@@ -69,7 +88,7 @@ export const adminClient = () => {
     );
   } catch (error) {
     console.error('[Server] Error creating admin client:', error);
-    // Return a fallback client
-    return createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    // Re-throw or handle appropriately - avoid returning a potentially broken client
+    throw new Error(`Failed to create admin client: ${error instanceof Error ? error.message : String(error)}`);
   }
 };

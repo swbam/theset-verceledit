@@ -35,10 +35,9 @@ export async function saveArtistToDatabase(artist: Artist) {
           return artist;
         }
 
-        console.log(`[saveArtistToDatabase] Error checking artist ${artist.name}:`, checkError.message);
-
-        console.error("Error checking artist in database:", checkError);
-        return artist; // Return the original artist even if DB check fails
+        console.error(`[saveArtistToDatabase] Error checking artist ${artist.name}:`, checkError);
+        // Throw error on check failure
+        throw new Error(`Failed to check artist ${artist.name} in database. Code: ${checkError.code}, Message: ${checkError.message}`);
       }
 
       // If artist exists and was updated recently don't update
@@ -67,8 +66,9 @@ export async function saveArtistToDatabase(artist: Artist) {
 
       }
     } catch (checkError) {
-      console.error("Error checking if artist exists:", checkError);
-      // Continue to try adding the artist anyway
+      console.error("[saveArtistToDatabase] Unexpected error during artist existence check:", checkError);
+      // Throw error instead of continuing
+      throw new Error(`Unexpected error checking if artist ${artist.name} exists: ${checkError instanceof Error ? checkError.message : String(checkError)}`);
     }
 
     // Prepare artist data
@@ -112,12 +112,14 @@ export async function saveArtistToDatabase(artist: Artist) {
 
       return data?.[0] || artist;
     } catch (saveError) {
-      console.error("Error in saveArtistToDatabase:", saveError);
-      return artist; // Return the original artist even if DB save fails
+      console.error("[saveArtistToDatabase] Error during upsert attempt:", saveError);
+      // Re-throw the error caught during save attempt
+      throw saveError;
     }
   } catch (error) {
-    console.error("Unexpected error in saveArtistToDatabase:", error);
-    return artist; // Return the original artist even if unexpected error occurs
+    console.error("[saveArtistToDatabase] Unexpected top-level error:", error);
+    // Re-throw unexpected errors
+    throw new Error(`Unexpected error processing artist ${artist?.name}: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 
@@ -143,13 +145,15 @@ export async function saveVenueToDatabase(venue: Venue) {
 
       if (checkError) {
         // If we get a permission error log but continue (return the original venue)
-        if (checkError.code === '42501') { // permission denied error
-          console.log(`Permission denied when checking venue ${venue.name} in database - continuing with API data`);
-          return venue;
-        }
+        // Using adminClient, permission errors indicate a problem
+        // if (checkError.code === '42501') { // permission denied error
+        //   console.log(`Permission denied when checking venue ${venue.name} in database - continuing with API data`);
+        //   return venue; // OLD LOGIC
+        // }
 
-        console.error("Error checking venue in database:", checkError);
-        return venue; // Return the original venue even if DB check fails
+        console.error(`[saveVenueToDatabase] Error checking venue ${venue.name}:`, checkError);
+        // Throw error on check failure
+        throw new Error(`Failed to check venue ${venue.name} in database. Code: ${checkError.code}, Message: ${checkError.message}`);
       }
 
       // If venue exists and was updated recently don't update
@@ -169,8 +173,9 @@ export async function saveVenueToDatabase(venue: Venue) {
         console.log(`Venue ${venue.name} is new, creating in database`);
       }
     } catch (checkError) {
-      console.error("Error checking if venue exists:", checkError);
-      // Continue to try adding the venue anyway
+      console.error("[saveVenueToDatabase] Unexpected error during venue existence check:", checkError);
+      // Throw error instead of continuing
+      throw new Error(`Unexpected error checking if venue ${venue.name} exists: ${checkError instanceof Error ? checkError.message : String(checkError)}`);
     }
 
     // Insert or update venue
@@ -193,25 +198,29 @@ export async function saveVenueToDatabase(venue: Venue) {
 
       if (error) {
         // If we get a permission error log but continue (return the original venue)
-        if (error.code === '42501') { // permission denied error
-          console.log(`Permission denied when saving venue ${venue.name} to database - continuing with API data`);
-          return venue;
-        }
+        // Using adminClient, permission errors indicate a problem
+        // if (error.code === '42501') { // permission denied error
+        //   console.log(`Permission denied when saving venue ${venue.name} to database - continuing with API data`);
+        //   return venue; // OLD LOGIC
+        // }
 
-        console.error("Error saving venue to database:", error);
-        return venue; // Return the original venue even if DB save fails
+        console.error(`[saveVenueToDatabase] FAILED upsert for venue ${venue.name}:`, error);
+        // Throw error on ANY upsert failure
+        throw new Error(`Failed to save venue ${venue.name} to database. Code: ${error.code}, Message: ${error.message}`);
       }
 
       console.log(`Successfully saved venue ${venue.name} to database`);
       
       return data || venue; // Return saved data or original object
     } catch (saveError) {
-      console.error("Error in saveVenueToDatabase:", saveError);
-      return venue; // Return the original venue even if DB save fails
+      console.error("[saveVenueToDatabase] Error during upsert attempt:", saveError);
+      // Re-throw the error caught during save attempt
+      throw saveError;
     }
   } catch (error) {
-    console.error("Unexpected error in saveVenueToDatabase:", error);
-    return venue; // Return the original venue even if unexpected error occurs
+    console.error("[saveVenueToDatabase] Unexpected top-level error:", error);
+    // Re-throw unexpected errors
+    throw new Error(`Unexpected error processing venue ${venue?.name}: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 
@@ -219,9 +228,11 @@ export async function saveVenueToDatabase(venue: Venue) {
  * Save a show to the database, optionally triggering a full venue sync.
  * Handles permission errors gracefully.
  * @param show The show object to save.
- * @param triggeredBySync Flag to prevent infinite sync loops. Defaults to false.
+ * @param options Optional parameters.
+ * @param options.triggeredBySync Flag to prevent infinite sync loops. Defaults to false.
  */
-export async function saveShowToDatabase(show: Show, triggeredBySync: boolean = false) {
+export async function saveShowToDatabase(show: Show, options: { triggeredBySync?: boolean } = {}) {
+  const { triggeredBySync = false } = options; // Destructure with default
   try {
     if (!show || !show.id) {
       console.error("Invalid show object:", show);
@@ -240,13 +251,15 @@ export async function saveShowToDatabase(show: Show, triggeredBySync: boolean = 
 
       if (checkError) {
         // If we get a permission error log but continue (return the original show)
-        if (checkError.code === '42501') { // permission denied error
-          console.log(`Permission denied when checking show ${show.name} in database - continuing with API data`);
-          return show;
-        }
+        // Using adminClient, permission errors indicate a problem
+        // if (checkError.code === '42501') { // permission denied error
+        //   console.log(`Permission denied when checking show ${show.name} in database - continuing with API data`);
+        //   return show; // OLD LOGIC
+        // }
 
-        console.error("Error checking show in database:", checkError);
-        return show; // Return the original show even if DB check fails
+        console.error(`[saveShowToDatabase] Error checking show ${show.name}:`, checkError);
+        // Throw error on check failure
+        throw new Error(`Failed to check show ${show.name} in database. Code: ${checkError.code}, Message: ${checkError.message}`);
       }
 
       // If show exists and was updated recently don't update
@@ -266,8 +279,9 @@ export async function saveShowToDatabase(show: Show, triggeredBySync: boolean = 
         console.log(`Show ${show.name} is new, creating in database`);
       }
     } catch (checkError) {
-      console.error("Error checking if show exists:", checkError);
-      // Continue to try adding the show anyway
+      console.error("[saveShowToDatabase] Unexpected error during show existence check:", checkError);
+      // Throw error instead of continuing
+      throw new Error(`Unexpected error checking if show ${show.name} exists: ${checkError instanceof Error ? checkError.message : String(checkError)}`);
     }
 
     // Ensure artist and venue exist before saving the show
@@ -290,8 +304,9 @@ export async function saveShowToDatabase(show: Show, triggeredBySync: boolean = 
 
     // Abort if essential IDs are missing after trying to save artist/venue
     if (!artistId || !venueId) {
-      console.error(`Cannot save show ${show.name}, missing artistId (${artistId}) or venueId (${venueId})`);
-      return show; // Return original data as we couldn't save properly
+      console.error(`[saveShowToDatabase] Cannot save show ${show.name}, missing artistId (${artistId}) or venueId (${venueId}) after attempting to save dependencies.`);
+      // Throw error as saving cannot proceed
+      throw new Error(`Cannot save show ${show.name}, missing required artistId or venueId.`);
     }
 
     // Upsert the show
@@ -312,32 +327,76 @@ export async function saveShowToDatabase(show: Show, triggeredBySync: boolean = 
       .single(); // Use single() if upsert returns an array with one item
 
     if (error) {
-      if (error.code === '42501') {
-        console.log(`Permission denied when saving show ${show.name}`);
-        return show; // Return original object on permission error
-      }
-      console.error("Error saving show to database:", error);
-      return show; // Return original object on other errors
+      // Using adminClient, permission errors indicate a problem
+      // if (error.code === '42501') {
+      //   console.log(`Permission denied when saving show ${show.name}`);
+      //   return show; // OLD LOGIC
+      // }
+      console.error(`[saveShowToDatabase] FAILED upsert for show ${show.name}:`, error);
+      // Throw error on ANY upsert failure
+      throw new Error(`Failed to save show ${show.name} to database. Code: ${error.code}, Message: ${error.message}`);
     }
 
     const savedShow = data; // data should be the single saved show object
     console.log(`Successfully saved show ${show.name} to database`);
+// --- Automatic Venue Sync Trigger ---
+// If this save wasn't triggered by a sync itself, and we have a venue ID,
+// trigger the background sync for this venue.
+if (!triggeredBySync && venueId) {
+  console.log(`[saveShowToDatabase] Triggering background sync for venue ID: ${venueId} (Show: ${savedShow.name})`);
+  // Use the venue's Ticketmaster ID if available, otherwise the internal ID might need mapping
+  const venueTmId = show.venue?.ticketmaster_id || show.venue?.id; // Prefer explicit TM ID if available
 
-    // Venue sync trigger removed - handled by the calling server-side API route
+  if (venueTmId) {
+     // Fire-and-forget fetch call to the sync endpoint
+     fetch('/api/sync/venue', { // Use relative path for API route
+       method: 'POST',
+       headers: { 'Content-Type': 'application/json' },
+       body: JSON.stringify({
+         venueId: venueId, // Our internal DB ID
+         ticketmasterVenueId: venueTmId // The ID needed by fetchVenueEvents
+        }),
+     })
+     .then(async (res) => {
+       if (!res.ok) {
+         const errorData = await res.json().catch(() => ({})); // Try to parse error
+         console.error(`[saveShowToDatabase] Background venue sync call failed for venue ${venueId} (TM ID: ${venueTmId}). Status: ${res.status}`, errorData);
+       } else {
+         console.log(`[saveShowToDatabase] Background venue sync call initiated successfully for venue ${venueId} (TM ID: ${venueTmId}).`);
+       }
+     })
+     .catch(error => {
+       console.error(`[saveShowToDatabase] Error initiating background venue sync call for venue ${venueId} (TM ID: ${venueTmId}):`, error);
+     });
+  } else {
+      console.warn(`[saveShowToDatabase] Cannot trigger background sync for venue associated with show ${savedShow.name}: Missing Ticketmaster Venue ID.`);
+  }
+}
 
-    // Create a setlist for *this specific* show (existing logic)
-    const setlistId = await createSetlistDirectly(savedShow.id, artistId);
-    if (setlistId) {
-      console.log(`Created setlist for show ${savedShow.id}: ${setlistId}`);
-      // Return the saved show merged with its new setlist_id
-      return { ...savedShow, setlist_id: setlistId };
+    // Create a setlist for *this specific* show if it doesn't exist
+    // Ensure artistId is valid before proceeding
+    if (artistId) {
+        try {
+            const setlistId = await createSetlistDirectly(savedShow.id, artistId);
+            if (setlistId) {
+                console.log(`[saveShowToDatabase] Ensured setlist exists for show ${savedShow.id}: ${setlistId}`);
+                // Add setlist_id to the returned object if created/found
+                savedShow.setlist_id = setlistId;
+            }
+        } catch (setlistError) {
+            // Log the error but don't let it block returning the saved show
+            console.error(`[saveShowToDatabase] Error ensuring setlist for show ${savedShow.id}:`, setlistError);
+        }
+    } else {
+        console.warn(`[saveShowToDatabase] Cannot create setlist for show ${savedShow.id}: Missing artistId.`);
     }
 
     return savedShow; // Return the saved show object
 
   } catch (error) {
-    console.error("Unexpected error in saveShowToDatabase:", error);
-    return show; // Return original object on unexpected errors
+    console.error("[saveShowToDatabase] Unexpected top-level error:", error);
+    // Re-throw unexpected errors
+    throw new Error(`Unexpected error processing show ${show?.name}: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 
@@ -357,8 +416,8 @@ export async function createSetlistDirectly(showId: string, artistId: string) { 
       .maybeSingle();
     
     if (checkError) {
-      console.error("Error checking for existing setlist:", checkError);
-      return null;
+      console.error(`[createSetlistDirectly] Error checking for existing setlist for show ${showId}:`, checkError);
+      throw new Error(`Failed to check for existing setlist for show ${showId}. Code: ${checkError.code}, Message: ${checkError.message}`);
     }
     
     // If setlist exists, return its ID
@@ -375,8 +434,8 @@ export async function createSetlistDirectly(showId: string, artistId: string) { 
       .single();
     
     if (showError || !show) {
-      console.error("Error getting show details:", showError);
-      return null;
+      console.error(`[createSetlistDirectly] Error getting show details for show ${showId}:`, showError);
+      throw new Error(`Failed to get details for show ${showId}. Code: ${showError.code}, Message: ${showError.message}`);
     }
     
     // Create new setlist
@@ -393,8 +452,8 @@ export async function createSetlistDirectly(showId: string, artistId: string) { 
       .single();
     
     if (createError) {
-      console.error("Error creating setlist:", createError);
-      return null;
+      console.error(`[createSetlistDirectly] Error creating setlist for show ${showId}:`, createError);
+      throw new Error(`Failed to create setlist for show ${showId}. Code: ${createError.code}, Message: ${createError.message}`);
     }
     
     console.log(`Created setlist ${newSetlist.id} for show ${showId}`);
@@ -404,8 +463,8 @@ export async function createSetlistDirectly(showId: string, artistId: string) { 
     
     return newSetlist.id;
   } catch (error) {
-    console.error("Error in createSetlistDirectly:", error);
-    return null;
+    console.error(`[createSetlistDirectly] Unexpected error for show ${showId}:`, error);
+    throw new Error(`Unexpected error creating setlist for show ${showId}: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 
@@ -423,8 +482,8 @@ async function populateSetlistSongs(setlistId: string, artistId: string) {
       .limit(50);
     
     if (songsError) {
-      console.error("Error fetching songs for setlist:", songsError);
-      return false;
+      console.error(`[populateSetlistSongs] Error fetching songs for artist ${artistId}:`, songsError);
+      throw new Error(`Failed to fetch songs for artist ${artistId}. Code: ${songsError.code}, Message: ${songsError.message}`);
     }
     
     // If we don't have songs, fetch them from Spotify
@@ -437,8 +496,8 @@ async function populateSetlistSongs(setlistId: string, artistId: string) {
         .maybeSingle();
       
       if (artistError || !artist?.spotify_id) {
-        console.error("Error getting artist Spotify ID:", artistError);
-        return false;
+        console.error(`[populateSetlistSongs] Error getting Spotify ID for artist ${artistId}:`, artistError);
+        throw new Error(`Failed to get Spotify ID for artist ${artistId}. Code: ${artistError?.code}, Message: ${artistError?.message}`);
       }
       
       // Fetch songs from Spotify
@@ -453,8 +512,8 @@ async function populateSetlistSongs(setlistId: string, artistId: string) {
         .limit(50);
       
       if (refreshError || !refreshedSongs || refreshedSongs.length === 0) {
-        console.error("Still couldn't get songs after fetching from Spotify:", refreshError);
-        return false;
+        console.error(`[populateSetlistSongs] Still couldn't get songs for artist ${artistId} after fetching from Spotify:`, refreshError);
+        throw new Error(`Failed to get refreshed songs for artist ${artistId}. Code: ${refreshError?.code}, Message: ${refreshError?.message}`);
       }
       
       // Add songs to setlist
@@ -464,8 +523,8 @@ async function populateSetlistSongs(setlistId: string, artistId: string) {
     // Add songs to setlist if we have them
     return await addSongsToSetlistInternal(setlistId, artistId, songs);
   } catch (error) {
-    console.error("Error in populateSetlistSongs:", error);
-    return false;
+    console.error(`[populateSetlistSongs] Unexpected error for setlist ${setlistId}:`, error);
+    throw new Error(`Unexpected error populating setlist ${setlistId}: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 
@@ -507,14 +566,14 @@ async function addSongsToSetlistInternal(setlistId: string, artistId: string, so
       .insert(setlistSongs);
     
     if (error) {
-      console.error("Error adding songs to setlist:", error);
-      return false;
+      console.error(`[addSongsToSetlistInternal] Error adding songs to setlist ${setlistId}:`, error);
+      throw new Error(`Failed to add songs to setlist ${setlistId}. Code: ${error.code}, Message: ${error.message}`);
     }
     
     console.log(`Added ${setlistSongs.length} songs to setlist ${setlistId}`);
     return true;
   } catch (error) {
-    console.error("Error in addSongsToSetlistInternal:", error);
-    return false;
+    console.error(`[addSongsToSetlistInternal] Unexpected error for setlist ${setlistId}:`, error);
+    throw new Error(`Unexpected error adding songs to setlist ${setlistId}: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
