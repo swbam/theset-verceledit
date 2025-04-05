@@ -1,4 +1,3 @@
-
 import { useQuery } from '@tanstack/react-query';
 import { useDocumentTitle } from '@/hooks/use-document-title';
 import { ArtistWithEvents } from '@/lib/api/artist';
@@ -6,7 +5,6 @@ import { fetchArtistById } from '@/lib/api/artist';
 import { Show } from '@/lib/api/shows';
 import { fetchArtistEvents } from '@/lib/ticketmaster';
 import { useEffect } from 'react';
-import { saveShowToDatabase } from '@/lib/api/database-utils';
 
 // Define the return type for the hook
 interface UseArtistDetailReturn {

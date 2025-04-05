@@ -11,7 +11,6 @@ export * from './shows';
 
 // Database related
 export * from './database';
-export * from './database-utils';
 
 // API services with more selective exports to avoid naming conflicts
 export { getArtist, getArtistTopTracksFromDb } from './getArtist';

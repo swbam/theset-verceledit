@@ -1,4 +1,3 @@
-
 // Re-export all functions from the different modules
 export { popularMusicGenres } from './api/ticketmaster-config';
 
@@ -8,13 +7,16 @@ export {
   fetchFeaturedArtists,
   fetchArtistById
 } from './api/artist';
+
 // Show related functions (Client-side safe subset)
 export {
   fetchShowDetails,
-  fetchShowsByGenre,
-  // Add other client-safe show functions if needed
+  fetchShowsByGenre
 } from './api/shows';
 
+// Import and re-export from the shows directory
+export { fetchArtistEvents } from './api/shows/artist-events';
+export { fetchFeaturedShows } from './api/shows/featured-shows';
 
 // Removed export for './api/shows' as the file was deleted (logic moved to Edge Functions)
 // Removed export for database-utils as the file was deleted (logic moved to Edge Functions)
