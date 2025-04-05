@@ -8,7 +8,7 @@ interface Artist {
   id: string;
   name: string;
   image?: string;
-  upcomingShows: number;
+  upcomingShows?: number; // Make optional to match ArtistWithEvents
 }
 
 interface ArtistSearchResultsProps {

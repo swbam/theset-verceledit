@@ -8,24 +8,16 @@ export {
   fetchFeaturedArtists,
   fetchArtistById
 } from './api/artist';
-
-// Show related functions
+// Show related functions (Client-side safe subset)
 export {
-  fetchArtistEvents,
   fetchShowDetails,
-  fetchVenueDetails,
   fetchShowsByGenre,
-  fetchFeaturedShows,
-  fetchVenueEvents // Add the new function here
+  // Add other client-safe show functions if needed
 } from './api/shows';
 
-// Export utility functions for saving data to the database
-export { 
-  saveArtistToDatabase,
-  saveShowToDatabase,
-  saveVenueToDatabase
-} from './api/database-utils';
 
+// Removed export for './api/shows' as the file was deleted (logic moved to Edge Functions)
+// Removed export for database-utils as the file was deleted (logic moved to Edge Functions)
 // Setlist.fm related functions
 export const fetchPastSetlists = async (artistId: string, artistName: string) => {
   try {

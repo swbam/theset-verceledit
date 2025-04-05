@@ -1,145 +1,93 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { getAccessToken } from './auth';
+import { getAccessToken } from './auth'; // Relies on client-side auth handling
+import type { SpotifyArtist } from './types'; // Assuming types are still in ./types
 
 const SPOTIFY_API_BASE = 'https://api.spotify.com/v1';
 
-// Function to search for artists
-export const searchArtists = async (query: string, limit = 5): Promise<any> => {
+// Type for the raw Spotify search API response
+interface SpotifySearchResponse {
+  artists: {
+    items: SpotifyArtist[];
+    // Add other pagination fields if needed
+  };
+}
+
+// Function to search for artists (Client-side context)
+export const searchArtists = async (query: string, limit = 5): Promise<SpotifySearchResponse | null> => {
   if (!query.trim()) return { artists: { items: [] } };
-  
+
   try {
-    const token = await getAccessToken();
+    // This will likely need a user access token from the session for client-side calls
+    const token = await getAccessToken(); // Might throw if not implemented correctly client-side
     const response = await fetch(
       `${SPOTIFY_API_BASE}/search?q=${encodeURIComponent(query)}&type=artist&limit=${limit}`,
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      }
+      { headers: { Authorization: `Bearer ${token}` } }
     );
 
     if (!response.ok) {
       throw new Error(`Failed to search artists: ${response.statusText}`);
     }
-
-    return await response.json();
+    const data: SpotifySearchResponse = await response.json();
+    return data;
   } catch (error) {
     console.error('Error searching artists:', error);
-    return { artists: { items: [] } };
+    toast.error("Failed to search Spotify artists.");
+    return null; // Return null on error
   }
 };
 
-// Get artist info by name
-export const getArtistByName = async (name: string): Promise<any> => {
+// Get artist info by name (Client-side context)
+export const getArtistByName = async (name: string): Promise<SpotifyArtist | null> => {
   try {
-    const token = await getAccessToken();
+    const token = await getAccessToken(); // Might throw
     const response = await fetch(
       `${SPOTIFY_API_BASE}/search?q=${encodeURIComponent(name)}&type=artist&limit=1`,
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      }
+      { headers: { Authorization: `Bearer ${token}` } }
     );
 
     if (!response.ok) {
       throw new Error(`Failed to search artist: ${response.statusText}`);
     }
 
-    const data = await response.json();
-    
-    if (data.artists.items.length === 0) {
-      throw new Error(`No artist found with name: ${name}`);
+    const data: SpotifySearchResponse = await response.json();
+
+    if (!data.artists || data.artists.items.length === 0) {
+      console.log(`No artist found with name: ${name}`);
+      return null; // Return null if not found
     }
-    
-    return data.artists.items[0];
+
+    return data.artists.items[0]; // Return the first match
   } catch (error) {
-    console.error('Error searching for artist:', error);
-    throw error;
+    console.error(`Error searching for artist '${name}':`, error);
+    toast.error(`Failed to find Spotify artist: ${name}`);
+    // Don't re-throw, return null
+    return null;
   }
 };
 
-// Function to get artist by ID
-export const getArtistById = async (artistId: string): Promise<any> => {
+// Function to get artist by ID (Client-side context)
+export const getArtistById = async (artistId: string): Promise<SpotifyArtist | null> => {
   try {
-    const token = await getAccessToken();
+    const token = await getAccessToken(); // Might throw
     const response = await fetch(`${SPOTIFY_API_BASE}/artists/${artistId}`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
+      headers: { Authorization: `Bearer ${token}` },
     });
 
     if (!response.ok) {
+       if (response.status === 404) return null; // Not found
       throw new Error(`Failed to get artist: ${response.statusText}`);
     }
 
-    return await response.json();
+    const data: SpotifyArtist = await response.json();
+    return data;
   } catch (error) {
-    console.error('Error getting artist by ID:', error);
-    throw error;
+    console.error(`Error getting artist by ID '${artistId}':`, error);
+    toast.error(`Failed to get Spotify artist details.`);
+    return null;
   }
 };
 
-// Function to resolve artist ID (from database or Spotify search)
-export const resolveArtistId = async (artistId: string, artistName: string): Promise<string> => {
-  try {
-    // First, check if we have this artist in our database
-    const { data: artistData, error } = await supabase
-      .from('artists')
-      .select('*')
-      .eq('id', artistId)
-      .single();
-
-    if (!error && artistData && artistData.stored_tracks) {
-      // If we have stored tracks, use this artist's ID
-      console.log("Found artist with stored tracks in DB:", artistData);
-      return artistData.id;
-    }
-
-    // If not found or no stored tracks, search Spotify for the artist
-    const spotifyArtist = await getArtistByName(artistName);
-    
-    // Update or insert the artist with the Spotify ID
-    if (spotifyArtist && spotifyArtist.id) {
-      const imageUrl = spotifyArtist.images?.[0]?.url;
-      
-      if (artistData) {
-        // Update existing artist
-        await supabase
-          .from('artists')
-          .update({ 
-            image_url: imageUrl,
-          })
-          .eq('id', artistId);
-        
-        return artistId;
-      } else {
-        // Insert new artist
-        const { data: newArtist, error: insertError } = await supabase
-          .from('artists')
-          .insert({
-            id: artistId,
-            name: artistName,
-            image_url: imageUrl,
-          })
-          .select()
-          .single();
-        
-        if (insertError) {
-          console.error("Error inserting artist:", insertError);
-          throw insertError;
-        }
-        
-        return artistId;
-      }
-    }
-    
-    throw new Error(`Could not resolve artist ID for: ${artistName}`);
-  } catch (error) {
-    console.error('Error resolving artist ID:', error);
-    toast.error("Error finding artist information");
-    throw error;
-  }
-};
+// NOTE: resolveArtistId function was removed as it contained database logic
+// that should now be handled server-side (e.g., within the import-artist Edge Function).
+// Client-side code should primarily fetch data, not resolve/update DB records directly.

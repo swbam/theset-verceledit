@@ -2,13 +2,17 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Search as SearchIcon, MusicIcon } from 'lucide-react';
-import { searchArtistsWithEvents } from '@/lib/ticketmaster';
+// Import the specific function and its return type
+import { searchArtistsWithEvents, ArtistWithEvents } from '@/lib/api/artist';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
 import SearchBar from '@/components/ui/SearchBar';
 import ArtistSearchResults from '@/components/search/ArtistSearchResults';
 import { useDocumentTitle } from '@/hooks/use-document-title';
-
+// Base Artist type might still be needed for the payload, keep it for now
+import type { Artist as BaseArtist } from '@/lib/types';
+import { supabase } from '@/integrations/supabase/client'; // Import Supabase client
+import { toast } from 'sonner'; // Import toast for feedback
 const Search = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -52,7 +56,8 @@ const Search = () => {
   }, [searchQuery, navigate, queryParam]);
   
   // Fetch artists with upcoming shows from Ticketmaster
-  const { data: artists = [], isLoading, error } = useQuery({
+  // Use the correct return type from the query function
+  const { data: artists = [], isLoading, error } = useQuery<ArtistWithEvents[]>({
     queryKey: ['artistsWithEvents', debouncedQuery],
     queryFn: () => searchArtistsWithEvents(debouncedQuery),
     enabled: debouncedQuery.length > 2,
@@ -62,7 +67,69 @@ const Search = () => {
     setSearchQuery(query);
   };
 
-  const handleArtistSelect = (artist: any) => {
+  const handleArtistSelect = async (artist: ArtistWithEvents) => { // Use ArtistWithEvents type
+    // Trigger the backend import process (fire-and-forget)
+    console.log(`[Search Page] Triggering import for artist: ${artist.name} (ID: ${artist.id})`);
+    try {
+      // Ensure the artist object has the necessary fields (id, name)
+      if (!artist || !artist.id || !artist.name) {
+        console.error("[Search Page] Invalid artist data for import:", artist);
+        // Navigate anyway, but log the error
+        navigate(`/artists/${artist.id}`);
+        // Navigate anyway, but show a toast
+        toast.error("Cannot import artist: Invalid data.");
+        navigate(`/artists/${artist.id}`);
+        return;
+      }
+
+      // Prepare the data payload for the Edge Function
+      // Map available fields from ArtistWithEvents to the BaseArtist type
+      // Use Partial<BaseArtist> because we only have a subset of fields
+      const artistPayload: Partial<BaseArtist> = {
+        id: artist.id,       // Ticketmaster ID
+        name: artist.name,
+        image_url: artist.image, // Map from ArtistWithEvents.image
+        genres: artist.genres,   // Map from ArtistWithEvents.genres
+        // NOTE: spotify_id, popularity, followers, etc., are NOT available
+        // directly from the searchArtistsWithEvents result (ArtistWithEvents type).
+        // The import-artist Edge Function will need to fetch these if required.
+      };
+      // Remove undefined keys just in case (e.g., if artist.image was undefined)
+      Object.keys(artistPayload).forEach(key => {
+        if (artistPayload[key as keyof typeof artistPayload] === undefined) {
+            delete artistPayload[key as keyof typeof artistPayload];
+        }
+      });
+
+      console.log("[Search Page] Prepared payload for import:", artistPayload);
+      // The lines below were incorrect remnants and are removed.
+      // The payload is correctly defined above using available fields.
+      // Invoke the Supabase Edge Function 'import-artist'
+      // This is fire-and-forget, but we add basic logging/toast
+      // Invoke the Supabase Edge Function 'import-artist'
+      supabase.functions.invoke('import-artist', {
+        body: artistPayload,
+      })
+      .then(({ data, error }) => {
+        if (error) {
+          console.error(`[Search Page] Error invoking import-artist function for ${artist.name}:`, error);
+          toast.error(`Failed to start import for ${artist.name}: ${error.message}`);
+        } else {
+          console.log(`[Search Page] Successfully invoked import-artist function for ${artist.name}.`, data);
+          // Optional: Show a success toast, but maybe not needed as user navigates away
+          // toast.success(`Import started for ${artist.name}.`);
+        }
+      })
+      .catch((invokeError) => {
+         // Catch potential network errors during the invoke call itself
+         console.error(`[Search Page] Network error invoking import-artist function for ${artist.name}:`, invokeError);
+         toast.error(`Network error starting import for ${artist.name}.`);
+      });
+    } catch (error) {
+       console.error(`[Search Page] Error preparing artist import for ${artist.name}:`, error);
+    }
+
+    // Navigate immediately after initiating the background import
     navigate(`/artists/${artist.id}`);
   };
 
@@ -87,7 +154,7 @@ const Search = () => {
             >
               {showSearchResults && (
                 <ArtistSearchResults 
-                  artists={artists} 
+                  artists={artists} // Pass ArtistWithEvents[]
                   isLoading={isLoading}
                   onSelect={handleArtistSelect}
                 />

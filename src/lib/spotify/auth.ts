@@ -1,39 +1,15 @@
-const SPOTIFY_API_BASE = 'https://api.spotify.com/v1';
-const SPOTIFY_CLIENT_ID = import.meta.env.VITE_SPOTIFY_CLIENT_ID || '2946864dc822469b9c672292ead45f43';
-const SPOTIFY_CLIENT_SECRET = import.meta.env.VITE_SPOTIFY_CLIENT_SECRET || 'feaf0fc901124b839b11e02f97d18a8d';
+// Placeholder for client-side Spotify authentication if needed.
+// The server-side client credentials flow is now handled in Edge Functions.
 
-let accessToken: string | null = null;
-let tokenExpirationTime: number | null = null;
-
-// Get Spotify API token using client credentials flow
+// This function might need to be implemented differently depending on
+// how client-side Spotify calls are authenticated (e.g., using user's token from Supabase session).
+// For now, it will likely fail if called directly client-side without user context.
 export const getAccessToken = async (): Promise<string> => {
-  // If we have a valid token, return it
-  if (accessToken && tokenExpirationTime && Date.now() < tokenExpirationTime) {
-    return accessToken;
-  }
+  console.warn("Client-side getAccessToken called - ensure user context or alternative auth is used.");
+  // Example: Try getting token from Supabase session if available client-side
+  // import { supabase } from '@/integrations/supabase/client';
+  // const { data: { session } } = await supabase.auth.getSession();
+  // if (session?.provider_token) return session.provider_token;
 
-  try {
-    // Otherwise, request a new token
-    const response = await fetch('https://accounts.spotify.com/api/token', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        Authorization: `Basic ${btoa(`${SPOTIFY_CLIENT_ID}:${SPOTIFY_CLIENT_SECRET}`)}`,
-      },
-      body: 'grant_type=client_credentials',
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to get Spotify access token: ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    accessToken = data.access_token;
-    tokenExpirationTime = Date.now() + (data.expires_in * 1000);
-    
-    return accessToken;
-  } catch (error) {
-    console.error('Error getting Spotify access token:', error);
-    throw error;
-  }
+  throw new Error("Client-side Spotify access token retrieval not fully implemented or context missing.");
 };

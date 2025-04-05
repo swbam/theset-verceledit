@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { searchArtistsWithEvents, fetchArtistEvents } from '@/lib/ticketmaster';
-// Make sure this function exists in the ticketmaster.ts file
-import { saveArtistToDatabase, saveShowToDatabase, saveVenueToDatabase } from '@/lib/api/database-utils';
-import { fetchAndStoreArtistTracks } from '@/lib/api/database';
+// Import client-side safe functions only
+import { searchArtistsWithEvents } from '@/lib/api/artist'; // Assuming this was restored/exists
+// Removed imports for server-side logic (save*, fetchAndStore*)
 import { supabase } from '@/integrations/supabase/client';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -49,16 +48,16 @@ import {
 } from 'lucide-react';
 
 // Define interfaces
-interface Artist {
-  id: string;
-  name: string;
-  image?: string;
-  upcoming_shows?: number;
-  imported?: boolean;
+// Use the shared Artist type if possible, or define locally if needed
+// Assuming ArtistWithEvents is the type returned by searchArtistsWithEvents
+interface ArtistSearchResult extends ArtistWithEvents {
+  imported?: boolean; // Keep local state flags if needed
   savedShowsCount?: number;
-  updated_at?: string;
-  spotify_id?: string;
+  updated_at?: string; // Likely from DB check, might not be needed here anymore
 }
+// Use BaseArtist for the payload to the Edge Function
+import type { Artist as BaseArtist } from '@/lib/types';
+import type { ArtistWithEvents } from '@/lib/api/artist'; // Import the search result type
 
 interface Venue {
   id: string;
@@ -112,7 +111,7 @@ interface ImportStatus {
 
 const AdminArtistImport = () => {
   const [artistSearchQuery, setArtistSearchQuery] = useState('');
-  const [artistResults, setArtistResults] = useState<Artist[]>([]);
+  const [artistResults, setArtistResults] = useState<ArtistSearchResult[]>([]); // Use updated type
   const [isSearching, setIsSearching] = useState(false);
   const [importing, setImporting] = useState<Record<string, boolean>>({});
   const [importStatus, setImportStatus] = useState<Record<string, { type: 'artist' | 'shows' | 'tracks' | 'sync'; message: string; success?: boolean }>>({});
@@ -167,16 +166,16 @@ const AdminArtistImport = () => {
     setImportStatus({});
 
     try {
-      const results = await searchArtistsWithEvents(artistSearchQuery);
+      // searchArtistsWithEvents should return ArtistWithEvents[]
+      const results: ArtistWithEvents[] = await searchArtistsWithEvents(artistSearchQuery);
       console.log('Artist search results:', results);
-      
-      // Format results to match our Artist interface
-      const formattedResults = results.map(result => ({
-        id: result.id,
-        name: result.name,
-        image: result.image,
-        upcoming_shows: result.upcomingShows || 0,
-        spotify_id: result.spotify_id || undefined
+
+      // Map results to local state type if needed (e.g., adding 'imported' flag)
+      // For now, assume ArtistSearchResult is compatible enough or adjust mapping
+      const formattedResults: ArtistSearchResult[] = results.map(result => ({
+        ...result, // Spread properties from ArtistWithEvents
+        // Add any additional local state flags if necessary
+        // imported: false, // Example
       }));
       
       setArtistResults(formattedResults);
@@ -207,110 +206,56 @@ const AdminArtistImport = () => {
   };
 
   // Function to import an artist and their upcoming shows using the new data flow
-  const handleImportArtist = async (artist: Artist) => {
-    if (!artist || !artist.id) {
+  // Refactored to invoke the 'import-artist' Edge Function
+  const handleImportArtist = async (artist: ArtistSearchResult) => {
+    const artistId = artist.id; // Use TM ID as the key for status/loading
+    if (!artistId || !artist.name) {
       console.error("Invalid artist data for import:", artist);
-      setImportStatus(prev => ({ ...prev, [artist?.id || 'unknown']: { type: 'artist', message: 'Invalid artist data provided.', success: false } }));
+      setImportStatus(prev => ({ ...prev, [artistId]: { type: 'artist', message: 'Invalid artist data provided.', success: false } }));
       return;
     }
-    
-    const artistId = artist.id;
-    console.log(`Starting import for artist: ${artist.name} (ID: ${artistId})`);
 
+    console.log(`[Admin Import] Triggering import for artist: ${artist.name} (ID: ${artistId})`);
     setImporting(prev => ({ ...prev, [artistId]: true }));
-    setImportStatus(prev => ({ ...prev, [artistId]: { type: 'artist', message: 'Saving artist...' } }));
+    setImportStatus(prev => ({ ...prev, [artistId]: { type: 'artist', message: 'Initiating import...' } }));
+
+    // Prepare payload (map from ArtistSearchResult/ArtistWithEvents to BaseArtist)
+    const artistPayload: Partial<BaseArtist> = {
+      id: artist.id,
+      name: artist.name,
+      image_url: artist.image,
+      genres: artist.genres,
+      // Add other fields if available on ArtistSearchResult and part of BaseArtist
+    };
+    // Remove undefined keys
+    Object.keys(artistPayload).forEach(keyStr => {
+      const key = keyStr as keyof typeof artistPayload;
+      if (artistPayload[key] === undefined) {
+        delete artistPayload[key];
+      }
+    });
 
     try {
-      // 1. Save Artist (includes fetching tracks if spotify_id is present)
-      const artistToSave: any = {
-        id: artist.id,
-        name: artist.name,
-        image: artist.image,
-        spotify_id: artist.spotify_id
-      };
-      const savedArtist = await saveArtistToDatabase(artistToSave);
+      // Invoke the Edge Function
+      const { data, error } = await supabase.functions.invoke('import-artist', {
+        body: artistPayload,
+      });
 
-      if (!savedArtist || !savedArtist.id) {
-        throw new Error('Failed to save artist to database.');
-      }
-      
-      const dbArtistId = savedArtist.id;
-
-      setImportStatus(prev => ({ ...prev, [artistId]: { type: 'artist', message: 'Artist saved. Fetching events...', success: true } }));
-      console.log(`Artist ${artist.name} saved/updated with DB ID: ${dbArtistId}. Fetching events...`);
-
-      // 2. Fetch Artist Events from Ticketmaster
-      const eventsData = await fetchArtistEvents(artistId);
-      const events: Show[] = eventsData?.events || [];
-
-      if (events.length === 0) {
-        setImportStatus(prev => ({ ...prev, [artistId]: { type: 'shows', message: 'Artist saved. No upcoming events found.', success: true } }));
-        console.log(`No upcoming events found for artist ${artist.name}`);
-        setImporting(prev => ({ ...prev, [artistId]: false }));
-        return;
+      if (error) {
+        console.error(`[Admin Import] Error invoking import-artist function for ${artist.name}:`, error);
+        throw new Error(error.message || 'Function invocation failed');
       }
 
-      setImportStatus(prev => ({ ...prev, [artistId]: { type: 'shows', message: `Found ${events.length} events. Saving shows...` } }));
-      console.log(`Found ${events.length} events for ${artist.name}. Saving...`);
-
-      // 3. Save each Show (triggers background sync via saveShowToDatabase)
-      let savedShowsCount = 0;
-      let firstVenueSyncTriggered = false;
-      for (let i = 0; i < events.length; i++) {
-        const event = events[i];
-        setImportStatus(prev => ({
-          ...prev,
-          [artistId]: { type: 'shows', message: `Saving show ${i + 1}/${events.length}: ${event.name}...` }
-        }));
-
-        try {
-          const tmVenue = event._embedded?.venues?.[0];
-          const venueForShow: Venue | undefined = tmVenue ? {
-            id: tmVenue.id,
-            name: tmVenue.name,
-            city: tmVenue.city?.name,
-            state: tmVenue.state?.name,
-            country: tmVenue.country?.name
-          } : undefined;
-
-          const showData: Show = {
-            id: event.id,
-            name: event.name,
-            date: event.dates?.start?.dateTime,
-            ticket_url: event.url,
-            image_url: event.images?.[0]?.url,
-            artist_id: dbArtistId,
-            venue_id: venueForShow?.id,
-            artist: savedArtist,
-            venue: venueForShow
-          };
-
-          const savedShow = await saveShowToDatabase(showData, false);
-
-          if (savedShow) {
-            savedShowsCount++;
-            if (!firstVenueSyncTriggered && venueForShow?.id) {
-              console.log(`Background sync possibly initiated for venue ${venueForShow.name} (${venueForShow.id})`);
-              firstVenueSyncTriggered = true;
-            }
-          } else {
-            console.warn(`Failed to save show ${event.name} (ID: ${event.id})`);
-          }
-        } catch (showError) {
-          console.error(`Error saving show ${event.name} (ID: ${event.id}):`, showError);
-        }
+      // Process the response from the Edge Function
+      console.log(`[Admin Import] Import function response for ${artist.name}:`, data);
+      if (data?.success) {
+         setImportStatus(prev => ({ ...prev, [artistId]: { type: 'sync', message: data.message || 'Import successful.', success: true } }));
+      } else {
+         throw new Error(data?.error || data?.message || 'Import function returned failure.');
       }
-
-      // 4. Final Status Update
-      let finalMessage = `Import complete for ${artist.name}. Saved ${savedShowsCount}/${events.length} shows.`;
-      if (firstVenueSyncTriggered) {
-        finalMessage += " Background venue sync(s) initiated.";
-      }
-      setImportStatus(prev => ({ ...prev, [artistId]: { type: 'sync', message: finalMessage, success: true } }));
-      console.log(finalMessage);
 
     } catch (error: unknown) {
-      console.error(`Error importing artist ${artist.name}:`, error);
+      console.error(`[Admin Import] Error during import process for ${artist.name}:`, error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error during import';
       setImportStatus(prev => ({ ...prev, [artistId]: { type: 'artist', message: `Import failed: ${errorMessage}`, success: false } }));
     } finally {
@@ -383,7 +328,7 @@ const AdminArtistImport = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {artistResults.map((artist) => (
+                {artistResults.map((artist: ArtistSearchResult) => ( // Use correct type here
                   <TableRow key={artist.id}>
                     <TableCell>
                       <Avatar className="h-10 w-10">
@@ -393,7 +338,7 @@ const AdminArtistImport = () => {
                     </TableCell>
                     <TableCell className="font-medium">{artist.name}</TableCell>
                     <TableCell className="text-center">
-                      <Badge variant="secondary">{artist.upcoming_shows || 0}</Badge>
+                      <Badge variant="secondary">{artist.upcomingShows || 0}</Badge>
                     </TableCell>
                     <TableCell className="text-right">
                       <TooltipProvider>

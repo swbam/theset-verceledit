@@ -11,23 +11,22 @@ const globalForSupabase = globalThis as unknown as {
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-// Service Role Key should ONLY be accessed server-side (e.g., API routes, Node scripts)
-// Use process.env for server-side environments. Ensure this variable is NOT prefixed with VITE_
-const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-// Validate essential environment variables
+// Validate essential client-side environment variables
 if (!SUPABASE_URL) {
+  // Throw error during module load if essential client vars are missing
   throw new Error("Missing environment variable: VITE_SUPABASE_URL");
 }
 if (!SUPABASE_ANON_KEY) {
+  // Throw error during module load if essential client vars are missing
   throw new Error("Missing environment variable: VITE_SUPABASE_ANON_KEY");
 }
-// Service role key is only strictly required for the adminClient, check there.
+
+// Service Role Key will be accessed inside adminClient function from process.env
 
 // Log the Supabase configuration for debugging
 console.log('[Server] Supabase URL:', SUPABASE_URL);
 console.log('[Server] Supabase Anon Key available:', SUPABASE_ANON_KEY ? 'Yes' : 'No');
-console.log('[Server] Supabase Service Role Key available:', SUPABASE_SERVICE_ROLE_KEY ? 'Yes' : 'No');
+// Removed log for Service Role Key as it's only accessed within adminClient now
 
 // Create client with connection pooling and optimized settings
 let supabaseClient;
@@ -64,21 +63,23 @@ if (process.env.NODE_ENV === 'development') {
 }
 
 // Service role client for admin operations (use with caution)
-// Service role client for admin operations (use ONLY server-side)
+// Service role client for admin operations (intended for server-side use ONLY)
 export const adminClient = () => {
-  // Ensure Service Role Key is available in the server environment
-  if (!SUPABASE_SERVICE_ROLE_KEY) {
-    console.error('[Server] Missing environment variable: SUPABASE_SERVICE_ROLE_KEY. Admin client cannot be created.');
-    // Depending on strictness, you might throw an error or return a non-functional client/null
-    // Throwing an error is safer to prevent unexpected behavior.
+  // Access the Service Role Key *inside* the function from process.env
+  // This avoids referencing 'process' at the module level in the client bundle.
+  // Ensure SUPABASE_SERVICE_ROLE_KEY is set in your server environment (NOT prefixed with VITE_)
+  const serviceKey = typeof process !== 'undefined' ? process.env.SUPABASE_SERVICE_ROLE_KEY : undefined;
+
+  if (!serviceKey) {
+    console.error('[adminClient] Missing environment variable: SUPABASE_SERVICE_ROLE_KEY. Ensure it is set in the server environment.');
     throw new Error("Missing environment variable: SUPABASE_SERVICE_ROLE_KEY required for admin client.");
   }
 
   try {
-    // Use the server-side fetched key
+    // Use the serviceKey fetched within this function scope
     return createClient(
-      SUPABASE_URL!, // Already validated above
-      SUPABASE_SERVICE_ROLE_KEY,
+      SUPABASE_URL, // Already validated at module level
+      serviceKey,
       {
         auth: {
           autoRefreshToken: false,

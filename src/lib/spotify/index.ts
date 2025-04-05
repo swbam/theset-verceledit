@@ -1,9 +1,9 @@
 
 // Re-export all Spotify API functions and types
-export * from './auth';
-export * from './artist-search';
+// Removed export for './auth' as the file was deleted (logic moved to Edge Functions)
+export * from './artist-search'; // Restore export (remove .ts)
 export * from './artist-tracks';
-export * from './all-tracks';
+export * from './all-tracks'; // Restore export (remove .ts)
 export * from './top-tracks';
 export * from './user-recommendations';
 export * from './types';
@@ -62,7 +62,10 @@ export const getMyTopArtists = async () => {
       saveTopArtistsToDatabase(data.items);
     }
     
-    return data.items.map((artist: any) => ({
+    // Define a type for the raw artist object from Spotify API
+    type SpotifyApiArtist = { id: string; name: string; images?: { url: string }[]; genres?: string[]; popularity?: number; external_urls?: { spotify?: string }; followers?: { total?: number }; [key: string]: unknown };
+
+    return data.items.map((artist: SpotifyApiArtist) => ({
       id: artist.id,
       name: artist.name,
       image: artist.images?.[0]?.url || '/placeholder.svg',
@@ -79,7 +82,10 @@ export const getMyTopArtists = async () => {
 };
 
 // Helper function to save top artists to database
-async function saveTopArtistsToDatabase(artists: any[]) {
+// Define a type for the artist data used in this function
+type TopArtistData = { id: string; name: string; images?: { url: string }[]; genres?: string[]; popularity?: number; external_urls?: { spotify?: string }; followers?: { total?: number }; [key: string]: unknown };
+
+async function saveTopArtistsToDatabase(artists: TopArtistData[]) {
   try {
     for (const artist of artists) {
       const artistData = {

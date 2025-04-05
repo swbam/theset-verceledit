@@ -1,178 +1,105 @@
-import { getAccessToken } from './auth';
-import { saveTracksToDb, getStoredTracksFromDb } from './utils';
-import { SpotifyTrack, SpotifyTracksResponse } from './types';
-import { supabase } from '@/integrations/supabase/client';
-import { updateArtistStoredTracks } from '@/lib/api/database';
+import { getAccessToken } from './auth'; // Relies on client-side auth
+import type { SpotifyTrack, SpotifyTracksResponse } from './types'; // Assuming types are still in ./types
 
 const SPOTIFY_API_BASE = 'https://api.spotify.com/v1';
 
-// Get all tracks for an artist
-export const getArtistAllTracks = async (artistId: string): Promise<SpotifyTracksResponse> => {
+// Type for raw Spotify track object from API
+// Use Record<string, unknown> instead of any for index signature
+type SpotifyApiTrack = { id: string; name: string; duration_ms?: number; popularity?: number; preview_url?: string | null; [key: string]: unknown };
+// Type for raw Spotify album object from API
+// Use Record<string, unknown> instead of any for index signature
+type SpotifyApiAlbum = { id: string; name: string; [key: string]: unknown };
+
+
+// Get all tracks for an artist (Client-side context - fetches directly from Spotify)
+export const getArtistAllTracks = async (artistSpotifyId: string): Promise<SpotifyTracksResponse | null> => {
   try {
-    console.log(`Getting all tracks for artist ID: ${artistId}`);
-    
-    // Check if we have stored tracks and they're less than 7 days old
-    const { data: artistData, error } = await supabase
-      .from('artists')
-      .select('stored_tracks, updated_at, tracks_last_updated, id')
-      .eq('spotify_id', artistId)
-      .maybeSingle();
-    
-    // If we couldn't check Supabase, still try to get data from Spotify
-    if (error) {
-      console.warn("Database check error:", error.message);
-    }
-    
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-    
-    // If we have stored tracks and they're recent, use them
-    if (!error && artistData && artistData.stored_tracks && 
-        Array.isArray(artistData.stored_tracks) && 
-        artistData.stored_tracks.length > 0 &&
-        (artistData.tracks_last_updated && new Date(artistData.tracks_last_updated) > sevenDaysAgo)) {
-      console.log(`Using ${artistData.stored_tracks.length} stored tracks from database`);
-      // Properly cast the Json to SpotifyTrack[]
-      return { tracks: artistData.stored_tracks as unknown as SpotifyTrack[] };
-    }
-    
-    // Otherwise fetch from Spotify API
-    console.log(`Fetching complete track catalog for artist ID: ${artistId}`);
-    const token = await getAccessToken();
-    
-    // First get the top tracks as a starting point
+    console.log(`[Client Spotify] Fetching tracks for artist Spotify ID: ${artistSpotifyId}`);
+    const token = await getAccessToken(); // Might throw if client-side auth fails
+
+    // Fetch top tracks first
     const topTracksResponse = await fetch(
-      `${SPOTIFY_API_BASE}/artists/${artistId}/top-tracks?market=US`,
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      }
+      `${SPOTIFY_API_BASE}/artists/${artistSpotifyId}/top-tracks?market=US`,
+      { headers: { Authorization: `Bearer ${token}` } }
     );
-    
     if (!topTracksResponse.ok) {
-      console.error(`Failed to get top tracks: ${topTracksResponse.statusText}`);
-      // Return empty result if we can't get top tracks
-      return { tracks: [] };
+      console.error(`[Client Spotify] Failed to get top tracks: ${topTracksResponse.statusText}`);
+      // Decide if partial results are okay or if we should return null/throw
+      return null;
     }
-    
     const topTracksData = await topTracksResponse.json();
     if (!topTracksData.tracks || !Array.isArray(topTracksData.tracks)) {
-      console.error("Invalid top tracks data received from Spotify");
-      return { tracks: [] };
+      console.error("[Client Spotify] Invalid top tracks data received from Spotify");
+      return null;
     }
-    
-    let allTracks: SpotifyTrack[] = topTracksData.tracks.map((track: any) => ({
-      id: track.id,
-      name: track.name,
-      votes: 0
-    }));
-    
-    // Ensure we have at least some tracks before continuing
-    if (allTracks.length === 0) {
-      console.warn("No top tracks found for artist");
-      return { tracks: [] };
-    }
-    
-    try {
-      // Get all albums (increase limit to 50 to get more)
-      const albumsResponse = await fetch(
-        `${SPOTIFY_API_BASE}/artists/${artistId}/albums?include_groups=album,single&limit=20&market=US`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-      
-      if (!albumsResponse.ok) {
-        console.warn(`Failed to get albums: ${albumsResponse.statusText}`);
-        // Return just the top tracks if we can't get albums
-        return { tracks: allTracks };
+
+    const trackIds = new Set<string>();
+    const allTracks: SpotifyTrack[] = [];
+
+    topTracksData.tracks.forEach((track: SpotifyApiTrack) => {
+      if (track.id && !trackIds.has(track.id)) {
+        trackIds.add(track.id);
+        allTracks.push({
+          id: track.id,
+          name: track.name,
+          duration_ms: track.duration_ms,
+          popularity: track.popularity,
+          preview_url: track.preview_url,
+        });
       }
-      
+    });
+
+    // Fetch albums (limit to reduce API calls)
+    const albumsResponse = await fetch(
+      `${SPOTIFY_API_BASE}/artists/${artistSpotifyId}/albums?include_groups=album,single&limit=20&market=US`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+
+    if (albumsResponse.ok) {
       const albumsData = await albumsResponse.json();
-      if (!albumsData.items || !Array.isArray(albumsData.items)) {
-        console.warn("Invalid albums data received from Spotify");
-        return { tracks: allTracks };
-      }
-      
-      console.log(`Found ${albumsData.items.length} albums for artist ${artistId}`);
-      
-      // Get a subset of albums (most recent ones)
-      const recentAlbums = albumsData.items.slice(0, 5);
-      
-      // For each album, get all tracks
-      for (const album of recentAlbums) {
-        console.log(`Processing album: ${album.name}`);
-        
-        try {
-          const tracksResponse = await fetch(
-            `${SPOTIFY_API_BASE}/albums/${album.id}/tracks?limit=50&market=US`,
-            {
-              headers: {
-                Authorization: `Bearer ${token}`,
-              },
-            }
-          );
-          
-          if (!tracksResponse.ok) {
-            console.warn(`Failed to get tracks for album ${album.id}: ${tracksResponse.statusText}`);
-            continue;
+      if (albumsData.items && Array.isArray(albumsData.items)) {
+        console.log(`[Client Spotify] Found ${albumsData.items.length} albums/singles for artist ${artistSpotifyId}`);
+        const albumTrackPromises = albumsData.items.map(async (album: SpotifyApiAlbum) => {
+          try {
+            const tracksResponse = await fetch(
+              `${SPOTIFY_API_BASE}/albums/${album.id}/tracks?limit=50&market=US`,
+              { headers: { Authorization: `Bearer ${token}` } }
+            );
+            if (!tracksResponse.ok) return [];
+            const tracksData = await tracksResponse.json();
+            return tracksData.items || [];
+          } catch (albumErr) {
+            console.warn(`[Client Spotify] Error fetching tracks for album ${album.id}:`, albumErr);
+            return [];
           }
-          
-          const tracksData = await tracksResponse.json();
-          if (!tracksData.items || !Array.isArray(tracksData.items)) {
-            console.warn(`Invalid tracks data for album ${album.id}`);
-            continue;
-          }
-          
-          console.log(`Found ${tracksData.items.length} tracks in album ${album.name}`);
-          
-          // Add all tracks from this album, simplified structure with just ID and name
-          for (const track of tracksData.items) {
-            // Skip if we already have this track from top tracks
-            if (allTracks.some((t) => t.id === track.id)) {
-              continue;
-            }
-            
+        });
+        const albumTracksArrays = await Promise.all(albumTrackPromises);
+
+        albumTracksArrays.flat().forEach((track: SpotifyApiTrack) => {
+          if (track.id && !trackIds.has(track.id)) {
+            trackIds.add(track.id);
             allTracks.push({
               id: track.id,
               name: track.name,
-              votes: 0
+              duration_ms: track.duration_ms,
+              popularity: track.popularity,
+              preview_url: track.preview_url,
             });
           }
-        } catch (err) {
-          console.warn(`Error processing album ${album.id}:`, err);
-          continue;
-        }
+        });
+      } else {
+         console.warn("[Client Spotify] Invalid albums data received from Spotify");
       }
-    } catch (albumError) {
-      console.warn("Error fetching albums:", albumError);
-      // Return just the top tracks if album fetching fails
+    } else {
+       console.warn(`[Client Spotify] Failed to get albums: ${albumsResponse.statusText}`);
     }
-    
-    console.log(`Fetched ${allTracks.length} total tracks for artist ${artistId}`);
-    
-    // Remove duplicates (based on ID)
-    const uniqueTracks = Array.from(
-      new Map(allTracks.map((track) => [track.id, track])).values()
-    );
-    
-    // Try to store tracks in the database, but don't fail if it doesn't work
-    try {
-      if (artistData && artistData.id) {
-        await updateArtistStoredTracks(artistData.id, uniqueTracks);
-        console.log(`Updated stored tracks for artist ${artistId}`);
-      }
-    } catch (storageError) {
-      console.warn("Error storing tracks:", storageError);
-      // Continue without failing
-    }
-    
-    return { tracks: uniqueTracks };
+
+    console.log(`[Client Spotify] Fetched ${allTracks.length} unique tracks for artist ${artistSpotifyId}`);
+    return { tracks: allTracks };
+
   } catch (error) {
-    console.error('Error getting all artist tracks:', error);
-    return { tracks: [] };
+    console.error(`[Client Spotify] Error getting all artist tracks for ${artistSpotifyId}:`, error);
+    // Return null or throw depending on how TanStack Query should handle it
+    return null;
   }
 };

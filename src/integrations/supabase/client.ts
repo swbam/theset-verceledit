@@ -131,17 +131,8 @@ let reconnectAttempts = 0;
 const MAX_RECONNECT_ATTEMPTS = 5;
 const RECONNECT_INTERVAL = 3000; // 3 seconds
 
-// Initialize auth state
-supabase.auth.getSession().then(({ data: { session } }) => {
-  if (session) {
-    console.log('Auth session initialized');
-  } else {
-    console.log('No active auth session');
-  }
-}).catch(error => {
-  console.error('Error initializing auth:', error);
-});
-
+// Removed initial getSession call from module level.
+// This check is already handled within the useEffect hook in useSupabaseAuth.ts
 /**
  * Create a realtime channel subscription for a specific table
  * @param table The table to subscribe to

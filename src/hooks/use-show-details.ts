@@ -4,7 +4,7 @@ import { fetchShowDetails } from '@/lib/ticketmaster';
 import { searchArtists } from '@/lib/spotify';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
-import { createSetlistForShow } from '@/lib/api/database';
+// Removed import for createSetlistDirectly as setlist creation is handled server-side by Edge Functions
 import { v4 as uuidv4 } from 'uuid';
 
 export function useShowDetails(id: string | undefined) {
@@ -91,16 +91,10 @@ export function useShowDetails(id: string | undefined) {
         setSpotifyArtistId('mock-artist');
       }
       
-      // Create or update setlist for this show
-      if (showDetails && showDetails.artist_id) {
-        try {
-          // This will create a setlist if one doesn't exist
-          // And populate it with 5 random songs from the artist's catalog
-          await createSetlistForShow(id, showDetails.artist_id);
-        } catch (error) {
-          console.error("Error creating setlist for show:", error);
-        }
-      }
+      // Removed client-side call to createSetlistDirectly.
+      // Setlist creation is now handled automatically by the Edge Functions
+      // when the show is saved to the database (via import-artist or sync-venue).
+      // This hook should focus only on fetching data for display.
       
       return showDetails;
     },
@@ -111,7 +105,7 @@ export function useShowDetails(id: string | undefined) {
     gcTime: 1000 * 60 * 120,   // 2 hours
     refetchOnWindowFocus: false,
     meta: {
-      onError: (error: any) => {
+      onError: (error: unknown) => { // Use unknown for better type safety
         console.error("Show details query error:", error);
       }
     }
@@ -154,7 +148,10 @@ export function useShowDetails(id: string | undefined) {
   }, []);
   
   // Add new song to setlist in database
-  const addSongToSetlist = useCallback(async (setlistId: string, track: any) => {
+  // Define a basic type for the track object expected here
+  type TrackInput = { id: string; name: string; /* add other relevant fields if needed */ };
+
+  const addSongToSetlist = useCallback(async (setlistId: string, track: TrackInput) => { // Use TrackInput type
     if (!setlistId || !track) return false;
     
     try {
