@@ -1,102 +1,80 @@
-import { createClient } from '@supabase/supabase-js';
-import { readFileSync } from 'fs';
-import { join } from 'path';
-import { fileURLToPath } from 'url';
-import dotenv from 'dotenv';
+// CJS script to apply database migrations to Supabase
+require('dotenv').config({ path: '.env' });
+require('dotenv').config({ path: '.env.local' });
 
-// Load environment variables from .env.local
-dotenv.config({ path: '.env.local' });
+const fs = require('fs');
+const path = require('path');
+const { createClient } = require('@supabase/supabase-js');
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = join(fileURLToPath(new URL('.', import.meta.url)));
-
-// Initialize Supabase client with service role key from environment variables
+// Supabase client for running migrations
 const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
+  process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY,
+  {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+    }
+  }
 );
 
-const migrations = [
-  // Base tables and structure
-  '../supabase/migrations/20250322230200_tables_first.sql',
-  '../supabase/migrations/20250322230300_functions_and_indexes.sql',
-  
-  // Additional migrations
-  '../supabase/migrations/20250322195900_create_exec_sql_script.sql',
-  '../supabase/migrations/20250323000000_add_top_tracks_table.sql',
-  '../supabase/migrations/20250323000100_update_setlist_songs.sql',
-  
-  // Legacy migrations (if needed)
-  '../supabase/migrations/20240719000000_base_tables.sql',
-  '../supabase/migrations/20240720000000_vote_functions.sql',
-  '../supabase/migrations/20240721000000_transaction_functions.sql',
-  '../supabase/migrations/20240722000000_add_setlist_fm_mbid.sql'
-];
+// Directory containing migration files
+const migrationsDir = path.join(__dirname, '..', 'src', 'db-migrations');
 
-async function executeSql(sql) {
+async function main() {
   try {
-    // First try using the exec_sql_direct function if it exists
-    try {
-      const { data, error } = await supabase.rpc('exec_sql_direct', { sql });
-      if (!error) {
-        return true;
-      }
-    } catch (rpcError) {
-      console.log('RPC method not available, falling back to migrations table method');
-    }
-
-    // Fallback to the migrations table method
-    const { data, error } = await supabase.from('migrations').insert({
-      name: 'temp',
-      sql: sql
-    }).select().maybeSingle();
+    console.log('Starting database migrations...');
     
-    if (error) throw error;
-    return true;
-  } catch (error) {
-    console.error('SQL execution error:', error);
-    return false;
-  }
-}
-
-async function runMigrations() {
-  console.log('Starting migrations...');
-  
-  // Create migrations tracking table if it doesn't exist
-  const createMigrationsTable = `
-    CREATE TABLE IF NOT EXISTS migrations (
-      id SERIAL PRIMARY KEY,
-      name TEXT,
-      sql TEXT,
-      executed_at TIMESTAMP WITH TIME ZONE DEFAULT now()
-    );
-  `;
-  
-  console.log('Ensuring migrations table exists...');
-  await executeSql(createMigrationsTable);
-  
-  for (const migrationPath of migrations) {
-    try {
-      console.log(`Applying migration: ${migrationPath}`);
-      const sql = readFileSync(join(__dirname, migrationPath), 'utf8');
-      
-      const success = await executeSql(sql);
-      if (success) {
-        console.log(`Successfully applied migration: ${migrationPath}`);
-      } else {
-        console.error(`Failed to apply migration: ${migrationPath}`);
-        // Don't exit on failure, try to continue with other migrations
-        console.log('Continuing with next migration...');
-      }
-    } catch (error) {
-      console.error(`Error processing migration ${migrationPath}:`, error);
-      // Don't exit on failure, try to continue with other migrations
-      console.log('Continuing with next migration...');
+    // Check if migrations directory exists
+    if (!fs.existsSync(migrationsDir)) {
+      console.error(`Migrations directory not found: ${migrationsDir}`);
+      process.exit(1);
     }
+    
+    // Get list of migration files in order
+    const files = fs.readdirSync(migrationsDir)
+      .filter(file => file.endsWith('.sql'))
+      .sort(); // This will sort alphabetically, so naming should be like 001_xxx.sql
+    
+    if (files.length === 0) {
+      console.log('No migration files found');
+      return;
+    }
+    
+    console.log(`Found ${files.length} migration files to process`);
+    
+    // Process each migration file
+    for (const file of files) {
+      const filePath = path.join(migrationsDir, file);
+      const sql = fs.readFileSync(filePath, 'utf8');
+      
+      console.log(`Applying migration: ${file}`);
+      
+      try {
+        // Execute the SQL
+        const { error } = await supabase.rpc('exec_sql', { sql });
+        
+        if (error) {
+          console.error(`Error applying migration ${file}:`, error);
+          // Continue with other migrations
+        } else {
+          console.log(`Successfully applied migration: ${file}`);
+        }
+      } catch (error) {
+        console.error(`Error applying migration ${file}:`, error);
+        // Continue with other migrations
+      }
+    }
+    
+    console.log('Migrations completed');
+  } catch (error) {
+    console.error('Error running migrations:', error);
+    process.exit(1);
   }
-  
-  console.log('All migrations completed!');
 }
 
-// Run migrations
-runMigrations().catch(console.error);
+// Execute the main function
+main().catch(err => {
+  console.error('Unhandled error:', err);
+  process.exit(1);
+});

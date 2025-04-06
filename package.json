@@ -13,7 +13,9 @@
     "build:all": "npm run build && npm run build:api",
     "lint": "eslint .",
     "preview": "vite preview",
-    "start": "NODE_ENV=production concurrently \"vite preview --port 8080\" \"node server.cjs\""
+    "start": "NODE_ENV=production concurrently \"vite preview --port 8080\" \"node server.cjs\"",
+    "db:migration:apply": "node ./scripts/apply-migrations.js",
+    "reset:cache": "node ./scripts/clear-cache.js"
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",

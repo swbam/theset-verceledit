@@ -1,89 +1,135 @@
-# The Set - Concert Setlist Voting App
+# The Set - Music Event App
 
-A modern web application where fans can vote on which songs they want to hear at upcoming concerts.
+A web application for discovering music events, artists, and shows built with Vite, React, and Supabase.
 
-## Features
+## Overview
 
-- Browse artists and upcoming shows
-- Vote on songs for upcoming concerts
-- View historical setlists and popular songs
-- User authentication and profile management
-- Real-time voting and updates
+The Set is a full-featured application that allows users to:
+- Discover upcoming shows and events
+- Browse artists and their setlists
+- Import venues and shows from Ticketmaster
+- Create customized setlist recommendations
+- Vote on songs for upcoming shows
 
 ## Tech Stack
 
-- **Frontend**: Next.js 14, React, TypeScript, Tailwind CSS
-- **Backend**: Supabase (PostgreSQL, Auth, Storage)
-- **APIs**: Spotify, Setlist.fm, Ticketmaster
-- **Deployment**: Vercel
+- **Frontend**: React with TypeScript and Vite
+- **Styling**: Tailwind CSS, Radix UI Components
+- **State Management**: React Query
+- **Routing**: React Router
+- **Authentication**: Supabase Auth
+- **Database**: Supabase PostgreSQL
+- **Forms**: React Hook Form + Zod
+- **Date Handling**: date-fns
+- **Icons**: Lucide React
+- **UI Components**: Radix UI
+- **Notifications**: Sonner
+- **API Integration**:
+  - Ticketmaster API
+  - Spotify API
+  - Setlist.fm API
 
-## Performance Optimizations
+## Prerequisites
 
-The application includes several performance optimizations:
-
-- **Materialized Views**: Pre-computed views for top voted songs and artist popularity
-- **Smart Caching**: API response caching with automatic invalidation
-- **Database Indexing**: Composite and partial indexes for common query patterns
-- **JSONB Indexing**: GIN indexes for efficient JSON property searches
-- **Automatic Maintenance**: Database triggers for maintaining derived data
+- Node.js 18+ and npm/pnpm/yarn
+- Supabase account and project
+- API keys for:
+  - Ticketmaster
+  - Spotify
+  - Setlist.fm (optional)
 
 ## Getting Started
 
+### Environment Setup
+
 1. Clone the repository
-2. Copy `.env.local.example` to `.env.local` and add your API keys:
-   - Supabase URL and keys
-   - Spotify API credentials
-   - Setlist.fm API key 
+2. Copy `.env.example` to `.env.local` and fill in your environment variables
 3. Install dependencies:
-   ```
-   npm install
-   ```
-4. Run the data sync script to populate the database:
-   ```
-   npm run sync-data
-   ```
-5. Start the development server:
-   ```
-   npm run dev
-   ```
 
-## Database Structure
+```bash
+npm install
+```
 
-The application uses a PostgreSQL database with the following main tables:
+### Development
 
-- `artists`: Artist information and metadata
-- `shows`: Concert/show events linked to artists and venues
-- `setlists`: Collections of songs for a specific show
-- `setlist_songs`: Individual songs within a setlist
-- `votes`: User votes for specific songs
-- `venues`: Venue information for shows
-- `profiles`: User profile information
+The application is split into two parts:
+- Vite frontend on port 8080
+- Next.js API routes on port 3000
 
-Performance is enhanced with materialized views:
-- `mv_top_voted_songs`: Pre-computed top voted songs
-- `mv_artist_popularity`: Artist popularity based on voting data
+To run the development server (both frontend and API):
+
+```bash
+npm run dev
+```
+
+This will start:
+- Frontend at: http://localhost:8080
+- API server at: http://localhost:3000
+
+### Database Setup
+
+The application requires several tables in your Supabase project. You can set up the database by running:
+
+```bash
+npm run db:migration:apply
+```
+
+This will apply all migrations in the `src/db-migrations` directory.
+
+## Key Features
+
+### Import System
+
+The import system allows administrators to search for and import venues and shows from external APIs. The data is synced to your database.
+
+To access this feature, navigate to `/import`.
+
+### Authentication
+
+The app uses Supabase authentication. Users can sign up and log in to track their preferences, save favorite artists, and vote on setlists.
+
+### Cache Management
+
+API responses are cached in the `api_cache` table for better performance. You can clear the cache using:
+
+```bash
+npm run reset:cache
+```
 
 ## Deployment
 
-The application is deployed on Vercel with Supabase for the backend.
+To build for production:
 
-## Contributing
+```bash
+npm run build:all
+```
 
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature/amazing-feature`
-3. Commit your changes: `git commit -m 'Add amazing feature'`
-4. Push to the branch: `git push origin feature/amazing-feature`
-5. Open a Pull Request
+This builds both the frontend and the API server.
+
+To start the production server:
+
+```bash
+npm start
+```
+
+## Project Structure
+
+```
+├── src/
+│   ├── app/            # Next.js API routes
+│   ├── components/     # React components
+│   ├── contexts/       # React context providers
+│   ├── db-migrations/  # Database migration scripts
+│   ├── hooks/          # Custom React hooks
+│   ├── integrations/   # External API integrations
+│   ├── lib/            # Utility functions and services
+│   ├── pages/          # React Router pages
+│   └── styles/         # Global styles
+├── public/             # Static assets
+├── scripts/            # Utility scripts
+└── ...
+```
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## Acknowledgments
-
-- [Supabase](https://supabase.io/)
-- [Next.js](https://nextjs.org/)
-- [Tailwind CSS](https://tailwindcss.com/)
-- [Spotify API](https://developer.spotify.com/documentation/web-api/)
-- [Setlist.fm API](https://api.setlist.fm/docs/1.0/index.html)
-- [Ticketmaster API](https://developer.ticketmaster.com/products-and-docs/apis/discovery-api/v2/)
+[MIT License](LICENSE)

@@ -203,15 +203,24 @@ export class APIClientManager {
   /**
    * Get Spotify access token
    */
+  private tokenCache: {token: string, expiryTime: number} | null = null;
+  
   private async getSpotifyToken(clientId: string, clientSecret: string): Promise<string> {
-    // Check if we have a cached token
-    const cachedToken = localStorage.getItem('spotify_token');
-    const cachedExpiry = localStorage.getItem('spotify_token_expiry');
+    // Check if we have a cached token in memory
+    if (this.tokenCache && this.tokenCache.expiryTime > Date.now()) {
+      return this.tokenCache.token;
+    }
     
-    if (cachedToken && cachedExpiry) {
-      const expiryTime = parseInt(cachedExpiry, 10);
-      if (expiryTime > Date.now()) {
-        return cachedToken;
+    // Try localStorage if we're in a browser context
+    if (typeof window !== 'undefined') {
+      const cachedToken = localStorage.getItem('spotify_token');
+      const cachedExpiry = localStorage.getItem('spotify_token_expiry');
+      
+      if (cachedToken && cachedExpiry) {
+        const expiryTime = parseInt(cachedExpiry, 10);
+        if (expiryTime > Date.now()) {
+          return cachedToken;
+        }
       }
     }
     
@@ -232,10 +241,16 @@ export class APIClientManager {
     const data = await response.json();
     const token = data.access_token;
     const expiresIn = data.expires_in;
+    const expiryTime = Date.now() + (expiresIn - 60) * 1000;
     
-    // Cache the token (expires a bit earlier to be safe)
-    localStorage.setItem('spotify_token', token);
-    localStorage.setItem('spotify_token_expiry', String(Date.now() + (expiresIn - 60) * 1000));
+    // Store in memory
+    this.tokenCache = { token, expiryTime };
+    
+    // Cache the token in localStorage if in browser
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('spotify_token', token);
+      localStorage.setItem('spotify_token_expiry', String(expiryTime));
+    }
     
     return token;
   }
