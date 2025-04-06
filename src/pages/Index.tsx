@@ -1,4 +1,3 @@
-
 import React from 'react';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
@@ -15,7 +14,7 @@ const Index = () => {
   useDocumentTitle('', 'Join TheSet to vote on setlists for upcoming concerts and influence what your favorite artists will play live.');
   
   return (
-    <div className="min-h-screen flex flex-col bg-[#0A0A10]">
+    <div className="min-h-screen flex flex-col bg-background text-foreground">
       <Navbar showSearch={false} />
       
       <main className="flex-grow">

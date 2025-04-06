@@ -1,6 +1,5 @@
-
 import React from 'react';
-import { Link } from 'react-router-dom';
+import Link from 'next/link';
 import { LogOut, User, Settings, ShieldCheck } from 'lucide-react';
 import {
   DropdownMenu,
@@ -29,7 +28,7 @@ const UserProfile = () => {
   if (!isAuthenticated) {
     return (
       <Button asChild variant="default">
-        <Link to="/auth">Log in</Link>
+        <Link href="/auth">Log in</Link>
       </Button>
     );
   }
@@ -77,13 +76,13 @@ const UserProfile = () => {
         </div>
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
-          <Link to="/profile" className="flex items-center">
+          <Link href="/profile" className="flex items-center">
             <User className="mr-2 h-4 w-4" />
             Profile
           </Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
-          <Link to="/profile/settings" className="flex items-center">
+          <Link href="/profile/settings" className="flex items-center">
             <Settings className="mr-2 h-4 w-4" />
             Settings
           </Link>
@@ -94,9 +93,19 @@ const UserProfile = () => {
           <>
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild>
-              <Link to="/admin" className="flex items-center">
+              <Link href="/admin" className="flex items-center">
                 <ShieldCheck className="mr-2 h-4 w-4" />
                 Admin Dashboard
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link href="/import" className="flex items-center">
+                <svg className="mr-2 h-4 w-4" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 3v12"></path>
+                  <path d="M8 11l4 4 4-4"></path>
+                  <path d="M8 5H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-4"></path>
+                </svg>
+                Import Venues
               </Link>
             </DropdownMenuItem>
           </>

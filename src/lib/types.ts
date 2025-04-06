@@ -45,6 +45,10 @@ export type Venue = {
   address?: string;
   postal_code?: string;
   image_url?: string;
+  url?: string;
+  latitude?: string | number | null;
+  longitude?: string | number | null;
+  created_at?: string;
   updated_at?: string;
   last_updated?: string;
 };

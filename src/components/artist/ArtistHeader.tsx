@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Music2, CalendarDays, ArrowLeft, Heart } from 'lucide-react';
@@ -35,15 +34,15 @@ const ArtistHeader = ({ artistName, artistImage, upcomingShowsCount }: ArtistHea
           </div>
           
           <div>
-            <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold text-white text-gradient">{artistName}</h1>
+            <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold text-foreground">{artistName}</h1>
             
             <div className="mt-6 flex flex-wrap items-center gap-3">
-              <div className="inline-flex items-center bg-blue-500/10 text-blue-400 px-3 py-1 rounded-full text-sm">
+              <div className="inline-flex items-center bg-primary/10 text-primary px-3 py-1 rounded-full text-sm">
                 <CalendarDays size={14} className="mr-1" />
                 {upcomingShowsCount} upcoming {upcomingShowsCount === 1 ? 'show' : 'shows'}
               </div>
               
-              <Button variant="outline" size="sm" className="border-white/10 bg-white/5 text-white hover:bg-white/10">
+              <Button variant="outline" size="sm" className="border-primary/20 bg-primary/5 text-foreground hover:bg-primary/10">
                 <Heart size={14} className="mr-1.5" />
                 Follow
               </Button>

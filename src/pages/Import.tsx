@@ -64,38 +64,23 @@ export default function Import() {
     setImporting(venue.id);
     
     try {
-      // Step 1: Initialize venue sync
-      const venueResponse = await fetch('/api/sync', {
+      // Use cascade_sync to import venue and shows in one operation
+      const response = await fetch('/api/sync', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           type: 'venue',
-          operation: 'create',
+          operation: 'cascade_sync',
           id: venue.id,
         }),
       });
       
-      if (!venueResponse.ok) {
-        throw new Error('Failed to import venue');
-      }
+      const result = await response.json();
       
-      // Step 2: Expand relations to import upcoming shows
-      const expandResponse = await fetch('/api/sync', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          type: 'venue',
-          operation: 'expand_relations',
-          id: venue.id,
-        }),
-      });
-      
-      if (!expandResponse.ok) {
-        throw new Error('Failed to import shows');
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to import venue');
       }
       
       // Success

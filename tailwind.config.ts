@@ -1,4 +1,3 @@
-
 import type { Config } from "tailwindcss";
 
 export default {
@@ -21,7 +20,7 @@ export default {
 		extend: {
 			fontFamily: {
 				sans: [
-					'SF Pro Display',
+					'Inter',
 					'system-ui',
 					'-apple-system',
 					'BlinkMacSystemFont',
@@ -29,7 +28,7 @@ export default {
 					'Roboto',
 					'sans-serif'
 				],
-				mono: ['SF Mono', 'monospace'],
+				mono: ['Consolas', 'Monaco', 'Liberation Mono', 'monospace'],
 			},
 			colors: {
 				border: 'hsl(var(--border))',

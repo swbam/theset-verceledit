@@ -1,236 +1,271 @@
 "use client";
 
-import React, { useState } from 'react';
-import { Search, MapPin, CalendarCheck } from 'lucide-react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Link } from '@/components/ui/link';
-import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { VenueSyncService } from '@/lib/sync/venue-service';
 import { Venue } from '@/lib/types';
-import { Separator } from '@/components/ui/separator';
+import { Loader2, ShieldAlert } from 'lucide-react';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
 
 export default function ImportPage() {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [city, setCity] = useState('');
-  const [state, setState] = useState('');
+  const [searchKeyword, setSearchKeyword] = useState('');
+  const [searchCity, setSearchCity] = useState('');
+  const [searchState, setSearchState] = useState('');
   const [isSearching, setIsSearching] = useState(false);
-  const [searchResults, setSearchResults] = useState<Venue[]>([]);
-  const [importing, setImporting] = useState<string | null>(null);
+  const [venues, setVenues] = useState<Venue[]>([]);
+  const [importingVenueId, setImportingVenueId] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Function to search for venues
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        // Check if user is logged in
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        
+        if (authError || !user) {
+          toast.error('Please log in to access this page');
+          window.location.href = '/';
+          return;
+        }
+        
+        // Check if user is admin
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('is_admin')
+          .eq('id', user.id)
+          .single();
+        
+        if (profileError || !profile || !profile.is_admin) {
+          setIsAdmin(false);
+        } else {
+          setIsAdmin(true);
+        }
+      } catch (error) {
+        console.error('Auth check error:', error);
+        setIsAdmin(false);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    checkAuth();
+  }, []);
+
   const searchVenues = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!searchQuery.trim()) {
-      toast.error('Please enter a search term');
+    if (!searchKeyword) {
+      toast.error('Please enter a search keyword');
       return;
     }
     
     setIsSearching(true);
-    setSearchResults([]);
-    
     try {
-      const params = new URLSearchParams();
-      params.append('type', 'venue');
-      params.append('query', searchQuery);
+      const venueService = new VenueSyncService();
+      const results = await venueService.searchVenues(searchKeyword, searchCity || undefined, searchState || undefined);
       
-      if (city.trim()) params.append('city', city);
-      if (state.trim()) params.append('state', state);
-      
-      const response = await fetch(`/api/search?${params.toString()}`);
-      
-      if (!response.ok) {
-        throw new Error('Search failed');
+      setVenues(results);
+      if (results.length === 0) {
+        toast.info('No venues found. Try different search terms.');
       }
-      
-      const data = await response.json();
-      setSearchResults(data.results || []);
     } catch (error) {
       console.error('Error searching venues:', error);
-      toast.error('Failed to search venues');
+      toast.error('Failed to search venues. Please try again.');
     } finally {
       setIsSearching(false);
     }
   };
 
-  // Function to import a venue and its upcoming shows
-  const importVenue = async (venue: Venue) => {
-    if (!venue.id) return;
-    
-    setImporting(venue.id);
-    
+  const importVenue = async (venueId: string) => {
+    setImportingVenueId(venueId);
     try {
-      // Step 1: Initialize venue sync
-      const venueResponse = await fetch('/api/sync', {
+      // Call the sync API to import the venue and its shows
+      const response = await fetch('/api/sync', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           type: 'venue',
-          operation: 'create',
-          id: venue.id,
+          operation: 'cascade_sync',
+          id: venueId
         }),
       });
       
-      if (!venueResponse.ok) {
-        throw new Error('Failed to import venue');
+      const result = await response.json();
+      
+      if (result.success) {
+        toast.success('Venue imported successfully with upcoming shows');
+      } else {
+        toast.error(`Failed to import venue: ${result.error}`);
       }
-      
-      // Step 2: Expand relations to import upcoming shows
-      const expandResponse = await fetch('/api/sync', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          type: 'venue',
-          operation: 'expand_relations',
-          id: venue.id,
-        }),
-      });
-      
-      if (!expandResponse.ok) {
-        throw new Error('Failed to import shows');
-      }
-      
-      // Success
-      toast.success(`Imported ${venue.name} and upcoming shows`);
     } catch (error) {
       console.error('Error importing venue:', error);
-      toast.error('Failed to import venue');
+      toast.error('Failed to import venue. Please try again.');
     } finally {
-      setImporting(null);
+      setImportingVenueId(null);
     }
   };
 
-  return (
-    <main className="container max-w-4xl mx-auto py-8 px-4">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-2">Import Venues & Shows</h1>
-        <p className="text-muted-foreground">
-          Search for venues and import their upcoming shows into the database.
-        </p>
+  if (isLoading) {
+    return (
+      <div className="container py-20 flex justify-center items-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
-      
-      <Card className="mb-8">
-        <CardHeader>
-          <CardTitle>Search for Venues</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={searchVenues} className="space-y-4">
-            <div className="grid gap-4">
-              <div>
-                <Label htmlFor="search">Venue Name</Label>
-                <Input
-                  id="search"
-                  placeholder="Enter venue name..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  required
-                />
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="city">City (Optional)</Label>
+    );
+  }
+
+  if (isAdmin === false) {
+    return (
+      <div className="container py-20 max-w-lg mx-auto text-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="bg-destructive/10 p-3 rounded-full">
+            <ShieldAlert className="h-10 w-10 text-destructive" />
+          </div>
+          <h1 className="text-2xl font-bold">Access Denied</h1>
+          <p className="text-muted-foreground">
+            You need administrator privileges to access this page.
+          </p>
+          <Button asChild>
+            <a href="/" className="w-full">Return to Home</a>
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="container py-10 max-w-5xl">
+      <div className="flex flex-col gap-6">
+        <div>
+          <h1 className="text-3xl font-bold mb-2">Import Venues &amp; Shows</h1>
+          <p className="text-muted-foreground">
+            Search for venues and import them along with their upcoming shows into the database.
+          </p>
+        </div>
+        
+        <Card>
+          <CardHeader>
+            <CardTitle>Search Venues</CardTitle>
+            <CardDescription>
+              Search by venue name, artist, or event. You can narrow results by adding city or state.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={searchVenues} className="flex flex-col gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="md:col-span-3">
+                  <label htmlFor="keyword" className="block text-sm font-medium mb-1">
+                    Venue Name / Keyword *
+                  </label>
                   <Input
-                    id="city"
-                    placeholder="City"
-                    value={city}
-                    onChange={(e) => setCity(e.target.value)}
+                    id="keyword"
+                    value={searchKeyword}
+                    onChange={(e) => setSearchKeyword(e.target.value)}
+                    placeholder="Enter venue name or keyword"
+                    required
                   />
                 </div>
                 <div>
-                  <Label htmlFor="state">State (Optional)</Label>
+                  <label htmlFor="city" className="block text-sm font-medium mb-1">
+                    City (Optional)
+                  </label>
+                  <Input
+                    id="city"
+                    value={searchCity}
+                    onChange={(e) => setSearchCity(e.target.value)}
+                    placeholder="City"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="state" className="block text-sm font-medium mb-1">
+                    State Code (Optional)
+                  </label>
                   <Input
                     id="state"
-                    placeholder="State code (e.g. CA, NY)"
-                    value={state}
-                    onChange={(e) => setState(e.target.value)}
+                    value={searchState}
+                    onChange={(e) => setSearchState(e.target.value)}
+                    placeholder="State code (e.g. CA)"
                     maxLength={2}
                   />
                 </div>
+                <div className="flex items-end">
+                  <Button type="submit" disabled={isSearching} className="w-full">
+                    {isSearching ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Searching...
+                      </>
+                    ) : (
+                      'Search Venues'
+                    )}
+                  </Button>
+                </div>
               </div>
-            </div>
-            
-            <Button type="submit" className="w-full" disabled={isSearching}>
-              {isSearching ? (
-                <>Searching...</>
-              ) : (
-                <>
-                  <Search className="mr-2 h-4 w-4" />
-                  Search Venues
-                </>
-              )}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
-      
-      {searchResults.length > 0 && (
-        <div>
-          <h2 className="text-xl font-semibold mb-4">Search Results</h2>
-          <div className="grid gap-4">
-            {searchResults.map((venue) => (
-              <Card key={venue.id} className="overflow-hidden">
-                <CardContent className="p-6">
-                  <div className="flex flex-col md:flex-row gap-4">
-                    {venue.image_url && (
-                      <div className="w-full md:w-1/4">
-                        <img
-                          src={venue.image_url}
-                          alt={venue.name}
-                          className="rounded-md w-full object-cover aspect-video"
-                        />
+            </form>
+          </CardContent>
+        </Card>
+        
+        {venues.length > 0 && (
+          <div className="space-y-6">
+            <h2 className="text-2xl font-bold">Search Results</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {venues.map((venue) => (
+                <Card key={venue.id} className="overflow-hidden">
+                  <div className="aspect-video relative bg-muted">
+                    {venue.image_url ? (
+                      <img 
+                        src={venue.image_url} 
+                        alt={venue.name} 
+                        className="object-cover w-full h-full"
+                      />
+                    ) : (
+                      <div className="flex items-center justify-center h-full bg-muted">
+                        <span className="text-muted-foreground">No image available</span>
                       </div>
                     )}
-                    
-                    <div className="flex-1">
-                      <h3 className="text-lg font-bold">{venue.name}</h3>
-                      
-                      <div className="flex items-center text-muted-foreground mt-2">
-                        <MapPin className="h-4 w-4 mr-1" />
-                        <span>
-                          {[venue.city, venue.state, venue.country].filter(Boolean).join(', ')}
-                        </span>
-                      </div>
-                      
-                      <div className="mt-4 flex space-x-4">
-                        <Button
-                          onClick={() => importVenue(venue)}
-                          disabled={importing === venue.id}
-                          className="flex-1"
-                        >
-                          {importing === venue.id ? (
-                            'Importing...'
-                          ) : (
-                            <>
-                              <CalendarCheck className="mr-2 h-4 w-4" />
-                              Import Venue & Shows
-                            </>
-                          )}
-                        </Button>
-                      </div>
-                    </div>
                   </div>
-                </CardContent>
-              </Card>
-            ))}
+                  <CardHeader>
+                    <CardTitle>{venue.name}</CardTitle>
+                    <CardDescription>
+                      {[venue.address, venue.city, venue.state].filter(Boolean).join(', ')}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardFooter className="flex justify-between">
+                    {venue.url && (
+                      <a
+                        href={venue.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm text-primary hover:underline"
+                      >
+                        Official Website
+                      </a>
+                    )}
+                    <Button 
+                      onClick={() => importVenue(venue.id)}
+                      disabled={importingVenueId === venue.id}
+                    >
+                      {importingVenueId === venue.id ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Importing...
+                        </>
+                      ) : (
+                        'Import Venue & Shows'
+                      )}
+                    </Button>
+                  </CardFooter>
+                </Card>
+              ))}
+            </div>
           </div>
-        </div>
-      )}
-      
-      {searchResults.length === 0 && !isSearching && searchQuery && (
-        <div className="text-center p-8 border rounded-lg">
-          <h3 className="text-lg font-medium">No venues found</h3>
-          <p className="text-muted-foreground mt-2">
-            Try a different search term or location
-          </p>
-        </div>
-      )}
-    </main>
+        )}
+      </div>
+    </div>
   );
 } 

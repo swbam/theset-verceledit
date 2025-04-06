@@ -45,11 +45,11 @@ const Hero = () => {
   });
 
   return (
-    <section className="relative bg-gradient-to-b from-black via-purple-900/20 to-[#0A0A10] text-white py-20 md:py-24 overflow-hidden">
+    <section className="relative bg-gradient-to-b from-black via-black/70 to-[#0A0A10] text-white py-20 md:py-24 overflow-hidden">
       {/* Decorative elements */}
       <div className="absolute inset-0 overflow-hidden">
-        <div className="absolute -top-64 -left-64 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl"></div>
-        <div className="absolute -bottom-32 -right-32 w-80 h-80 bg-purple-500/10 rounded-full blur-3xl"></div>
+        <div className="absolute -top-64 -left-64 w-96 h-96 bg-primary/10 rounded-full blur-3xl"></div>
+        <div className="absolute -bottom-32 -right-32 w-80 h-80 bg-primary/5 rounded-full blur-3xl"></div>
       </div>
       
       <div className="container mx-auto px-4 md:px-6 max-w-6xl relative z-10">
@@ -60,7 +60,7 @@ const Hero = () => {
             </div>
             
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-6 leading-tight">
-              Shape the Concert <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-500">Experience</span> You Want
+              Shape the Concert <span className="text-primary">Experience</span> You Want
             </h1>
             
             <p className="text-lg text-white/80 mb-8 max-w-lg">
@@ -71,7 +71,7 @@ const Hero = () => {
             <div className="flex flex-col sm:flex-row gap-4 mb-8">
               <Button 
                 size="lg" 
-                className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white"
+                className="btn-twitter"
                 onClick={() => navigate('/shows')}
               >
                 Explore Shows
@@ -88,15 +88,15 @@ const Hero = () => {
             
             <div className="grid grid-cols-3 gap-4">
               <div className="flex items-center gap-2">
-                <Music className="h-5 w-5 text-blue-400" />
+                <Music className="h-5 w-5 text-primary" />
                 <span className="text-sm text-white/80">Vote on Songs</span>
               </div>
               <div className="flex items-center gap-2">
-                <Users className="h-5 w-5 text-purple-400" />
+                <Users className="h-5 w-5 text-primary" />
                 <span className="text-sm text-white/80">Join Community</span>
               </div>
               <div className="flex items-center gap-2">
-                <Award className="h-5 w-5 text-pink-400" />
+                <Award className="h-5 w-5 text-primary" />
                 <span className="text-sm text-white/80">Discover Artists</span>
               </div>
             </div>
@@ -113,7 +113,7 @@ const Hero = () => {
                 placeholder="Search for artists, venues, or cities..."
                 value={searchQuery}
                 onChange={handleChange}
-                className="pl-10 py-6 h-12 bg-white/10 border-white/10 text-white placeholder:text-white/60 rounded-md w-full focus-visible:ring-white/30"
+                className="pl-10 py-6 h-12 bg-white/10 border-white/10 text-white placeholder:text-white/60 rounded-md w-full focus-visible:ring-primary/30"
               />
             </div>
             

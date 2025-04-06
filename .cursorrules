@@ -1,5 +1,5 @@
 
--Use TypeScript: Ensure all code is written in TypeScript and properly typed to maintain type safety.
+- When I say to fix something, it should be fixed 100% in one pass after heavily reviewing the codebase
 -Follow React Best Practices: Use functional components and hooks. Avoid class components and direct DOM manipulation.
 -Utilize Radix UI Components: Implement Radix UI components correctly, paying attention to their props, styling, and accessibility features.
 -Style with Tailwind CSS: Use Tailwind CSS utility classes for styling. Avoid inline styles unless absolutely necessary.

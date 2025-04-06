@@ -1,51 +1,54 @@
+/* Import Inter font from Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@100;200;300;400;500;600;700;800;900&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   :root {
-    --background: 0 0% 0%; /* Pure black background */
+    --background: 0 0% 0%; /* Pure black background like X/Twitter */
     --foreground: 0 0% 95%;
 
-    --card: 0 0% 5%; /* Dark card background */
+    --card: 0 0% 7%; /* Just slightly lighter than background */
     --card-foreground: 0 0% 95%;
 
-    --popover: 0 0% 5%;
+    --popover: 0 0% 7%;
     --popover-foreground: 0 0% 95%;
 
-    --primary: 0 0% 95%; /* White primary color */
-    --primary-foreground: 0 0% 5%;
+    --primary: 210 100% 50%; /* Twitter blue color */
+    --primary-foreground: 0 0% 98%;
 
-    --secondary: 0 0% 10%; /* Dark grey secondary */
+    --secondary: 0 0% 12%; /* Dark grey secondary */
     --secondary-foreground: 0 0% 95%;
 
-    --muted: 0 0% 10%;
+    --muted: 0 0% 12%;
     --muted-foreground: 0 0% 65%;
 
-    --accent: 0 0% 10%;
-    --accent-foreground: 0 0% 95%;
+    --accent: 210 100% 50%; /* Twitter blue for accents */
+    --accent-foreground: 0 0% 98%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 98%;
 
     --border: 0 0% 15%; /* Grey border */
     --input: 0 0% 15%;
-    --ring: 0 0% 65%;
+    --ring: 210 100% 50%; /* Twitter blue for focus rings */
 
     --sidebar-background: 0 0% 5%;
     --sidebar-foreground: 0 0% 96%;
-    --sidebar-primary: 0 0% 95%;
-    --sidebar-primary-foreground: 0 0% 0%;
+    --sidebar-primary: 210 100% 50%; /* Twitter blue */
+    --sidebar-primary-foreground: 0 0% 100%;
     --sidebar-accent: 0 0% 15%;
     --sidebar-accent-foreground: 0 0% 96%;
     --sidebar-border: 0 0% 15%;
-    --sidebar-ring: 0 0% 60%;
+    --sidebar-ring: 210 100% 50%; /* Twitter blue */
 
     --radius: 0.5rem;
   }
 
   .light {
-    --background: 0 0% 98%;
+    --background: 0 0% 100%;
     --foreground: 0 0% 10%;
 
     --card: 0 0% 100%;
@@ -54,8 +57,8 @@
     --popover: 0 0% 100%;
     --popover-foreground: 0 0% 10%;
 
-    --primary: 0 0% 10%;
-    --primary-foreground: 0 0% 98%;
+    --primary: 210 100% 50%; /* Twitter blue */
+    --primary-foreground: 0 0% 100%;
 
     --secondary: 0 0% 96%;
     --secondary-foreground: 0 0% 10%;
@@ -63,30 +66,30 @@
     --muted: 0 0% 96%;
     --muted-foreground: 0 0% 46%;
 
-    --accent: 0 0% 96%;
-    --accent-foreground: 0 0% 10%;
+    --accent: 210 100% 50%; /* Twitter blue */
+    --accent-foreground: 0 0% 100%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 98%;
 
     --border: 0 0% 90%;
     --input: 0 0% 90%;
-    --ring: 0 0% 90%;
+    --ring: 210 100% 50%; /* Twitter blue */
 
-    --sidebar-background: 0 0% 98%;
+    --sidebar-background: 0 0% 100%;
     --sidebar-foreground: 0 0% 26%;
-    --sidebar-primary: 0 0% 10%;
-    --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 0 0% 96%;
-    --sidebar-accent-foreground: 0 0% 10%;
+    --sidebar-primary: 210 100% 50%; /* Twitter blue */
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 210 95% 95%;
+    --sidebar-accent-foreground: 210 100% 50%;
     --sidebar-border: 0 0% 91%;
-    --sidebar-ring: 0 0% 60%;
+    --sidebar-ring: 210 100% 50%; /* Twitter blue */
   }
 }
 
 @layer base {
   * {
-    @apply border-border selection:bg-white/10 selection:text-white;
+    @apply border-border selection:bg-primary/20 selection:text-white;
   }
 
   html, body {
@@ -120,15 +123,15 @@
   }
 
   .app-gradient {
-    @apply bg-gradient-to-b from-black to-[#111111];
+    @apply bg-gradient-to-b from-black to-[#15181C]; /* Twitter dark mode gradient */
   }
 
   .card-gradient {
-    @apply bg-gradient-to-b from-[#111111] to-[#181818];
+    @apply bg-gradient-to-b from-[#15181C] to-[#1A1D23]; /* Slightly lighter gradient for cards */
   }
 
   .header-gradient {
-    @apply bg-gradient-to-b from-[#111111]/90 via-[#181818]/80 to-transparent;
+    @apply bg-gradient-to-b from-black/90 via-[#15181C]/80 to-transparent;
   }
   
   .neo-blur {
@@ -147,54 +150,13 @@
     -ms-overflow-style: none;  /* IE and Edge */
     scrollbar-width: none;  /* Firefox */
   }
-}
 
-/* SF Pro Display font */
-@font-face {
-  font-family: 'SF Pro Display';
-  src: url('https://applesocial.s3.amazonaws.com/assets/styles/fonts/sanfrancisco/sanfranciscodisplay-regular-webfont.woff2') format('woff2');
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
+  /* Twitter-like button styles */
+  .btn-twitter {
+    @apply rounded-full bg-primary hover:bg-primary/90 text-white font-medium transition-colors;
+  }
 
-@font-face {
-  font-family: 'SF Pro Display';
-  src: url('https://applesocial.s3.amazonaws.com/assets/styles/fonts/sanfrancisco/sanfranciscodisplay-medium-webfont.woff2') format('woff2');
-  font-weight: 500;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: 'SF Pro Display';
-  src: url('https://applesocial.s3.amazonaws.com/assets/styles/fonts/sanfrancisco/sanfranciscodisplay-semibold-webfont.woff2') format('woff2');
-  font-weight: 600;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: 'SF Pro Display';
-  src: url('https://applesocial.s3.amazonaws.com/assets/styles/fonts/sanfrancisco/sanfranciscodisplay-bold-webfont.woff2') format('woff2');
-  font-weight: 700;
-  font-style: normal;
-  font-display: swap;
-}
-
-/* SF Mono font */
-@font-face {
-  font-family: 'SF Mono';
-  src: url('https://applesocial.s3.amazonaws.com/assets/styles/fonts/sanfrancisco/SFMono-Regular.woff2') format('woff2');
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: 'SF Mono';
-  src: url('https://applesocial.s3.amazonaws.com/assets/styles/fonts/sanfrancisco/SFMono-Medium.woff2') format('woff2');
-  font-weight: 500;
-  font-style: normal;
-  font-display: swap;
+  .btn-twitter-outline {
+    @apply rounded-full border border-primary text-primary hover:bg-primary/10 font-medium transition-colors;
+  }
 }

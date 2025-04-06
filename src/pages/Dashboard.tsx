@@ -207,45 +207,45 @@ const Dashboard = () => {
               
               {/* How It Works Section */}
               <section>
-                <Card className="bg-gradient-to-r from-blue-900/40 to-purple-900/40 border-white/10">
+                <Card className="bg-card border-border/50">
                   <CardHeader>
-                    <CardTitle className="text-xl text-white">How TheSet Works</CardTitle>
-                    <CardDescription className="text-white/70">
+                    <CardTitle className="text-xl text-foreground">How TheSet Works</CardTitle>
+                    <CardDescription className="text-muted-foreground">
                       Personalize your concert experience by voting on your favorite songs
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div className="flex gap-4 items-start">
-                      <div className="bg-white/10 w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0">
-                        <span className="text-white font-semibold">1</span>
+                      <div className="bg-primary/10 w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0">
+                        <span className="text-primary font-semibold">1</span>
                       </div>
                       <div>
-                        <h4 className="font-medium text-white">Find Your Shows</h4>
-                        <p className="text-sm text-white/70">Discover upcoming concerts from your favorite artists</p>
+                        <h4 className="font-medium text-foreground">Find Your Shows</h4>
+                        <p className="text-sm text-muted-foreground">Discover upcoming concerts from your favorite artists</p>
                       </div>
                     </div>
                     
                     <div className="flex gap-4 items-start">
-                      <div className="bg-white/10 w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0">
-                        <span className="text-white font-semibold">2</span>
+                      <div className="bg-primary/10 w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0">
+                        <span className="text-primary font-semibold">2</span>
                       </div>
                       <div>
-                        <h4 className="font-medium text-white">Vote on Songs</h4>
-                        <p className="text-sm text-white/70">Help shape the setlist by voting for songs you want to hear</p>
+                        <h4 className="font-medium text-foreground">Vote on Songs</h4>
+                        <p className="text-sm text-muted-foreground">Help shape the setlist by voting for songs you want to hear</p>
                       </div>
                     </div>
                     
                     <div className="flex gap-4 items-start">
-                      <div className="bg-white/10 w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0">
-                        <span className="text-white font-semibold">3</span>
+                      <div className="bg-primary/10 w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0">
+                        <span className="text-primary font-semibold">3</span>
                       </div>
                       <div>
-                        <h4 className="font-medium text-white">Enjoy the Experience</h4>
-                        <p className="text-sm text-white/70">Get a more personalized concert with songs the crowd wants</p>
+                        <h4 className="font-medium text-foreground">Enjoy the Experience</h4>
+                        <p className="text-sm text-muted-foreground">Get a more personalized concert with songs the crowd wants</p>
                       </div>
                     </div>
                     
-                    <Button className="w-full mt-4" onClick={() => navigate('/shows')}>
+                    <Button className="w-full mt-4 btn-twitter" onClick={() => navigate('/shows')}>
                       Browse Upcoming Shows
                     </Button>
                   </CardContent>
