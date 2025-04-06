@@ -1,11 +1,11 @@
 import { Suspense } from 'react';
 import { ArrowRight } from 'lucide-react';
-import { Link } from 'react-router-dom'; // Corrected Link import
+import { Link } from '@/components/ui/link'; // Using our custom Link component
 import { Button } from '@/components/ui/button';
-import TopVotedSongs from '@/app/components/TopVotedSongs'; // Corrected TopVotedSongs path
+import TopVotedSongs from '@/app/components/TopVotedSongs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { getPopularArtists, getTrendingShows } from '@/lib/api-helpers'; // Import getTrendingShows
-import { Show } from '@/lib/types'; // Import Show type
+import { getPopularArtists, getTrendingShows } from '@/lib/api-helpers';
+import { Show } from '@/lib/types';
 
 export const revalidate = 3600; // Revalidate every hour
 
@@ -30,13 +30,13 @@ export default async function Home() {
           </p>
           <div className="flex flex-wrap gap-4">
             <Button asChild size="lg">
-              <Link to="/artists"> {/* Changed href to to */}
+              <Link href="/artists">
                 Browse Artists
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
             </Button>
             <Button variant="outline" size="lg" asChild>
-              <Link to="/shows">View Upcoming Shows</Link> {/* Changed href to to */}
+              <Link href="/shows">View Upcoming Shows</Link>
             </Button>
           </div>
         </div>
@@ -66,18 +66,17 @@ export default async function Home() {
             <CardContent>
               {popularArtists.length === 0 ? (
                 <p className="text-center text-muted-foreground py-4">No artists yet</p>
-              ) : ( // Added missing closing parenthesis and colon
+              ) : (
                 <ul className="space-y-3">
                   {popularArtists.map((artist, index) => (
                     <li key={artist.artist_id} className="group">
                       <Link
-                        to={`/artists/${artist.artist_id}`} // Removed comment
+                        href={`/artists/${artist.artist_id}`}
                         className="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-50 transition-colors"
                       >
                         <span className="flex items-center justify-center h-8 w-8 rounded-full bg-primary/10 text-primary font-medium">
-                          {/* Removed duplicate span */}
                           {index + 1}
-                        </span> {/* Added closing span tag */}
+                        </span>
                         
                         <div className="flex-1 min-w-0">
                           <p className="font-medium truncate group-hover:text-primary transition-colors">
@@ -92,7 +91,13 @@ export default async function Home() {
                       </Link>
                     </li>
                   ))}
-
+                </ul>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </section>
+      
       {/* Trending Shows Section */}
       <section className="mb-12">
         <h2 className="text-2xl font-bold text-gray-900 mb-6">Trending Shows</h2>
@@ -101,7 +106,7 @@ export default async function Home() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {trendingShows.map((show: Show) => (
-              <Link key={show.id} to={`/show/${show.id}`} className="block group">
+              <Link key={show.id} href={`/show/${show.id}`} className="block group">
                 <Card className="overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-200 h-full flex flex-col">
                   {show.image_url && (
                     <div className="aspect-video overflow-hidden">
@@ -130,13 +135,6 @@ export default async function Home() {
             ))}
           </div>
         )}
-      </section>
-
-                </ul>
-              )}
-            </CardContent>
-          </Card>
-        </div>
       </section>
       
       {/* How It Works Section */}

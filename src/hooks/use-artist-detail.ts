@@ -5,6 +5,7 @@ import { fetchArtistById } from '@/lib/api/artist';
 import { Show } from '@/lib/api/shows';
 import { fetchArtistEvents } from '@/lib/ticketmaster';
 import { useEffect } from 'react';
+import { toast } from 'sonner';
 
 // Define the return type for the hook
 interface UseArtistDetailReturn {
@@ -74,6 +75,38 @@ export function useArtistDetail(id: string | undefined): UseArtistDetailReturn {
     artist?.name ? `View upcoming concerts and vote on setlists for ${artist.name}` : undefined
   );
   
+  // Effect to save artist data to database when artist detail is viewed
+  useEffect(() => {
+    if (artist && artist.id) {
+      console.log(`[useArtistDetail] Artist loaded, saving to database: ${artist.name} (${artist.id})`);
+      
+      // Call save-artist API to properly save the artist
+      fetch('/api/save-artist', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          id: artist.id,
+          name: artist.name,
+          image_url: artist.image,
+          popularity: artist.popularity,
+          genres: artist.genres
+        }),
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          console.log(`[useArtistDetail] Saved artist ${artist.name} to database (ID: ${data.artistId})`);
+        } else {
+          console.error(`[useArtistDetail] Error saving artist ${artist.name}:`, data.error);
+        }
+      })
+      .catch(error => {
+        console.error(`[useArtistDetail] Network error saving artist ${artist.name}:`, error);
+      });
+    }
+  }, [artist]);
 
   // Effect to trigger server-side saving for fetched shows asynchronously
   useEffect(() => {

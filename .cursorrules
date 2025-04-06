@@ -1,0 +1,17 @@
+
+-Use TypeScript: Ensure all code is written in TypeScript and properly typed to maintain type safety.
+-Follow React Best Practices: Use functional components and hooks. Avoid class components and direct DOM manipulation.
+-Utilize Radix UI Components: Implement Radix UI components correctly, paying attention to their props, styling, and accessibility features.
+-Style with Tailwind CSS: Use Tailwind CSS utility classes for styling. Avoid inline styles unless absolutely necessary.
+-Manage Asynchronous Data: Use Tanstack React Query for handling data fetching, caching, and synchronization with the server.
+-Handle Forms Efficiently: Utilize React Hook Form for form management and validation. Consider using Zod for schema validation.
+-Adhere to Linting Rules: Follow the ESLint rules defined in the project to maintain code quality and consistency.
+-Understand Vite Configuration: Be familiar with Vite's build and development configurations to optimize the development process.
+-Implement Routing with React Router: Use React Router for navigation and managing application routes.
+-Integrate with Supabase: Handle database operations using Supabase, ensuring proper authentication and data fetching mechanisms.
+-Leverage UI Libraries: Use additional UI libraries like Lucide React for icons and Sonner for notifications, following their respective documentation.
+-Manipulate Dates with date-fns: Use date-fns for any date and time manipulations required in the application.
+-Create Visualizations with Recharts: Utilize Recharts for building charts and data visualizations.
+-Implement Carousels with Embla Carousel: Use Embla Carousel for creating accessible and responsive carousels.
+-Handle OTP Inputs Securely: Use Input OTP for one-time password inputs, ensuring security and usability best practices.
+-Generate Unique IDs with UUID: Use the UUID library to generate unique identifiers when necessary.

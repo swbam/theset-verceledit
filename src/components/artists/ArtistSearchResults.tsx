@@ -1,10 +1,10 @@
-
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Music, CalendarDays } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useQuery } from '@tanstack/react-query';
 import { searchArtistsWithEvents } from '@/lib/api/artist';
+import { toast } from 'sonner';
 
 interface Artist {
   id: string;
@@ -67,8 +67,37 @@ const ArtistSearchResults = ({
   }
 
   const handleSelect = (artist: Artist) => {
+    // Save this artist to the database via the API
+    console.log(`Artist selected: ${artist.name} (ID: ${artist.id})`);
+    
+    // Call our new save-artist API
+    fetch('/api/save-artist', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        id: artist.id,
+        name: artist.name,
+        image_url: artist.image
+      }),
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        console.log(`Saved artist ${artist.name} to database (ID: ${data.artistId})`);
+        // Show toast confirmation if we have toast
+        toast.success(`Added ${artist.name} to the database!`);
+      } else {
+        console.error(`Failed to save artist ${artist.name}:`, data.error);
+      }
+    })
+    .catch(error => {
+      console.error(`Error saving artist ${artist.name}:`, error);
+    });
+    
+    // Call the original onSelect handler
     if (onSelect) {
-      console.log(`Artist selected: ${artist.name} (ID: ${artist.id})`);
       onSelect(artist);
     }
   };
