@@ -8,17 +8,31 @@ const globalForSupabase = globalThis as unknown as {
 // Get environment variables - using VITE_ prefix for Vite compatibility
 // Get environment variables
 // VITE_ prefix exposes them client-side (needed for URL and Anon Key)
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+// Determine if running in server (Node.js) or client (Vite/Browser) context
+const isServer = typeof process !== 'undefined' && process.env;
+const isClient = typeof import.meta !== 'undefined' && import.meta.env;
+
+// Get Supabase URL and Anon Key based on environment
+const SUPABASE_URL = isServer
+  ? process.env.NEXT_PUBLIC_SUPABASE_URL // Use NEXT_PUBLIC_ for server-side access if needed by Next.js build
+  : isClient
+  ? import.meta.env.VITE_SUPABASE_URL
+  : undefined;
+
+const SUPABASE_ANON_KEY = isServer
+  ? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY // Use NEXT_PUBLIC_ for server-side access if needed by Next.js build
+  : isClient
+  ? import.meta.env.VITE_SUPABASE_ANON_KEY
+  : undefined;
 
 // Validate essential client-side environment variables
 if (!SUPABASE_URL) {
   // Throw error during module load if essential client vars are missing
-  throw new Error("Missing environment variable: VITE_SUPABASE_URL");
+  throw new Error("Missing environment variable: VITE_SUPABASE_URL (client) or NEXT_PUBLIC_SUPABASE_URL (server)");
 }
 if (!SUPABASE_ANON_KEY) {
   // Throw error during module load if essential client vars are missing
-  throw new Error("Missing environment variable: VITE_SUPABASE_ANON_KEY");
+  throw new Error("Missing environment variable: VITE_SUPABASE_ANON_KEY (client) or NEXT_PUBLIC_SUPABASE_ANON_KEY (server)");
 }
 
 // Service Role Key will be accessed inside adminClient function from process.env

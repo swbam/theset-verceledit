@@ -4,12 +4,26 @@ import { ArtistSyncService } from '@/lib/sync/artist-service';
 import { VenueSyncService } from '@/lib/sync/venue-service';
 import { ShowSyncService } from '@/lib/sync/show-service';
 import { SongSyncService } from '@/lib/sync/song-service';
+// Import APIClientManager to call Setlist.fm directly
+import { APIClientManager } from '@/lib/sync/api-client';
 
-// Initialize services
+// Initialize services (Keep for now, might be used by other cases)
 const artistService = new ArtistSyncService();
 const venueService = new VenueSyncService();
 const showService = new ShowSyncService();
 const songService = new SongSyncService();
+const apiClient = new APIClientManager(); // Initialize API client
+
+// Define expected structure for Setlist.fm search response
+interface SetlistFmSearchResult {
+  setlist?: Array<{
+    id: string;
+    eventDate: string;
+    venue?: { name?: string; city?: { name?: string } };
+    // Add other fields if needed
+  }>;
+  // Add other top-level fields like 'total', 'page', 'itemsPerPage' if needed
+}
 
 /**
  * API route for searching external data sources
@@ -102,8 +116,9 @@ export async function OPTIONS(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     // Check if user is authenticated
-    const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    // Use server client for auth check and invoking functions
+    const supabaseAdmin = createClient();
+    const { data: { user } } = await supabaseAdmin.auth.getUser();
     
     if (!user) {
       return NextResponse.json(
@@ -139,8 +154,77 @@ export async function POST(request: NextRequest) {
         break;
         
       case 'artist_setlists':
-        const setlistService = new (await import('@/lib/sync/setlist-service')).SetlistSyncService();
-        results = await setlistService.getArtistSetlists(body.id, body.limit || 10);
+        // Fetch artist name needed for Setlist.fm API
+        const { data: artist } = await supabaseAdmin
+          .from('artists')
+          .select('name')
+          .eq('id', body.id) // body.id should be the artist UUID
+          .single();
+
+        if (!artist) {
+          return NextResponse.json({ error: `Artist not found for ID: ${body.id}` }, { status: 404 });
+        }
+
+        // Fetch recent setlists directly from Setlist.fm API
+        const limit = body.limit || 10;
+        let rawSetlistData: SetlistFmSearchResult['setlist'] = []; // Use defined type
+        try {
+           // Cast the response after checking it's not null/undefined
+           const response = await apiClient.callAPI(
+             'setlistfm',
+             'search/setlists',
+             {
+               artistName: artist.name,
+               p: 1,
+               sort: 'date'
+             }
+           ) as SetlistFmSearchResult | null; // Cast the result
+
+           // Check if response and setlist property exist
+           if (response?.setlist) {
+              rawSetlistData = response.setlist;
+           }
+        } catch (apiError) {
+            console.error(`Error fetching setlists from Setlist.fm for artist ${artist.name}:`, apiError);
+            // Decide if you want to return an error or empty results
+            // return NextResponse.json({ error: 'Failed to fetch setlists from Setlist.fm' }, { status: 502 });
+        }
+
+        // Process results: trigger sync and return basic info
+        const processedIds = new Set<string>();
+        results = []; // Store basic info to return
+
+        for (const setlist of rawSetlistData) {
+          if (results.length >= limit) break;
+          if (!setlist.id || processedIds.has(setlist.id)) continue;
+
+          processedIds.add(setlist.id);
+
+          // Return basic info about the setlist
+          results.push({
+            id: setlist.id,
+            eventDate: setlist.eventDate,
+            venue: setlist.venue?.name,
+            city: setlist.venue?.city?.name,
+            // Add other relevant basic fields if needed
+          });
+
+          // Asynchronously invoke the sync function (fire-and-forget)
+          // No need to await this in the API route response path
+          supabaseAdmin.functions.invoke('sync-setlist', {
+            body: { setlistId: setlist.id }
+          }).then(({ data, error }) => {
+            if (error) {
+              console.error(`Error invoking sync-setlist for ${setlist.id}:`, error);
+            } else if (!data?.success) {
+              console.warn(`sync-setlist function reported failure for ${setlist.id}:`, data?.error || data?.message);
+            } else {
+              console.log(`Successfully invoked sync-setlist for ${setlist.id}`);
+            }
+          }).catch(invokeError => {
+             console.error(`Exception invoking sync-setlist for ${setlist.id}:`, invokeError);
+          });
+        }
         break;
         
       default:

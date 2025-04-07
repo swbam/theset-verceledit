@@ -15,7 +15,8 @@
     "preview": "vite preview",
     "start": "NODE_ENV=production concurrently \"vite preview --port 8080\" \"node server.cjs\"",
     "db:migration:apply": "node ./scripts/apply-migrations.js",
-    "reset:cache": "node ./scripts/clear-cache.js"
+    "reset:cache": "node ./scripts/clear-cache.js",
+    "updateall": "echo 'Applying migrations...' && supabase db push && echo 'Setting secrets...' && supabase secrets set --env-file ./supabase/.env && echo 'Deploying functions...' && supabase functions deploy fetch-past-setlists --no-verify-jwt && supabase functions deploy import-artist --no-verify-jwt && supabase functions deploy sync-artist --no-verify-jwt && supabase functions deploy sync-setlist --no-verify-jwt && supabase functions deploy sync-show --no-verify-jwt && supabase functions deploy sync-song --no-verify-jwt && supabase functions deploy sync-venue --no-verify-jwt && echo 'Building application...' && npm run build:all && echo 'Update complete!'"
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",

@@ -32,6 +32,10 @@ export default defineConfig(({ mode }) => ({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  // Define global constants - replace process.env with {} to avoid errors in browser
+  define: {
+    'process.env': {}
+  },
   build: {
     // Increase the warning limit to avoid unnecessary warnings
     chunkSizeWarningLimit: 1000,
@@ -41,9 +45,9 @@ export default defineConfig(({ mode }) => ({
         manualChunks: {
           // Vendor chunk for third-party libraries
           vendor: [
-            'react', 
-            'react-dom', 
-            'react-router-dom', 
+            'react',
+            'react-dom',
+            'react-router-dom',
             '@supabase/supabase-js',
             '@tanstack/react-query'
           ],
@@ -79,8 +83,8 @@ export default defineConfig(({ mode }) => ({
   // Optimize dependencies
   optimizeDeps: {
     include: [
-      'react', 
-      'react-dom', 
+      'react',
+      'react-dom',
       'react-router-dom',
       '@supabase/supabase-js'
     ]

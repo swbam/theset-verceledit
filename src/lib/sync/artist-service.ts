@@ -26,11 +26,20 @@ export class ArtistSyncService {
       
       if (!syncStatus.needsSync) {
         // Get existing artist data
-        const { data: artist } = await supabase
+        const { data: artist, error: fetchError } = await supabase
           .from('artists')
           .select('*')
           .eq('id', artistId)
           .single();
+          
+        if (fetchError || !artist) {
+          console.error(`Error fetching existing artist ${artistId}:`, fetchError);
+          return {
+            success: false,
+            updated: false,
+            error: fetchError?.message || 'Artist not found'
+          };
+        }
           
         return {
           success: true,
@@ -50,10 +59,17 @@ export class ArtistSyncService {
         };
       }
       
+      // Ensure we have an external_id for tracking purposes
+      artist.external_id = artistId;
+      
       // Update in database
+      console.log(`Upserting artist data for ID ${artistId}:`, artist);
       const { error } = await supabase
         .from('artists')
-        .upsert(artist, { onConflict: 'id' });
+        .upsert(artist, { 
+          onConflict: 'external_id',
+          ignoreDuplicates: false 
+        });
         
       if (error) {
         console.error(`Error upserting artist ${artistId}:`, error);
@@ -91,7 +107,7 @@ export class ArtistSyncService {
     const { data: existingArtist } = await supabase
       .from('artists')
       .select('*')
-      .eq('id', artistId)
+      .eq('external_id', artistId)
       .single();
       
     let artist = existingArtist as Artist | null;
@@ -106,7 +122,8 @@ export class ArtistSyncService {
       
       if (tmData) {
         artist = {
-          id: artistId,
+          id: artist?.id || undefined, // Keep UUID if it exists
+          external_id: artistId, // Store Ticketmaster ID as external_id
           name: tmData.name,
           image_url: this.getBestImage(tmData.images),
           url: tmData.url,
@@ -183,14 +200,14 @@ export class ArtistSyncService {
   async getArtistUpcomingShows(artistId: string): Promise<Show[]> {
     try {
       // First get the artist to ensure we have the name
-      const { data: artist } = await supabase
+      const { data: artist, error } = await supabase
         .from('artists')
-        .select('name')
-        .eq('id', artistId)
+        .select('name, id')
+        .or(`id.eq.${artistId},external_id.eq.${artistId}`)
         .single();
         
-      if (!artist) {
-        console.error(`Artist ${artistId} not found for upcoming shows`);
+      if (!artist || error) {
+        console.error(`Artist ${artistId} not found for upcoming shows:`, error);
         return [];
       }
       
@@ -218,11 +235,11 @@ export class ArtistSyncService {
         const venueId = event._embedded?.venues?.[0]?.id;
         
         const show: Show = {
-          id: event.id,
+          external_id: event.id, // Store Ticketmaster ID as external_id
           name: event.name,
           date: event.dates?.start?.dateTime,
-          artist_id: artistId,
-          venue_id: venueId || null,
+          artist_id: artist.id, // Use UUID of artist
+          venue_external_id: venueId || null, // Store as external ID
           status: event.dates?.status?.code || 'active',
           url: event.url,
           image_url: this.getBestImage(event.images),
@@ -233,12 +250,23 @@ export class ArtistSyncService {
         shows.push(show);
         
         // Store each show as we find it
-        await supabase
+        const { error: upsertError } = await supabase
           .from('shows')
-          .upsert(show, { onConflict: 'id' });
-          
-        // Mark as synced
-        await this.syncService.markSynced(event.id, 'show');
+          .upsert({
+            ...show,
+            // Only include venue_id if we have already created the venue
+            venue_id: undefined // Will be filled in by venue service
+          }, { 
+            onConflict: 'external_id',
+            ignoreDuplicates: false
+          });
+        
+        if (upsertError) {
+          console.error(`Error upserting show ${event.id}:`, upsertError);
+        } else {
+          // Mark as synced
+          await this.syncService.markSynced(event.id, 'show');
+        }
       }
       
       return shows;
@@ -274,7 +302,7 @@ export class ArtistSyncService {
         if (!attraction.id || attraction.type !== 'attraction') continue;
         
         const artist: Artist = {
-          id: attraction.id,
+          external_id: attraction.id, // Store external ID 
           name: attraction.name,
           image_url: this.getBestImage(attraction.images),
           url: attraction.url,
@@ -289,12 +317,19 @@ export class ArtistSyncService {
         results.push(artist);
         
         // Store each artist as we find them
-        await supabase
+        const { error } = await supabase
           .from('artists')
-          .upsert(artist, { onConflict: 'id' });
+          .upsert(artist, { 
+            onConflict: 'external_id',
+            ignoreDuplicates: false
+          });
           
-        // Mark as synced
-        await this.syncService.markSynced(attraction.id, 'artist');
+        if (error) {
+          console.error(`Error upserting artist ${attraction.id}:`, error);
+        } else {
+          // Mark as synced
+          await this.syncService.markSynced(attraction.id, 'artist');
+        }
       }
       
       return results;

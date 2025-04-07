@@ -34,31 +34,60 @@ export class IncrementalSyncService {
       return this.checkSyncNeeded(entityType, cached.lastSynced, cached.syncVersion, options);
     }
     
-    // Check database state
+    // Check database state using external_id
     try {
-      const { data } = await supabase
+      // First try using external_id
+      const { data: externalData } = await supabase
+        .from('sync_states')
+        .select('last_synced, sync_version')
+        .eq('external_id', entityId)
+        .eq('entity_type', entityType)
+        .single();
+        
+      if (externalData) {
+        const lastSynced = new Date(externalData.last_synced).getTime();
+        
+        // Cache for future checks - keep for 1 hour
+        this.cache.set(cacheKey, {
+          lastSynced,
+          syncVersion: externalData.sync_version
+        }, 60 * 60 * 1000);
+        
+        return this.checkSyncNeeded(entityType, lastSynced, externalData.sync_version, options);
+      }
+      
+      // If not found by external_id, try entity_id (for backward compatibility)
+      const { data: legacyData } = await supabase
         .from('sync_states')
         .select('last_synced, sync_version')
         .eq('entity_id', entityId)
         .eq('entity_type', entityType)
         .single();
         
-      if (!data) {
-        return {
-          needsSync: true,
-          reason: 'Never synced'
-        };
+      if (legacyData) {
+        const lastSynced = new Date(legacyData.last_synced).getTime();
+        
+        // Cache for future checks - keep for 1 hour
+        this.cache.set(cacheKey, {
+          lastSynced,
+          syncVersion: legacyData.sync_version
+        }, 60 * 60 * 1000);
+        
+        // Migrate to use external_id
+        await supabase
+          .from('sync_states')
+          .update({ external_id: entityId })
+          .eq('entity_id', entityId)
+          .eq('entity_type', entityType);
+        
+        return this.checkSyncNeeded(entityType, lastSynced, legacyData.sync_version, options);
       }
       
-      const lastSynced = new Date(data.last_synced).getTime();
-      
-      // Cache for future checks - keep for 1 hour
-      this.cache.set(cacheKey, {
-        lastSynced,
-        syncVersion: data.sync_version
-      }, 60 * 60 * 1000);
-      
-      return this.checkSyncNeeded(entityType, lastSynced, data.sync_version, options);
+      // If not found in either location
+      return {
+        needsSync: true,
+        reason: 'Never synced'
+      };
     } catch (error) {
       console.error(`Error checking sync state for ${entityType} ${entityId}:`, error);
       return {
@@ -96,6 +125,7 @@ export class IncrementalSyncService {
         .upsert({
           entity_id: entityId,
           entity_type: entityType,
+          external_id: entityId, // Store the external_id
           last_synced: new Date(now).toISOString(),
           sync_version: CURRENT_SYNC_VERSION
         }, { onConflict: ['entity_id', 'entity_type'] });
@@ -124,6 +154,7 @@ export class IncrementalSyncService {
     const updates = entities.map(entity => ({
       entity_id: entity.id,
       entity_type: entity.type,
+      external_id: entity.id, // Store the external_id
       last_synced: isoNow,
       sync_version: CURRENT_SYNC_VERSION
     }));
@@ -146,12 +177,12 @@ export class IncrementalSyncService {
     // Remove from cache
     this.cache.remove(cacheKey);
     
-    // Remove from database
+    // Remove from database - try both external_id and entity_id
     try {
       await supabase
         .from('sync_states')
         .delete()
-        .eq('entity_id', entityId)
+        .or(`external_id.eq.${entityId},entity_id.eq.${entityId}`)
         .eq('entity_type', entityType);
     } catch (error) {
       console.error(`Error clearing sync state for ${entityType} ${entityId}:`, error);

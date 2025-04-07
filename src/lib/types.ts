@@ -21,83 +21,90 @@ export type SyncStatus = {
   lastUpdated: string;
 };
 
-export type Artist = {
-  id: string;
+export interface Artist {
+  id?: string; // UUID
+  external_id?: string; // Ticketmaster/Setlist.fm ID
   name: string;
-  spotify_id?: string;
-  setlist_fm_mbid?: string;
-  image_url?: string;
-  images?: Array<{ url: string; height?: number; width?: number }>;
-  genres?: string[];
-  spotify_url?: string;
-  popularity?: number;
-  followers?: number;
-  last_updated?: string;
-};
-
-export type Venue = {
-  id: string;
-  name: string;
-  ticketmaster_id?: string;
-  city?: string;
-  state?: string;
-  country?: string;
-  address?: string;
-  postal_code?: string;
-  image_url?: string;
-  url?: string;
-  latitude?: string | number | null;
-  longitude?: string | number | null;
+  image_url?: string | null;
+  url?: string | null;
+  spotify_id?: string | null;
+  spotify_url?: string | null;
+  setlist_fm_mbid?: string | null;
+  genres?: string[] | null;
+  popularity?: number | null;
   created_at?: string;
   updated_at?: string;
-  last_updated?: string;
-};
+}
 
-export type Show = {
-  id: string;
-  name?: string;
-  date?: string;
-  image_url?: string;
-  ticket_url?: string;
-  popularity?: number;
-  artist_id?: string;
-  venue_id?: string;
-  ticketmaster_id?: string;
-  artist?: {
-    id: string;
-    name: string;
-    image_url?: string;
-    genres?: string[];
-  };
-  venue?: { // Ensure this matches the fields needed/provided by API mapping
-    id: string; // This is likely the Ticketmaster Venue ID from the API
-    ticketmaster_id?: string; // Explicitly add TM ID here too
-    name: string;
-    city?: string;
-    state?: string;
-    country?: string;
-    // Add other fields like address, postal_code if needed/available from mapping
-  };
-  last_updated?: string;
-};
+export interface Venue {
+  id?: string; // UUID
+  external_id?: string; // Ticketmaster/Setlist.fm ID
+  name: string;
+  city?: string | null;
+  state?: string | null;
+  country?: string | null;
+  address?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  url?: string | null;
+  image_url?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
 
-export type Setlist = {
-  id: string;
-  show_id: string;
-  artist_id: string;
-  created_at: string;
-  updated_at: string;
-};
+export interface Show {
+  id?: string; // UUID
+  external_id?: string; // Ticketmaster/Setlist.fm ID
+  name: string;
+  date?: string | null;
+  artist_id?: string | null;
+  artist_external_id?: string | null;
+  venue_id?: string | null;
+  venue_external_id?: string | null;
+  setlist_id?: string | null;
+  setlist_external_id?: string | null;
+  status?: string;
+  url?: string | null;
+  image_url?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
 
-export type Song = {
-  id: string;
-  title: string;
-  artist_id: string;
-  setlist_id: string;
-  vote_count: number;
-  spotify_id?: string;
-  last_updated?: string;
-};
+export interface Setlist {
+  id?: string; // UUID
+  external_id?: string; // Setlist.fm ID
+  artist_id?: string | null;
+  artist_external_id?: string | null;
+  show_id?: string | null;
+  show_external_id?: string | null;
+  songs?: any[] | null;
+  tour_name?: string | null;
+  venue_name?: string | null;
+  city?: string | null;
+  country?: string | null;
+  date?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface Song {
+  id?: string; // UUID
+  external_id?: string; // Spotify or custom ID
+  name: string;
+  artist_id?: string | null;
+  artist_external_id?: string | null;
+  spotify_id?: string | null;
+  spotify_url?: string | null;
+  preview_url?: string | null;
+  duration_ms?: number | null;
+  popularity?: number | null;
+  album_name?: string | null;
+  album_image?: string | null;
+  encore?: number | null;
+  position?: number | null;
+  created_at?: string;
+  updated_at?: string;
+}
 
 export type Vote = {
   id: string;

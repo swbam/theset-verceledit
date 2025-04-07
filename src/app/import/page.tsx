@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { VenueSyncService } from '@/lib/sync/venue-service';
+// Removed VenueSyncService import, will use fetch API
 import { Venue } from '@/lib/types';
 import { Loader2, ShieldAlert } from 'lucide-react';
 import { toast } from 'sonner';
@@ -65,12 +65,26 @@ export default function ImportPage() {
     
     setIsSearching(true);
     try {
-      const venueService = new VenueSyncService();
-      const results = await venueService.searchVenues(searchKeyword, searchCity || undefined, searchState || undefined);
-      
+      // Call the GET /api/search endpoint
+      const params = new URLSearchParams({
+        type: 'venue',
+        query: searchKeyword,
+      });
+      if (searchCity) params.set('city', searchCity);
+      if (searchState) params.set('state', searchState);
+
+      const response = await fetch(`/api/search?${params.toString()}`);
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || data.message || 'Failed to fetch search results');
+      }
+
+      // Assuming the API returns { results: Venue[] }
+      const results: Venue[] = data.results || [];
       setVenues(results);
       if (results.length === 0) {
-        toast.info('No venues found. Try different search terms.');
+        toast.info('No venues found matching your criteria.');
       }
     } catch (error) {
       console.error('Error searching venues:', error);

@@ -1,0 +1,210 @@
+/// <reference types="https://esm.sh/@supabase/functions-js/src/edge-runtime.d.ts" />
+
+import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { corsHeaders } from '../_shared/cors.ts'
+
+// Define expected request body structure
+interface SyncShowPayload {
+  showId: string;
+  // Add other options if needed, e.g., force sync
+  // force?: boolean;
+}
+
+// Define the structure of your Show data (align with DB schema and types)
+// Might need adjustment based on your actual 'shows' table schema
+interface Show {
+  id: string;
+  name: string;
+  date?: string | null;
+  artist_id?: string | null;
+  venue_id?: string | null;
+  setlist_id?: string | null; // Keep for potential future use
+  status?: string | null;
+  url?: string | null;
+  image_url?: string | null;
+  created_at?: string;
+  updated_at?: string;
+  // Add any other relevant fields from your 'shows' table
+}
+
+// Helper to get the best image (copied from artist-service / sync-artist)
+function getBestImage(images?: Array<{url: string, width: number, height: number}>): string | null {
+  if (!images || images.length === 0) return null;
+  const sorted = [...images].sort((a, b) => (b.width || 0) - (a.width || 0));
+  return sorted[0].url;
+}
+
+/**
+ * Fetch show data primarily from Ticketmaster
+ */
+async function fetchAndTransformShowData(supabaseAdmin: any, showId: string): Promise<Show | null> {
+  console.log(`Fetching data for show ${showId}`);
+  let show: Show | null = null;
+
+  // --- Get Existing Show Data (Optional but good for preserving fields) ---
+  try {
+    const { data: existingShow, error: existingError } = await supabaseAdmin
+      .from('shows')
+      .select('*') // Select all fields to preserve them
+      .eq('id', showId)
+      .maybeSingle();
+
+    if (existingError) {
+      console.warn(`Error fetching existing show ${showId}:`, existingError.message);
+    }
+    if (existingShow) {
+      console.log(`Found existing data for show ${showId}`);
+      show = existingShow as Show;
+    }
+  } catch (e) {
+     const errorMsg = e instanceof Error ? e.message : String(e);
+     console.warn(`Exception fetching existing show ${showId}:`, errorMsg);
+  }
+
+  // --- Ticketmaster API ---
+  const tmApiKey = Deno.env.get('TICKETMASTER_API_KEY');
+  if (!tmApiKey) {
+    console.error('TICKETMASTER_API_KEY not set in environment variables.');
+    // If we couldn't fetch existing, and can't fetch new, return null
+    if (!show) return null;
+  } else {
+    try {
+      // Fetch event details including venues and attractions (artists)
+      const tmUrl = `https://app.ticketmaster.com/discovery/v2/events/${showId}.json?apikey=${tmApiKey}`;
+      console.log(`Fetching from Ticketmaster: ${tmUrl}`);
+      const tmResponse = await fetch(tmUrl);
+
+      if (!tmResponse.ok) {
+        console.warn(`Ticketmaster API error for show ${showId}: ${tmResponse.status} ${await tmResponse.text()}`);
+        // If fetch fails and we have no existing data, return null
+        if (!show) return null;
+      } else {
+        const tmData = await tmResponse.json();
+        console.log(`Received Ticketmaster data for show ${showId}`);
+
+        // Extract relevant IDs
+        const artistId = tmData._embedded?.attractions?.[0]?.id;
+        const venueId = tmData._embedded?.venues?.[0]?.id;
+
+        // Merge with existing or create new show object
+        if (show) {
+          // Update existing show
+          show.name = tmData.name;
+          show.date = tmData.dates?.start?.dateTime || show.date || null;
+          show.artist_id = artistId || show.artist_id || null; // Prioritize new ID
+          show.venue_id = venueId || show.venue_id || null;   // Prioritize new ID
+          show.status = tmData.dates?.status?.code || show.status || 'active';
+          show.url = tmData.url || show.url || null;
+          show.image_url = getBestImage(tmData.images) || show.image_url || null;
+          show.updated_at = new Date().toISOString();
+        } else {
+          // Create new show structure from TM data
+          show = {
+            id: showId,
+            name: tmData.name,
+            date: tmData.dates?.start?.dateTime || null,
+            artist_id: artistId || null,
+            venue_id: venueId || null,
+            status: tmData.dates?.status?.code || 'active',
+            url: tmData.url || null,
+            image_url: getBestImage(tmData.images) || null,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            // Initialize other fields from your Show interface/DB schema as null/default
+            setlist_id: null,
+          };
+        }
+      }
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      console.error(`Error fetching or processing Ticketmaster data for show ${showId}:`, errorMsg);
+      // If fetch fails and we have no existing data, return null
+      if (!show) return null;
+    }
+  }
+
+  // --- Deferred: Setlist.fm Logic ---
+  // This logic is more complex and depends on having artist/venue data.
+  // Consider triggering setlist sync separately after show/artist/venue are synced.
+  // console.log(`Skipping Setlist.fm check for show ${showId} in this function.`);
+
+  if (!show?.name) {
+     console.error(`Failed to resolve show name for ID ${showId} from any source.`);
+     return null; // Cannot proceed without a name
+  }
+
+  return show;
+}
+
+
+serve(async (req: Request) => {
+  // Handle CORS preflight request
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders })
+  }
+
+  try {
+    const payload: SyncShowPayload = await req.json();
+    const { showId } = payload;
+
+    if (!showId) {
+      return new Response(JSON.stringify({ error: 'Missing showId in request body' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 400,
+      })
+    }
+
+    console.log(`Sync request received for show: ${showId}`);
+
+    // Initialize Supabase client with SERVICE_ROLE key
+    const supabaseAdmin = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    );
+
+    // Fetch and transform data
+    const showData = await fetchAndTransformShowData(supabaseAdmin, showId);
+
+    if (!showData) {
+      console.error(`Failed to fetch or transform data for show ${showId}`);
+      return new Response(JSON.stringify({ error: 'Failed to fetch show data from external APIs' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 500,
+      })
+    }
+
+    // Upsert data into Supabase
+    console.log(`Upserting show ${showId} into database...`);
+    const { data: upsertedData, error: upsertError } = await supabaseAdmin
+      .from('shows') // Ensure 'shows' is your table name
+      .upsert(showData, { onConflict: 'id' })
+      .select()
+      .single();
+
+    if (upsertError) {
+      console.error('Supabase upsert error:', upsertError);
+      return new Response(JSON.stringify({ error: 'Database error during upsert', details: upsertError.message }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 500,
+      })
+    }
+
+    console.log(`Successfully synced show ${showId}`);
+    // TODO: Optionally trigger sync for related artist/venue if IDs were found/updated?
+    // if (showData.artist_id) { /* invoke sync-artist? */ }
+    // if (showData.venue_id) { /* invoke sync-venue? */ }
+
+    return new Response(JSON.stringify({ success: true, data: upsertedData }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      status: 200,
+    })
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+    console.error('Unhandled error:', errorMessage, error);
+    return new Response(JSON.stringify({ error: errorMessage }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      status: 500,
+    })
+  }
+})

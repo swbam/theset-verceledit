@@ -217,47 +217,47 @@ const AdminArtistImport = () => {
 
     console.log(`[Admin Import] Triggering import for artist: ${artist.name} (ID: ${artistId})`);
     setImporting(prev => ({ ...prev, [artistId]: true }));
-    setImportStatus(prev => ({ ...prev, [artistId]: { type: 'artist', message: 'Initiating import...' } }));
+    setImportStatus(prev => ({ ...prev, [artistId]: { type: 'sync', message: 'Initiating sync...' } }));
 
-    // Prepare payload (map from ArtistSearchResult/ArtistWithEvents to BaseArtist)
-    const artistPayload: Partial<BaseArtist> = {
-      id: artist.id,
-      name: artist.name,
-      image_url: artist.image,
-      genres: artist.genres,
-      // Add other fields if available on ArtistSearchResult and part of BaseArtist
-    };
-    // Remove undefined keys
-    Object.keys(artistPayload).forEach(keyStr => {
-      const key = keyStr as keyof typeof artistPayload;
-      if (artistPayload[key] === undefined) {
-        delete artistPayload[key];
-      }
-    });
+    // No need to prepare a complex payload, sync-artist only needs the ID
+    // const artistPayload: Partial<BaseArtist> = { ... };
 
     try {
-      // Invoke the Edge Function
-      const { data, error } = await supabase.functions.invoke('import-artist', {
-        body: artistPayload,
+      // Invoke the NEW sync-artist Edge Function
+      console.log(`Invoking sync-artist for ID: ${artistId}`);
+      const { data, error } = await supabase.functions.invoke('sync-artist', {
+        // Send only the artistId
+        body: { artistId: artistId },
       });
 
+      // Handle errors from invoking the function
       if (error) {
-        console.error(`[Admin Import] Error invoking import-artist function for ${artist.name}:`, error);
-        throw new Error(error.message || 'Function invocation failed');
+        console.error(`[Admin Sync] Error invoking sync-artist function for ${artist.name} (ID: ${artistId}):`, error);
+        // Try to parse Supabase function error details if available
+        let detailedError = error.message || 'Function invocation failed';
+        if (error.context && typeof error.context === 'object' && 'message' in error.context) {
+            detailedError = String(error.context.message);
+        } else if (typeof error.details === 'string') {
+            detailedError = error.details;
+        }
+        throw new Error(detailedError);
       }
 
-      // Process the response from the Edge Function
-      console.log(`[Admin Import] Import function response for ${artist.name}:`, data);
+      // Process the response from the sync-artist Edge Function
+      console.log(`[Admin Sync] Sync function response for ${artist.name} (ID: ${artistId}):`, data);
+      // sync-artist returns { success: true, data: upsertedData } or { error: ... }
       if (data?.success) {
-         setImportStatus(prev => ({ ...prev, [artistId]: { type: 'sync', message: data.message || 'Import successful.', success: true } }));
+         // You could potentially use data.data (the upserted artist) here if needed
+         setImportStatus(prev => ({ ...prev, [artistId]: { type: 'sync', message: 'Sync successful.', success: true } }));
       } else {
-         throw new Error(data?.error || data?.message || 'Import function returned failure.');
+         // Error came from within the function execution (e.g., API fetch failed, DB error)
+         throw new Error(data?.error || data?.details || 'Sync function returned failure.');
       }
 
     } catch (error: unknown) {
-      console.error(`[Admin Import] Error during import process for ${artist.name}:`, error);
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error during import';
-      setImportStatus(prev => ({ ...prev, [artistId]: { type: 'artist', message: `Import failed: ${errorMessage}`, success: false } }));
+      console.error(`[Admin Sync] Error during sync process for ${artist.name} (ID: ${artistId}):`, error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error during sync';
+      setImportStatus(prev => ({ ...prev, [artistId]: { type: 'sync', message: `Sync failed: ${errorMessage}`, success: false } }));
     } finally {
       setImporting(prev => ({ ...prev, [artistId]: false }));
     }

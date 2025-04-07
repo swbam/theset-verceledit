@@ -26,12 +26,21 @@ export class VenueSyncService {
       
       if (!syncStatus.needsSync) {
         // Get existing venue data
-        const { data: venue } = await supabase
+        const { data: venue, error: fetchError } = await supabase
           .from('venues')
           .select('*')
-          .eq('id', venueId)
+          .eq('external_id', venueId)
           .single();
           
+        if (fetchError || !venue) {
+          console.error(`Error fetching existing venue ${venueId}:`, fetchError);
+          return {
+            success: false,
+            updated: false,
+            error: fetchError?.message || 'Venue not found'
+          };
+        }
+        
         return {
           success: true,
           updated: false,
@@ -50,10 +59,17 @@ export class VenueSyncService {
         };
       }
       
+      // Ensure we have an external_id for tracking purposes
+      venue.external_id = venueId;
+      
       // Update in database
+      console.log(`Upserting venue data for ID ${venueId}:`, venue);
       const { error } = await supabase
         .from('venues')
-        .upsert(venue, { onConflict: 'id' });
+        .upsert(venue, { 
+          onConflict: 'external_id',
+          ignoreDuplicates: false
+        });
         
       if (error) {
         console.error(`Error upserting venue ${venueId}:`, error);
@@ -90,7 +106,7 @@ export class VenueSyncService {
     const { data: existingVenue } = await supabase
       .from('venues')
       .select('*')
-      .eq('id', venueId)
+      .eq('external_id', venueId)
       .single();
       
     let venue = existingVenue as Venue | null;
@@ -110,7 +126,8 @@ export class VenueSyncService {
         ].filter(Boolean).join(', ');
         
         venue = {
-          id: venueId,
+          id: venue?.id || undefined, // Keep UUID if it exists
+          external_id: venueId, // Store Ticketmaster ID as external_id
           name: tmData.name,
           city: tmData.city?.name || (venue?.city || null),
           state: tmData.state?.stateCode || (venue?.state || null),
@@ -154,14 +171,14 @@ export class VenueSyncService {
   async getVenueUpcomingShows(venueId: string): Promise<Show[]> {
     try {
       // First get the venue to ensure it exists
-      const { data: venue } = await supabase
+      const { data: venue, error } = await supabase
         .from('venues')
-        .select('name')
-        .eq('id', venueId)
+        .select('name, id')
+        .or(`id.eq.${venueId},external_id.eq.${venueId}`)
         .single();
         
-      if (!venue) {
-        console.error(`Venue ${venueId} not found for upcoming shows`);
+      if (!venue || error) {
+        console.error(`Venue ${venueId} not found for upcoming shows:`, error);
         return [];
       }
       
@@ -170,7 +187,7 @@ export class VenueSyncService {
         'ticketmaster',
         'events',
         {
-          venueId: venueId,
+          venueId: venueId, // Use the external ID for API call
           sort: 'date,asc',
           size: 50
         }
@@ -189,11 +206,12 @@ export class VenueSyncService {
         const artistId = event._embedded?.attractions?.[0]?.id;
         
         const show: Show = {
-          id: event.id,
+          external_id: event.id, // Store external ID
           name: event.name,
           date: event.dates?.start?.dateTime,
-          artist_id: artistId || null,
-          venue_id: venueId,
+          artist_external_id: artistId || null, // Store as external ID
+          venue_id: venue.id, // Use UUID of venue
+          venue_external_id: venueId, // Store external ID
           status: event.dates?.status?.code || 'active',
           url: event.url,
           image_url: this.getBestImage(event.images),
@@ -204,12 +222,23 @@ export class VenueSyncService {
         shows.push(show);
         
         // Store each show as we find it
-        await supabase
+        const { error: upsertError } = await supabase
           .from('shows')
-          .upsert(show, { onConflict: 'id' });
+          .upsert({
+            ...show,
+            // Only include artist_id if we have already created the artist
+            artist_id: undefined // Will be filled in by artist service
+          }, { 
+            onConflict: 'external_id',
+            ignoreDuplicates: false
+          });
           
-        // Mark as synced
-        await this.syncService.markSynced(event.id, 'show');
+        if (upsertError) {
+          console.error(`Error upserting show ${event.id}:`, upsertError);
+        } else {
+          // Mark as synced
+          await this.syncService.markSynced(event.id, 'show');
+        }
       }
       
       return shows;
@@ -255,13 +284,13 @@ export class VenueSyncService {
         ].filter(Boolean).join(', ');
         
         const venue: Venue = {
-          id: tmVenue.id,
+          external_id: tmVenue.id, // Store external ID
           name: tmVenue.name,
           city: tmVenue.city?.name || null,
           state: tmVenue.state?.stateCode || null,
           country: tmVenue.country?.countryCode || null,
           address: address || null,
-          latitude: tmVenue.location?.latitude || null, 
+          latitude: tmVenue.location?.latitude || null,
           longitude: tmVenue.location?.longitude || null,
           url: tmVenue.url || null,
           image_url: this.getBestImage(tmVenue.images),
@@ -272,12 +301,19 @@ export class VenueSyncService {
         results.push(venue);
         
         // Store each venue as we find them
-        await supabase
+        const { error } = await supabase
           .from('venues')
-          .upsert(venue, { onConflict: 'id' });
+          .upsert(venue, { 
+            onConflict: 'external_id',
+            ignoreDuplicates: false
+          });
           
-        // Mark as synced
-        await this.syncService.markSynced(tmVenue.id, 'venue');
+        if (error) {
+          console.error(`Error upserting venue ${tmVenue.id}:`, error);
+        } else {
+          // Mark as synced
+          await this.syncService.markSynced(tmVenue.id, 'venue');
+        }
       }
       
       return results;

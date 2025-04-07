@@ -2,7 +2,7 @@
 // @ts-ignore: Cannot find module 'next/server' type declarations
 import { NextResponse } from 'next/server';
 import { supabase } from '../../../../lib/db';
-import { syncTrendingShows } from '../../../../lib/api/shows';
+// Removed non-existent import: import { syncTrendingShows } from '../../../../lib/api/shows';
 
 /**
  * GET /api/shows/trending
@@ -16,16 +16,17 @@ export async function GET(request: Request) {
     const sync = url.searchParams.get('sync') === 'true';
     
     // If sync is requested, update trending shows in the background
-    if (sync) {
-      // Don't await this to avoid blocking the response
-      syncTrendingShows().catch(err => {
-        console.error('Background trending shows sync error:', err);
-      });
-    }
+    // Removed call to non-existent syncTrendingShows
+    // if (sync) {
+    //   syncTrendingShows().catch(err => {
+    //     console.error('Background trending shows sync error:', err);
+    //   });
+    // }
     
     // Fetch trending shows from the database
     const { data: shows, error } = await supabase
       .from('shows')
+      // Corrected select statement for related data
       .select(`
         id,
         name,
@@ -36,13 +37,13 @@ export async function GET(request: Request) {
         artist_id,
         venue_id,
         updated_at,
-        artist:artist_id (
+        artists (
           id,
           name,
           image_url,
           genres
         ),
-        venue:venue_id (
+        venues (
           id,
           name,
           city,
@@ -65,33 +66,25 @@ export async function GET(request: Request) {
     }
     
     // If no shows found, try to sync and fetch again
+    // Removed logic attempting to sync after empty result
     if (!shows || shows.length === 0) {
-      if (!sync) {
-        // Try to sync and fetch again
-        try {
-          console.log('[API /trending] Attempting sync after empty DB result...');
-
-          const syncedShows = await syncTrendingShows();
-          
-          if (syncedShows && syncedShows.length > 0) {
-            console.log('[API /trending] Synced shows result:', syncedShows);
-
-            return NextResponse.json(syncedShows.slice(0, limit));
-          }
-        } catch (syncError) {
-          console.error('Error syncing trending shows:', syncError);
-          console.error('[API /trending] Sync error after empty DB result:', syncError);
-
-        }
-      }
-      
-      return NextResponse.json([]);
       console.log('[API /trending] No shows found, returning empty array.');
-
+      return NextResponse.json([]);
     }
+
+    // Rename related data for clarity before returning
+    // Moved this block after the check for empty shows
+    const formattedShows = shows.map(show => ({
+      ...show,
+      artist: show.artists, // Rename 'artists' to 'artist'
+      venue: show.venues,   // Rename 'venues' to 'venue'
+      artists: undefined, // Remove original 'artists'
+      venues: undefined   // Remove original 'venues'
+    }));
+    console.log(`[API /trending] Returning ${formattedShows.length} shows from DB.`);
     
-    return NextResponse.json(shows);
-    console.log(`[API /trending] Returning ${shows?.length || 0} shows from DB.`);
+    return NextResponse.json(formattedShows);
+    // Removed duplicate formattedShows block
 
   } catch (err: unknown) {
     let errorMessage = "Unknown error";
