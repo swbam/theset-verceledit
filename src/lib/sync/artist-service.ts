@@ -2,7 +2,72 @@ import { supabase } from '@/integrations/supabase/client';
 import { APIClientManager } from './api-client';
 import { IncrementalSyncService } from './incremental';
 import { SyncOptions, SyncResult } from './types';
-import { Artist, Show } from '@/lib/types';
+import { Artist, Show } from '@/lib/types'; // Assuming Show type is defined correctly here or needs update
+
+// --- Interfaces for API Responses ---
+// Simplified - add more detail as needed
+interface TmImage {
+  url: string;
+  width: number;
+  height: number;
+}
+
+interface TmAttraction {
+  id: string;
+  name: string;
+  url?: string;
+  images?: TmImage[];
+  type?: string; // Add type property
+}
+
+interface TmVenue {
+  id: string;
+}
+
+interface TmEventDateInfo {
+  start?: { dateTime?: string };
+  status?: { code?: string };
+}
+
+interface TmEvent {
+  id: string;
+  name: string;
+  url?: string;
+  images?: TmImage[];
+  dates?: TmEventDateInfo;
+  _embedded?: {
+    venues?: TmVenue[];
+    attractions?: TmAttraction[]; // Added for consistency, though not directly used in show loop
+  };
+}
+
+interface TmAttractionResponse {
+  _embedded?: {
+    attractions?: TmAttraction[];
+  };
+}
+
+interface TmEventResponse {
+  _embedded?: {
+    events?: TmEvent[];
+  };
+}
+
+interface SpotifyArtist {
+  id: string;
+  name: string; // For debugging/logging
+  external_urls?: { spotify?: string };
+  genres?: string[];
+  popularity?: number;
+  images?: TmImage[];
+}
+
+interface SpotifySearchResponse {
+  artists?: {
+    items?: SpotifyArtist[];
+  };
+}
+// --- End Interfaces ---
 
 /**
  * Service for syncing artist data from external APIs
@@ -118,7 +183,7 @@ export class ArtistSyncService {
         'ticketmaster',
         `attractions/${artistId}`,
         { }
-      );
+      ) as TmAttraction | null; // Assert type
       
       if (tmData) {
         artist = {
@@ -154,15 +219,16 @@ export class ArtistSyncService {
         const spotifyData = await this.apiClient.callAPI(
           'spotify',
           'search',
-          { 
+          {
             q: artist.name,
             type: 'artist',
             limit: 1
           }
-        );
+        ) as SpotifySearchResponse | null; // Assert type
         
-        if (spotifyData && spotifyData.artists && spotifyData.artists.items.length > 0) {
-          const spotifyArtist = spotifyData.artists.items[0];
+        // Refined check for Spotify data
+        if (spotifyData?.artists?.items && spotifyData.artists.items.length > 0) {
+          const spotifyArtist = spotifyData.artists.items[0]; // Now safe to access
           
           // Update with Spotify data
           artist.spotify_id = spotifyArtist.id;
@@ -220,7 +286,7 @@ export class ArtistSyncService {
           sort: 'date,asc',
           size: 50
         }
-      );
+      ) as TmEventResponse | null; // Assert type
       
       if (!response?._embedded?.events) {
         return [];
@@ -234,17 +300,18 @@ export class ArtistSyncService {
         
         const venueId = event._embedded?.venues?.[0]?.id;
         
-        const show: Show = {
-          external_id: event.id, // Store Ticketmaster ID as external_id
-          name: event.name,
-          date: event.dates?.start?.dateTime,
-          artist_id: artist.id, // Use UUID of artist
-          venue_external_id: venueId || null, // Store as external ID
-          status: event.dates?.status?.code || 'active',
-          url: event.url,
-          image_url: this.getBestImage(event.images),
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
+        // Construct show object matching the 'shows' table schema
+        const show = { // Don't explicitly type as Show if Show type definition is outdated
+          external_id: event.id, // Correct: Use TM event ID
+          name: event.name,      // Correct
+          date: event.dates?.start?.dateTime || null, // Correct
+          artist_id: artist.id, // Correct: Use internal artist UUID
+          // venue_id: null, // Set explicitly to null if venue not synced yet (handled in upsert below)
+          ticket_url: event.url || null, // Correct: Use ticket_url column name
+          image_url: this.getBestImage(event.images), // Correct
+          popularity: 0, // Default popularity, adjust if needed
+          // created_at and updated_at are handled by DB defaults/triggers usually
+          // Remove fields not in 'shows' table: venue_external_id, status
         };
         
         shows.push(show);
@@ -254,9 +321,10 @@ export class ArtistSyncService {
           .from('shows')
           .upsert({
             ...show,
-            // Only include venue_id if we have already created the venue
-            venue_id: undefined // Will be filled in by venue service
-          }, { 
+            // Explicitly set venue_id to null if not yet known/synced.
+            // The venue sync process should update this later.
+            venue_id: null
+          }, {
             onConflict: 'external_id',
             ignoreDuplicates: false
           });
@@ -290,7 +358,7 @@ export class ArtistSyncService {
           classificationName: 'music', // Ensures we only get music artists
           size: 10
         }
-      );
+      ) as TmAttractionResponse | null; // Assert type
       
       if (!response?._embedded?.attractions) {
         return [];

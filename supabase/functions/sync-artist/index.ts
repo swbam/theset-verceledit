@@ -26,6 +26,7 @@ interface Artist {
   popularity?: number | null;
   created_at?: string;
   updated_at?: string;
+  setlist_fm_mbid?: string | null; // Add Setlist.fm MBID field
   // Add any other relevant fields
 }
 
@@ -56,6 +57,59 @@ async function getSpotifyToken(): Promise<string | null> {
   const data = await response.json();
   return data.access_token;
 }
+
+
+// --- Setlist.fm API Helper ---
+// Define expected response structure (simplified)
+interface SetlistFmArtist {
+  mbid: string;
+  name: string;
+  // other fields...
+}
+interface SetlistFmSearchResponse {
+  artist?: SetlistFmArtist[];
+  // other fields...
+}
+
+async function searchSetlistFmArtist(artistName: string): Promise<string | null> {
+  const apiKey = Deno.env.get('SETLIST_FM_API_KEY');
+  if (!apiKey) {
+    console.warn('SETLIST_FM_API_KEY not set, skipping Setlist.fm search.');
+    return null;
+  }
+
+  try {
+    const searchUrl = `https://api.setlist.fm/rest/1.0/search/artists?artistName=${encodeURIComponent(artistName)}&p=1&sort=relevance`;
+    console.log(`Fetching from Setlist.fm: ${searchUrl}`);
+    const response = await fetch(searchUrl, {
+      headers: {
+        'Accept': 'application/json',
+        'x-api-key': apiKey,
+      },
+    });
+
+    if (!response.ok) {
+      console.warn(`Setlist.fm API error for ${artistName}: ${response.status} ${await response.text()}`);
+      return null;
+    }
+
+    const data: SetlistFmSearchResponse = await response.json();
+    // Find the best match (often the first result if sorted by relevance)
+    if (data.artist && data.artist.length > 0) {
+      const mbid = data.artist[0].mbid;
+      console.log(`Found Setlist.fm MBID for ${artistName}: ${mbid}`);
+      return mbid;
+    } else {
+      console.log(`No Setlist.fm artist found for query: ${artistName}`);
+      return null;
+    }
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    console.error(`Error fetching or processing Setlist.fm data for artist ${artistName}:`, errorMsg);
+    return null;
+  }
+}
+// --- End Setlist.fm Helper ---
 
 
 /**
@@ -180,6 +234,16 @@ async function fetchAndTransformArtistData(supabaseAdmin: any, artistId: string)
       console.warn(`Skipping Spotify enrichment because no base artist data could be fetched for ID ${artistId}.`);
   } else if (!artist.name) {
       console.warn(`Skipping Spotify enrichment for artist ID ${artistId} because artist name is missing.`);
+  }
+  // --- Setlist.fm API ---
+  if (artist?.name) {
+      const mbid = await searchSetlistFmArtist(artist.name);
+      if (mbid) {
+          artist.setlist_fm_mbid = mbid;
+          artist.updated_at = new Date().toISOString(); // Update timestamp
+      }
+  } else {
+      console.warn(`Skipping Setlist.fm search because artist name is missing for ID ${artistId}.`);
   }
 
 
