@@ -203,6 +203,7 @@ function getBestImage(images?: Array<{url: string, width: number, height: number
 // --- End Helper ---
 
 serve(async (req: Request) => { // Add type Request for req parameter
+  console.log('--- sync-artist function handler started ---'); // Add log right at the beginning
   // Handle CORS preflight request
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
