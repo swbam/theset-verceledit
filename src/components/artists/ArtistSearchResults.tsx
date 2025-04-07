@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils';
 import { useQuery } from '@tanstack/react-query';
 import { searchArtistsWithEvents } from '@/lib/api/artist';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client'; // Import supabase client
 
 interface Artist {
   id: string;
@@ -70,30 +71,25 @@ const ArtistSearchResults = ({
     // Save this artist to the database via the API
     console.log(`Artist selected: ${artist.name} (ID: ${artist.id})`);
     
-    // Call our new save-artist API
-    fetch('/api/save-artist', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        id: artist.id,
-        name: artist.name,
-        image_url: artist.image
-      }),
-    })
-    .then(response => response.json())
-    .then(data => {
-      if (data.success) {
-        console.log(`Saved artist ${artist.name} to database (ID: ${data.artistId})`);
-        // Show toast confirmation if we have toast
-        toast.success(`Added ${artist.name} to the database!`);
+    // Invoke the sync-artist Edge Function
+    console.log(`[ArtistSearchResults] Invoking sync-artist for ${artist.name} (ID: ${artist.id})`);
+    supabase.functions.invoke('sync-artist', {
+      body: { artistId: artist.id } // Pass only the ID
+    }).then(({ data, error }) => {
+      if (error) {
+        console.error(`[ArtistSearchResults] Error invoking sync-artist for ${artist.name}:`, error);
+        toast.error(`Failed to sync artist ${artist.name}: ${error.message}`);
+      } else if (!data?.success) {
+        console.warn(`[ArtistSearchResults] sync-artist function failed for ${artist.name}:`, data?.error || data?.message);
+        toast.warning(`Sync issue for artist ${artist.name}: ${data?.error || data?.message}`);
       } else {
-        console.error(`Failed to save artist ${artist.name}:`, data.error);
+        console.log(`[ArtistSearchResults] Successfully invoked sync-artist for ${artist.name}.`);
+        // Optionally show success, but maybe redundant if user is navigating away
+        // toast.success(`Synced ${artist.name}!`);
       }
-    })
-    .catch(error => {
-      console.error(`Error saving artist ${artist.name}:`, error);
+    }).catch(invokeError => {
+      console.error(`[ArtistSearchResults] Network exception invoking sync-artist for ${artist.name}:`, invokeError);
+      toast.error(`Network error syncing artist ${artist.name}`);
     });
     
     // Call the original onSelect handler
