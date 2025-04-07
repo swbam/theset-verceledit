@@ -2,10 +2,11 @@ import { useQuery } from '@tanstack/react-query';
 import { useDocumentTitle } from '@/hooks/use-document-title';
 import { ArtistWithEvents } from '@/lib/api/artist';
 import { fetchArtistById } from '@/lib/api/artist';
-import { Show } from '@/lib/api/shows';
+import { Show } from '@/lib/types'; // Import Show type from central types file
 import { fetchArtistEvents } from '@/lib/ticketmaster';
 import { useEffect } from 'react';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client'; // Import supabase client
 
 // Define the return type for the hook
 interface UseArtistDetailReturn {
@@ -80,30 +81,26 @@ export function useArtistDetail(id: string | undefined): UseArtistDetailReturn {
     if (artist && artist.id) {
       console.log(`[useArtistDetail] Artist loaded, saving to database: ${artist.name} (${artist.id})`);
       
-      // Call save-artist API to properly save the artist
-      fetch('/api/save-artist', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          id: artist.id,
-          name: artist.name,
-          image_url: artist.image,
-          popularity: artist.popularity,
-          genres: artist.genres
-        }),
-      })
-      .then(response => response.json())
-      .then(data => {
-        if (data.success) {
-          console.log(`[useArtistDetail] Saved artist ${artist.name} to database (ID: ${data.artistId})`);
+      // Invoke the sync-artist Edge Function
+      console.log(`[useArtistDetail] Invoking sync-artist for ${artist.name} (ID: ${artist.id})`);
+      supabase.functions.invoke('sync-artist', {
+        body: { artistId: artist.id } // Pass only the ID
+      }).then(({ data, error }) => {
+        if (error) {
+          console.error(`[useArtistDetail] Error invoking sync-artist for ${artist.name}:`, error);
+          // Optionally show a toast error, but avoid blocking UI
+          // toast.error(`Failed to sync artist ${artist.name}: ${error.message}`);
+        } else if (!data?.success) {
+          console.warn(`[useArtistDetail] sync-artist function failed for ${artist.name}:`, data?.error || data?.message);
+          // Optionally show a toast warning
+          // toast.warning(`Sync issue for artist ${artist.name}: ${data?.error || data?.message}`);
         } else {
-          console.error(`[useArtistDetail] Error saving artist ${artist.name}:`, data.error);
+          console.log(`[useArtistDetail] Successfully invoked sync-artist for ${artist.name}.`);
         }
-      })
-      .catch(error => {
-        console.error(`[useArtistDetail] Network error saving artist ${artist.name}:`, error);
+      }).catch(invokeError => {
+        console.error(`[useArtistDetail] Network exception invoking sync-artist for ${artist.name}:`, invokeError);
+        // Optionally show a toast error
+        // toast.error(`Network error syncing artist ${artist.name}`);
       });
     }
   }, [artist]);
@@ -113,24 +110,30 @@ export function useArtistDetail(id: string | undefined): UseArtistDetailReturn {
     if (shows && shows.length > 0) {
       console.log(`[useArtistDetail] Triggering API save for ${shows.length} shows for artist ${artist?.name}`);
       shows.forEach(show => {
-        // Call the API route to handle saving with admin privileges
-        fetch('/api/save-show', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(show),
-        })
-        .then(response => response.json())
-        .then(data => {
-          if (data.success) {
-            // console.log(`[useArtistDetail] API save successful for show: ${show.name} (ID: ${data.showId})`);
+        // Invoke the sync-show Edge Function for each show
+        // Ensure the show object has the correct ID expected by the function (likely Ticketmaster ID)
+        const showId = show.ticketmaster_id || show.id; // Adjust based on your Show type and function expectation
+        if (!showId) {
+           console.warn(`[useArtistDetail] Skipping sync for show without ID: ${show.name}`);
+           return;
+        }
+
+        console.log(`[useArtistDetail] Invoking sync-show for ${show.name} (ID: ${showId})`);
+        supabase.functions.invoke('sync-show', {
+          body: { showId: showId }
+        }).then(({ data, error }) => {
+          if (error) {
+            console.error(`[useArtistDetail] Error invoking sync-show for ${show.name} (ID: ${showId}):`, error);
+          } else if (!data?.success) {
+            console.warn(`[useArtistDetail] sync-show function failed for ${show.name} (ID: ${showId}):`, data?.error || data?.message);
           } else {
-            console.error(`[useArtistDetail] API save failed for show ${show.id}:`, data.error);
+            // console.log(`[useArtistDetail] Successfully invoked sync-show for ${show.name}.`);
+            // Optionally trigger venue/setlist sync here if needed based on show data
+            // if (data.data?.venue_id) { /* invoke sync-venue */ }
+            // if (data.data?.setlist_id) { /* invoke sync-setlist */ }
           }
-        })
-        .catch(error => {
-          console.error(`[useArtistDetail] API call failed for show ${show.id}:`, error);
+        }).catch(invokeError => {
+          console.error(`[useArtistDetail] Network exception invoking sync-show for ${show.name} (ID: ${showId}):`, invokeError);
         });
       });
     }

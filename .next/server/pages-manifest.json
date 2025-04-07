@@ -11,15 +11,15 @@
   "/Import": "pages/Import.js",
   "/Index": "pages/Index.js",
   "/Login": "pages/Login.js",
-  "/_error": "pages/_error.js",
   "/MyArtists": "pages/MyArtists.js",
   "/NotFound": "pages/NotFound.js",
   "/Profile": "pages/Profile.js",
   "/Search": "pages/Search.js",
   "/ShowDetail": "pages/ShowDetail.js",
-  "/Shows": "pages/Shows.js",
   "/TestJourney": "pages/TestJourney.js",
   "/api/admin/set-admin": "pages/api/admin/set-admin.js",
+  "/Shows": "pages/Shows.js",
+  "/_error": "pages/_error.js",
   "/_app": "pages/_app.js",
   "/_document": "pages/_document.js"
 }
