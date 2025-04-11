@@ -29,20 +29,27 @@ export type Artist = {
   name: string;
   spotify_id?: string;
   setlist_fm_mbid?: string;
+  setlist_fm_id?: string;
   image_url?: string;
   images?: Array<{ url: string; height?: number; width?: number }>;
   genres?: string[];
   spotify_url?: string;
+  url?: string;
   popularity?: number;
   followers?: number;
   last_updated?: string; // From DB
   updated_at?: string; // From DB
+  created_at?: string; // From DB
+  ticketmaster_id?: string; // Explicit TM ID 
+  external_id?: string; // Legacy ID field
+  tm_id?: string; // Old naming convention, possibly used
 };
 
 export type Venue = {
   id: string; // Usually Ticketmaster ID initially
   name: string;
   ticketmaster_id?: string; // Explicit TM ID
+  external_id?: string; // Legacy ID field
   city?: string;
   state?: string;
   country?: string;
@@ -50,6 +57,7 @@ export type Venue = {
   postal_code?: string;
   image_url?: string;
   updated_at?: string; // From DB
+  created_at?: string; // From DB
   last_updated?: string; // From DB
 };
 
@@ -63,10 +71,12 @@ export type Show = {
   artist_id?: string; // Usually Ticketmaster Artist ID initially
   venue_id?: string; // Usually Ticketmaster Venue ID initially
   ticketmaster_id?: string; // Explicit TM ID
+  external_id?: string; // Legacy ID field
   artist?: Artist; // Nested artist data from API
   venue?: Venue; // Nested venue data from API
   last_updated?: string; // From DB
   updated_at?: string; // From DB
+  created_at?: string; // From DB
   setlist_id?: string; // Added by DB utils after setlist creation
 };
 

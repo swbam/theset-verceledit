@@ -1,6 +1,6 @@
 {
-  "/Admin": "pages/Admin.js",
   "/AdminSetup": "pages/AdminSetup.js",
+  "/Admin": "pages/Admin.js",
   "/ArtistDetail": "pages/ArtistDetail.js",
   "/Artists": "pages/Artists.js",
   "/Auth": "pages/Auth.js",
@@ -15,11 +15,11 @@
   "/NotFound": "pages/NotFound.js",
   "/Profile": "pages/Profile.js",
   "/Search": "pages/Search.js",
-  "/_error": "pages/_error.js",
   "/ShowDetail": "pages/ShowDetail.js",
-  "/TestJourney": "pages/TestJourney.js",
   "/Shows": "pages/Shows.js",
+  "/TestJourney": "pages/TestJourney.js",
   "/api/admin/set-admin": "pages/api/admin/set-admin.js",
+  "/_error": "pages/_error.js",
   "/_app": "pages/_app.js",
   "/_document": "pages/_document.js"
 }

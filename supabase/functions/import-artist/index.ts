@@ -23,9 +23,9 @@ serve(async (req: Request) => {
       });
     }
 
-    let artistData: Artist;
+    let inputData: { id: string, name: string, [key: string]: any };
     try {
-      artistData = await req.json();
+      inputData = await req.json();
     } catch (e) {
       console.error('[import-artist] Error parsing request body:', e);
       return new Response(JSON.stringify({ error: 'Invalid request body' }), {
@@ -34,11 +34,11 @@ serve(async (req: Request) => {
       });
     }
 
-    console.log(`[import-artist] Received request for artist: ${artistData?.name} (ID: ${artistData?.id})`);
+    console.log(`[import-artist] Received request for artist: ${inputData?.name} (TM ID: ${inputData?.id})`);
 
-    // Validate incoming artist data (using TM ID as 'id')
-    if (!artistData || !artistData.id || !artistData.name) {
-      console.error('[import-artist] Invalid artist data provided:', artistData);
+    // Validate incoming artist data
+    if (!inputData || !inputData.id || !inputData.name) {
+      console.error('[import-artist] Invalid artist data provided:', inputData);
       return new Response(JSON.stringify({ error: 'Invalid artist data provided' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -46,6 +46,24 @@ serve(async (req: Request) => {
     }
 
     // --- Main Import Logic ---
+
+    // Prepare artist data with proper ticketmaster_id
+    const artistData: Partial<Artist> = {
+      name: inputData.name,
+      ticketmaster_id: inputData.id, // Use the incoming ID as ticketmaster_id
+      external_id: inputData.id, // Also set external_id for backward compatibility
+      // Copy other fields from input if present
+      image_url: inputData.image_url || inputData.image,
+      url: inputData.url,
+      // Only add these if provided in input
+      ...(inputData.spotify_id && { spotify_id: inputData.spotify_id }),
+      ...(inputData.spotify_url && { spotify_url: inputData.spotify_url }),
+      ...(inputData.genres && { genres: inputData.genres }),
+      ...(inputData.popularity && { popularity: inputData.popularity }),
+      ...(inputData.followers && { followers: inputData.followers }),
+    };
+
+    console.log(`[import-artist] Prepared artist data:`, JSON.stringify(artistData));
 
     // 1. Save/Update Artist in DB
     // This now returns the artist record *from the database*
@@ -55,7 +73,7 @@ serve(async (req: Request) => {
       console.error(`[import-artist] Failed to save artist: ${artistData.name}`);
       throw new Error(`Failed to save artist ${artistData.name} to database.`);
     }
-    console.log(`[import-artist] Artist ${dbArtist.name} saved/found in DB with ID: ${dbArtist.id}`);
+    console.log(`[import-artist] Artist ${dbArtist.name} saved/found in DB with ID: ${dbArtist.id}, TM ID: ${dbArtist.ticketmaster_id}`);
 
     // 2. Enrich with Spotify Data (if needed)
     if (!dbArtist.spotify_id) {
@@ -89,9 +107,10 @@ serve(async (req: Request) => {
     }
 
     // 3. Fetch Artist Events from Ticketmaster (using TM ID)
-    // fetchArtistEvents expects the Ticketmaster ID, which is the initial 'id' from artistData
-    console.log(`[import-artist] Fetching Ticketmaster events for artist TM ID: ${artistData.id}`);
-    const shows: Show[] = await fetchArtistEvents(artistData.id);
+    // fetchArtistEvents expects the Ticketmaster ID
+    const ticketmasterId = dbArtist.ticketmaster_id || inputData.id;
+    console.log(`[import-artist] Fetching Ticketmaster events for artist TM ID: ${ticketmasterId}`);
+    const shows: Show[] = await fetchArtistEvents(ticketmasterId);
 
     if (!shows || shows.length === 0) {
       console.log(`[import-artist] Artist ${dbArtist.name} saved, no upcoming shows found via Ticketmaster.`);
@@ -109,25 +128,66 @@ serve(async (req: Request) => {
     // 4. Process and Save Shows (and their venues, setlists)
     let savedCount = 0;
     let failedCount = 0;
+    const errorMessages: string[] = []; // Collect error messages for debugging
+    
     const showProcessingPromises = shows.map(async (show) => {
       try {
-        // Pass the show data fetched from Ticketmaster to saveShowToDatabase
-        // It will handle saving the artist/venue (if needed) and the show itself,
-        // then trigger setlist creation.
-        // Note: saveShowToDatabase now expects DB IDs for artist/venue FKs,
-        // but it handles resolving/saving the nested artist/venue objects first.
-        const savedShow = await saveShowToDatabase(show); // Pass options if needed, e.g., { triggeredBySync: false }
-        if (savedShow) {
-          savedCount++;
-          console.log(`[import-artist] Successfully processed show ${show.name} (ID: ${show.id})`);
+        // DETAILED DEBUG: Log the specific show being processed
+        console.log(`[import-artist] Processing show: ${show.name} (ID: ${show.id})`);
+        
+        // Add the ticketmaster_id to each show from the show.id field
+        const showWithTicketmasterId = {
+          ...show,
+          ticketmaster_id: show.id, // Set the fetched ID as ticketmaster_id
+          external_id: show.id, // Also set external_id for backward compatibility
+          // Add the database artist to each show to establish connection
+          artist: { 
+            id: dbArtist.id, // DB ID
+            ticketmaster_id: dbArtist.ticketmaster_id || ticketmasterId,
+            name: dbArtist.name 
+          }
+        };
+        
+        // Process venues as well
+        if (show.venue && typeof show.venue === 'object' && show.venue.id) {
+          console.log(`[import-artist] Show has venue: ${show.venue.name} (ID: ${show.venue.id})`);
+          showWithTicketmasterId.venue = {
+            ...show.venue,
+            ticketmaster_id: show.venue.id, // Set venue TM ID properly
+            external_id: show.venue.id // Also set external_id for backward compatibility
+          };
+          
+          // DETAILED DEBUG: Check venue structure
+          console.log(`[import-artist] Prepared venue data:`, JSON.stringify(showWithTicketmasterId.venue));
         } else {
-          // This case might not happen if saveShowToDatabase throws on failure
+          console.warn(`[import-artist] Missing venue data for show: ${show.name}`);
+        }
+
+        // DETAILED DEBUG: Log the prepared show data before saving
+        console.log(`[import-artist] Prepared show data:`, JSON.stringify(showWithTicketmasterId));
+
+        try {
+          const savedShow = await saveShowToDatabase(showWithTicketmasterId);
+          if (savedShow) {
+            savedCount++;
+            console.log(`[import-artist] Successfully processed show ${show.name} (TM ID: ${show.id}, DB ID: ${savedShow.id})`);
+          } else {
+            // This case might not happen if saveShowToDatabase throws on failure
+            failedCount++;
+            const errMsg = `saveShowToDatabase returned null for show ${show.name} (ID: ${show.id})`;
+            errorMessages.push(errMsg);
+            console.warn(`[import-artist] ${errMsg}`);
+          }
+        } catch (dbErr) {
           failedCount++;
-          console.warn(`[import-artist] saveShowToDatabase returned null/undefined for show ${show.name} (ID: ${show.id})`);
+          const errMsg = dbErr instanceof Error ? dbErr.message : String(dbErr);
+          errorMessages.push(`DB Error: ${errMsg}`);
+          console.error(`[import-artist] Database error processing show ${show.id} (${show.name}):`, errMsg);
         }
       } catch (err) {
         failedCount++;
         const errMsg = err instanceof Error ? err.message : String(err);
+        errorMessages.push(errMsg);
         console.error(`[import-artist] Error processing show ${show.id} (${show.name}):`, errMsg);
       }
     });
@@ -135,6 +195,10 @@ serve(async (req: Request) => {
     // Wait for all show processing attempts to complete
     await Promise.allSettled(showProcessingPromises);
     console.log(`[import-artist] Finished processing shows. Saved: ${savedCount}, Failed: ${failedCount}`);
+    
+    if (failedCount > 0) {
+      console.error(`[import-artist] Error summary for failed shows:`, errorMessages.slice(0, 5));
+    }
 
     // 5. Return Success Response
     return new Response(JSON.stringify({
@@ -142,7 +206,8 @@ serve(async (req: Request) => {
       message: `Artist import process finished. Shows processed: ${shows.length}, Saved/Updated: ${savedCount}, Failed: ${failedCount}.`,
       artist: dbArtist, // Return the final DB artist record
       savedShows: savedCount,
-      failedShows: failedCount
+      failedShows: failedCount,
+      errors: errorMessages.slice(0, 5) // Include a sample of errors for debugging
     }), {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
