@@ -145,7 +145,14 @@ export async function GET(
       // Create setlist songs
       if (songs.length > 0) {
         // Select 5 random songs
-        const selectedSongs = songs
+        const selectedSongs: Array<{
+          id: string;
+          name: string;
+          spotify_id?: string;
+          duration_ms?: number;
+          preview_url?: string | null;
+          popularity?: number;
+        }> = songs
           .sort(() => 0.5 - Math.random())
           .slice(0, 5);
         

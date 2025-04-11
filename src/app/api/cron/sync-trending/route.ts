@@ -28,7 +28,7 @@ export async function GET(request: Request) {
     
     return NextResponse.json({
       success: true,
-      message: `Successfully synced ${syncedShows.length} trending shows`,
+      message: `Successfully synced ${syncedShows.processed || 0} trending shows`,
       timestamp: new Date().toISOString()
     });
   } catch (err: unknown) {

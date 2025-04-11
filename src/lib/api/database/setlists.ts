@@ -1,4 +1,12 @@
-import { supabase } from "@/integrations/supabase/client";
+import { createClient } from '@supabase/supabase-js';
+
+// Initialize Supabase client
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+
+// Create Supabase client with admin access
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 /**
  * Create a setlist for a show and populate it with songs
@@ -180,4 +188,142 @@ async function addSongsToSetlist(setlistId: string, artistId: string, songs: {
     console.error("Error in addSongsToSetlist:", error);
     return false;
   }
+}
+
+export async function getSetlistById(id: string) {
+  const { data, error } = await supabase
+    .from('setlists')
+    .select(`
+      *,
+      show:shows(*),
+      artist:artists(*),
+      songs:setlist_songs(*)
+    `)
+    .eq('id', id)
+    .single();
+
+  if (error) {
+    console.error('Error fetching setlist:', error);
+    throw error;
+  }
+
+  return data;
+}
+
+export async function getSetlistsForArtist(artistId: string) {
+  const { data, error } = await supabase
+    .from('setlists')
+    .select(`
+      *,
+      show:shows(*),
+      songs:setlist_songs(*)
+    `)
+    .eq('artist_id', artistId)
+    .order('date', { ascending: false });
+
+  if (error) {
+    console.error('Error fetching setlists for artist:', error);
+    throw error;
+  }
+
+  return data || [];
+}
+
+export async function getSetlistForShow(showId: string) {
+  const { data, error } = await supabase
+    .from('setlists')
+    .select(`
+      *,
+      songs:setlist_songs(id, name, position, vote_count)
+    `)
+    .eq('show_id', showId)
+    .maybeSingle();
+
+  if (error) {
+    console.error('Error fetching setlist for show:', error);
+    throw error;
+  }
+
+  return data;
+}
+
+export async function createOrUpdateSetlist(setlistData: any) {
+  const { id, songs, ...restData } = setlistData;
+
+  // Start a transaction
+  const { data, error } = await supabase.rpc('create_or_update_setlist', {
+    p_id: id || null,
+    p_data: restData,
+    p_songs: songs || []
+  });
+
+  if (error) {
+    console.error('Error creating/updating setlist:', error);
+    throw error;
+  }
+
+  return data;
+}
+
+export async function addSongToSetlist(setlistId: string, songData: any) {
+  const { data, error } = await supabase
+    .from('setlist_songs')
+    .insert({
+      setlist_id: setlistId,
+      ...songData
+    })
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error adding song to setlist:', error);
+    throw error;
+  }
+
+  return data;
+}
+
+export async function updateSetlistSong(songId: string, songData: any) {
+  const { data, error } = await supabase
+    .from('setlist_songs')
+    .update(songData)
+    .eq('id', songId)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error updating setlist song:', error);
+    throw error;
+  }
+
+  return data;
+}
+
+export async function removeSongFromSetlist(songId: string) {
+  const { error } = await supabase
+    .from('setlist_songs')
+    .delete()
+    .eq('id', songId);
+
+  if (error) {
+    console.error('Error removing song from setlist:', error);
+    throw error;
+  }
+
+  return true;
+}
+
+export async function updateSongOrder(setlistId: string, songOrder: any[]) {
+  // Update each song's position
+  const updates = songOrder.map((song, index) => 
+    supabase
+      .from('setlist_songs')
+      .update({ position: index })
+      .eq('id', song.id)
+  );
+
+  // Execute all updates
+  await Promise.all(updates);
+
+  return true;
 }

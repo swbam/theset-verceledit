@@ -1,4 +1,4 @@
-CREATE OR REPLACE FUNCTION increment_vote(p_song_id uuid, p_user_id uuid) RETURNS void AS $
+CREATE OR REPLACE FUNCTION increment_vote(p_song_id uuid, p_user_id uuid) RETURNS void AS $$
 BEGIN
   -- p_song_id is the ID of the setlist_song
   INSERT INTO votes (song_id, user_id, count)
@@ -11,9 +11,9 @@ BEGIN
   SET vote_count = vote_count + 1
   WHERE id = p_song_id;
 END;
-$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION decrement_vote(p_song_id uuid, p_user_id uuid) RETURNS void AS $
+CREATE OR REPLACE FUNCTION decrement_vote(p_song_id uuid, p_user_id uuid) RETURNS void AS $$
 BEGIN
   -- p_song_id is the ID of the setlist_song
   UPDATE votes
@@ -25,4 +25,4 @@ BEGIN
   SET vote_count = greatest(vote_count - 1, 0)
   WHERE id = p_song_id;
 END;
-$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql;

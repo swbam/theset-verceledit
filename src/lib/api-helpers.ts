@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Show } from '@/lib/types'; // Import Show type
+import { Redis } from '@upstash/redis';
 
 // Initialize Supabase client using VITE_ variables for consistency
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -35,8 +36,95 @@ export { supabase };
 // Export typesafe client for specific functions
 export type SupabaseClient = typeof supabase;
 
-// Removed getCachedData function - simplify for now
-// Removed invalidateCache function - simplify for now
+const redis = process.env.UPSTASH_REDIS_URL
+  ? new Redis({
+      url: process.env.UPSTASH_REDIS_URL,
+      token: process.env.UPSTASH_REDIS_TOKEN || '',
+    })
+  : null;
+
+/**
+ * Utility to get data from cache or execute the fetch function
+ * @param key Cache key
+ * @param fetchFn Function to get fresh data
+ * @param ttl Time to live in seconds (default: 1 hour)
+ */
+export async function getCachedData<T>(
+  key: string,
+  fetchFn: () => Promise<T>,
+  ttl: number = 3600
+): Promise<T> {
+  // If Redis is not configured, just fetch the data
+  if (!redis) {
+    return fetchFn();
+  }
+
+  try {
+    // Try to get data from cache
+    const cachedData = await redis.get<T>(key);
+    
+    if (cachedData) {
+      console.log(`Cache hit for ${key}`);
+      return cachedData;
+    }
+    
+    // If not in cache, fetch fresh data
+    console.log(`Cache miss for ${key}, fetching fresh data`);
+    const freshData = await fetchFn();
+    
+    // Store in cache
+    if (freshData) {
+      await redis.set(key, freshData, { ex: ttl });
+    }
+    
+    return freshData;
+  } catch (error) {
+    console.error('Cache error:', error);
+    // If any error with cache, fall back to fetching
+    return fetchFn();
+  }
+}
+
+/**
+ * Utility to invalidate a cache key
+ */
+export async function invalidateCache(key: string): Promise<void> {
+  if (!redis) return;
+  
+  try {
+    await redis.del(key);
+    console.log(`Cache invalidated for ${key}`);
+  } catch (error) {
+    console.error('Cache invalidation error:', error);
+  }
+}
+
+/**
+ * Utility to log API errors
+ */
+export async function logApiError(
+  endpoint: string,
+  error: unknown,
+  supabase: any
+): Promise<void> {
+  const errorMessage = error instanceof Error ? error.message : String(error);
+  console.error(`[${endpoint}] ${errorMessage}`);
+  
+  try {
+    // Log to database if supabase client is provided
+    if (supabase) {
+      await supabase
+        .from('error_logs')
+        .insert({
+          endpoint,
+          error: errorMessage,
+          timestamp: new Date().toISOString()
+        });
+    }
+  } catch (logError) {
+    console.error('Failed to log error to database:', logError);
+  }
+}
 
 /**
  * Using optimized materialized view for top voted songs

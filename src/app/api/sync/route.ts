@@ -180,32 +180,36 @@ export async function POST(request: NextRequest): Promise<NextResponse> { // Add
           if (showError) throw new SyncAPIError(`Failed to fetch show ${entityId}: ${showError.message}`, 500);
           if (!typedShow) throw new SyncAPIError(`Show ${entityId} not found`, 404);
 
-          if (typedShow.artist_id) {
-            await invokeSyncFunction(supabaseAdmin, 'sync-artist', { artistId: typedShow.artist_id }, 'artist', typedShow.artist_id);
-          }
-          if (typedShow.venue_id) {
-            // Venue sync needs external_id, which doesn't exist on venues table per schema.sql.
-            // Fetch the venue using the venue_id from the show to get its external_id
-            const { data: venue, error: venueError } = await supabaseAdmin
-              .from('venues')
-              .select('external_id') // Select the newly added external_id
-              .eq('id', typedShow.venue_id) // Filter by the venue's UUID
-              .maybeSingle();
-
-            if (venueError) {
-               console.error(`[Expand Relations] Error fetching venue ${typedShow.venue_id} for show ${entityId}:`, venueError.message);
-            } else if (venue?.external_id) {
-               // Now we have the external_id, invoke sync-venue
-               await invokeSyncFunction(supabaseAdmin, 'sync-venue', { venueId: venue.external_id }, 'venue', venue.external_id);
-            } else {
-               console.warn(`[Expand Relations] Venue ${typedShow.venue_id} found for show ${entityId}, but it has no external_id. Cannot sync venue.`);
+          // Check if typedShow is not an error and has the expected structure
+          if (typedShow && 'artist_id' in typedShow) {
+            if (typedShow.artist_id) {
+              await invokeSyncFunction(supabaseAdmin, 'sync-artist', { artistId: typedShow.artist_id }, 'artist', String(typedShow.artist_id));
             }
-          }
-          // shows.setlist_id does not exist per schema.sql
-          // if (typedShow.setlist_id) {
-          //   await invokeSyncFunction(supabaseAdmin, 'sync-setlist', { setlistId: typedShow.setlist_id }, 'setlist', typedShow.setlist_id);
-          // }
+            
+            if ('venue_id' in typedShow && typedShow.venue_id) {
+              // Venue sync needs external_id, which doesn't exist on venues table per schema.sql.
+              // Fetch the venue using the venue_id from the show to get its external_id
+              const { data: venue, error: venueError } = await supabaseAdmin
+                .from('venues')
+                .select('external_id') // Select the newly added external_id
+                .eq('id', String(typedShow.venue_id)) // Filter by the venue's UUID
+                .maybeSingle();
 
+              if (venueError) {
+                 console.error(`[Expand Relations] Error fetching venue ${typedShow.venue_id} for show ${entityId}:`, venueError.message);
+              } else if (venue?.external_id) {
+                 // Now we have the external_id, invoke sync-venue
+                 await invokeSyncFunction(supabaseAdmin, 'sync-venue', { venueId: venue.external_id }, 'venue', String(venue.external_id));
+              } else {
+                 console.warn(`[Expand Relations] Venue ${typedShow.venue_id} found for show ${entityId}, but it has no external_id. Cannot sync venue.`);
+              }
+            }
+            // shows.setlist_id does not exist per schema.sql
+            // if (typedShow.setlist_id) {
+            //   await invokeSyncFunction(supabaseAdmin, 'sync-setlist', { setlistId: typedShow.setlist_id }, 'setlist', typedShow.setlist_id);
+            // }
+
+          }
         } else if (entityType === 'setlist') {
            const { data: setlist, error: setError } = await supabaseAdmin
              .from('setlists')
@@ -220,11 +224,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> { // Add
              if (setError) throw new SyncAPIError(`Failed to fetch setlist ${entityId}: ${setError.message}`, 500);
              if (!typedSetlist) throw new SyncAPIError(`Setlist ${entityId} not found`, 404);
 
-             if (typedSetlist.artist_id) {
-                await invokeSyncFunction(supabaseAdmin, 'sync-artist', { artistId: typedSetlist.artist_id }, 'artist', typedSetlist.artist_id);
-             }
-             if (typedSetlist.show_id) {
-                await invokeSyncFunction(supabaseAdmin, 'sync-show', { showId: typedSetlist.show_id }, 'show', typedSetlist.show_id);
+             // Check if typedSetlist is not an error and has the expected structure
+             if (typedSetlist && 'artist_id' in typedSetlist) {
+               if (typedSetlist.artist_id) {
+                  await invokeSyncFunction(supabaseAdmin, 'sync-artist', { artistId: typedSetlist.artist_id }, 'artist', String(typedSetlist.artist_id));
+               }
+               if ('show_id' in typedSetlist && typedSetlist.show_id) {
+                  await invokeSyncFunction(supabaseAdmin, 'sync-show', { showId: typedSetlist.show_id }, 'show', String(typedSetlist.show_id));
+               }
              }
              // Trigger song enrichment based on setlist_songs junction table
              // Fetch song IDs associated with this setlist ID (UUID)
@@ -251,7 +258,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> { // Add
                        // Type should now be inferred correctly after regenerating types
                        const typedLinkLoop = link;
                        if (typedLinkLoop.song_id) {
-                          await invokeSyncFunction(supabaseAdmin, 'sync-song', { songId: typedLinkLoop.song_id }, 'song', typedLinkLoop.song_id);
+                          await invokeSyncFunction(supabaseAdmin, 'sync-song', { songId: typedLinkLoop.song_id }, 'song', String(typedLinkLoop.song_id));
                        }
                     }
                  }
@@ -292,7 +299,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> { // Add
             // 3. Trigger async sync for related items
             if (shows) {
                for (const show of shows) {
-                  await invokeSyncFunction(supabaseAdmin, 'sync-show', { showId: show.id }, 'show', show.id);
+                  await invokeSyncFunction(supabaseAdmin, 'sync-show', { showId: show.id }, 'show', String(show.id));
                }
             }
             if (setlists) {
@@ -301,7 +308,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> { // Add
                    // Type should now be inferred correctly after regenerating types
                    const typedSetlistLoop = setlist;
                    if (typedSetlistLoop.setlist_fm_id) { // Check if the ID exists
-                      await invokeSyncFunction(supabaseAdmin, 'sync-setlist', { setlistId: typedSetlistLoop.setlist_fm_id }, 'setlist', typedSetlistLoop.setlist_fm_id);
+                      await invokeSyncFunction(supabaseAdmin, 'sync-setlist', { setlistId: typedSetlistLoop.setlist_fm_id }, 'setlist', String(typedSetlistLoop.setlist_fm_id));
                    }
                 }
             }
@@ -327,7 +334,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> { // Add
             // 3. Trigger async sync for related shows
             if (shows) {
                 for (const show of shows) {
-                   await invokeSyncFunction(supabaseAdmin, 'sync-show', { showId: show.id }, 'show', show.id);
+                   await invokeSyncFunction(supabaseAdmin, 'sync-show', { showId: show.id }, 'show', String(show.id));
                 }
             }
 

@@ -191,44 +191,39 @@ async function syncVenueShows(venueId: string, venueName: string) {
 // Define a wrapper or modified save function that uses the admin client internally
 async function saveShowWithAdmin(show: Show, triggeredBySync: boolean = false) {
   try {
-    if (!show || !show.id) {
-      console.error("[API/save-show] Invalid show object:", show);
-      return null;
-    }
-    console.log(`[API/save-show] Processing show: ${show.name} (ID: ${show.id})`);
-
-    // Check if show exists (using admin client for consistency)
-    const { data: existingShow, error: checkError } = await adminClient()
-      .from('shows')
-      .select('id, updated_at, artist_id, venue_id')
-      .eq('id', show.id)
-      .maybeSingle();
-
-    if (checkError) {
-      console.error("[API/save-show] Error checking show:", checkError);
-      return null; // Fail if check fails
-    }
-
-    if (existingShow) {
-      const lastUpdated = new Date(existingShow.updated_at);
-      const now = new Date();
-      const hoursSinceUpdate = (now.getTime() - lastUpdated.getTime()) / (1000 * 60 * 60);
-      if (hoursSinceUpdate < 24) {
-        console.log(`[API/save-show] Show ${show.name} updated ${hoursSinceUpdate.toFixed(1)} hours ago, skipping.`);
-        return existingShow; // Return existing data if recently updated
-      }
-    }
+    console.log(`[API/save-show] Saving show ${show.id} with admin client`);
+    
+    // Extend Show type to include the artist and venue objects that may be attached
+    type ExtendedShow = Show & {
+      artist?: {
+        id: string;
+        name: string;
+        image_url?: string;
+      };
+      venue?: {
+        id: string;
+        name: string;
+        city?: string;
+        state?: string;
+        country?: string;
+      };
+      ticket_url?: string;
+      external_url?: string;
+    };
+    
+    // Cast to extended type
+    const extendedShow = show as ExtendedShow;
 
     // --- Save Artist (using admin client) ---
-    let artistId = show.artist_id;
-    let artistNameForTracks = show.artist?.name || 'Artist'; // Need name for track fetching logs
-    if (show.artist && typeof show.artist === 'object') {
+    let artistId = extendedShow.artist_id;
+    let artistNameForTracks = extendedShow.artist?.name || 'Artist'; // Need name for track fetching logs
+    if (extendedShow.artist && typeof extendedShow.artist === 'object') {
         // Replicate the upsert logic directly with adminClient
-        console.log(`[API/save-show] Attempting to upsert artist: ID=${show.artist.id}, Name=${show.artist.name}`); // Log before
+        console.log(`[API/save-show] Attempting to upsert artist: ID=${extendedShow.artist.id}, Name=${extendedShow.artist.name}`); // Log before
         const artistPayload = {
-            id: show.artist.id,
-            name: show.artist.name,
-            image_url: show.artist.image_url,
+            id: extendedShow.artist.id,
+            name: extendedShow.artist.name,
+            image_url: extendedShow.artist.image_url,
             updated_at: new Date().toISOString()
         };
         console.log(`[API/save-show] Artist Upsert Payload:`, artistPayload); // Log payload
@@ -252,18 +247,18 @@ async function saveShowWithAdmin(show: Show, triggeredBySync: boolean = false) {
     }
 
     // --- Save Venue (using admin client) ---
-    let venueId = show.venue_id;
-    let venueName = show.venue?.name;
-    if (show.venue && typeof show.venue === 'object') {
+    let venueId = extendedShow.venue_id;
+    let venueName = extendedShow.venue?.name;
+    if (extendedShow.venue && typeof extendedShow.venue === 'object') {
         // Replicate upsert logic directly with adminClient
         const { data: savedVenue, error: venueError } = await adminClient()
             .from('venues')
             .upsert({
-                id: show.venue.id,
-                name: show.venue.name,
-                city: show.venue.city,
-                state: show.venue.state,
-                country: show.venue.country,
+                id: extendedShow.venue.id,
+                name: extendedShow.venue.name,
+                city: extendedShow.venue.city,
+                state: extendedShow.venue.state,
+                country: extendedShow.venue.country,
                 updated_at: new Date().toISOString()
             })
             .select('id, name') // Select necessary fields
@@ -277,7 +272,7 @@ async function saveShowWithAdmin(show: Show, triggeredBySync: boolean = false) {
     }
 
     if (!artistId || !venueId) {
-      console.error(`[API/save-show] Cannot save show ${show.name}, missing artistId (${artistId}) or venueId (${venueId})`);
+      console.error(`[API/save-show] Cannot save show ${extendedShow.name}, missing artistId (${artistId}) or venueId (${venueId})`);
       return null;
     }
 
@@ -285,11 +280,11 @@ async function saveShowWithAdmin(show: Show, triggeredBySync: boolean = false) {
     const { data: savedShowData, error: showError } = await adminClient()
       .from('shows')
       .upsert({
-        id: show.id,
-        name: show.name,
-        date: show.date,
-        ticket_url: show.ticket_url,
-        image_url: show.image_url,
+        id: extendedShow.id,
+        name: extendedShow.name,
+        date: extendedShow.date,
+        ticket_url: extendedShow.ticket_url,
+        image_url: extendedShow.image_url,
         artist_id: artistId,
         venue_id: venueId,
         updated_at: new Date().toISOString()
@@ -301,7 +296,7 @@ async function saveShowWithAdmin(show: Show, triggeredBySync: boolean = false) {
       console.error("[API/save-show] Error saving show:", showError);
       return null;
     }
-    console.log(`[API/save-show] Successfully saved show ${show.name}`);
+    console.log(`[API/save-show] Successfully saved show ${extendedShow.name}`);
 
     // --- Trigger Background Sync ---
     if (!triggeredBySync && venueId && venueName) {

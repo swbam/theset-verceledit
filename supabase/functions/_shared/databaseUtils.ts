@@ -48,8 +48,8 @@ export async function saveArtistToDatabase(artistInput: Partial<Artist>): Promis
         // Optional: Check updated_at to potentially skip update
         const lastUpdated = existingArtist.updated_at ? new Date(existingArtist.updated_at) : null;
         if (lastUpdated) {
-          const now = new Date();
-          const daysSinceUpdate = (now.getTime() - lastUpdated.getTime()) / (1000 * 60 * 60 * 24);
+        const now = new Date();
+        const daysSinceUpdate = (now.getTime() - lastUpdated.getTime()) / (1000 * 60 * 60 * 24);
           if (daysSinceUpdate < 7) { // Configurable threshold (e.g., 7 days)
             console.log(`[EF saveArtist] Artist ${artistInput.name} was updated ${daysSinceUpdate.toFixed(1)} days ago, skipping redundant update.`);
             // Trigger background track fetch if needed, even if skipping main update
@@ -173,8 +173,8 @@ export async function saveVenueToDatabase(venueInput: Partial<Venue>): Promise<V
         // Optional: Check updated_at (e.g., < 30 days)
         const lastUpdated = existingVenue.updated_at ? new Date(existingVenue.updated_at) : null;
         if (lastUpdated) {
-          const now = new Date();
-          const daysSinceUpdate = (now.getTime() - lastUpdated.getTime()) / (1000 * 60 * 60 * 24);
+        const now = new Date();
+        const daysSinceUpdate = (now.getTime() - lastUpdated.getTime()) / (1000 * 60 * 60 * 24);
           if (daysSinceUpdate < 30) { // Configurable threshold
             console.log(`[EF saveVenue] Venue ${venueInput.name} updated ${daysSinceUpdate.toFixed(1)} days ago, skipping redundant update.`);
             return existingVenue;
@@ -346,8 +346,8 @@ export async function saveShowToDatabase(showInput: Partial<Show> & { artist?: P
         // Optional: Check updated_at (e.g., < 24 hours)
         const lastUpdated = existingShow.updated_at ? new Date(existingShow.updated_at) : null;
         if (lastUpdated) {
-           const now = new Date();
-           const hoursSinceUpdate = (now.getTime() - lastUpdated.getTime()) / (1000 * 60 * 60);
+        const now = new Date();
+        const hoursSinceUpdate = (now.getTime() - lastUpdated.getTime()) / (1000 * 60 * 60);
            if (hoursSinceUpdate < 24) { // Configurable threshold
               console.log(`[EF saveShow] Show ${showInput.name} updated ${hoursSinceUpdate.toFixed(1)} hours ago, skipping redundant update.`);
               // Consider triggering setlist creation even if show update is skipped?
@@ -387,13 +387,13 @@ export async function saveShowToDatabase(showInput: Partial<Show> & { artist?: P
     try {
       console.log(`[EF saveShow] Attempting upsert for show: ${showDataForUpsert.name} on conflict: ticketmaster_id`);
       const { data: upsertedData, error: upsertError } = await supabaseAdmin
-        .from('shows')
+      .from('shows')
         .upsert(showDataForUpsert, { 
             onConflict: 'ticketmaster_id',
             ignoreDuplicates: false // Update on conflict
         })
-        .select()
-        .single();
+      .select()
+      .single();
 
       if (upsertError) {
         console.error(`[EF saveShow] FAILED upsert for show ${showInput.name}:`, upsertError);
@@ -424,10 +424,10 @@ export async function saveShowToDatabase(showInput: Partial<Show> & { artist?: P
             .then(setlistId => {
               if (setlistId) {
                 console.log(`[EF saveShow] Setlist creation initiated successfully for show ${savedDbShow.name}. Setlist ID: ${setlistId}`);
-              } else {
+           } else {
                 console.warn(`[EF saveShow] Setlist creation function returned null for show ${savedDbShow.name}.`);
-              }
-            })
+           }
+         })
             .catch(e => console.error(`[EF saveShow] Error during async setlist creation for show ${savedDbShow.name}:`, e));
       } else {
           console.warn(`[EF saveShow] Skipping setlist creation for show ${savedDbShow.name} due to missing DB Show ID or Artist ID.`);
@@ -565,7 +565,7 @@ async function populateSetlistSongs(setlistId: string, dbArtistId: string): Prom
     // 2. Fetch Artist's top tracks (or actual setlist source)
     // Placeholder: Get artist's Spotify ID first
      const { data: artistData, error: artistError } = await supabaseAdmin
-       .from('artists')
+        .from('artists')
        .select('spotify_id, name')
        .eq('id', dbArtistId)
        .single();

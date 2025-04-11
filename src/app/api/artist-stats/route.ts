@@ -65,7 +65,7 @@ export async function GET(
         const totalVotes = votesData || 0;
         
         // If we have Spotify ID, try to get fresh data from Spotify API
-        let spotifyData = null;
+        let spotifyData: any = null;
         if (artist.spotify_id) {
           try {
             spotifyData = await getArtistById(artist.spotify_id);

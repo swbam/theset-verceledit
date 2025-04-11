@@ -38,7 +38,11 @@ export default async function EditSetlistPage({ params }: SetlistPageProps) {
           </p>
         </div>
         
-        <SetlistEditor setlist={setlist} />
+        <SetlistEditor 
+          setlistId={setlistId} 
+          initialSongs={setlist.songs} 
+          artistId={setlist.artist_id} 
+        />
       </div>
     </Container>
   );
