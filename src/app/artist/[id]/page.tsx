@@ -83,7 +83,11 @@ export default async function ArtistPage({ params }: ArtistPageProps) {
 
   return (
     <div className="container mx-auto py-6 px-4 md:px-6">
-      <ArtistHeader artist={artist} upcomingShowsCount={upcomingShows?.length || 0} />
+      <ArtistHeader
+        artistName={artist.name}
+        artistImage={artist.image_url} // Assuming image_url is the correct property
+        upcomingShowsCount={upcomingShows?.length || 0}
+      />
       
       <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6 mt-8">
         {/* Left sidebar */}

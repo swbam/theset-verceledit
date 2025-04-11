@@ -1,5 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
-import { EntityType, SyncResult, SyncOptions, EntityRef } from './types';
+import { EntityType, SyncResult, SyncOptions, EntityRef, SyncTask } from './types'; // Import SyncTask
 import { ShowSyncService } from './show-service';
 import { ArtistSyncService } from './artist-service';
 import { VenueSyncService } from './venue-service';
@@ -253,12 +253,14 @@ export class SyncManager {
       
       // Queue all shows for sync
       for (const show of shows) {
-        this.queue.add({
-          type: 'show',
-          id: show.id,
-          priority: 'medium',
-          operation: 'create'
-        });
+        if (show.id) { // Add check for undefined id
+          this.queue.add({
+            type: 'show',
+            id: show.id,
+            priority: 'medium',
+            operation: 'create'
+          });
+        }
       }
       
       return true;
@@ -278,12 +280,14 @@ export class SyncManager {
       
       // Queue all shows for sync
       for (const show of shows) {
-        this.queue.add({
-          type: 'show',
-          id: show.id,
-          priority: 'medium',
-          operation: 'create'
-        });
+        if (show.id) { // Add check for undefined id
+          this.queue.add({
+            type: 'show',
+            id: show.id,
+            priority: 'medium',
+            operation: 'create'
+          });
+        }
       }
       
       return true;
@@ -417,4 +421,16 @@ export class SyncManager {
   getQueueStatus() {
     return this.queue.getStatus();
   }
-} 
+
+  /**
+   * Public method to add a task to the sync queue
+   */
+  async enqueueTask(task: SyncTask): Promise<void> { // Change return type to Promise<void>
+    // Ensure queue is initialized (it should be by the constructor)
+    if (!this.queue) {
+        console.error("SyncQueue not initialized in SyncManager!");
+        return; // Just return void if queue is not initialized
+    }
+    this.queue.add(task); // Call add, no return needed
+  }
+} // Ensure this is the final closing brace for the class

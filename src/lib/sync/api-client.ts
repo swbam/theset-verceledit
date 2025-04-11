@@ -92,7 +92,7 @@ export class APIClientManager {
    * Call Ticketmaster API with proper configuration
    */
   private async callTicketmasterAPI(endpoint: string, params?: Record<string, any>): Promise<any> {
-    const apiKey = import.meta.env.VITE_TICKETMASTER_API_KEY;
+    const apiKey = process.env.VITE_TICKETMASTER_API_KEY;
     if (!apiKey) {
       throw new Error('Missing Ticketmaster API key');
     }
@@ -128,8 +128,8 @@ export class APIClientManager {
    * Call Spotify API with proper configuration
    */
   private async callSpotifyAPI(endpoint: string, params?: Record<string, any>): Promise<any> {
-    const clientId = import.meta.env.VITE_SPOTIFY_CLIENT_ID;
-    const clientSecret = import.meta.env.VITE_SPOTIFY_CLIENT_SECRET;
+    const clientId = process.env.VITE_SPOTIFY_CLIENT_ID;
+    const clientSecret = process.env.VITE_SPOTIFY_CLIENT_SECRET;
     
     if (!clientId || !clientSecret) {
       throw new Error('Missing Spotify API credentials');
@@ -168,7 +168,7 @@ export class APIClientManager {
    * Call Setlist.fm API with proper configuration
    */
   private async callSetlistFmAPI(endpoint: string, params?: Record<string, any>): Promise<any> {
-    const apiKey = import.meta.env.VITE_SETLIST_FM_API_KEY;
+    const apiKey = process.env.VITE_SETLIST_FM_API_KEY;
     
     if (!apiKey) {
       throw new Error('Missing Setlist.fm API key');
