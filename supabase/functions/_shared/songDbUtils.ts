@@ -112,3 +112,110 @@ export async function getStoredTracksForArtist(artistId: string) {
     return null;
   }
 }
+
+/**
+ * Save a single song to the database using Spotify ID for conflicts.
+ * Fetches existing record first to avoid redundant updates.
+ */
+export async function saveSongToDatabase(songInput: Partial<Song>): Promise<Song | null> {
+  try {
+    // Ensure we have Spotify ID and name
+    if (!songInput.spotify_id || !songInput.name) {
+      console.error("[EF saveSong] Invalid input: Missing name or Spotify ID", songInput);
+      return null;
+    }
+    console.log(`[EF saveSong] Processing song: ${songInput.name} (Spotify ID: ${songInput.spotify_id})`);
+
+    // 1. Check if song exists by Spotify ID
+    let existingSong: Song | null = null;
+    try {
+      const { data: existingData, error: checkError } = await supabaseAdmin
+        .from('songs')
+        .select('*') // Select all columns
+        .eq('spotify_id', songInput.spotify_id)
+        .maybeSingle();
+
+      if (checkError) {
+        console.error(`[EF saveSong] Error checking song ${songInput.name}:`, checkError);
+        throw new Error(`Failed to check song ${songInput.name}. Code: ${checkError.code}, Message: ${checkError.message}`);
+      }
+
+      if (existingData) {
+        existingSong = existingData as Song;
+        console.log(`[EF saveSong] Found existing song: ID ${existingSong.id}`);
+        // Optional: Check updated_at if needed for skipping updates
+        // const lastUpdated = existingSong.updated_at ? new Date(existingSong.updated_at) : null; ...
+        // For songs, frequent updates might be less critical unless popularity changes often
+        // Let's assume we update if found for now, but this could be optimized.
+        console.log(`[EF saveSong] Existing song ${songInput.name} found. Will update.`);
+      } else {
+        console.log(`[EF saveSong] Song ${songInput.name} is new.`);
+      }
+    } catch (checkError) {
+      console.error("[EF saveSong] Unexpected error during song existence check:", checkError);
+      throw new Error(`Unexpected error checking song ${songInput.name}: ${checkError instanceof Error ? checkError.message : String(checkError)}`);
+    }
+
+    // 2. Prepare data for upsert
+    const songDataForUpsert: Partial<Song> = {
+      ...(existingSong || {}),
+      ...songInput,
+      spotify_id: songInput.spotify_id, // Ensure Spotify ID is present
+      name: songInput.name,
+      artist_id: songInput.artist_id || existingSong?.artist_id || null, // Ensure artist link is present if provided
+      duration_ms: songInput.duration_ms ?? existingSong?.duration_ms ?? null,
+      popularity: songInput.popularity ?? existingSong?.popularity ?? 0,
+      preview_url: songInput.preview_url || existingSong?.preview_url || null,
+      // vote_count is likely managed separately by triggers or explicit updates, avoid setting here
+      updated_at: new Date().toISOString(),
+    };
+    delete songDataForUpsert.id; // Remove UUID id before upsert
+    delete (songDataForUpsert as any).vote_count; // Explicitly remove vote_count from upsert
+
+    try {
+      console.log(`[EF saveSong] Attempting upsert for song: ${songDataForUpsert.name} on conflict: spotify_id`);
+      const { data: upsertedData, error: upsertError } = await supabaseAdmin
+        .from('songs')
+        .upsert(songDataForUpsert, {
+          onConflict: 'spotify_id',
+          ignoreDuplicates: false // Update on conflict
+        })
+        .select()
+        .single();
+
+      if (upsertError) {
+        console.error(`[EF saveSong] FAILED upsert for song ${songInput.name}:`, upsertError);
+        // Attempt fetch again on conflict
+        if (upsertError.code === '23505') {
+          console.warn(`[EF saveSong] Upsert conflict, attempting to fetch existing song again...`);
+          const { data: conflictedSong, error: fetchError } = await supabaseAdmin
+            .from('songs')
+            .select('*')
+            .eq('spotify_id', songInput.spotify_id)
+            .maybeSingle();
+           if (fetchError) console.error(`[EF saveSong] Error fetching conflicted song:`, fetchError);
+           if (conflictedSong) {
+             console.log(`[EF saveSong] Found conflicted song with ID: ${conflictedSong.id}. Returning it.`);
+             return conflictedSong as Song;
+           }
+        }
+        // Handle foreign key violation if artist_id is provided but invalid
+        if (upsertError.code === '23503') {
+            console.error(`[EF saveSong] Foreign key violation for song ${songInput.name}. Artist ID ${songInput.artist_id} likely invalid.`);
+        }
+        throw new Error(`Failed to save song ${songInput.name}. Code: ${upsertError.code}, Message: ${upsertError.message}`);
+      }
+
+      const savedDbSong = upsertedData as Song;
+      console.log(`[EF saveSong] Successfully saved/updated song ${savedDbSong.name} (DB ID: ${savedDbSong.id})`);
+      return savedDbSong; // Return the full saved DB record
+
+    } catch (saveError) {
+      console.error("[EF saveSong] Error during upsert attempt:", saveError);
+      throw saveError;
+    }
+  } catch (error) {
+    console.error("[EF saveSong] Unexpected top-level error:", error);
+    throw new Error(`Unexpected error processing song ${songInput?.name}: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}

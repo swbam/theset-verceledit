@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS public.artists (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   name TEXT NOT NULL,
   spotify_id TEXT UNIQUE,
+  ticketmaster_id TEXT UNIQUE,
   image_url TEXT,
   followers INTEGER DEFAULT 0,
   popularity INTEGER,
@@ -18,6 +19,7 @@ CREATE TABLE IF NOT EXISTS public.artists (
 CREATE TABLE IF NOT EXISTS public.venues (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   name TEXT NOT NULL,
+  ticketmaster_id TEXT UNIQUE,
   city TEXT,
   state TEXT,
   country TEXT,
@@ -31,6 +33,7 @@ CREATE TABLE IF NOT EXISTS public.shows (
   name TEXT NOT NULL,
   artist_id UUID REFERENCES public.artists(id),
   venue_id UUID REFERENCES public.venues(id),
+  ticketmaster_id TEXT UNIQUE,
   date TIMESTAMP WITH TIME ZONE,
   image_url TEXT,
   ticket_url TEXT,
@@ -188,12 +191,17 @@ END $$;
 -- Create indexes for performance
 CREATE INDEX IF NOT EXISTS idx_shows_artist_id ON shows(artist_id);
 CREATE INDEX IF NOT EXISTS idx_shows_venue_id ON shows(venue_id);
+CREATE INDEX IF NOT EXISTS idx_shows_ticketmaster_id ON shows(ticketmaster_id);
 CREATE INDEX IF NOT EXISTS idx_songs_artist_id ON songs(artist_id);
+CREATE INDEX IF NOT EXISTS idx_songs_spotify_id ON songs(spotify_id);
 CREATE INDEX IF NOT EXISTS idx_setlists_artist_id ON setlists(artist_id);
 CREATE INDEX IF NOT EXISTS idx_setlists_show_id ON setlists(show_id);
+CREATE INDEX IF NOT EXISTS idx_setlists_setlist_fm_id ON setlists(setlist_fm_id);
 CREATE INDEX IF NOT EXISTS idx_setlist_songs_setlist_id ON setlist_songs(setlist_id);
-CREATE INDEX IF NOT EXISTS idx_setlist_songs_song_id ON setlist_songs(song_id);
 CREATE INDEX IF NOT EXISTS idx_votes_song_id ON votes(song_id);
 CREATE INDEX IF NOT EXISTS idx_votes_user_id ON votes(user_id);
+CREATE INDEX IF NOT EXISTS idx_artists_spotify_id ON artists(spotify_id);
+CREATE INDEX IF NOT EXISTS idx_artists_ticketmaster_id ON artists(ticketmaster_id);
+CREATE INDEX IF NOT EXISTS idx_venues_ticketmaster_id ON venues(ticketmaster_id);
 CREATE INDEX IF NOT EXISTS idx_api_cache_endpoint ON api_cache(endpoint);
 CREATE INDEX IF NOT EXISTS idx_api_cache_expires ON api_cache(expires_at DESC);
