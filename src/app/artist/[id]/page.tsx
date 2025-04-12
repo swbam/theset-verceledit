@@ -1,4 +1,5 @@
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
+// Import the createServerClient from @supabase/ssr
+import { createServerClient, type CookieOptions } from '@supabase/ssr'; 
 import { cookies } from 'next/headers';
 import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
@@ -18,7 +19,20 @@ interface ArtistPageProps {
 export async function generateMetadata(
   { params }: ArtistPageProps
 ): Promise<Metadata> {
-  const supabase = createServerComponentClient({ cookies });
+  // Use the createServerClient from @supabase/ssr
+  const cookieStore = cookies(); // Get the cookie store
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!, // Ensure these are defined in your env
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name: string) {
+          return cookieStore.get(name)?.value;
+        },
+        // No need for set/remove in read-only server component context usually
+      },
+    }
+  );
   
   const { data: artist } = await supabase
     .from('artists')
@@ -45,7 +59,20 @@ export async function generateMetadata(
 }
 
 export default async function ArtistPage({ params }: ArtistPageProps) {
-  const supabase = createServerComponentClient({ cookies });
+  // Use the createServerClient from @supabase/ssr
+  const cookieStore = cookies(); // Get the cookie store
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!, // Ensure these are defined in your env
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name: string) {
+          return cookieStore.get(name)?.value;
+        },
+        // No need for set/remove in read-only server component context usually
+      },
+    }
+  );
   
   const { data: artist } = await supabase
     .from('artists')
@@ -128,4 +155,4 @@ export default async function ArtistPage({ params }: ArtistPageProps) {
       </div>
     </div>
   );
-} 
+}

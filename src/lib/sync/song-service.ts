@@ -1,8 +1,42 @@
-import { supabase } from '@/integrations/supabase/client';
+import { createServiceRoleClient } from '@/integrations/supabase/utils'; // Import the new utility
 import { APIClientManager } from './api-client';
 import { IncrementalSyncService } from './incremental';
 import { SyncOptions, SyncResult } from './types';
 import { Song } from '@/lib/types';
+
+// --- Interfaces for Spotify API Responses ---
+interface SpotifyImage {
+  url: string;
+  height?: number;
+  width?: number;
+}
+
+interface SpotifyAlbum {
+  name?: string;
+  images?: SpotifyImage[];
+}
+
+interface SpotifyTrack {
+  id: string;
+  name: string;
+  external_urls?: { spotify?: string };
+  preview_url?: string | null;
+  duration_ms?: number;
+  popularity?: number;
+  album?: SpotifyAlbum;
+}
+
+interface SpotifySearchResponse {
+  tracks?: {
+    items?: SpotifyTrack[];
+  };
+}
+
+interface SpotifyTopTracksResponse {
+  tracks?: SpotifyTrack[];
+}
+// --- End Interfaces ---
+
 
 /**
  * Service for syncing song data from external APIs
@@ -10,10 +44,12 @@ import { Song } from '@/lib/types';
 export class SongSyncService {
   private apiClient: APIClientManager;
   private syncService: IncrementalSyncService;
+  private supabaseAdmin; // Add a property for the client instance
   
   constructor() {
     this.apiClient = new APIClientManager();
     this.syncService = new IncrementalSyncService();
+    this.supabaseAdmin = createServiceRoleClient(); // Instantiate the service role client
   }
   
   /**
@@ -26,7 +62,7 @@ export class SongSyncService {
       
       if (!syncStatus.needsSync) {
         // Get existing song data
-        const { data: song } = await supabase
+        const { data: song } = await this.supabaseAdmin // Use the admin client instance
           .from('songs')
           .select('*')
           .eq('id', songId)
@@ -51,7 +87,7 @@ export class SongSyncService {
       }
       
       // Update in database
-      const { error } = await supabase
+      const { error } = await this.supabaseAdmin // Use the admin client instance
         .from('songs')
         .upsert(song, { onConflict: 'id' });
         
@@ -87,7 +123,7 @@ export class SongSyncService {
    */
   private async fetchSongData(songId: string): Promise<Song | null> {
     // First try to get existing song
-    const { data: existingSong } = await supabase
+    const { data: existingSong } = await this.supabaseAdmin // Use the admin client instance
       .from('songs')
       .select('*')
       .eq('id', songId)
@@ -103,7 +139,7 @@ export class SongSyncService {
         const setlistId = parts[0];
         
         // Get setlist
-        const { data: setlist } = await supabase
+        const { data: setlist } = await this.supabaseAdmin // Use the admin client instance
           .from('setlists')
           .select('songs, artist_id')
           .eq('id', setlistId)
@@ -126,28 +162,34 @@ export class SongSyncService {
     }
     
     // If we've found a song, enrich it with Spotify data
-    if (song && song.artist_id) {
+    if (song && song.artist_id) { // Check if song and artist_id exist
       try {
-        // Get artist info
-        const { data: artist } = await supabase
+        // Get artist info - We know song and song.artist_id are not null here due to the outer check
+        const { data: artist } = await this.supabaseAdmin // Use the admin client instance
           .from('artists')
           .select('name')
-          .eq('id', song.artist_id)
+          .eq('id', song.artist_id) // Accessing song.artist_id here
           .single();
           
+        // Re-check song after await, just in case, to satisfy TS strict null checks
+        if (!song) {
+           console.warn("Song became null after fetching artist data");
+           return null;
+        }
+
         if (artist) {
           // Search for song on Spotify
           const spotifyData = await this.apiClient.callAPI(
             'spotify',
             'search',
             {
-              q: `track:${song.name} artist:${artist.name}`,
+              q: `track:${song.name} artist:${artist.name}`, // Accessing song.name here
               type: 'track',
               limit: 1
             }
-          );
+          ) as SpotifySearchResponse | null; // Add type assertion
           
-          if (spotifyData && spotifyData.tracks && spotifyData.tracks.items.length > 0) {
+          if (spotifyData?.tracks?.items && spotifyData.tracks.items.length > 0) { // Use optional chaining
             const track = spotifyData.tracks.items[0];
             
             // Update song with Spotify data
@@ -190,9 +232,9 @@ export class SongSyncService {
           type: 'track',
           limit: 20
         }
-      );
+      ) as SpotifySearchResponse | null; // Add type assertion
       
-      if (!spotifyData?.tracks?.items) {
+      if (!spotifyData?.tracks?.items) { // Use optional chaining
         return [];
       }
       
@@ -200,7 +242,7 @@ export class SongSyncService {
       
       // Find the artist ID
       let artistId = null;
-      const { data: artists } = await supabase
+      const { data: artists } = await this.supabaseAdmin // Use the admin client instance
         .from('artists')
         .select('id')
         .ilike('name', artistName)
@@ -211,7 +253,7 @@ export class SongSyncService {
       }
       
       // Process each track
-      for (const track of spotifyData.tracks.items) {
+      for (const track of spotifyData.tracks.items) { // Now TypeScript knows the shape
         if (!track.id) continue;
         
         const song: Song = {
@@ -233,7 +275,7 @@ export class SongSyncService {
         
         // Store each song as we find them if it has an artist_id
         if (artistId) {
-          await supabase
+          await this.supabaseAdmin // Use the admin client instance
             .from('songs')
             .upsert(song, { onConflict: 'id' });
             
@@ -255,7 +297,7 @@ export class SongSyncService {
   async getArtistTopSongs(artistId: string, limit = 10): Promise<Song[]> {
     try {
       // Get artist info including Spotify ID
-      const { data: artist } = await supabase
+      const { data: artist } = await this.supabaseAdmin // Use the admin client instance
         .from('artists')
         .select('name, spotify_id')
         .eq('id', artistId)
@@ -275,13 +317,13 @@ export class SongSyncService {
             'spotify',
             `artists/${artist.spotify_id}/top-tracks`,
             { market: 'US' }
-          );
+          ) as SpotifyTopTracksResponse | null; // Add type assertion
           
-          if (spotifyData?.tracks) {
+          if (spotifyData?.tracks) { // Use optional chaining
             // Process tracks
-            for (const track of spotifyData.tracks) {
+            for (const track of spotifyData.tracks) { // Now TypeScript knows the shape
               const song: Song = {
-                id: track.id,
+                id: track.id, // Access known property
                 name: track.name,
                 artist_id: artistId,
                 spotify_id: track.id,
@@ -298,7 +340,7 @@ export class SongSyncService {
               songs.push(song);
               
               // Store each song
-              await supabase
+              await this.supabaseAdmin // Use the admin client instance
                 .from('songs')
                 .upsert(song, { onConflict: 'id' });
                 
@@ -322,4 +364,4 @@ export class SongSyncService {
       return [];
     }
   }
-} 
+}

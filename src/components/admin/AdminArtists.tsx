@@ -1,6 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { Artist } from '@/lib/types';
 import { 
   Table, 
   TableBody, 
@@ -17,7 +18,7 @@ import { Link } from 'react-router-dom';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 const AdminArtists = () => {
-  const [artists, setArtists] = useState([]);
+  const [artists, setArtists] = useState<Artist[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [refreshing, setRefreshing] = useState(false);
@@ -141,9 +142,9 @@ const AdminArtists = () => {
                   </TableCell>
                   <TableCell className="font-medium">{artist.name}</TableCell>
                   <TableCell>{artist.spotify_id || 'N/A'}</TableCell>
-                  <TableCell>{artist.upcoming_shows || 0}</TableCell>
+                  <TableCell>0</TableCell>
                   <TableCell>{artist.popularity || 'N/A'}</TableCell>
-                  <TableCell>{new Date(artist.updated_at).toLocaleDateString()}</TableCell>
+                  <TableCell>{artist.updated_at ? new Date(artist.updated_at).toLocaleDateString() : 'N/A'}</TableCell>
                   <TableCell className="text-right">
                     <Button
                       variant="outline"

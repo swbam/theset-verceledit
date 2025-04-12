@@ -1,12 +1,14 @@
-import { supabase } from "@/integrations/supabase/client";
+import { createServiceRoleClient } from "@/integrations/supabase/utils"; // Use service role client for auth tables
 
 // API handler for setting the current user as admin
 export async function handler(req: Request) {
+  const supabaseAdmin = createServiceRoleClient(); // Create admin client for auth tables
+
   try {
     // Get session to check authentication
-    const { data: { session } } = await supabase.auth.getSession();
+    const { data: { session }, error: sessionError } = await supabaseAdmin.auth.getSession();
     
-    if (!session) {
+    if (sessionError || !session) {
       return Response.json({ 
         success: false, 
         message: "Not authenticated" 
@@ -22,83 +24,51 @@ export async function handler(req: Request) {
       }, { status: 403 });
     }
     
-    // Update the profile to set admin status
-    const { data: profileData, error: profileError } = await supabase
-      .from('profiles')
-      .select('is_admin')
-      .eq('id', session.user.id)
-      .single();
-      
-    if (profileError && profileError.code !== 'PGRST116') {
-      console.error('Error checking profile:', profileError);
+    // Check current admin status
+    const { data: { user }, error: userError } = await supabaseAdmin.auth.admin.getUserById(session.user.id);
+    
+    if (userError) {
+      console.error('Error fetching user:', userError);
       return Response.json({ 
         success: false, 
-        message: `Database error: ${profileError.message}` 
+        message: `Database error: ${userError.message}` 
       }, { status: 500 });
     }
     
-    // If profile doesn't exist, create it
-    if (profileError && profileError.code === 'PGRST116') {
-      const { data: newProfile, error: createError } = await supabase
-        .from('profiles')
-        .insert([
-          { 
-            id: session.user.id,
-            email: userEmail,
-            username: 'admin',
-            full_name: 'Site Admin',
-            is_admin: true 
-          }
-        ])
-        .select();
-        
-      if (createError) {
-        console.error('Error creating profile:', createError);
-        return Response.json({ 
-          success: false, 
-          message: `Failed to create profile: ${createError.message}` 
-        }, { status: 500 });
-      }
-      
+    // Check if already admin
+    const isAdmin = user?.user_metadata?.is_admin || false;
+    if (isAdmin) {
       return Response.json({ 
         success: true, 
-        message: "Admin profile created successfully", 
-        data: newProfile 
+        message: "Already an admin", 
+        data: user 
       });
     }
     
-    // If profile exists but is not admin, update it
-    if (!profileData?.is_admin) {
-      const { data: updatedProfile, error: updateError } = await supabase
-        .from('profiles')
-        .update({ 
+    // Update user metadata to set admin status
+    const { data: updatedUser, error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
+      session.user.id,
+      { 
+        user_metadata: {
+          ...user?.user_metadata, // Preserve existing metadata
           is_admin: true,
-          username: profileData?.username || 'admin',
-          full_name: profileData?.full_name || 'Site Admin'
-        })
-        .eq('id', session.user.id)
-        .select();
-        
-      if (updateError) {
-        console.error('Error updating profile:', updateError);
-        return Response.json({ 
-          success: false, 
-          message: `Failed to update profile: ${updateError.message}` 
-        }, { status: 500 });
+          full_name: user?.user_metadata?.full_name || 'Site Admin'
+        }
       }
-      
+    );
+    
+    if (updateError) {
+      console.error('Error updating user:', updateError);
       return Response.json({ 
-        success: true, 
-        message: "Admin status updated successfully", 
-        data: updatedProfile 
-      });
+        success: false, 
+        message: `Failed to update user: ${updateError.message}` 
+      }, { status: 500 });
     }
     
-    // If already an admin
     return Response.json({ 
       success: true, 
-      message: "Already an admin", 
-      data: profileData 
+      message: "Admin status updated successfully", 
+      data: updatedUser 
     });
     
   } catch (error) {

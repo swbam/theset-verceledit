@@ -31,8 +31,12 @@ const ConcertData = ({ fetchFn }: ConcertDataProps) => {
     loadData();
   }, [fetchFn]);
 
-  if (isLoading) return null; // Skeleton is handled by parent
+  if (isLoading) {
+    console.log('ConcertData loading...');
+    return null; // Skeleton is handled by parent
+  }
   
+  console.log('Rendering concerts:', concerts);
   if (error) {
     return (
       <div className="p-4 border border-red-300 bg-red-50 rounded-md">
@@ -63,12 +67,12 @@ const ConcertData = ({ fetchFn }: ConcertDataProps) => {
         <Card key={concert.id} className="overflow-hidden">
           <CardHeader className="bg-muted/50">
             <CardTitle className="flex justify-between items-center">
-              <span>{format(new Date(concert.date), 'MMM d, yyyy')}</span>
-              <span className="text-sm font-normal">{concert.venue}</span>
+              <span>{concert.date ? format(new Date(concert.date), 'MMM d, yyyy') : 'Date TBD'}</span>
+              <span className="text-sm font-normal">{concert.venue?.name || 'Venue TBD'}</span>
             </CardTitle>
           </CardHeader>
           <CardContent className="p-4">
-            <h3 className="font-medium mb-2">{concert.artist.name}</h3>
+            <h3 className="font-medium mb-2">{concert.artist?.name || 'Artist'}</h3>
             <div className="space-y-1">
               {concert.setlist?.map((song) => (
                 <div key={song.id} className="flex justify-between items-center text-sm">
@@ -84,4 +88,4 @@ const ConcertData = ({ fetchFn }: ConcertDataProps) => {
   );
 };
 
-export default ConcertData; 
+export default ConcertData;

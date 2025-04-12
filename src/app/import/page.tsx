@@ -261,7 +261,13 @@ export default function ImportPage() {
                       </a>
                     )}
                     <Button 
-                      onClick={() => importVenue(venue.id)}
+                      onClick={() => {
+                        if (venue.id) {
+                          importVenue(venue.id);
+                        } else {
+                          toast.error('Cannot import venue: Missing ID');
+                        }
+                      }}
                       disabled={importingVenueId === venue.id}
                     >
                       {importingVenueId === venue.id ? (

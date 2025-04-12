@@ -32,10 +32,7 @@ export default defineConfig(({ mode }) => ({
       "@": path.resolve(__dirname, "./src"),
     },
   },
-  // Define global constants - replace process.env with {} to avoid errors in browser
-  define: {
-    'process.env': {}
-  },
+  // Removed define block that overwrites process.env
   build: {
     // Increase the warning limit to avoid unnecessary warnings
     chunkSizeWarningLimit: 1000,

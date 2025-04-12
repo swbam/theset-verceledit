@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { useSupabaseClient } from '@supabase/auth-helpers-react';
+// Removed incorrect useSupabaseClient import
+import { supabase } from '@/integrations/supabase/client'; // Import the client directly
 import SetlistDisplay from './SetlistDisplay';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -15,7 +16,7 @@ export default function ArtistSetlists({ artistId, artistName }: ArtistSetlistsP
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
-  const supabase = useSupabaseClient();
+  // const supabase = useSupabaseClient(); // Remove hook usage, use imported client directly
 
   useEffect(() => {
     // Check when setlists were last updated
@@ -28,8 +29,10 @@ export default function ArtistSetlists({ artistId, artistName }: ArtistSetlistsP
         .limit(1)
         .single();
         
-      if (data) {
+      if (data?.last_updated) {
         setLastRefreshed(new Date(data.last_updated));
+      } else {
+        setLastRefreshed(null);
       }
     };
     
@@ -118,4 +121,4 @@ export default function ArtistSetlists({ artistId, artistName }: ArtistSetlistsP
       )}
     </div>
   );
-} 
+}

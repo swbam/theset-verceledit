@@ -1,20 +1,23 @@
-// This file has been modified to support both local development and production environments
-import { createClient } from '@supabase/supabase-js';
+// This file now exports a Supabase client instance suitable for browser environments,
+// leveraging the @supabase/ssr package.
+// Server-side clients should be created using utilities from './utils.ts'.
+import { createBrowserClient } from '@supabase/ssr'; // Correct import name
 import type { Database } from './types';
-import { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
+import { RealtimePostgresChangesPayload, SupabaseClient } from '@supabase/supabase-js';
 
-// Supabase configuration - with fallbacks for when environment variables aren't available
-// Use process.env for server-side/Node.js environment compatibility
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ||
-                     "https://kzjnkqeosrycfpxjwhil.supabase.co";
+// --- Environment Variables (Client-Side Safe) ---
+// Prioritize Vite env vars for client-side, fallback to NEXT_PUBLIC_
+const SUPABASE_URL = 
+  (typeof import.meta !== 'undefined' ? import.meta.env.VITE_SUPABASE_URL : process.env.NEXT_PUBLIC_SUPABASE_URL) ||
+  "https://kzjnkqeosrycfpxjwhil.supabase.co";
 
-// Use process.env for server-side/Node.js environment compatibility
-const SUPABASE_PUBLISHABLE_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-                                 "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt6am5rcWVvc3J5Y2ZweGp3aGlsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDI2ODM3ODMsImV4cCI6MjA1ODI1OTc4M30.KOriVTUxlnfiBpWmVrlO4xHM7nniizLgXQ49f2K22UM";
+const SUPABASE_ANON_KEY = 
+  (typeof import.meta !== 'undefined' ? import.meta.env.VITE_SUPABASE_ANON_KEY : process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) ||
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt6am5rcWVvc3J5Y2ZweGp3aGlsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDI2ODM3ODMsImV4cCI6MjA1ODI1OTc4M30.KOriVTUxlnfiBpWmVrlO4xHM7nniizLgXQ49f2K22UM";
 
 // Log the Supabase configuration for debugging
 console.log('Supabase URL:', SUPABASE_URL);
-console.log('Supabase Key available:', SUPABASE_PUBLISHABLE_KEY ? 'Yes' : 'No');
+console.log('Supabase Key available:', SUPABASE_ANON_KEY ? 'Yes' : 'No'); // Correct variable name
 
 // Detect if we're in a local development environment
 const isLocalDevelopment = 
@@ -38,49 +41,23 @@ if (typeof window !== 'undefined') {
   console.log(`Auth redirect URL: ${getRedirectUrl()}`);
 }
 
-// Create the Supabase client with error handling
-let supabaseClient;
+// --- Create Client-Side Supabase Instance ---
+let supabaseClient: SupabaseClient<Database>;
+
 try {
-  // Import the supabase client like this:
-  // import { supabase } from "@/integrations/supabase/client";
-  supabaseClient = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    throw new Error('Supabase URL or Anon Key is missing. Check environment variables.');
+  }
+  // Use createBrowserClient from @supabase/ssr for the exported client
+  supabaseClient = createBrowserClient<Database>(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    // Remove the explicit storage configuration as @supabase/ssr handles it.
+    // Keep other relevant auth options if needed.
     auth: {
-      persistSession: true,
-      autoRefreshToken: true,
-      detectSessionInUrl: true,
-      flowType: 'pkce', // More secure authentication flow for mobile and SPA
-      storage: {
-        getItem: (key) => {
-          try {
-            if (typeof window === 'undefined') return null;
-            const storedValue = localStorage.getItem(key);
-            if (!storedValue) return null;
-            return JSON.parse(storedValue);
-          } catch (error) {
-            console.error('Error retrieving auth from storage:', error);
-            return null;
-          }
-        },
-        setItem: (key, value) => {
-          try {
-            if (typeof window === 'undefined') return;
-            localStorage.setItem(key, JSON.stringify(value));
-          } catch (error) {
-            console.error('Error storing auth in storage:', error);
-          }
-        },
-        removeItem: (key) => {
-          try {
-            if (typeof window === 'undefined') return;
-            localStorage.removeItem(key);
-          } catch (error) {
-            console.error('Error removing auth from storage:', error);
-          }
-        }
-      }
-    },
+      flowType: 'pkce', // Keep PKCE flow
+      detectSessionInUrl: true, // Keep session detection
+    }, // <-- Added missing closing brace for auth object
     realtime: {
-      params: {
+      params: { // Keep existing realtime config
         eventsPerSecond: 10
       }
     },
@@ -93,11 +70,15 @@ try {
   });
   console.log('Supabase client created successfully');
 } catch (error) {
-  console.error('Error creating Supabase client:', error);
-  // Create a fallback client with minimal configuration
-  supabaseClient = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+  console.error('Error creating Supabase browser client:', error);
+  // Provide a non-functional fallback or re-throw to halt execution
+  // Depending on how critical the client is at startup.
+  // For now, let's throw to make the issue obvious during development.
+  throw new Error(`Failed to initialize Supabase client: ${error instanceof Error ? error.message : error}`);
+  // supabaseClient = createBrowserClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY); // Fallback if needed
 }
 
+// Export the single instance for client-side use
 export const supabase = supabaseClient;
 
 /**

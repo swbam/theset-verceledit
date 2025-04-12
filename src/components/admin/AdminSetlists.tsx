@@ -1,6 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { Setlist } from '@/lib/types';
 import { 
   Table, 
   TableBody, 
@@ -16,7 +17,20 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Link } from 'react-router-dom';
 
 const AdminSetlists = () => {
-  const [setlists, setSetlists] = useState([]);
+  // Define extended type for setlists with additional properties
+  type SetlistWithMeta = Setlist & {
+    songCount?: number;
+    last_updated?: string;
+    show?: {
+      name?: string;
+      date?: string;
+      artist_id?: {
+        name?: string;
+      }
+    }
+  };
+  
+  const [setlists, setSetlists] = useState<SetlistWithMeta[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [refreshing, setRefreshing] = useState(false);
@@ -166,10 +180,11 @@ const AdminSetlists = () => {
                   </TableCell>
                   <TableCell>{setlist.songCount}</TableCell>
                   <TableCell>
-                    {new Date(setlist.created_at).toLocaleDateString()}
+                    {setlist.created_at ? new Date(setlist.created_at).toLocaleDateString() : 'N/A'}
                   </TableCell>
                   <TableCell>
-                    {new Date(setlist.last_updated).toLocaleDateString()}
+                    {setlist.last_updated ? new Date(setlist.last_updated).toLocaleDateString() : 
+                     setlist.updated_at ? new Date(setlist.updated_at).toLocaleDateString() : 'N/A'}
                   </TableCell>
                   <TableCell className="text-right">
                     <Button

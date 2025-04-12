@@ -1,17 +1,24 @@
 export type ConcertData = {
   id: string;
-  date: string;
-  venue: string;
+  date: string | null;
+  name: string;
+  status?: string;
+  ticketUrl?: string;
+  venue: {
+    id: string;
+    name: string;
+    city: string | null;
+  } | null;
+  artist: {
+    id: string;
+    name: string;
+  } | null;
   setlist: Array<{
     id: string;
     title: string;
     vote_count: number;
   }>;
-  artist: {
-    id: string;
-    name: string;
-  };
-  last_updated: string;
+  last_updated?: string;
 };
 
 export type SyncStatus = {
@@ -68,6 +75,9 @@ export interface Show {
   image_url?: string | null;
   created_at?: string;
   updated_at?: string;
+  // Add optional nested objects for joined data
+  artist?: { id: string; name: string } | null;
+  venue?: { id: string; name: string; city: string | null; state: string | null } | null;
 }
 
 export interface Setlist {

@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
+// Removed duplicate import
 import { SyncManager } from '@/lib/sync/manager'; // Import the SyncManager
 import { EntityType, SyncOperation } from '@/lib/sync/types'; // Import necessary types
-import { createClient } from '@/integrations/supabase/server'; // Keep for auth check
+// Import the correct server-side client creation utilities
+import { createServerActionClient } from '@/integrations/supabase/utils'; 
 
 // Instantiate the SyncManager
 // Note: Depending on how stateful the manager/queue is,
@@ -52,10 +54,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> { // Add
   let requestBody;
   
   try {
-    // Check if user is authenticated
-    // Use the server client for invoking functions and potential DB lookups
-    const supabaseAdmin = createClient();
-    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser();
+    // Check if user is authenticated using the server action client
+    const supabaseServerClient = createServerActionClient(); // Use the correct utility
+    const { data: { user }, error: authError } = await supabaseServerClient.auth.getUser();
     
     if (authError) {
       throw new SyncAPIError(`Authentication error: ${authError.message}`, 401, { code: 'auth_error' });
@@ -216,11 +217,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> { // Add
 /**
  * API route for checking sync status
  */
-export async function GET(request: NextRequest) {
+export async function GET(request: NextRequest) { // Add return type Promise<NextResponse>
   try {
-    // Check if user is authenticated
-    const supabase = createClient();
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    // Check if user is authenticated using the server action client
+    const supabaseServerClient = createServerActionClient(); // Use the correct utility
+    const { data: { user }, error: authError } = await supabaseServerClient.auth.getUser();
     
     if (authError) {
       throw new SyncAPIError(`Authentication error: ${authError.message}`, 401, { code: 'auth_error' });
@@ -278,4 +279,4 @@ export async function OPTIONS() {
     status: 204,
     headers: corsHeaders
   });
-} 
+}

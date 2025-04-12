@@ -1,8 +1,74 @@
-import { supabase } from '@/integrations/supabase/client';
+import { createServiceRoleClient } from '@/integrations/supabase/utils'; // Import the new utility
 import { APIClientManager } from './api-client';
 import { IncrementalSyncService } from './incremental';
 import { SyncOptions, SyncResult } from './types';
 import { Venue, Show } from '@/lib/types';
+
+// --- Interfaces for Ticketmaster API Responses ---
+interface TmImage {
+  url: string;
+  width: number;
+  height: number;
+}
+
+interface TmAddress {
+  line1?: string;
+}
+
+interface TmCity {
+  name?: string;
+}
+
+interface TmState {
+  stateCode?: string;
+}
+
+interface TmCountry {
+  countryCode?: string;
+}
+
+interface TmLocation {
+  latitude?: string; // TM API returns strings for lat/lon
+  longitude?: string;
+}
+
+interface TmVenueDetails {
+  id: string;
+  name: string;
+  url?: string;
+  images?: TmImage[];
+  address?: TmAddress;
+  city?: TmCity;
+  state?: TmState;
+  country?: TmCountry;
+  location?: TmLocation;
+}
+
+interface TmEvent {
+  id: string;
+  name: string;
+  url?: string;
+  images?: TmImage[];
+  dates?: { start?: { dateTime?: string }; status?: { code?: string } };
+  _embedded?: {
+    attractions?: [{ id: string }]; // Simplified
+    venues?: [{ id: string }]; // Simplified
+  };
+}
+
+interface TmEventResponse {
+  _embedded?: {
+    events?: TmEvent[];
+  };
+}
+
+interface TmVenueSearchResponse {
+  _embedded?: {
+    venues?: TmVenueDetails[];
+  };
+}
+// --- End Interfaces ---
+
 
 /**
  * Service for syncing venue data from external APIs
@@ -10,10 +76,12 @@ import { Venue, Show } from '@/lib/types';
 export class VenueSyncService {
   private apiClient: APIClientManager;
   private syncService: IncrementalSyncService;
+  private supabaseAdmin; // Add a property for the client instance
   
   constructor() {
     this.apiClient = new APIClientManager();
     this.syncService = new IncrementalSyncService();
+    this.supabaseAdmin = createServiceRoleClient(); // Instantiate the service role client
   }
   
   /**
@@ -26,7 +94,7 @@ export class VenueSyncService {
       
       if (!syncStatus.needsSync) {
         // Get existing venue data
-        const { data: venue, error: fetchError } = await supabase
+        const { data: venue, error: fetchError } = await this.supabaseAdmin // Use the admin client instance
           .from('venues')
           .select('*')
           .eq('external_id', venueId)
@@ -49,9 +117,9 @@ export class VenueSyncService {
       }
       
       // We need to sync - fetch from APIs
-      const venue = await this.fetchVenueData(venueId);
+      const venueData = await this.fetchVenueData(venueId);
       
-      if (!venue) {
+      if (!venueData) {
         return {
           success: false,
           updated: false,
@@ -60,13 +128,13 @@ export class VenueSyncService {
       }
       
       // Ensure we have an external_id for tracking purposes
-      venue.external_id = venueId;
+      venueData.external_id = venueId;
       
       // Update in database
-      console.log(`Upserting venue data for ID ${venueId}:`, venue);
-      const { error } = await supabase
+      console.log(`Upserting venue data for ID ${venueId}:`, venueData);
+      const { error } = await this.supabaseAdmin // Use the admin client instance
         .from('venues')
-        .upsert(venue, { 
+        .upsert(venueData, { 
           onConflict: 'external_id',
           ignoreDuplicates: false
         });
@@ -86,7 +154,7 @@ export class VenueSyncService {
       return {
         success: true,
         updated: true,
-        data: venue
+        data: venueData
       };
     } catch (error) {
       console.error(`Error syncing venue ${venueId}:`, error);
@@ -103,7 +171,7 @@ export class VenueSyncService {
    */
   private async fetchVenueData(venueId: string): Promise<Venue | null> {
     // First try to get existing venue
-    const { data: existingVenue } = await supabase
+    const { data: existingVenue } = await this.supabaseAdmin // Use the admin client instance
       .from('venues')
       .select('*')
       .eq('external_id', venueId)
@@ -113,13 +181,13 @@ export class VenueSyncService {
     
     // Ticketmaster API for venue details
     try {
-      const tmData = await this.apiClient.callAPI(
+      const tmData = await this.apiClient.callAPI<TmVenueDetails>( // Add type assertion
         'ticketmaster',
         `venues/${venueId}`,
         {}
       );
       
-      if (tmData) {
+      if (tmData) { // Now TypeScript knows the shape of tmData
         const address = [
           tmData.address?.line1,
           tmData.city?.name
@@ -133,8 +201,9 @@ export class VenueSyncService {
           state: tmData.state?.stateCode || (venue?.state || null),
           country: tmData.country?.countryCode || (venue?.country || null),
           address: address || (venue?.address || null),
-          latitude: tmData.location?.latitude || (venue?.latitude || null),
-          longitude: tmData.location?.longitude || (venue?.longitude || null),
+          // Convert lat/lon strings to numbers, handle potential nulls
+          latitude: tmData.location?.latitude ? parseFloat(tmData.location.latitude) : (venue?.latitude || null),
+          longitude: tmData.location?.longitude ? parseFloat(tmData.location.longitude) : (venue?.longitude || null),
           url: tmData.url || (venue?.url || null),
           image_url: this.getBestImage(tmData.images) || (venue?.image_url || null),
           // Preserve existing fields
@@ -171,7 +240,7 @@ export class VenueSyncService {
   async getVenueUpcomingShows(venueId: string): Promise<Show[]> {
     try {
       // First get the venue to ensure it exists
-      const { data: venue, error } = await supabase
+      const { data: venue, error } = await this.supabaseAdmin // Use the admin client instance
         .from('venues')
         .select('name, id')
         .or(`id.eq.${venueId},external_id.eq.${venueId}`)
@@ -191,9 +260,9 @@ export class VenueSyncService {
           sort: 'date,asc',
           size: 50
         }
-      );
+      ) as TmEventResponse | null; // Add type assertion
       
-      if (!response?._embedded?.events) {
+      if (!response?._embedded?.events) { // Now TypeScript knows the shape
         return [];
       }
       
@@ -222,7 +291,7 @@ export class VenueSyncService {
         shows.push(show);
         
         // Store each show as we find it
-        const { error: upsertError } = await supabase
+        const { error: upsertError } = await this.supabaseAdmin // Use the admin client instance
           .from('shows')
           .upsert({
             ...show,
@@ -256,20 +325,20 @@ export class VenueSyncService {
       // Search parameters
       const params: Record<string, any> = {
         keyword,
-        size: 10
-      };
+          size: 10
+        };
       
       if (city) params.city = city;
       if (stateCode) params.stateCode = stateCode;
       
       // Search Ticketmaster for venues
-      const response = await this.apiClient.callAPI(
+      const response = await this.apiClient.callAPI<TmVenueSearchResponse>( // Add type assertion
         'ticketmaster',
         'venues',
         params
       );
       
-      if (!response?._embedded?.venues) {
+      if (!response?._embedded?.venues) { // Now TypeScript knows the shape
         return [];
       }
       
@@ -290,8 +359,9 @@ export class VenueSyncService {
           state: tmVenue.state?.stateCode || null,
           country: tmVenue.country?.countryCode || null,
           address: address || null,
-          latitude: tmVenue.location?.latitude || null,
-          longitude: tmVenue.location?.longitude || null,
+          // Convert lat/lon strings to numbers, handle potential nulls
+          latitude: tmVenue.location?.latitude ? parseFloat(tmVenue.location.latitude) : null,
+          longitude: tmVenue.location?.longitude ? parseFloat(tmVenue.location.longitude) : null,
           url: tmVenue.url || null,
           image_url: this.getBestImage(tmVenue.images),
           created_at: new Date().toISOString(),
@@ -301,7 +371,7 @@ export class VenueSyncService {
         results.push(venue);
         
         // Store each venue as we find them
-        const { error } = await supabase
+        const { error } = await this.supabaseAdmin // Use the admin client instance
           .from('venues')
           .upsert(venue, { 
             onConflict: 'external_id',
@@ -322,4 +392,4 @@ export class VenueSyncService {
       return [];
     }
   }
-} 
+}

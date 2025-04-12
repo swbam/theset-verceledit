@@ -1,4 +1,4 @@
-import { supabase } from '@/integrations/supabase/client';
+import { createServiceRoleClient } from '@/integrations/supabase/utils'; // Import the new utility
 import { EntityType, CURRENT_SYNC_VERSION, SyncStatus, SyncOptions, DEFAULT_REFRESH_INTERVALS, EntityRef } from './types';
 import { CacheService } from './cache';
 
@@ -9,9 +9,11 @@ import { CacheService } from './cache';
 export class IncrementalSyncService {
   private cache: CacheService;
   private readonly cachePrefix = 'sync_state:';
+  private supabaseAdmin; // Add a property for the client instance
   
   constructor() {
     this.cache = new CacheService();
+    this.supabaseAdmin = createServiceRoleClient(); // Instantiate the service role client
   }
   
   /**
@@ -37,7 +39,7 @@ export class IncrementalSyncService {
     // Check database state using external_id
     try {
       // First try using external_id
-      const { data: externalData } = await supabase
+      const { data: externalData } = await this.supabaseAdmin // Use the admin client instance
         .from('sync_states')
         .select('last_synced, sync_version')
         .eq('external_id', entityId)
@@ -57,7 +59,7 @@ export class IncrementalSyncService {
       }
       
       // If not found by external_id, try entity_id (for backward compatibility)
-      const { data: legacyData } = await supabase
+      const { data: legacyData } = await this.supabaseAdmin // Use the admin client instance
         .from('sync_states')
         .select('last_synced, sync_version')
         .eq('entity_id', entityId)
@@ -74,7 +76,7 @@ export class IncrementalSyncService {
         }, 60 * 60 * 1000);
         
         // Migrate to use external_id
-        await supabase
+        await this.supabaseAdmin // Use the admin client instance
           .from('sync_states')
           .update({ external_id: entityId })
           .eq('entity_id', entityId)
@@ -120,7 +122,7 @@ export class IncrementalSyncService {
     
     // Update database
     try {
-      await supabase
+      await this.supabaseAdmin // Use the admin client instance
         .from('sync_states')
         .upsert({
           entity_id: entityId,
@@ -160,7 +162,7 @@ export class IncrementalSyncService {
     }));
     
     try {
-      await supabase
+      await this.supabaseAdmin // Use the admin client instance
         .from('sync_states')
         .upsert(updates, { onConflict: ['entity_id', 'entity_type'] });
     } catch (error) {
@@ -179,7 +181,7 @@ export class IncrementalSyncService {
     
     // Remove from database - try both external_id and entity_id
     try {
-      await supabase
+      await this.supabaseAdmin // Use the admin client instance
         .from('sync_states')
         .delete()
         .or(`external_id.eq.${entityId},entity_id.eq.${entityId}`)
@@ -226,4 +228,4 @@ export class IncrementalSyncService {
       lastSynced
     };
   }
-} 
+}

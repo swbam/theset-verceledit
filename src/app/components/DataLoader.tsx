@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { useSupabaseClient } from '@supabase/auth-helpers-react';
+// import { useSupabaseClient } from '@supabase/auth-helpers-react'; // Incorrect import
+import { supabase } from '@/integrations/supabase/client'; // Import client directly
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
@@ -51,7 +52,7 @@ const DataLoader = ({ entity, limit = 50, filter = {}, children }: DataLoaderPro
   const [data, setData] = useState<unknown[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const supabase = useSupabaseClient();
+  // const supabase = useSupabaseClient(); // Use imported client directly
 
   useEffect(() => {
     const fetchData = async () => {
@@ -76,7 +77,16 @@ const DataLoader = ({ entity, limit = 50, filter = {}, children }: DataLoaderPro
           if (showsError) throw showsError;
           
           // For each show, get the setlist and songs
-          const enrichedData = [];
+          // Define a type for the enriched data structure
+          type EnrichedShowData = {
+            id: string;
+            date: string | null;
+            venue: string | null;
+            city: string | null;
+            setlist?: { id: string } | null;
+            songs: any[]; // Use a more specific type if possible
+          };
+          const enrichedData: EnrichedShowData[] = []; // Explicitly type the array
           
           for (const show of shows || []) {
             // Get setlist

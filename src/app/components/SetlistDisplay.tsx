@@ -5,7 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ThumbsUp } from 'lucide-react';
 import { handleVote } from '@/app/actions/vote';
-import { useUser } from '@supabase/auth-helpers-react';
+// import { useUser } from '@supabase/auth-helpers-react'; // Incorrect import
+import { useSupabaseAuth } from '@/contexts/auth/useSupabaseAuth'; // Use custom auth hook
 
 interface SetlistDisplayProps {
   artistId: string;
@@ -24,7 +25,7 @@ interface Setlist {
 }
 
 const SetlistDisplay = ({ artistId }: SetlistDisplayProps) => {
-  const user = useUser();
+  const { user } = useSupabaseAuth(); // Get user from custom hook
   const [expandedSetlist, setExpandedSetlist] = useState<string | null>(null);
   const [votes, setVotes] = useState<Record<string, boolean>>({});
 

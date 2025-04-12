@@ -1,4 +1,4 @@
-import { supabase } from '@/integrations/supabase/client';
+import { createServiceRoleClient } from '@/integrations/supabase/utils'; // Import the new utility
 import { APIClientManager } from './api-client';
 import { IncrementalSyncService } from './incremental';
 import { SyncOptions, SyncResult } from './types';
@@ -75,10 +75,12 @@ interface SpotifySearchResponse {
 export class ArtistSyncService {
   private apiClient: APIClientManager;
   private syncService: IncrementalSyncService;
+  private supabaseAdmin; // Add a property for the client instance
   
   constructor() {
     this.apiClient = new APIClientManager();
     this.syncService = new IncrementalSyncService();
+    this.supabaseAdmin = createServiceRoleClient(); // Instantiate the service role client
   }
   
   /**
@@ -91,10 +93,10 @@ export class ArtistSyncService {
       
       if (!syncStatus.needsSync) {
         // Get existing artist data
-        const { data: artist, error: fetchError } = await supabase
+        const { data: artist, error: fetchError } = await this.supabaseAdmin // Use the admin client instance
           .from('artists')
           .select('*')
-          .eq('id', artistId)
+          .eq('id', artistId) // Assuming syncArtist is called with internal UUID after initial creation/lookup
           .single();
           
         if (fetchError || !artist) {
@@ -128,11 +130,11 @@ export class ArtistSyncService {
       artist.external_id = artistId;
       
       // Update in database
-      console.log(`Upserting artist data for ID ${artistId}:`, artist);
-      const { error } = await supabase
+      console.log(`Upserting artist data for external ID ${artistId}:`, artist); // Log external ID
+      const { error } = await this.supabaseAdmin // Use the admin client instance
         .from('artists')
         .upsert(artist, { 
-          onConflict: 'external_id',
+          onConflict: 'external_id', // Upsert based on the external Ticketmaster ID
           ignoreDuplicates: false 
         });
         
@@ -168,8 +170,8 @@ export class ArtistSyncService {
    * Combines data from Ticketmaster/setlist.fm and Spotify for the most complete profile
    */
   private async fetchArtistData(artistId: string): Promise<Artist | null> {
-    // First try to get existing artist
-    const { data: existingArtist } = await supabase
+    // First try to get existing artist using the admin client
+    const { data: existingArtist } = await this.supabaseAdmin // Use the admin client instance
       .from('artists')
       .select('*')
       .eq('external_id', artistId)
@@ -266,10 +268,10 @@ export class ArtistSyncService {
   async getArtistUpcomingShows(artistId: string): Promise<Show[]> {
     try {
       // First get the artist to ensure we have the name
-      const { data: artist, error } = await supabase
+      const { data: artist, error } = await this.supabaseAdmin // Use the admin client instance
         .from('artists')
         .select('name, id')
-        .or(`id.eq.${artistId},external_id.eq.${artistId}`)
+        .or(`id.eq.${artistId},external_id.eq.${artistId}`) // Allow lookup by internal or external ID
         .single();
         
       if (!artist || error) {
@@ -317,7 +319,7 @@ export class ArtistSyncService {
         shows.push(show);
         
         // Store each show as we find it
-        const { error: upsertError } = await supabase
+        const { error: upsertError } = await this.supabaseAdmin // Use the admin client instance
           .from('shows')
           .upsert({
             ...show,
@@ -385,7 +387,7 @@ export class ArtistSyncService {
         results.push(artist);
         
         // Store each artist as we find them
-        const { error } = await supabase
+        const { error } = await this.supabaseAdmin // Use the admin client instance
           .from('artists')
           .upsert(artist, { 
             onConflict: 'external_id',
@@ -406,4 +408,4 @@ export class ArtistSyncService {
       return [];
     }
   }
-} 
+}

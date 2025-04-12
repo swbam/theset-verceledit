@@ -1,8 +1,44 @@
-import { supabase } from '@/integrations/supabase/client';
+import { createServiceRoleClient } from '@/integrations/supabase/utils'; // Import the new utility
 import { APIClientManager } from './api-client';
 import { IncrementalSyncService } from './incremental';
 import { SyncOptions, SyncResult } from './types';
 import { Show } from '@/lib/types';
+
+// --- Interfaces for API Responses ---
+interface TmImage {
+  url: string;
+  width: number;
+  height: number;
+}
+
+interface TmEventDetails {
+  id: string;
+  name: string;
+  url?: string;
+  images?: TmImage[];
+  dates?: { start?: { dateTime?: string }; status?: { code?: string } };
+  _embedded?: {
+    attractions?: [{ id: string }]; // Simplified
+    venues?: [{ id: string }]; // Simplified
+  };
+}
+
+interface SetlistFmSetlist {
+  id: string;
+  // Add other relevant fields if needed
+}
+
+interface SetlistFmResponse {
+  setlist?: SetlistFmSetlist[];
+  // Add other potential response fields
+}
+
+interface TmEventSearchResponse {
+   _embedded?: {
+     events?: TmEventDetails[];
+   };
+}
+// --- End Interfaces ---
 
 /**
  * Service for syncing shows data from external APIs
@@ -10,10 +46,12 @@ import { Show } from '@/lib/types';
 export class ShowSyncService {
   private apiClient: APIClientManager;
   private syncService: IncrementalSyncService;
+  private supabaseAdmin; // Add a property for the client instance
   
   constructor() {
     this.apiClient = new APIClientManager();
     this.syncService = new IncrementalSyncService();
+    this.supabaseAdmin = createServiceRoleClient(); // Instantiate the service role client
   }
   
   /**
@@ -26,10 +64,10 @@ export class ShowSyncService {
       
       if (!syncStatus.needsSync) {
         // Get existing show data
-        const { data: show } = await supabase
+        const { data: show } = await this.supabaseAdmin // Use the admin client instance
           .from('shows')
           .select('*')
-          .eq('id', showId)
+          .eq('id', showId) // Assuming syncShow is called with internal UUID
           .single();
           
         return {
@@ -51,9 +89,9 @@ export class ShowSyncService {
       }
       
       // Update in database
-      const { error } = await supabase
+      const { error } = await this.supabaseAdmin // Use the admin client instance
         .from('shows')
-        .upsert(show, { onConflict: 'id' });
+        .upsert(show, { onConflict: 'id' }); // Assuming 'id' is the primary key (UUID)
         
       if (error) {
         console.error(`Error upserting show ${showId}:`, error);
@@ -88,23 +126,23 @@ export class ShowSyncService {
    */
   private async fetchShowData(showId: string): Promise<Show | null> {
     // First try to get existing show
-    const { data: existingShow } = await supabase
+    const { data: existingShow } = await this.supabaseAdmin // Use the admin client instance
       .from('shows')
-      .select('*, venue_id, artist_id')
-      .eq('id', showId)
+      .select('*, venue_id, artist_id') // Select related IDs if needed
+      .eq('id', showId) // Assuming showId is the internal UUID
       .single();
       
     let show = existingShow as Show | null;
     
     // Ticketmaster API for event details
     try {
-      const tmData = await this.apiClient.callAPI(
+      const tmData = await this.apiClient.callAPI<TmEventDetails>( // Add type assertion
         'ticketmaster',
         `events/${showId}`,
         { include: 'venues,attractions' }
       );
       
-      if (tmData && tmData._embedded) {
+      if (tmData && tmData._embedded) { // Now TypeScript knows the shape
         // Process Ticketmaster data
         const artistId = tmData._embedded.attractions?.[0]?.id;
         const venueId = tmData._embedded.venues?.[0]?.id;
@@ -137,7 +175,7 @@ export class ShowSyncService {
     if (show && show.artist_id) {
       try {
         // Get artist info to search by name
-        const { data: artist } = await supabase
+        const { data: artist } = await this.supabaseAdmin // Use the admin client instance
           .from('artists')
           .select('name')
           .eq('id', show.artist_id)
@@ -156,12 +194,12 @@ export class ShowSyncService {
               date: formattedDate,
               p: 1
             }
-          );
+          ) as SetlistFmResponse | null; // Add type assertion
           
           // Update with setlist data if available
-          if (setlistData && setlistData.setlist && setlistData.setlist.length > 0) {
+          if (setlistData?.setlist && setlistData.setlist.length > 0) { // Check shape
             const setlist = setlistData.setlist[0];
-            show.setlist_id = setlist.id;
+            show.setlist_id = setlist.id; // Access known property
             
             // If we got a valid setlist, initiate a setlist sync
             if (setlist.id) {
@@ -265,9 +303,9 @@ export class ShowSyncService {
         'ticketmaster',
         'events',
         params
-      );
+      ) as TmEventSearchResponse | null; // Add type assertion
       
-      if (!response._embedded?.events) {
+      if (!response?._embedded?.events) { // Now TypeScript knows the shape
         return [];
       }
       
@@ -307,9 +345,9 @@ export class ShowSyncService {
         shows.push(show);
         
         // Upsert show to database
-        await supabase
+        await this.supabaseAdmin // Use the admin client instance
           .from('shows')
-          .upsert(show, { onConflict: 'id' });
+          .upsert(show, { onConflict: 'id' }); // Assuming 'id' is the primary key (UUID)
           
         // Mark as synced
         await this.syncService.markSynced(event.id, 'show');
@@ -321,4 +359,4 @@ export class ShowSyncService {
       return [];
     }
   }
-} 
+}
