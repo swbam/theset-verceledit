@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 // import { useSupabaseClient } from '@supabase/auth-helpers-react'; // Incorrect import
+import { useSupabaseClient } from '@supabase/auth-helpers-react';
 import { supabase } from '@/integrations/supabase/client'; // Import client directly
+import { Database } from '@/integrations/supabase/types';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
@@ -52,7 +54,7 @@ const DataLoader = ({ entity, limit = 50, filter = {}, children }: DataLoaderPro
   const [data, setData] = useState<unknown[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  // const supabase = useSupabaseClient(); // Use imported client directly
+  const supabase = useSupabaseClient<Database>(); // Use typed Supabase client
 
   useEffect(() => {
     const fetchData = async () => {
@@ -61,7 +63,7 @@ const DataLoader = ({ entity, limit = 50, filter = {}, children }: DataLoaderPro
         
         // Special handling for past_setlists (combination of shows, setlists, and songs)
         if (entity === 'past_setlists') {
-          const artistId = filter.artist_id;
+          const artistId = filter.artist_id as string; // Explicitly cast to string
           if (!artistId) {
             throw new Error('Artist ID is required for past_setlists');
           }
@@ -70,7 +72,7 @@ const DataLoader = ({ entity, limit = 50, filter = {}, children }: DataLoaderPro
           const { data: shows, error: showsError } = await supabase
             .from('shows')
             .select('id, date, venue, city')
-            .eq('artist_id', artistId)
+            .eq('artist_id', artistId as string)
             .order('date', { ascending: false })
             .limit(limit);
             
@@ -86,44 +88,58 @@ const DataLoader = ({ entity, limit = 50, filter = {}, children }: DataLoaderPro
             setlist?: { id: string } | null;
             songs: any[]; // Use a more specific type if possible
           };
+          
+          // Define the show type to match the database schema
+          type ShowData = {
+            id: string;
+            date: string | null;
+            venue: string | null;
+            city: string | null;
+          };
+          
           const enrichedData: EnrichedShowData[] = []; // Explicitly type the array
           
-          for (const show of shows || []) {
-            // Get setlist
-            const { data: setlist, error: setlistError } = await supabase
-              .from('setlists')
-              .select('id')
-              .eq('show_id', show.id)
-              .single();
-              
-            if (setlistError && setlistError.code !== 'PGRST116') { 
-              // PGRST116 is "no rows returned" - not an error in this context
-              console.warn(`No setlist for show ${show.id}`);
-              continue;
-            }
-            
-            if (setlist) {
-              // Get songs for this setlist
-              const { data: songs, error: songsError } = await supabase
-                .from('setlist_songs')
-                .select('id, name, vote_count, song_id, artist_id, position')
-                .eq('setlist_id', setlist.id)
-                .order('position', { ascending: true })
-                  .order('vote_count', { ascending: false });
+          // Make sure shows is an array and handle the type properly
+          if (shows) {
+            // Process each show
+            for (const show of shows as any[]) {
+              // Get setlist
+              const { data: setlist, error: setlistError } = await supabase
+                .from('setlists')
+                .select('id')
+                .eq('show_id', show.id)
+                .single();
                 
-              if (songsError) throw songsError;
+              if (setlistError && setlistError.code !== 'PGRST116') { 
+                // PGRST116 is "no rows returned" - not an error in this context
+                console.warn(`No setlist for show ${show.id}`);
+                continue;
+              }
               
-              enrichedData.push({
-                ...show,
-                setlist: setlist,
-                songs: songs || []
-              });
-            } else {
-              // Show without a setlist
-              enrichedData.push({
-                ...show,
-                songs: []
-              });
+              if (setlist) {
+                // Get songs for this setlist
+                const { data: songs, error: songsError } = await supabase
+                  .from('setlist_songs')
+                  .select('id, name, vote_count, song_id, artist_id, position')
+                  .eq('setlist_id', setlist.id)
+                  .order('position', { ascending: true })
+                  .order('vote_count', { ascending: false });
+                  
+                if (songsError) throw songsError;
+                  
+                enrichedData.push({
+                  ...show,
+                  setlist: setlist,
+                  songs: songs || []
+                });
+              } else {
+                // Include shows without setlists too
+                enrichedData.push({
+                  ...show,
+                  setlist: null,
+                  songs: []
+                });
+              }
             }
           }
           
@@ -219,4 +235,4 @@ const DataLoader = ({ entity, limit = 50, filter = {}, children }: DataLoaderPro
   return children(data);
 };
 
-export default DataLoader; 
+export default DataLoader;
