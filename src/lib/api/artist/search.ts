@@ -1,10 +1,13 @@
 import { toast } from "sonner";
 import { callTicketmasterApi } from "../ticketmaster-config";
-import { saveArtistToDatabase } from "../database-utils";
-import { fetchAndStoreArtistTracks } from "../database";
+// Removed: import { saveArtistToDatabase } from "../database-utils";
+// Removed: import { fetchAndStoreArtistTracks } from "../database"; // File doesn't exist
 import { getArtistByName } from "@/lib/spotify";
 import { supabase } from "@/integrations/supabase/client";
 import { ErrorSource, handleError } from "@/lib/error-handling";
+// Import SyncManager
+import { SyncManager } from '@/lib/sync/manager';
+const syncManager = new SyncManager(); // Instantiate
 
 /**
  * Search for artists with upcoming events
@@ -34,27 +37,21 @@ export async function searchArtistsWithEvents(query: string, limit = 10): Promis
           id: artist.id,
           name: artist.name,
           image: artist.image_url,
-          upcomingShows: artist.upcoming_shows || 0,
+          // upcomingShows: artist.upcoming_shows || 0, // Column doesn't exist
           genres: artist.genres || [],
           spotify_id: artist.spotify_id || null
         }));
-        
-        // Return the existing artists but still do the API call in the background to refresh data
-        // Don't await this so we return results quickly
-        callTicketmasterApi('events.json', {
-          keyword: query,
-          segmentName: 'Music',
-          sort: 'date,asc',
-          size: limit.toString()
-        }).then(data => {
-          if (data && data._embedded?.events) {
-            processAndSaveTicketmasterArtists(data, limit);
+
+        // Trigger background refresh via SyncManager for each found artist
+        existingArtists.forEach(artist => {
+          if (artist.id) { // Assuming artist.id is the external ID here
+             syncManager.enqueueTask({ type: 'artist', id: artist.id, operation: 'refresh', priority: 'low' }).catch(err => {
+               console.error(`Error queuing background refresh for artist ${artist.id}:`, err);
+             });
           }
-        }).catch(err => {
-          console.error("Background Ticketmaster refresh error:", err);
         });
-        
-        return existingArtists;
+
+        return existingArtists; // Return DB data immediately
       }
     } catch (dbSearchError) {
       console.error("Database search error:", dbSearchError);
@@ -89,11 +86,11 @@ export async function searchArtistsWithEvents(query: string, limit = 10): Promis
         }
       }
 
-      // Process and save the artists
-      const artists = await processAndSaveTicketmasterArtists(data, limit);
-      console.log("Processed and returning artists:", artists.length);
-      
-      // Combine with existing artists if any, removing duplicates
+      // Process artists from API data and queue sync tasks
+      const artists = await processTicketmasterArtistsAndQueueSync(data, limit);
+      console.log("Processed API artists and queued sync:", artists.length);
+
+      // Combine with existing artists if any (filtering handled below)
       if (existingArtists.length > 0) {
         const existingIds = new Set(existingArtists.map(a => a.id));
         const newArtists = artists.filter(a => !existingIds.has(a.id));
@@ -151,17 +148,20 @@ async function searchFallbackArtists(query: string, limit = 10): Promise<any[]> 
         spotify_id: spotifyArtist.id
       };
       
-      // Save to database in the background
-      try {
-        await saveArtistToDatabase({
-          ...artist,
-          image_url: artist.image
+      // Queue sync task for this Spotify artist
+      if (artist.id) { // artist.id here is the constructed `sp-${spotifyArtist.id}`
+        syncManager.enqueueTask({
+          type: 'artist',
+          id: artist.id, // Use the constructed ID (sync service needs to handle sp- prefix or use spotify_id)
+          operation: 'create',
+          priority: 'medium',
+          // payload: { spotify_id: spotifyArtist.id, name: artist.name, image_url: artist.image } // Pass payload if needed
+        }).catch(err => {
+           console.error(`Error queuing Spotify artist ${artist.id}:`, err);
         });
-      } catch (saveError) {
-        console.error(`Error saving Spotify artist to database:`, saveError);
       }
-      
-      return [artist];
+
+      return [artist]; // Return artist data immediately
     }
     
     // If no results, check if we have any similar artists in database
@@ -182,7 +182,7 @@ async function searchFallbackArtists(query: string, limit = 10): Promise<any[]> 
         id: artist.id,
         name: artist.name,
         image: artist.image_url,
-        upcomingShows: artist.upcoming_shows || 0,
+        // upcomingShows: artist.upcoming_shows || 0, // Column doesn't exist
         genres: artist.genres || [],
         spotify_id: artist.spotify_id || null
       }));
@@ -196,9 +196,9 @@ async function searchFallbackArtists(query: string, limit = 10): Promise<any[]> 
 }
 
 /**
- * Helper function to process and save artists from Ticketmaster response
+ * Helper function to process artists from Ticketmaster response and queue sync tasks
  */
-async function processAndSaveTicketmasterArtists(data: any, limit: number): Promise<any[]> {
+async function processTicketmasterArtistsAndQueueSync(data: any, limit: number): Promise<any[]> {
   if (!data || !data._embedded || !data._embedded.events) {
     console.warn("Invalid Ticketmaster data format for processing artists");
     return [];
@@ -267,18 +267,20 @@ async function processAndSaveTicketmasterArtists(data: any, limit: number): Prom
           // Continue without Spotify data
         }
         
-        // Save to database (with or without Spotify data)
-        try {
-          await saveArtistToDatabase({
-            ...artist,
-            image_url: artist.image
-          });
-        } catch (saveError) {
-          console.error(`Error saving artist ${artist.name} to database:`, saveError);
-          // Continue even if database save fails - we'll still return API results
+        // Queue sync task for the artist
+        if (artist.id) {
+           syncManager.enqueueTask({
+             type: 'artist',
+             id: artist.id, // Use external TM ID
+             operation: 'create',
+             priority: 'medium',
+             // payload: { ...artist, image_url: artist.image } // Pass data if needed by sync service
+           }).catch(err => {
+              console.error(`Error queuing TM artist ${artist.name}:`, err);
+           });
         }
       } catch (artistError) {
-        console.error(`Error processing artist ${artist.name}:`, artistError);
+        console.error(`Error processing TM artist ${artist.name}:`, artistError);
         // Continue with next artist
       }
     }

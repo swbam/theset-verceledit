@@ -1,6 +1,4 @@
 import { useState, useEffect } from 'react';
-// import { useSupabaseClient } from '@supabase/auth-helpers-react'; // Incorrect import
-import { useSupabaseClient } from '@supabase/auth-helpers-react';
 import { supabase } from '@/integrations/supabase/client'; // Import client directly
 import { Database } from '@/integrations/supabase/types';
 import { Card } from '@/components/ui/card';
@@ -8,7 +6,20 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { AlertTriangle } from 'lucide-react';
 
-type Entity = 'artists' | 'shows' | 'setlists' | 'setlist_songs' | 'past_setlists';
+type RealEntity = 'artists' | 'shows' | 'setlists' | 'played_setlist_songs' | 'songs' | 'venues' | 'votes';
+type Entity = RealEntity | 'past_setlists';
+
+function isRealEntity(entity: Entity): entity is RealEntity {
+  return [
+    'artists',
+    'shows',
+    'setlists',
+    'played_setlist_songs',
+    'songs',
+    'venues',
+    'votes'
+  ].includes(entity as string);
+}
 
 interface DataLoaderProps {
   entity: Entity;
@@ -54,7 +65,6 @@ const DataLoader = ({ entity, limit = 50, filter = {}, children }: DataLoaderPro
   const [data, setData] = useState<unknown[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const supabase = useSupabaseClient<Database>(); // Use typed Supabase client
 
   useEffect(() => {
     const fetchData = async () => {
@@ -119,7 +129,7 @@ const DataLoader = ({ entity, limit = 50, filter = {}, children }: DataLoaderPro
               if (setlist) {
                 // Get songs for this setlist
                 const { data: songs, error: songsError } = await supabase
-                  .from('setlist_songs')
+                  .from('played_setlist_songs')
                   .select('id, name, vote_count, song_id, artist_id, position')
                   .eq('setlist_id', setlist.id)
                   .order('position', { ascending: true })
@@ -150,23 +160,31 @@ const DataLoader = ({ entity, limit = 50, filter = {}, children }: DataLoaderPro
         }
         
         // Regular entity query
-        let query = supabase
-          .from(entity)
-          .select('*')
-          .order('updated_at', { ascending: false })
-          .limit(limit);
-        
-        // Apply filters
-        Object.entries(filter).forEach(([key, value]) => {
-          query = query.eq(key, value);
-        });
-        
-        const { data: result, error } = await query;
+        if (isRealEntity(entity)) {
+          let query = supabase
+            .from(entity)
+            .select('*')
+            .order('updated_at', { ascending: false })
+            .limit(limit);
 
-        if (error) throw error;
-        
-        setData(result || []);
-        setError(null);
+          // Apply filters (only if value is string/number/boolean)
+          Object.entries(filter).forEach(([key, value]) => {
+            if (
+              typeof value === 'string' ||
+              typeof value === 'number' ||
+              typeof value === 'boolean'
+            ) {
+              query = query.eq(key, value);
+            }
+          });
+
+          const { data: result, error } = await query;
+
+          if (error) throw error;
+
+          setData(result || []);
+          setError(null);
+        }
       } catch (err) {
         console.error(`Failed to load ${entity}:`, err);
         setError(`Failed to load ${entity}`);

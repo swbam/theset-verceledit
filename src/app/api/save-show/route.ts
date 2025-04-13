@@ -1,9 +1,10 @@
-import { adminClient } from '@/lib/db'; // Use the server-side admin client
-import { saveArtistToDatabase, saveVenueToDatabase } from '@/lib/api/database'; // Corrected import path
-import { fetchAndStoreArtistTracks } from '@/lib/api/database'; // Correct import
+import { adminClient } from '@/lib/db'; // Keep admin client if needed for auth checks?
 import type { Show } from '@/lib/types'; // Import Show type from types file
+import { SyncManager } from '@/lib/sync/manager'; // Import SyncManager
+const syncManager = new SyncManager(); // Instantiate SyncManager
 
-// Function to create a setlist directly (using admin client)
+// Remove internal helper functions as their logic will be handled by SyncManager services
+/*
 async function createSetlistDirectly(showId: string, artistId: string) {
   try {
     // Check if setlist already exists
@@ -67,10 +68,10 @@ async function createSetlistDirectly(showId: string, artistId: string) {
   } catch (error) {
     console.error(`[createSetlistDirectly] Error creating setlist: ${error}`);
     return null;
-  }
-}
+// Removed populateSetlistWithTracks
+*/
 
-// Helper function to populate a setlist with tracks
+/*
 async function populateSetlistWithTracks(setlistId: string, artist: { id: string, name: string, spotify_id?: string }) {
   try {
     if (!artist.spotify_id) {
@@ -172,10 +173,10 @@ async function populateSetlistWithTracks(setlistId: string, artist: { id: string
   } catch (error) {
     console.error(`[populateSetlistWithTracks] Error populating setlist with tracks: ${error}`);
     throw error;
-  }
-}
+// Removed syncVenueShows
+*/
 
-// Function to sync shows for a venue
+/*
 async function syncVenueShows(venueId: string, venueName: string) {
   console.log(`[syncVenueShows] Starting sync for venue ${venueName} (${venueId})`);
   try {
@@ -185,10 +186,10 @@ async function syncVenueShows(venueId: string, venueName: string) {
   } catch (error) {
     console.error(`[syncVenueShows] Error syncing venue shows: ${error}`);
     return { success: false, error: "Failed to sync venue shows" };
-  }
-}
+// Removed saveShowWithAdmin
+*/
 
-// Define a wrapper or modified save function that uses the admin client internally
+/*
 async function saveShowWithAdmin(show: Show, triggeredBySync: boolean = false) {
   try {
     console.log(`[API/save-show] Saving show ${show.id} with admin client`);
@@ -320,34 +321,62 @@ async function saveShowWithAdmin(show: Show, triggeredBySync: boolean = false) {
   } catch (error) {
     console.error("[API/save-show] Unexpected error in saveShowWithAdmin:", error);
     return null;
-  }
-}
+*/
 
 
 export async function POST(request: Request) {
   try {
-    const show = await request.json() as Show;
+    // TODO: Add authentication/authorization checks if needed
+    // const { data: { user } } = await adminClient().auth.getUser();
+    // if (!user) return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
+    // Add admin check if required
 
-    if (!show || !show.id) {
-      return new Response(JSON.stringify({ success: false, error: 'Invalid show data provided' }), {
+    const showPayload = await request.json(); // Assume payload contains necessary show, artist, venue IDs/data
+
+    // Validate payload
+    if (!showPayload || !showPayload.id || !showPayload.artist_id || !showPayload.venue_id) {
+      return new Response(JSON.stringify({ success: false, error: 'Invalid show data provided. Required fields: id, artist_id, venue_id' }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' },
       });
     }
 
-    // Use the wrapper function that utilizes adminClient
-    const savedShow = await saveShowWithAdmin(show);
+    // Enqueue tasks via SyncManager
+    // Queue artist sync (create/update)
+    await syncManager.enqueueTask({
+      type: 'artist',
+      id: showPayload.artist_id, // Assuming payload provides the external ID
+      operation: 'create', // 'create' handles upsert via sync service
+      priority: 'medium',
+      // payload: showPayload.artist // Pass artist details if available in payload
+    });
 
-    if (!savedShow) {
-      console.error(`[API/save-show] Failed to save show ID: ${show.id}`);
-      return new Response(JSON.stringify({ success: false, error: 'Failed to save show data' }), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
+    // Queue venue sync (create/update)
+    await syncManager.enqueueTask({
+      type: 'venue',
+      id: showPayload.venue_id, // Assuming payload provides the external ID
+      operation: 'create',
+      priority: 'medium',
+      // payload: showPayload.venue // Pass venue details if available in payload
+    });
 
-    // Return success response
-    return new Response(JSON.stringify({ success: true, showId: savedShow.id }), {
+    // Queue show sync (create/update) - this might depend on artist/venue sync completing
+    // Or the show sync service can handle fetching/linking artist/venue
+    await syncManager.enqueueTask({
+      type: 'show',
+      id: showPayload.id, // Assuming payload provides the external ID
+      operation: 'create',
+      priority: 'high', // Higher priority as it's the main entity here
+      payload: showPayload // Pass the full payload for the sync service
+    });
+
+    // The sync manager will handle creating the show, artist, venue,
+    // and potentially the initial setlist as part of the 'show' sync operation.
+
+    console.log(`[API/save-show] Queued sync tasks for show ID: ${showPayload.id}`);
+
+    // Return success response - indicating tasks are queued
+    return new Response(JSON.stringify({ success: true, message: `Sync tasks queued for show ${showPayload.id}` }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
     });

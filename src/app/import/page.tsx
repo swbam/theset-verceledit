@@ -31,18 +31,21 @@ export default function ImportPage() {
           window.location.href = '/';
           return;
         }
-        
-        // Check if user is admin
-        const { data: profile, error: profileError } = await supabase
-          .from('profiles')
-          .select('is_admin')
-          .eq('id', user.id)
-          .single();
-        
-        if (profileError || !profile || !profile.is_admin) {
-          setIsAdmin(false);
+
+        // Check if user exists in the admins table
+        const { data: adminEntry, error: adminError } = await supabase
+          .from('admins')
+          .select('user_id') // Select any column to check for existence
+          .eq('user_id', user.id) // Check if the user's ID is in the admins table
+          .maybeSingle(); // Use maybeSingle as the user might not be an admin
+
+        if (adminError) {
+          console.error('Error checking admin status:', adminError);
+          setIsAdmin(false); // Assume not admin if error occurs
+        } else if (adminEntry) {
+          setIsAdmin(true); // User ID found in admins table
         } else {
-          setIsAdmin(true);
+          setIsAdmin(false); // User ID not found in admins table
         }
       } catch (error) {
         console.error('Auth check error:', error);
@@ -288,4 +291,4 @@ export default function ImportPage() {
       </div>
     </div>
   );
-} 
+}

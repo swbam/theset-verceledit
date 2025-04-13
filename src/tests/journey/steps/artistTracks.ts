@@ -4,7 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { fetchArtistById } from '@/lib/api/artist/fetch';
 import { logError, logSuccess } from '../logger';
 import { getArtistByName } from '@/lib/spotify';
-import { saveArtistToDatabase } from '@/lib/api/database/artists';
+// Removed import: import { saveArtistToDatabase } from '@/lib/api/database/artists';
 
 /**
  * Test if an artist has tracks stored
@@ -56,18 +56,12 @@ export async function testArtistHasTracks(context: TestContext): Promise<TestRes
         }
         
         logSuccess(context, "Get Artist", `Successfully fetched artist from API: ${artist.name}`);
-        
-        // Save to database directly using saveArtistToDatabase to ensure correct handling
-        try {
-          const updatedArtist = await saveArtistToDatabase(artist);
-          
-          if (updatedArtist) {
-            artist = updatedArtist;
-            logSuccess(context, "Save Artist", `Successfully saved artist to database: ${artist.name}`);
-          }
-        } catch (saveError) {
-          logError(context, "Save Artist", "Database", `Could not save artist to database: ${(saveError as Error).message}`, saveError);
-        }
+
+        // TODO: Update test - Artist saving is now handled by background SyncManager.
+        // This test should potentially verify that a sync task was queued,
+        // or mock the sync process, or directly check DB state after waiting.
+        // For now, removing the direct save call.
+
       } catch (apiError) {
         logError(context, "Get Artist", "API", `Failed to fetch artist from API: ${(apiError as Error).message}`, apiError);
         return { 

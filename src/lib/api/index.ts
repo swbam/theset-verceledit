@@ -22,7 +22,7 @@ export { MockService };
 // Re-export other services
 export * from './realtime-service';
 export * from './ticketmaster-config';
-export * from './venue-sync-service';
+// Removed: export * from './venue-sync-service';
 
 // Import utility functions that might have naming conflicts
 import { formatDate as mockFormatDate } from './mock-service';

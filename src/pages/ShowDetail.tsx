@@ -6,6 +6,7 @@ import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
 import ShowHeader from '@/components/shows/ShowHeader';
 import SetlistSection from '@/components/shows/SetlistSection';
+import PastShowComparison from '@/components/shows/PastShowComparison'; // Import the new component
 import ShowDetailSkeleton from '@/components/shows/ShowDetailSkeleton';
 import ShowNotFound from '@/components/shows/ShowNotFound';
 import { useShowDetail } from '@/hooks/use-show-detail';
@@ -26,7 +27,10 @@ const ShowDetail = () => {
     connected,
     songManagement,
     availableTracks,
-    documentMetadata
+    documentMetadata,
+    isPastShow, // Get the new flag
+    playedSetlist, // Get the played setlist
+    isLoadingPlayedSetlist // Get loading state
   } = useShowDetail(id);
 
   // Set document metadata with error handling
@@ -69,12 +73,31 @@ const ShowDetail = () => {
     <div className="min-h-screen flex flex-col bg-black">
       <Navbar />
       
-      <main className="flex-grow">
-        <ShowHeader show={show} />
-        <SetlistSection 
-          setlist={setlist || []}
-          isConnected={connected}
-          isLoadingTracks={loading.tracks}
+      <main className="flex-grow container mx-auto px-4 py-8">
+        {/* Render header only if show and show.id are valid */}
+        {(() => {
+          if (show && show.id) {
+            // Explicitly create a variable with the narrowed type
+            const validShow = show; 
+            return <ShowHeader show={validShow} />;
+          }
+          return null;
+        })()}
+
+        {/* Conditionally render based on whether the show is in the past */}
+        {show && show.id && isPastShow ? (
+          <PastShowComparison
+            // Cast setlist to VotedSong[] assuming it contains vote_count
+            // This might need adjustment based on useSongManagement's actual return type
+            votedSetlist={(setlist || []) as any[]}
+            playedSetlist={playedSetlist}
+            isLoadingPlayedSetlist={isLoadingPlayedSetlist}
+          />
+        ) : (
+          <SetlistSection
+            setlist={setlist || []}
+            isConnected={connected}
+            isLoadingTracks={loading.tracks}
           handleVote={songManagement.handleVote}
           showId={id || ''}
           showName={show.name || ''}
@@ -84,8 +107,9 @@ const ShowDetail = () => {
           selectedTrack={songManagement.selectedTrack}
           setSelectedTrack={songManagement.setSelectedTrack}
           handleAddSong={songManagement.handleAddSong}
-          anonymousVoteCount={songManagement.anonymousVoteCount}
-        />
+            anonymousVoteCount={songManagement.anonymousVoteCount}
+          />
+        )}
       </main>
       
       <Footer />

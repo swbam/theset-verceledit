@@ -4,12 +4,17 @@ import { useShowDetails } from '@/hooks/use-show-details';
 import { useArtistTracks } from '@/hooks/use-artist-tracks';
 import { useSongManagement } from '@/hooks/use-song-management';
 import { useAuth } from '@/contexts/auth';
+import { supabase } from '@/integrations/supabase/client'; // Import supabase client
+import { isPast } from 'date-fns'; // Import date-fns helper
 
 export function useShowDetail(id: string | undefined) {
   const [documentMetadata, setDocumentMetadata] = useState({
     title: '',
     description: ''
   });
+  const [isPastShow, setIsPastShow] = useState(false);
+  const [playedSetlist, setPlayedSetlist] = useState<any[]>([]); // State for played setlist
+  const [isLoadingPlayedSetlist, setIsLoadingPlayedSetlist] = useState(false);
   const { isAuthenticated, login } = useAuth();
   
   // Get show details immediately
@@ -66,17 +71,76 @@ export function useShowDetail(id: string | undefined) {
           description: 'Vote on setlists for upcoming concerts and shows on TheSet.'
         });
       }
+      // Check if show is in the past
+      if (show?.date) {
+        try {
+          setIsPastShow(isPast(new Date(show.date)));
+        } catch (e) {
+          console.error("Error checking show date:", e);
+          setIsPastShow(false); // Default to not past if date is invalid
+        }
+      } else {
+        setIsPastShow(false); // Default if no date
+      }
     }
   }, [show, isLoadingShow]);
+
+  // Fetch played setlist if the show is in the past
+  useEffect(() => {
+    const fetchPlayedSetlist = async () => {
+      if (isPastShow && show?.id) {
+        setIsLoadingPlayedSetlist(true);
+        try {
+          // Find the setlist record linked to the show
+          const { data: setlistRecord, error: setlistError } = await supabase
+            .from('setlists')
+            .select('id') // We need the setlist ID (PK, likely setlist.fm ID)
+            .eq('show_id', show.id)
+            .maybeSingle();
+
+          if (setlistError) throw setlistError;
+
+          if (setlistRecord?.id) {
+            // Fetch the played songs using the setlist ID
+            const { data: playedSongs, error: songsError } = await supabase
+              .from('played_setlist_songs')
+              .select(`
+                position,
+                info,
+                is_encore,
+                song:songs!song_id(id, name)
+              `)
+              .eq('setlist_id', setlistRecord.id)
+              .order('position', { ascending: true });
+
+            if (songsError) throw songsError;
+
+            setPlayedSetlist(playedSongs || []);
+          } else {
+            setPlayedSetlist([]); // No setlist found for this show
+          }
+        } catch (error) {
+          console.error("Error fetching played setlist:", error);
+          setPlayedSetlist([]); // Set empty on error
+        } finally {
+          setIsLoadingPlayedSetlist(false);
+        }
+      } else {
+        setPlayedSetlist([]); // Reset if not a past show
+      }
+    };
+
+    fetchPlayedSetlist();
+  }, [isPastShow, show?.id]);
   
   // Get artist tracks with optimized settings:
   // - staleTime set to 1 hour to better utilize cache
   // - immediate loading enabled
   // - prioritize stored tracks
   const artistTracksResponse = useArtistTracks(
-    show?.artist_id, 
+    show?.artist_id || undefined, // Ensure null becomes undefined
     spotifyArtistId,
-    { 
+    {
       immediate: true,  // Always load tracks immediately
       prioritizeStored: true // Prioritize stored tracks for faster loading
     }
@@ -89,16 +153,14 @@ export function useShowDetail(id: string | undefined) {
     }
   }, [artistTracksResponse]);
   
-  // Extract all needed properties with defaults to avoid undefined errors
-  const {
-    tracks = [],
-    isLoading: isLoadingTracks = false,
-    isError: isTracksError = false,
-    error: tracksError = null,
-    initialSongs = [],
-    storedTracksData = [],
-    getAvailableTracks = (setlist: any[]) => [],
-  } = artistTracksResponse || {};
+  // Extract all needed properties with defaults, ensuring response object exists
+  const tracks = artistTracksResponse && 'tracks' in artistTracksResponse ? artistTracksResponse.tracks : [];
+  const isLoadingTracks = artistTracksResponse && 'isLoading' in artistTracksResponse ? artistTracksResponse.isLoading : true; // Default to true if response is undefined
+  const isTracksError = artistTracksResponse && 'isError' in artistTracksResponse ? artistTracksResponse.isError : false;
+  const tracksError = artistTracksResponse && 'error' in artistTracksResponse ? artistTracksResponse.error : null;
+  const initialSongs = artistTracksResponse && 'initialSongs' in artistTracksResponse ? artistTracksResponse.initialSongs : [];
+  const storedTracksData = artistTracksResponse && 'storedTracksData' in artistTracksResponse ? artistTracksResponse.storedTracksData : [];
+  const getAvailableTracks = artistTracksResponse && 'getAvailableTracks' in artistTracksResponse ? artistTracksResponse.getAvailableTracks : ((setlist: any[]) => []);
   
   // For backward compatibility
   const isLoadingAllTracks = isLoadingTracks;
@@ -171,6 +233,9 @@ export function useShowDetail(id: string | undefined) {
     },
     availableTracks,
     documentMetadata,
-    loadTracks
+    loadTracks,
+    isPastShow, // Return the flag
+    playedSetlist, // Return the played setlist
+    isLoadingPlayedSetlist // Return loading state for played setlist
   };
 }

@@ -140,7 +140,7 @@ export async function fetchFeaturedArtists(): Promise<ArtistWithEvents[]> {
         const sortedImages = [...attraction.images].sort((a, b) => (b.width || 0) - (a.width || 0));
         image = sortedImages[0]?.url;
       }
-      let upcomingShows = attraction.upcomingEvents?._total || 0;
+      const upcomingShows = attraction.upcomingEvents?._total || 0;
       let genres: string[] = [];
       if (attraction.classifications?.[0]) {
         const classification = attraction.classifications[0];

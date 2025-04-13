@@ -1,116 +1,86 @@
 
 import { useQuery } from '@tanstack/react-query';
-import { getArtistAllTracks } from '@/lib/spotify';
-import { getStoredTracksForArtist, updateArtistStoredTracks, fetchAndStoreArtistTracks } from '@/lib/api/database';
+import { useCallback } from 'react'; // Import useCallback
+import { supabase } from '@/integrations/supabase/client'; // Import supabase client
+import { Song } from '@/lib/types'; // Import Song type
+// Import SyncManager - assuming singleton or instantiate locally
+import { SyncManager } from '@/lib/sync/manager';
+const syncManager = new SyncManager();
 
 export function useArtistTracks(
-  artistId: string | undefined, 
+  artistId: string | undefined,
   spotifyArtistId: string | undefined,
-  options: { immediate?: boolean; prioritizeStored?: boolean } = { immediate: true, prioritizeStored: true }
+  // spotifyArtistId is no longer needed as primary input, sync service handles lookup
+  _spotifyArtistId_unused?: string | undefined,
+  options: { immediate?: boolean } = { immediate: true } // Removed prioritizeStored
 ) {
-  const { 
-    data,
+  const {
+    data, // This will now be { songs: Song[] }
     isLoading,
     error,
     isError,
     refetch
   } = useQuery({
-    queryKey: ['artistTracks', artistId, spotifyArtistId],
-    queryFn: async () => {
-      if (!artistId && !spotifyArtistId) {
-        throw new Error('Artist ID or Spotify Artist ID is required');
+    // Use only artistId (internal UUID) as the key now
+    queryKey: ['artistTracks', artistId],
+    queryFn: async (): Promise<{ songs: Song[] }> => { // Return type simplified
+      if (!artistId) {
+        // If no artistId, we can't fetch songs
+        console.log("useArtistTracks: No artistId provided.");
+        return { songs: [] };
       }
 
-      try {
-        console.log(`Fetching tracks for artist: ${artistId || spotifyArtistId}`);
-        
-        // First check if we have stored tracks for this artist in database
-        if (artistId) {
-          const storedTracks = await getStoredTracksForArtist(artistId);
-          
-          if (storedTracks && storedTracks.length > 0) {
-            console.log(`Using ${storedTracks.length} stored tracks from database for ${artistId}`);
-            return { 
-              tracks: storedTracks,
-              initialSongs: storedTracks.slice(0, 10), // Only return top 10 for initial setlist
-              storedTracksData: storedTracks,
-              getAvailableTracks: (setlist: any[]) => {
-                const setlistIds = new Set(setlist.map(song => song.id));
-                return storedTracks.filter((track: any) => !setlistIds.has(track.id));
-              }
-            };
-          }
-        }
-        
-        // If no stored tracks but we have a Spotify ID and prioritizeStored is false, fetch from Spotify
-        if (spotifyArtistId) {
-          console.log(`Fetching from Spotify API for ${spotifyArtistId}`);
-          
-          if (artistId) {
-            // Use the dedicated function that stores tracks and handles errors
-            const tracks = await fetchAndStoreArtistTracks(artistId, spotifyArtistId, "Unknown Artist");
-            if (tracks && tracks.length > 0) {
-              console.log(`Successfully fetched and stored ${tracks.length} tracks from Spotify`);
-              return { 
-                tracks,
-                initialSongs: tracks.slice(0, 10), // Only use top 10 tracks initially
-                storedTracksData: tracks,
-                getAvailableTracks: (setlist: any[]) => {
-                  const setlistIds = new Set(setlist.map(song => song.id));
-                  return tracks.filter((track: any) => !setlistIds.has(track.id));
-                }
-              };
-            }
-          }
-          
-          // Direct fetch as a fallback
-          const result = await getArtistAllTracks(spotifyArtistId);
-          
-          if (result.tracks && result.tracks.length > 0) {
-            console.log(`Fetched ${result.tracks.length} tracks from Spotify API`);
-            
-            // Store tracks in background if we have the artist ID
-            if (artistId) {
-              updateArtistStoredTracks(artistId, result.tracks)
-                .then(() => console.log(`Successfully stored ${result.tracks.length} tracks in database`))
-                .catch(err => console.error("Background track storage error:", err));
-            }
-            
-            return {
-              ...result,
-              initialSongs: result.tracks.slice(0, 10),
-              storedTracksData: result.tracks,
-              getAvailableTracks: (setlist: any[]) => {
-                const setlistIds = new Set(setlist.map(song => song.id));
-                return result.tracks.filter((track: any) => !setlistIds.has(track.id));
-              }
-            };
-          }
-        }
-        
-        return { 
-          tracks: [],
-          initialSongs: [],
-          storedTracksData: [],
-          getAvailableTracks: () => []
-        };
-      } catch (error) {
-        console.error("Error in useArtistTracks:", error);
-        return { 
-          tracks: [],
-          initialSongs: [],
-          storedTracksData: [],
-          getAvailableTracks: () => []
-        };
+      console.log(`useArtistTracks: Fetching songs for artist ${artistId} from DB`);
+      const { data: songs, error } = await supabase
+        .from('songs')
+        .select('*')
+        .eq('artist_id', artistId)
+        .order('popularity', { ascending: false, nullsFirst: false }) // Order by popularity
+        .limit(100); // Limit number of songs fetched
+
+      if (error) {
+        console.error(`useArtistTracks: Error fetching songs for artist ${artistId}:`, error);
+        // Don't throw, return empty array, sync might fix it
+        return { songs: [] };
       }
+
+      if (!songs || songs.length === 0) {
+        console.log(`useArtistTracks: No songs found in DB for artist ${artistId}. Triggering background sync.`);
+        // Trigger background sync to fetch songs if none are found
+        syncManager.enqueueTask({
+          type: 'artist', // Syncing the artist should fetch/update their songs
+          id: artistId,   // Use internal artist ID
+          operation: 'refresh', // Refresh the artist data, including tracks
+          priority: 'medium'
+        }).catch(err => console.error("Failed to queue artist refresh task:", err));
+        return { songs: [] }; // Return empty while sync runs
+      }
+
+      console.log(`useArtistTracks: Found ${songs.length} songs in DB for artist ${artistId}`);
+      return { songs: songs as Song[] }; // Return songs found in DB
     },
-    enabled: !!(artistId || spotifyArtistId) && options.immediate !== false,
-    staleTime: 1000 * 60 * 60 * 12, // 12 hours - tracks don't change often, so we can cache longer
-    gcTime: 1000 * 60 * 120,   // 2 hours
+    enabled: !!artistId && options.immediate !== false, // Enable only if artistId is present
+    staleTime: 1000 * 60 * 30, // 30 minutes staleTime
+    gcTime: 1000 * 60 * 60,   // 1 hour gcTime
   });
 
+  // Adapt the return value based on the new queryFn structure
+  const songs = data?.songs || [];
+  const initialSongs = songs.slice(0, 10); // Top 10 by popularity
+  const storedTracksData = songs; // All fetched songs are "stored"
+
+  // Helper function to filter out songs already in a setlist
+  const getAvailableTracks = useCallback((setlist: { id: string }[]) => {
+    const setlistIds = new Set((setlist || []).map(song => song.id));
+    // Ensure track.id exists before checking the Set
+    return songs.filter((track: Song) => track.id && !setlistIds.has(track.id));
+  }, [songs]);
+
   return {
-    ...data,
+    tracks: songs, // Keep 'tracks' for compatibility if needed, but it's the same as 'songs'
+    initialSongs,
+    storedTracksData,
+    getAvailableTracks,
     isLoading,
     error,
     isError,

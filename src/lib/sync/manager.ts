@@ -27,9 +27,9 @@ export class SyncManager {
   constructor() {
     this.supabaseAdmin = createServiceRoleClient(); // Instantiate the admin client
     // Instantiate services, passing 'this' (SyncManager) where needed
-    this.showService = new ShowSyncService(); 
-    this.artistService = new ArtistSyncService(); 
-    this.venueService = new VenueSyncService();   
+    this.showService = new ShowSyncService(this); // Pass 'this'
+    this.artistService = new ArtistSyncService();
+    this.venueService = new VenueSyncService();
     this.setlistService = new SetlistSyncService(this); // Needs manager for enqueueTask
     this.songService = new SongSyncService();     
     this.incrementalSync = new IncrementalSyncService(); // Uses its own client

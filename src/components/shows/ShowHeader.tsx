@@ -6,12 +6,12 @@ import { Button } from '@/components/ui/button';
 
 interface ShowHeaderProps {
   show: {
-    id: string;
+    id?: string; // Allow id to be potentially undefined in the type
     name: string;
-    date: string;
-    image_url?: string;
+    date?: string | null | undefined; // Make date optional to match Show type
+    image_url?: string | null | undefined; // Allow null
     ticket_url?: string;
-    artist?: {
+    artist?: { // Allow null
       id: string;
       name: string;
     };
