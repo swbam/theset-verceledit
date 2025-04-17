@@ -17,12 +17,59 @@ export default async function ShowPage({ params }: Props) {
   const { showId } = params;
   
   const show = await getShow(showId);
+  // Check if show exists
   if (!show) {
     return <div className="p-8">Show not found.</div>;
   }
+
+  // Add checks for required nested data (artist and venue) needed by components
+  if (!show.artist) {
+    console.error(`Show ${showId} is missing required artist data.`);
+    // Optionally fetch artist separately here if desired, or show error
+    return <div className="p-8">Show data is incomplete (missing artist info).</div>;
+  }
+  if (!show.venue) {
+     console.error(`Show ${showId} is missing required venue data.`);
+     // Optionally fetch venue separately here if desired, or show error
+     return <div className="p-8">Show data is incomplete (missing venue info).</div>;
+  }
+  // If we reach here, show, show.date, show.artist, and show.venue are guaranteed non-null
   
   // Get the setlist for this show, which will create one if it doesn't exist
-  const setlist = await getSetlistForShow(showId);
+  let setlist: any = null;
+  try {
+    // First, get the raw data and cast it to 'any' to bypass type checks
+    const rawSetlistData: any = await getSetlistForShow(showId);
+    
+    // Check if we have valid data
+    if (rawSetlistData && typeof rawSetlistData !== 'string' && !rawSetlistData.error) {
+      // Transform the raw data into the expected shape
+      setlist = {
+        id: rawSetlistData.id || '',
+        artist_id: rawSetlistData.artist_id || '',
+        songs: (rawSetlistData.songs || []).map((songItem: any) => {
+          const songData = songItem.song || songItem;
+          return {
+            id: songData?.id || songItem?.id || '',
+            name: songData?.name || songItem?.name || 'Unknown Song',
+            position: songItem?.position || 0,
+            votes: songItem?.vote_count || 0,
+            spotify_id: songData?.spotify_id,
+            preview_url: songData?.preview_url,
+            duration_ms: songData?.duration_ms,
+          };
+        }),
+        show: {
+          id: showId,
+          name: show.name || 'Unknown Show',
+          date: show.date || new Date().toISOString()
+        }
+      };
+    }
+  } catch (error) {
+    console.error("Error fetching setlist:", error);
+    // setlist will remain undefined
+  }
   
   return (
     <div className="min-h-screen">
@@ -60,6 +107,7 @@ export default async function ShowPage({ params }: Props) {
           <TabsContent value="info">
             <div className="space-y-6">
               <h2 className="text-2xl md:text-3xl font-bold">Show Info</h2>
+              {/* No need for conditional check here anymore, handled above */}
               <ShowInfo show={show} />
             </div>
           </TabsContent>
@@ -67,4 +115,4 @@ export default async function ShowPage({ params }: Props) {
       </Container>
     </div>
   );
-} 
+}

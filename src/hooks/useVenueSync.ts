@@ -1,55 +1,59 @@
-import { useState } from 'react';
-import { syncVenueShows } from '@/lib/api/venue-sync-service';
+import { useState, useCallback } from 'react';
+import { supabase } from '@/integrations/supabase/client';
 
-/**
- * Hook for syncing all shows for a venue
- * @returns Handlers and state for venue show synchronization
- */
 export function useVenueSync() {
-  const [isLoading, setIsLoading] = useState(false);
-  const [results, setResults] = useState<any>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
 
-  /**
-   * Sync all shows for a venue
-   * @param venueId Venue ID to sync
-   * @param venueName Venue name (for display purposes)
-   */
-  const syncVenue = async (venueId: string, venueName: string) => {
-    if (!venueId) {
-      setError('Venue ID is required');
-      return;
+  const syncVenue = useCallback(async (externalVenueId: string) => {
+    if (!externalVenueId) {
+      console.error('No venue ID provided for sync');
+      return { success: false, error: new Error('No venue ID provided') };
     }
+
+    setSyncing(true);
+    setError(null);
 
     try {
-      setIsLoading(true);
-      setError(null);
-      
-      console.log(`Starting venue sync for ${venueName} (ID: ${venueId})`);
-      const result = await syncVenueShows(venueId, venueName);
-      
-      setResults(result);
-      
-      if (!result.success) {
-        setError(result.error || 'Failed to sync venue shows');
+      console.log(`[useVenueSync] Starting sync for venue ${externalVenueId}`);
+
+      // 1. Sync the venue itself
+      const venueResult = await supabase.functions.invoke('sync-venue', {
+        body: { venueId: externalVenueId }
+      });
+
+      if (!venueResult.data?.success) {
+        throw new Error(venueResult.error?.message || 'Venue sync failed');
       }
-      
-      return result;
-    } catch (err) {
-      console.error('Error syncing venue shows:', err);
-      setError(err instanceof Error ? err.message : 'An unknown error occurred');
-      return { success: false, error: err instanceof Error ? err.message : 'An unknown error occurred' };
+
+      // 2. Get venue's shows
+      const showResult = await supabase.functions.invoke('sync-show', {
+        body: { 
+          venueId: externalVenueId,
+          operation: 'venue_shows'
+        }
+      });
+
+      if (!showResult.data?.success) {
+        console.warn(`[useVenueSync] Shows sync failed for venue ${externalVenueId}:`, showResult.error);
+      }
+
+      console.log(`[useVenueSync] Successfully synced venue ${externalVenueId}`);
+      return { success: true };
+
+    } catch (error) {
+      console.error(`[useVenueSync] Error syncing venue ${externalVenueId}:`, error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      setError(new Error(errorMessage));
+      return { success: false, error };
     } finally {
-      setIsLoading(false);
+      setSyncing(false);
     }
-  };
+  }, []);
 
   return {
     syncVenue,
-    isLoading,
-    results,
-    error,
-    clearResults: () => setResults(null),
-    clearError: () => setError(null)
+    syncing,
+    error
   };
-} 
+}

@@ -134,7 +134,7 @@ const FeaturedShows = () => {
                     <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
                     <div className="absolute bottom-0 left-0 p-6">
                       <h3 className="text-white text-2xl font-bold">{show.name}</h3>
-                      <p className="text-white/90 mt-2">{show.artist.name}</p>
+                      <p className="text-white/90 mt-2">{show.artist?.name || "Unknown Artist"}</p>
                     </div>
                   </div>
                   

@@ -1,84 +1,83 @@
+import { supabase } from '@/integrations/supabase/client';
+import { Show } from '@/lib/types';
+import { fetchArtistEvents } from '@/lib/ticketmaster';
 
-import { supabase } from "@/integrations/supabase/client";
-import { callTicketmasterApi } from "../ticketmaster-config";
-import { saveVenueToDatabase, saveShowToDatabase } from "../database";
-
-/**
- * Fetch and save shows for an artist
- */
-export async function fetchAndSaveArtistShows(artistId: string): Promise<void> {
+export async function fetchAndSaveArtistShows(artistId: string, artistName: string): Promise<{ success: boolean; shows?: Show[]; error?: string }> {
   try {
-    console.log(`Fetching shows for artist ID: ${artistId}`);
-    
-    // Call Ticketmaster API to get events for this artist
-    const data = await callTicketmasterApi('events.json', {
-      attractionId: artistId,
-      sort: 'date,asc',
-      size: '50'  // Get up to 50 shows
-    });
-    
-    if (!data._embedded?.events) {
-      console.log(`No upcoming shows found for artist ID: ${artistId}`);
-      return;
+    console.log(`[fetchAndSaveArtistShows] Fetching shows for artist ${artistName} (${artistId})`);
+
+    // 1. Fetch shows from Ticketmaster
+    const shows = await fetchArtistEvents(artistId);
+    if (!shows || shows.length === 0) {
+      console.log(`[fetchAndSaveArtistShows] No shows found for artist ${artistName}`);
+      return { success: true, shows: [] };
     }
-    
-    console.log(`Found ${data._embedded.events.length} shows for artist ID: ${artistId}`);
-    let upcomingShowsCount = 0;
-    
-    // Process and save each show
-    for (const event of data._embedded.events) {
+
+    console.log(`[fetchAndSaveArtistShows] Found ${shows.length} shows for ${artistName}`);
+
+    // 2. Process each show
+    await Promise.all(shows.map(async (show) => {
       try {
-        const venueName = event._embedded?.venues?.[0]?.name || 'Unknown Venue';
-        const venueId = event._embedded?.venues?.[0]?.id || `venue-${encodeURIComponent(venueName.toLowerCase().replace(/\s+/g, '-'))}`;
-        
-        // Save venue first
-        const venueData = {
-          id: venueId,
-          name: venueName,
-          city: event._embedded?.venues?.[0]?.city?.name,
-          state: event._embedded?.venues?.[0]?.state?.name,
-          country: event._embedded?.venues?.[0]?.country?.name,
-          address: event._embedded?.venues?.[0]?.address?.line1,
-          postal_code: event._embedded?.venues?.[0]?.postalCode,
-          location: event._embedded?.venues?.[0]?.location
-            ? { 
-                latitude: event._embedded.venues[0].location.latitude, 
-                longitude: event._embedded.venues[0].location.longitude 
-              }
-            : null
-        };
-        
-        await saveVenueToDatabase(venueData);
-        
-        // Now save the show
-        const showData = {
-          id: event.id,
-          name: event.name,
-          date: event.dates?.start?.dateTime,
-          artist_id: artistId,
-          venue_id: venueId,
-          ticket_url: event.url,
-          image_url: event.images?.find((img: any) => img.ratio === "16_9" && img.width > 500)?.url,
-          genre_ids: event.classifications?.map((c: any) => c.genre?.id).filter(Boolean) || []
-        };
-        
-        await saveShowToDatabase(showData);
-        upcomingShowsCount++;
-      } catch (showError) {
-        console.error(`Error saving show ${event.id}:`, showError);
+        // Sync venue if available
+        if (show.venue?.id) {
+          console.log(`[fetchAndSaveArtistShows] Syncing venue ${show.venue.name}`);
+          const venueResult = await supabase.functions.invoke('sync-venue', {
+            body: { venueId: show.venue.id }
+          });
+
+          if (!venueResult.data?.success) {
+            console.error(`[fetchAndSaveArtistShows] Venue sync failed for ${show.venue.name}:`, venueResult.error);
+          }
+        }
+
+        // Sync show
+        console.log(`[fetchAndSaveArtistShows] Syncing show ${show.name}`);
+        const showResult = await supabase.functions.invoke('sync-show', {
+          body: { 
+            showId: show.id,
+            payload: {
+              ...show,
+              artist_id: artistId
+            }
+          }
+        });
+
+        if (!showResult.data?.success) {
+          console.error(`[fetchAndSaveArtistShows] Show sync failed for ${show.name}:`, showResult.error);
+        }
+      } catch (error) {
+        console.error(`[fetchAndSaveArtistShows] Error processing show ${show.name}:`, error);
       }
-    }
-    
-    // Update the artist with the count of upcoming shows
-    if (upcomingShowsCount > 0) {
-      await supabase
-        .from('artists')
-        .update({ upcoming_shows: upcomingShowsCount, updated_at: new Date().toISOString() })
-        .eq('id', artistId);
-      
-      console.log(`Updated artist ${artistId} with ${upcomingShowsCount} upcoming shows`);
-    }
+    }));
+
+    return { success: true, shows };
+
   } catch (error) {
-    console.error(`Error fetching shows for artist ${artistId}:`, error);
+    console.error(`[fetchAndSaveArtistShows] Error fetching/saving shows for ${artistName}:`, error);
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Unknown error'
+    };
+  }
+}
+
+export async function getArtistShows(artistId: string): Promise<Show[]> {
+  try {
+    const { data: shows, error } = await supabase
+      .from('shows')
+      .select(`
+        *,
+        artist:artists(*),
+        venue:venues(*)
+      `)
+      .eq('artist_id', artistId)
+      .order('date', { ascending: true });
+
+    if (error) throw error;
+    return shows as Show[];
+
+  } catch (error) {
+    console.error('[getArtistShows] Error fetching shows:', error);
+    return [];
   }
 }

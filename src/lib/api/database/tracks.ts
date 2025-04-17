@@ -1,4 +1,5 @@
 
+import { Song } from '@/lib/types';
 import { supabase } from "@/integrations/supabase/client";
 
 /**
@@ -34,40 +35,46 @@ export async function updateArtistStoredTracks(artistId: string, tracks: any[]) 
 /**
  * Fetch stored tracks for an artist
  */
-export async function getStoredTracksForArtist(artistId: string) {
+export async function getStoredTracksForArtist(artistId: string): Promise<Song[] | null> {
   try {
-    console.log(`Fetching stored tracks for artist ${artistId}`);
-    const { data: artist, error } = await supabase
-      .from('artists')
-      .select('stored_tracks, spotify_id, tracks_last_updated')
-      .eq('id', artistId)
-      .maybeSingle();
-    
-    if (error) {
-      console.error("Error fetching stored tracks for artist:", error);
+    if (!artistId) {
+      console.error("Missing artist ID for getStoredTracksForArtist");
       return null;
     }
-    
-    if (artist && artist.stored_tracks && Array.isArray(artist.stored_tracks)) {
-      console.log(`Found ${artist.stored_tracks.length} stored tracks for artist ${artistId}`);
-      
-      // Check if tracks need refresh (older than 30 days)
-      if (artist.tracks_last_updated) {
-        const lastUpdated = new Date(artist.tracks_last_updated);
-        const now = new Date();
-        const daysSinceUpdate = (now.getTime() - lastUpdated.getTime()) / (1000 * 60 * 60 * 24);
-        
-        if (daysSinceUpdate > 30) {
-          console.log(`Tracks for artist ${artistId} are ${daysSinceUpdate.toFixed(1)} days old, consider refreshing`);
-          // We'll still return the tracks but log a suggestion to refresh
-        }
-      }
-      
-      return artist.stored_tracks;
+    console.log(`Fetching stored tracks (songs) for artist ${artistId}`);
+
+    // Query the 'songs' table instead of 'artists'
+    const { data: songs, error } = await supabase
+      .from('songs')
+      .select(`
+        id,
+        name,
+        spotify_id,
+        duration_ms,
+        popularity,
+        preview_url,
+        vote_count,
+        created_at,
+        updated_at,
+        artist_id,
+        album_name,
+        album_image_url
+      `) // Select all relevant song fields
+      .eq('artist_id', artistId); // Filter by artist_id
+
+    if (error) {
+      console.error(`Error fetching songs for artist ${artistId}:`, error);
+      return null;
     }
-    
-    console.log(`No stored tracks found for artist ${artistId}`);
-    return null;
+
+    if (songs && songs.length > 0) {
+      console.log(`Found ${songs.length} songs for artist ${artistId}`);
+      // TODO: Add logic to check freshness if needed (e.g., based on song updated_at or a separate sync status table)
+      return songs as Song[]; // Cast to Song[] type
+    }
+
+    console.log(`No songs found for artist ${artistId}`);
+    return []; // Return empty array if no songs found, consistent with previous logic
   } catch (error) {
     console.error("Error in getStoredTracksForArtist:", error);
     return null;

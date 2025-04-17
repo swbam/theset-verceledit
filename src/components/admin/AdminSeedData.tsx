@@ -232,7 +232,9 @@ const AdminSeedData = () => {
             .insert({
               id: setlistId,
               show_id: show.id,
-              last_updated: new Date().toISOString()
+              artist_id: artist.id, // Required field
+              date: new Date().toISOString(), // Required field
+              updated_at: new Date().toISOString() // Use updated_at instead of last_updated
             });
           
           if (setlistError) {
@@ -251,34 +253,36 @@ const AdminSeedData = () => {
           for (let j = 0; j < Math.min(shuffledSongs.length, 5); j++) {
             const songName = shuffledSongs[j];
             
-            // First create a track for this song
-            const trackId = uuidv4();
-            const { error: trackError } = await supabase
-              .from('top_tracks')
+            // First create a song for this artist
+            const songId = uuidv4();
+            const { error: songError } = await supabase
+              .from('songs')
               .insert({
-                id: trackId,
+                id: songId,
                 artist_id: artist.id,
                 name: songName,
                 album_name: 'Unknown Album',
                 popularity: Math.floor(Math.random() * 100)
               });
             
-            if (trackError) {
-              console.warn(`Couldn't add track ${songName}:`, trackError.message);
+            if (songError) {
+              console.warn(`Couldn't add song ${songName}:`, songError.message);
               continue;
             }
             
-            // Then add the track to the setlist
-            const { error: songError } = await supabase
-              .from('setlist_songs')
+            // Then add the song to the played_setlist_songs table
+            const { error: playedSongError } = await supabase
+              .from('played_setlist_songs')
               .insert({
                 setlist_id: setlistId,
-                track_id: trackId,
-                votes: Math.floor(Math.random() * 100) // Random vote count
+                song_id: songId,
+                position: j + 1,
+                is_encore: false,
+                created_at: new Date().toISOString()
               });
             
-            if (songError) {
-              console.warn(`Couldn't add song ${songName} to setlist:`, songError.message);
+            if (playedSongError) {
+              console.warn(`Couldn't add song ${songName} to setlist:`, playedSongError.message);
             } else {
               addedSongs++;
             }

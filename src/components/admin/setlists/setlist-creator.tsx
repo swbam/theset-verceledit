@@ -27,18 +27,18 @@ import { createOrUpdateSetlist } from "@/lib/api/database/setlists";
 interface Show {
   id: string;
   name: string;
-  date: string;
-  artist_id?: string;
+  date: string | null;
+  artist_id?: string | null;
   artist?: {
     id: string;
     name: string;
-  };
+  } | null;
 }
 
 interface Artist {
   id: string;
   name: string;
-  spotify_id?: string;
+  spotify_id?: string | null;
 }
 
 export function SetlistCreator() {
@@ -364,4 +364,4 @@ export function SetlistCreator() {
       </CardFooter>
     </Card>
   );
-} 
+}

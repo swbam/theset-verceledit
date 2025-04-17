@@ -38,16 +38,17 @@ export async function fetchAndStoreSongs(artistId: string, spotifyId: string, ar
       console.log(`Fetching top tracks for ${artistName} (${spotifyId})`);
       const spotifyTracks = await getArtistTopTracks(spotifyId);
       
-      if (!spotifyTracks || spotifyTracks.length === 0) {
+      // Check the 'tracks' property of the response object
+      if (!spotifyTracks || !spotifyTracks.tracks || spotifyTracks.tracks.length === 0) {
         console.log(`No tracks found on Spotify for artist ${artistName}`);
         return false;
       }
       
-      console.log(`Found ${spotifyTracks.length} tracks for ${artistName}`);
+      console.log(`Found ${spotifyTracks.tracks.length} tracks for ${artistName}`);
       
       // Save tracks to database
       let savedCount = 0;
-      for (const track of spotifyTracks) {
+      for (const track of spotifyTracks.tracks) {
         if (!track.id) continue;
         
         // Add to songs table - use upsert to avoid duplicates

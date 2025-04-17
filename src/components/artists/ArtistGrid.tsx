@@ -22,7 +22,7 @@ const ArtistGrid = ({
   subtitle = "Artists with upcoming shows",
   limit = 6,
   queryKey = "featuredArtists",
-  artistsFn = () => fetchFeaturedArtists(6),
+  artistsFn = () => fetchFeaturedArtists(),
   showViewAll = true,
   viewAllLink = "/artists",
   viewAllText = "View all artists"

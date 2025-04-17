@@ -23,19 +23,20 @@ export async function adminPageAuth() {
   }
 
   // 2. Check if user has admin role in profiles table
-  const { data: profile, error: profileError } = await supabase
-    .from("profiles") // Assuming you have a 'profiles' table
-    .select("is_admin") // Assuming an 'is_admin' boolean column
-    .eq("id", user.id)
+  // Check if user is in the admins table
+  const { data: adminRow, error: adminError } = await supabase
+    .from("admins")
+    .select("user_id")
+    .eq("user_id", user.id)
     .single();
 
-  if (profileError) {
-    console.error("[Admin Auth] Error fetching user profile:", profileError.message, { userId: user.id, pathname });
+  if (adminError) {
+    console.error("[Admin Auth] Error fetching admin row:", adminError.message, { userId: user.id, pathname });
     // Decide how to handle profile fetch errors - redirect or throw? Redirecting for safety.
     redirect("/");
   }
 
-  if (!profile?.is_admin) {
+  if (!adminRow) {
     console.warn("[Admin Auth] User is not an admin. Redirecting to /.", { userId: user.id, pathname });
     redirect("/"); // Redirect non-admins
   }

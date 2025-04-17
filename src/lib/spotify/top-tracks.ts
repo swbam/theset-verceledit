@@ -1,4 +1,3 @@
-
 import { getAccessToken } from './auth';
 import { getStoredTracksFromDb } from './utils';
 import { getArtistAllTracks } from './all-tracks';
@@ -24,19 +23,12 @@ export const getArtistTopTracks = async (artistId: string, limit = 10): Promise<
     // If no stored tracks, fetch the complete catalog first
     await getArtistAllTracks(artistId);
     
-    // Then get the artist data again
-    const { data: refreshedData, error: refreshError } = await supabase
-      .from('artists')
-      .select('stored_tracks')
-      .eq('id', artistId)
-      .maybeSingle();
-      
-    if (!refreshError && refreshedData && refreshedData.stored_tracks && 
-        Array.isArray(refreshedData.stored_tracks)) {
-      // Properly cast the Json to SpotifyTrack[]
-      const tracks = refreshedData.stored_tracks as unknown as SpotifyTrack[];
+    // Then try to get the tracks again
+    const refreshedTracks = await getStoredTracksFromDb(artistId);
+    
+    if (refreshedTracks && refreshedTracks.length > 0) {
       return { 
-        tracks: tracks
+        tracks: refreshedTracks
           .sort((a, b) => (b.popularity || 0) - (a.popularity || 0))
           .slice(0, limit)
       };

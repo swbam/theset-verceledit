@@ -13,7 +13,7 @@ export * from './shows';
 export * from './database';
 
 // API services with more selective exports to avoid naming conflicts
-export { getArtist, getArtistTopTracksFromDb } from './getArtist';
+export { getArtist } from './getArtist'; // Removed getArtistTopTracksFromDb as it's no longer exported
 
 // Re-export mock service with a namespace to avoid conflicts
 import * as MockService from './mock-service';

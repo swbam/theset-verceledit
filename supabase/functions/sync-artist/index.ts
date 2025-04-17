@@ -3,18 +3,13 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { corsHeaders } from '../_shared/cors.ts'
-// Note: APIClientManager logic is replaced with direct fetch calls below
-// import { APIClientManager } from '../../src/lib/sync/api-client.ts'; 
 
 // Define expected request body structure
 interface SyncArtistPayload {
   artistId: string;
-  // Add other options if needed, e.g., force sync
-  // force?: boolean;
+  force?: boolean;
 }
 
-// Define the structure of your Artist data (align with your DB schema and types)
-// You might want to import this from a shared types file if available server-side
 interface Artist {
   id: string;
   name: string;
@@ -26,8 +21,7 @@ interface Artist {
   popularity?: number | null;
   created_at?: string;
   updated_at?: string;
-  setlist_fm_mbid?: string | null; // Add Setlist.fm MBID field
-  // Add any other relevant fields
+  setlist_fm_mbid?: string | null;
 }
 
 // Helper to get Spotify Access Token (Client Credentials Flow)
@@ -58,17 +52,14 @@ async function getSpotifyToken(): Promise<string | null> {
   return data.access_token;
 }
 
-
 // --- Setlist.fm API Helper ---
-// Define expected response structure (simplified)
 interface SetlistFmArtist {
   mbid: string;
   name: string;
-  // other fields...
 }
+
 interface SetlistFmSearchResponse {
   artist?: SetlistFmArtist[];
-  // other fields...
 }
 
 async function searchSetlistFmArtist(artistName: string): Promise<string | null> {
@@ -94,7 +85,6 @@ async function searchSetlistFmArtist(artistName: string): Promise<string | null>
     }
 
     const data: SetlistFmSearchResponse = await response.json();
-    // Find the best match (often the first result if sorted by relevance)
     if (data.artist && data.artist.length > 0) {
       const mbid = data.artist[0].mbid;
       console.log(`Found Setlist.fm MBID for ${artistName}: ${mbid}`);
@@ -109,43 +99,34 @@ async function searchSetlistFmArtist(artistName: string): Promise<string | null>
     return null;
   }
 }
-// --- End Setlist.fm Helper ---
 
-
-/**
- * Fetch artist data from Ticketmaster and Spotify
- */
 async function fetchAndTransformArtistData(supabaseAdmin: any, artistId: string): Promise<Artist | null> {
   console.log(`Fetching data for artist ${artistId}`);
   let artist: Artist | null = null;
 
-  // --- Get Existing Artist Data (Optional but good for preserving fields) ---
   try {
     const { data: existingArtist, error: existingError } = await supabaseAdmin
       .from('artists')
       .select('*')
       .eq('id', artistId)
-      .maybeSingle(); // Use maybeSingle to handle not found case gracefully
+      .maybeSingle();
 
     if (existingError) {
       console.warn(`Error fetching existing artist ${artistId}:`, existingError.message);
-      // Continue even if fetching existing fails
     }
     if (existingArtist) {
       console.log(`Found existing data for artist ${artistId}`);
       artist = existingArtist as Artist;
     }
   } catch (e) {
-     // Type check the caught error
-     const errorMsg = e instanceof Error ? e.message : String(e);
-     console.warn(`Exception fetching existing artist ${artistId}:`, errorMsg);
+    const errorMsg = e instanceof Error ? e.message : String(e);
+    console.warn(`Exception fetching existing artist ${artistId}:`, errorMsg);
   }
 
   // --- Ticketmaster API ---
   const tmApiKey = Deno.env.get('TICKETMASTER_API_KEY');
   if (!tmApiKey) {
     console.error('TICKETMASTER_API_KEY not set in environment variables.');
-    // Decide if you want to fail or continue without TM data
   } else {
     try {
       const tmUrl = `https://app.ticketmaster.com/discovery/v2/attractions/${artistId}.json?apikey=${tmApiKey}`;
@@ -157,21 +138,18 @@ async function fetchAndTransformArtistData(supabaseAdmin: any, artistId: string)
       } else {
         const tmData = await tmResponse.json();
         console.log(`Received Ticketmaster data for ${artistId}`);
-        // Combine with existing or create new artist object
         if (artist) {
-          // Update existing artist
           artist.name = tmData.name;
           artist.image_url = getBestImage(tmData.images) || artist.image_url || null;
           artist.url = tmData.url || artist.url || null;
           artist.updated_at = new Date().toISOString();
         } else {
-          // Create new artist structure from TM data
           artist = {
             id: artistId,
             name: tmData.name,
             image_url: getBestImage(tmData.images) || null,
             url: tmData.url || null,
-            spotify_id: null, // Initialize optional fields
+            spotify_id: null,
             spotify_url: null,
             genres: [],
             popularity: null,
@@ -181,14 +159,13 @@ async function fetchAndTransformArtistData(supabaseAdmin: any, artistId: string)
         }
       }
     } catch (tmError) {
-      // Type check the caught error
       const errorMsg = tmError instanceof Error ? tmError.message : String(tmError);
       console.error(`Error fetching or processing Ticketmaster data for artist ${artistId}:`, errorMsg);
     }
   }
 
   // --- Spotify API ---
-  if (artist && artist.name) { // Only search Spotify if we have an artist name
+  if (artist && artist.name) {
     const spotifyToken = await getSpotifyToken();
     if (spotifyToken) {
       try {
@@ -207,68 +184,79 @@ async function fetchAndTransformArtistData(supabaseAdmin: any, artistId: string)
           if (spotifyData?.artists?.items?.length > 0) {
             const spotifyArtist = spotifyData.artists.items[0];
             console.log(`Received Spotify data for ${artist.name}`);
-            // Enrich the artist object
             artist.spotify_id = spotifyArtist.id;
             artist.spotify_url = spotifyArtist.external_urls?.spotify || null;
-            artist.genres = spotifyArtist.genres || artist.genres || []; // Merge or overwrite genres? Overwriting here.
-            artist.popularity = spotifyArtist.popularity ?? artist.popularity ?? null; // Prioritize Spotify popularity
+            artist.genres = spotifyArtist.genres || artist.genres || [];
+            artist.popularity = spotifyArtist.popularity ?? artist.popularity ?? null;
 
-            // Use Spotify image only if TM didn't provide one
             if (!artist.image_url && spotifyArtist.images?.length > 0) {
               artist.image_url = spotifyArtist.images[0].url;
             }
-            artist.updated_at = new Date().toISOString(); // Update timestamp again
+            artist.updated_at = new Date().toISOString();
           } else {
-             console.log(`No Spotify artist found for query: ${artist.name}`);
+            console.log(`No Spotify artist found for query: ${artist.name}`);
           }
         }
       } catch (spotifyError) {
-        // Type check the caught error
         const errorMsg = spotifyError instanceof Error ? spotifyError.message : String(spotifyError);
         console.error(`Error fetching or processing Spotify data for artist ${artist.name}:`, errorMsg);
       }
     } else {
-       console.warn(`Skipping Spotify enrichment for ${artist.name} due to missing token.`);
+      console.warn(`Skipping Spotify enrichment for ${artist.name} due to missing token.`);
     }
-  } else if (!artist) {
-      console.warn(`Skipping Spotify enrichment because no base artist data could be fetched for ID ${artistId}.`);
-  } else if (!artist.name) {
-      console.warn(`Skipping Spotify enrichment for artist ID ${artistId} because artist name is missing.`);
-  }
-  // --- Setlist.fm API ---
-  if (artist?.name) {
-      const mbid = await searchSetlistFmArtist(artist.name);
-      if (mbid) {
-          artist.setlist_fm_mbid = mbid;
-          artist.updated_at = new Date().toISOString(); // Update timestamp
-      }
-  } else {
-      console.warn(`Skipping Setlist.fm search because artist name is missing for ID ${artistId}.`);
   }
 
+  // --- Setlist.fm API ---
+  if (artist?.name) {
+    const mbid = await searchSetlistFmArtist(artist.name);
+    if (mbid) {
+      artist.setlist_fm_mbid = mbid;
+      artist.updated_at = new Date().toISOString();
+    }
+  }
 
   if (!artist?.name) {
     console.error(`Failed to resolve artist name for ID ${artistId} from any source.`);
-    return null; // Cannot proceed without a name
+    return null;
   }
 
   return artist;
 }
-// --- Helper function from original service ---
-/**
- * Get the best quality image from an array of images
- */
+
 function getBestImage(images?: Array<{url: string, width: number, height: number}>): string | null {
   if (!images || images.length === 0) return null;
-  // Sort by width to get highest resolution
   const sorted = [...images].sort((a, b) => (b.width || 0) - (a.width || 0));
   return sorted[0].url;
 }
-// --- End Helper ---
 
-serve(async (req: Request) => { // Add type Request for req parameter
-  console.log('--- sync-artist function handler started ---'); // Add log right at the beginning
-  // Handle CORS preflight request
+// Added: Update sync state in database
+async function updateSyncStatus(client: any, entityId: string, entityType: string) {
+  try {
+    const now = new Date().toISOString();
+    const { error } = await client
+      .from('sync_states')
+      .upsert({
+        entity_id: entityId,
+        entity_type: entityType,
+        external_id: entityId,
+        last_synced: now,
+        sync_version: 1 // Current sync version
+      }, {
+        onConflict: 'entity_id,entity_type'
+      });
+
+    if (error) {
+      console.error(`Error updating sync state for ${entityType} ${entityId}:`, error);
+    } else {
+      console.log(`Updated sync state for ${entityType} ${entityId}`);
+    }
+  } catch (error) {
+    console.error(`Exception updating sync state for ${entityType} ${entityId}:`, error);
+  }
+}
+
+serve(async (req: Request) => {
+  console.log('--- sync-artist function handler started ---');
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
@@ -286,31 +274,27 @@ serve(async (req: Request) => { // Add type Request for req parameter
 
     console.log(`Sync request received for artist: ${artistId}`);
 
-    // Initialize Supabase client with SERVICE_ROLE key
-    // Ensure SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are set in Edge Function env vars
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    // Fetch and transform data using migrated logic, passing admin client
     const artistData = await fetchAndTransformArtistData(supabaseAdmin, artistId);
 
     if (!artistData) {
       console.error(`Failed to fetch or transform data for artist ${artistId}`);
       return new Response(JSON.stringify({ error: 'Failed to fetch artist data from external APIs' }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 500, // Or appropriate error code
+        status: 500,
       })
     }
 
-    // Upsert data into Supabase using the admin client (bypasses RLS)
     console.log(`Upserting artist ${artistId} into database...`);
     const { data: upsertedData, error: upsertError } = await supabaseAdmin
-      .from('artists') // Ensure 'artists' is your table name
-      .upsert(artistData, { onConflict: 'id' }) // Assuming 'id' is the conflict target
-      .select() // Optionally select the upserted data to return
-      .single(); // Assuming upsert returns a single row
+      .from('artists')
+      .upsert(artistData, { onConflict: 'id' })
+      .select()
+      .single();
 
     if (upsertError) {
       console.error('Supabase upsert error:', upsertError);
@@ -320,24 +304,21 @@ serve(async (req: Request) => { // Add type Request for req parameter
       })
     }
 
+    // Added: Update sync state after successful upsert
+    await updateSyncStatus(supabaseAdmin, artistId, 'artist');
+
     console.log(`Successfully synced artist ${artistId}`);
-    // Optionally, update sync status (if you migrate IncrementalSyncService logic too)
-    // await updateSyncStatus(supabaseAdmin, artistId, 'artist');
 
     return new Response(JSON.stringify({ success: true, data: upsertedData }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 200,
     })
   } catch (error) {
-    // Ensure error is an instance of Error before accessing message
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-    console.error('Unhandled error:', errorMessage, error); // Log the full error too
+    console.error('Unhandled error:', errorMessage, error);
     return new Response(JSON.stringify({ error: errorMessage }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 500,
     })
   }
 })
-
-// TODO: Consider migrating IncrementalSyncService logic here or to another function
-// async function updateSyncStatus(client: any, id: string, type: string) { ... }

@@ -32,7 +32,15 @@ export default defineConfig(({ mode }) => ({
       "@": path.resolve(__dirname, "./src"),
     },
   },
-  // Removed define block that overwrites process.env
+  // Add define to handle process.env variables in browser
+  define: {
+    'process.env': {
+      // Map Next.js environment variables to Vite format
+      NEXT_PUBLIC_SUPABASE_URL: JSON.stringify(process.env.NEXT_PUBLIC_SUPABASE_URL || import.meta.env?.VITE_SUPABASE_URL),
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: JSON.stringify(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || import.meta.env?.VITE_SUPABASE_ANON_KEY),
+      NODE_ENV: JSON.stringify(process.env.NODE_ENV || mode),
+    },
+  },
   build: {
     // Increase the warning limit to avoid unnecessary warnings
     chunkSizeWarningLimit: 1000,

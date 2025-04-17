@@ -6,8 +6,8 @@ import { toast } from 'sonner';
 
 interface Song {
   id: string;
-  title: string;
-  votes: number;
+  name: string;
+  vote_count: number;
   spotify_id?: string;
   album_name?: string;
   album_image_url?: string;
@@ -35,7 +35,14 @@ export default function SetlistTable({ setlistId, showTitle }: SetlistTableProps
         
         // Use the database function to get setlist with user's vote status
         const songsData = await getSetlistWithVotes(setlistId, user?.id);
-        setSongs(songsData);
+        // Map/transform to ensure vote_count is a number and name is present
+        setSongs(
+          songsData.map((song: any) => ({
+            ...song,
+            name: song.name ?? song.title ?? 'Untitled',
+            vote_count: typeof song.vote_count === 'number' ? song.vote_count : 0,
+          }))
+        );
       } catch (error) {
         console.error('Error fetching setlist:', error);
         toast.error('Failed to load setlist');
@@ -52,7 +59,7 @@ export default function SetlistTable({ setlistId, showTitle }: SetlistTableProps
       .on('postgres_changes', { 
         event: 'UPDATE', 
         schema: 'public', 
-        table: 'setlist_songs',
+        table: 'played_setlist_songs',
         filter: `setlist_id=eq.${setlistId}`
       }, (payload) => {
         console.log('Setlist song updated:', payload);
@@ -60,9 +67,9 @@ export default function SetlistTable({ setlistId, showTitle }: SetlistTableProps
         setSongs(currentSongs => 
           currentSongs.map(song => 
             song.id === payload.new.id 
-              ? { ...song, votes: payload.new.votes } 
+              ? { ...song, vote_count: typeof payload.new.vote_count === 'number' ? payload.new.vote_count : 0 } 
               : song
-          ).sort((a, b) => b.votes - a.votes) // Re-sort by votes
+          ).sort((a, b) => b.vote_count - a.vote_count) // Re-sort by vote_count
         );
       })
       .subscribe();
@@ -94,12 +101,11 @@ export default function SetlistTable({ setlistId, showTitle }: SetlistTableProps
     const updatedSongs = [...songs];
     updatedSongs[songIndex] = {
       ...song,
-      votes: song.votes + 1,
+      vote_count: (song.vote_count ?? 0) + 1,
       hasVoted: true
     };
-    
-    // Sort by votes (highest first)
-    const sortedSongs = [...updatedSongs].sort((a, b) => b.votes - a.votes);
+    // Sort by vote_count (highest first)
+    const sortedSongs = [...updatedSongs].sort((a, b) => b.vote_count - a.vote_count);
     setSongs(sortedSongs);
     
     try {
@@ -112,7 +118,13 @@ export default function SetlistTable({ setlistId, showTitle }: SetlistTableProps
         
         // Refresh setlist to ensure accurate state
         const refreshedSongs = await getSetlistWithVotes(setlistId, user.id);
-        setSongs(refreshedSongs);
+        setSongs(
+          refreshedSongs.map((song: any) => ({
+            ...song,
+            name: song.name ?? song.title ?? 'Untitled',
+            vote_count: typeof song.vote_count === 'number' ? song.vote_count : 0,
+          }))
+        );
       } else {
         toast.success('Vote recorded!');
       }
@@ -122,7 +134,13 @@ export default function SetlistTable({ setlistId, showTitle }: SetlistTableProps
       
       // Refresh setlist to ensure accurate state
       const refreshedSongs = await getSetlistWithVotes(setlistId, user.id);
-      setSongs(refreshedSongs);
+      setSongs(
+        refreshedSongs.map((song: any) => ({
+          ...song,
+          name: song.name ?? song.title ?? 'Untitled',
+          vote_count: typeof song.vote_count === 'number' ? song.vote_count : 0,
+        }))
+      );
     }
   };
   
@@ -167,12 +185,12 @@ export default function SetlistTable({ setlistId, showTitle }: SetlistTableProps
               {song.album_image_url && (
                 <img 
                   src={song.album_image_url} 
-                  alt={song.album_name || song.title}
+                  alt={song.album_name || song.name}
                   className="w-10 h-10 mr-3 rounded"
                 />
               )}
               <div>
-                <p className="font-medium">{song.title}</p>
+                <p className="font-medium">{song.name}</p>
                 {song.album_name && (
                   <p className="text-xs text-muted-foreground">{song.album_name}</p>
                 )}
@@ -180,7 +198,7 @@ export default function SetlistTable({ setlistId, showTitle }: SetlistTableProps
             </div>
             
             <div className="flex items-center space-x-2">
-              <span className="text-lg font-semibold">{song.votes}</span>
+              <span className="text-lg font-semibold">{song.vote_count}</span>
               <button
                 onClick={() => handleVote(song.id)}
                 disabled={song.hasVoted || !user}
@@ -216,4 +234,4 @@ export default function SetlistTable({ setlistId, showTitle }: SetlistTableProps
       )}
     </div>
   );
-} 
+}

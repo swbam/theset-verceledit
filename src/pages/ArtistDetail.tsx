@@ -13,9 +13,9 @@ import { useArtistDetail } from '@/hooks/use-artist-detail';
 const ArtistDetail = () => {
   const { id } = useParams<{ id: string }>();
   const { artist, shows, loading, error } = useArtistDetail(id);
-  
+
   // Removed the useEffect hook that was showing error toasts
-  
+
   // Show skeleton immediately during initial load
   if (loading.artist && !artist) {
     return <ArtistDetailSkeleton />;
@@ -29,26 +29,26 @@ const ArtistDetail = () => {
   return (
     <div className="min-h-screen flex flex-col">
       <Navbar />
-      
+
       <main className="flex-grow">
         <ArtistHeader 
           artistName={artist.name} 
           artistImage={artist.image}
           upcomingShowsCount={shows.length}
         />
-        
+
         <UpcomingShows 
-          shows={shows}
+          shows={shows.filter(show => show.date !== null && show.date !== undefined) as any}
           artistName={artist.name}
           isLoading={loading.shows}
         />
-        
+
         <PastSetlists 
           artistId={id}
           artistName={artist.name}
         />
       </main>
-      
+
       <Footer />
     </div>
   );

@@ -14,22 +14,28 @@ interface VenueSyncProps {
  * VenueSync component that allows syncing all shows at a venue
  */
 export default function VenueSync({ venueId, venueName }: VenueSyncProps) {
-  const { syncVenue, isLoading, results, error } = useVenueSync();
-  const [expanded, setExpanded] = useState(false);
+  // Use the refactored hook return values
+  const { triggerVenueSync, isLoading, syncInitiated, error, clearError } = useVenueSync();
+  const [expanded, setExpanded] = useState(false); // Keep local state for expansion
 
   const handleSync = async () => {
-    try {
-      const result = await syncVenue(venueId, venueName);
-      
-      if (result?.success) {
-        toast.success(`Successfully synced ${result.processed || 0} shows for ${venueName}`);
-        setExpanded(true); // Show details on success
-      } else {
-        toast.error(`Failed to sync shows: ${result?.error || 'Unknown error'}`);
+    clearError(); // Clear previous errors
+    try { // Add missing opening brace
+      const success = await triggerVenueSync(venueId, venueName); // Call the renamed function
+
+      if (success) {
+        toast.success(`Sync initiated for ${venueName}. Shows are being queued.`);
+      // Optionally expand or show a different message based on syncInitiated
+      setExpanded(true);
+    } else {
+      // Error state is handled by the hook, but we can add a generic toast
+      toast.error(`Failed to initiate sync for ${venueName}.`);
       }
+    // Correctly place the catch block after the try block
     } catch (err) {
-      console.error('Error syncing venue:', err);
-      toast.error('An unexpected error occurred while syncing venue shows');
+      console.error('Error in handleSync:', err);
+      // Error state is already set by the hook, but maybe add a generic toast?
+      toast.error('An unexpected error occurred during sync initiation.');
     }
   };
 
@@ -63,48 +69,21 @@ export default function VenueSync({ venueId, venueName }: VenueSyncProps) {
         </Card>
       )}
 
-      {results?.success && (
+      {/* Display message based on syncInitiated status */}
+      {syncInitiated && !isLoading && !error && (
         <div className="space-y-3">
-          <Card className="p-4 border-green-300 bg-green-50 text-green-800">
+          <Card className="p-4 border-blue-300 bg-blue-50 text-blue-800">
             <p className="text-sm font-medium">
-              Successfully processed {results.processed} shows at {results.venue}
+              Sync initiated for {venueName}. Related shows are being queued for background processing.
             </p>
-            
-            <div className="mt-2 flex items-center">
-              <Button 
-                variant="link" 
-                onClick={() => setExpanded(!expanded)} 
-                className="p-0 h-auto text-green-700"
-              >
-                {expanded ? 'Hide Details' : 'Show Details'}
-              </Button>
-            </div>
+            {/* Remove the details expansion for now as results are not directly returned */}
+            {/* <div className="mt-2 flex items-center">
+            </div> */}
           </Card>
-
-          {expanded && results.results && results.results.length > 0 && (
-            <div className="mt-3 space-y-2 max-h-80 overflow-auto p-2 border rounded-md">
-              {results.results.map((result: any, index: number) => (
-                <div 
-                  key={index} 
-                  className={`p-2 rounded text-sm ${
-                    result.success 
-                      ? 'bg-green-50 border border-green-200' 
-                      : 'bg-red-50 border border-red-200'
-                  }`}
-                >
-                  <div className="flex justify-between">
-                    <span className="font-medium">{result.show || result.artist || 'Unknown show'}</span>
-                    <span>{result.success ? '✓' : '✗'}</span>
-                  </div>
-                  {!result.success && result.error && (
-                    <p className="text-xs text-red-700 mt-1">{result.error}</p>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
+          {/* Removed the detailed results display as the hook doesn't return them directly anymore */}
         </div>
       )}
+
     </div>
   );
-} 
+}

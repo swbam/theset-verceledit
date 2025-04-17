@@ -73,35 +73,20 @@ export function createRealtimeVotingConnection(showId: string) {
      * @param userId The ID of the user voting
      * @returns A promise that resolves when the vote is sent
      */
-    sendVote: async (songId: string, userId: string) => {
+    sendVote: async (songId: string, userId: string, showId: string) => { // Added showId
       console.log(`Sending vote for song ${songId} by user ${userId}`);
       
       try {
-        // For authenticated users, create a vote record
-        if (userId) {
-          const { error: voteError } = await supabase
-            .from('votes')
-            .insert({
-              setlist_song_id: songId,
-              user_id: userId
-            });
-            
-          if (voteError) throw voteError;
-        }
+        // The add_vote RPC function handles inserting the vote record
+        // and incrementing the count atomically. No need for separate insert here.
+        // It likely uses auth.uid() internally for the user_id.
         
-        // Increment the vote count on the song
-        const { error: updateError } = await supabase
-          .from('setlist_songs')
-          .select('votes')
-          .eq('id', songId)
-          .single();
-          
-        if (updateError) throw updateError;
-        
-        // Use RPC to increment the vote (this will trigger the realtime update)
-        const { error: rpcError } = await supabase.rpc('increment_votes', {
-          song_id: songId
-        });
+        // Removed erroneous query for non-existent 'setlist_songs' table
+        // Use RPC to handle the vote logic (insert vote record and increment count)
+        const { error: rpcError } = await supabase.rpc('add_vote', {
+          p_song_id: songId, // Pass song ID
+          p_show_id: showId  // Pass show ID
+        }); // Removed p_user_id as it's likely derived from auth context in RPC
         
         if (rpcError) throw rpcError;
         

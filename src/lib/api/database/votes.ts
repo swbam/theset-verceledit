@@ -1,32 +1,17 @@
 import { supabase } from "@/integrations/supabase/client";
 
 /**
- * Add a vote to a setlist song, handling duplicate votes
+ * Add a vote to a song within the context of a specific show.
+ * Uses IP/session fingerprinting within the RPC function for uniqueness per show.
  */
-export async function addVoteToSong(songId: string, userId: string) {
+export async function addVoteToSong(songId: string, showId: string) { // Needs showId for the RPC
   try {
-    // Check if user has already voted for this song
-    const { data: existingVote, error: checkError } = await supabase
-      .from('user_votes')
-      .select('id')
-      .eq('setlist_song_id', songId)
-      .eq('user_id', userId)
-      .maybeSingle();
+    // The RPC function 'add_vote' handles uniqueness checks internally.
     
-    if (checkError) {
-      console.error("Error checking existing vote:", checkError);
-      throw new Error(`Failed to check existing vote: ${checkError.message}`);
-    }
-    
-    if (existingVote) {
-      console.log(`User ${userId} has already voted for song ${songId}`);
-      return { success: false, message: "You've already voted for this song" };
-    }
-    
-    // Create the vote in a transaction with incrementing the vote count
-    const { data, error } = await supabase.rpc('add_song_vote', {
+    // Call the 'add_vote' RPC function with correct parameters
+    const { data: rpcSuccess, error } = await supabase.rpc('add_vote', {
       p_song_id: songId,
-      p_user_id: userId
+      p_show_id: showId // Pass showId to the RPC
     });
     
     if (error) {
@@ -34,25 +19,29 @@ export async function addVoteToSong(songId: string, userId: string) {
       throw new Error(`Failed to add vote: ${error.message}`);
     }
     
-    console.log(`Vote added successfully for song ${songId} by user ${userId}`);
+    console.log(`Vote RPC 'add_vote' called for song ${songId} in show ${showId}. Success: ${rpcSuccess}`);
     
-    // Get updated song details to return
-    const { data: updatedSong, error: songError } = await supabase
-      .from('setlist_songs')
-      .select('id, title, votes, setlist_id')
-      .eq('id', songId)
-      .single();
-    
-    if (songError) {
-      console.error("Error fetching updated song:", songError);
-      return { success: true, message: "Vote recorded", votes: null };
+    if (!rpcSuccess) {
+      // The RPC returned false, likely meaning the user already voted (based on session/IP)
+      return { success: false, message: "Already voted in this session." };
     }
     
-    return { 
-      success: true, 
-      message: "Vote recorded successfully", 
-      votes: updatedSong.votes,
-      song: updatedSong
+    // Fetch the updated vote_count directly from the songs table, as the RPC updates it.
+    const { data: updatedSong, error: songFetchError } = await supabase
+      .from('songs')
+      .select('vote_count')
+      .eq('id', songId)
+      .single();
+
+    if (songFetchError) {
+       console.error("Error fetching updated vote count from songs table:", songFetchError);
+       return { success: true, message: "Vote recorded, but failed to fetch updated count", votes: null };
+    }
+
+    return {
+      success: true,
+      message: "Vote recorded successfully",
+      votes: updatedSong?.vote_count ?? 0, // Return the new count from the songs table
     };
   } catch (error) {
     console.error("Error in addVoteToSong:", error);
@@ -65,46 +54,63 @@ export async function addVoteToSong(songId: string, userId: string) {
  */
 export async function getSetlistWithVotes(setlistId: string, userId?: string) {
   try {
-    // Get all songs in the setlist
-    const { data: songs, error: songsError } = await supabase
-      .from('setlist_songs')
-      .select('*')
+    // Get all played songs linked to the setlist
+    const { data: playedSongs, error: songsError } = await supabase
+      .from('played_setlist_songs') // Use the correct table linking songs to setlists
+      .select(`
+        *,
+        song:songs(*)
+      `)
       .eq('setlist_id', setlistId)
-      .order('votes', { ascending: false });
+      .order('position', { ascending: true }); // Order by position in setlist
     
     if (songsError) {
-      console.error("Error fetching setlist songs:", songsError);
-      throw new Error(`Failed to fetch setlist songs: ${songsError.message}`);
+      console.error("Error fetching played setlist songs:", songsError);
+      throw new Error(`Failed to fetch played setlist songs: ${songsError.message}`);
     }
-    
-    // If no user ID, just return the songs
+
+    if (!playedSongs || playedSongs.length === 0) {
+      return []; // No songs found for this setlist
+    }
+
+    // Extract song IDs to check votes
+    const songIds = playedSongs.map(ps => ps.song_id).filter((id): id is string => !!id);
+
+    // If no user ID, return songs with vote counts fetched directly from the joined songs table
+    const songDetails = playedSongs.map(ps => ({
+      ...(ps.song ?? {}),
+      id: ps.song?.id ?? `unknown-${ps.id}`,
+      name: ps.song?.name ?? 'Unknown Song',
+      played_song_id: ps.id,
+      position: ps.position,
+      is_encore: ps.is_encore,
+      info: ps.info,
+      vote_count: typeof ps.song?.vote_count === 'number' ? ps.song.vote_count : 0,
+      hasVoted: false
+    }));
+
     if (!userId) {
-      return songs.map(song => ({
-        ...song,
-        hasVoted: false
-      }));
+      return songDetails; // Return details with vote counts, hasVoted is false
     }
-    
-    // Get all songs the user has voted for in this setlist
-    const { data: userVotes, error: votesError } = await supabase
-      .from('user_votes')
-      .select('setlist_song_id')
-      .eq('user_id', userId)
-      .in('setlist_song_id', songs.map(song => song.id));
-    
+
+    // Get all votes by this user for the songs in this setlist
+    const { data: userVotesData, error: votesError } = await supabase
+      .from('votes')
+      .select('song_id')
+      .eq('user_id', userId) // Filter by the specific user
+      .in('song_id', songIds); // Only for songs in this setlist
+
     if (votesError) {
       console.error("Error fetching user votes:", votesError);
-      return songs.map(song => ({
-        ...song,
-        hasVoted: false
-      }));
+      // Return songs with vote counts but hasVoted as false
+      return songDetails;
     }
-    
+
     // Create a set of song IDs the user has voted for
-    const votedSongIds = new Set(userVotes.map(vote => vote.setlist_song_id));
-    
-    // Add hasVoted flag to each song
-    return songs.map(song => ({
+    const votedSongIds = new Set(userVotesData.map(vote => vote.song_id));
+
+    // Update the hasVoted flag for the songs the user has voted for
+    return songDetails.map(song => ({
       ...song,
       hasVoted: votedSongIds.has(song.id)
     }));
@@ -115,22 +121,12 @@ export async function getSetlistWithVotes(setlistId: string, userId?: string) {
 }
 
 /**
- * Setup Supabase stored procedure for atomic vote operations
- * This should be run once during app initialization
+ * Setup Supabase stored procedure for atomic vote operations (If needed)
+ * This function seems obsolete as 'create_vote_procedures' RPC doesn't exist.
  */
 export async function setupVotingProcedures() {
-  try {
-    const { error } = await supabase.rpc('create_vote_procedures');
-    
-    if (error) {
-      console.error("Error setting up voting procedures:", error);
-      return false;
-    }
-    
-    console.log("Voting procedures set up successfully");
-    return true;
-  } catch (error) {
-    console.error("Error in setupVotingProcedures:", error);
-    return false;
-  }
-} 
+  // This function is likely no longer needed as the required RPC doesn't exist.
+  // Keeping the structure but commenting out the call.
+  console.warn("setupVotingProcedures is likely obsolete. The 'create_vote_procedures' RPC was not found.");
+  return true; // Indicate successful (non-)operation
+}

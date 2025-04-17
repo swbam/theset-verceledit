@@ -41,7 +41,8 @@ const UserProfile = () => {
   };
 
   const getAvatarUrl = () => {
-    return profile?.avatar_url || null;
+    // Return undefined instead of null if avatar_url is not present
+    return profile?.avatar_url || undefined; 
   };
 
   const getInitials = () => {

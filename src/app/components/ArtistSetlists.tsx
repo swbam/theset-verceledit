@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-// Removed incorrect useSupabaseClient import
 import { supabase } from '@/integrations/supabase/client'; // Import the client directly
 import SetlistDisplay from './SetlistDisplay';
 import { Button } from '@/components/ui/button';
@@ -16,28 +15,36 @@ export default function ArtistSetlists({ artistId, artistName }: ArtistSetlistsP
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
-  // const supabase = useSupabaseClient(); // Remove hook usage, use imported client directly
 
   useEffect(() => {
     // Check when setlists were last updated
     const checkLastUpdate = async () => {
-      const { data } = await supabase
-        .from('shows')
-        .select('last_updated')
-        .eq('artist_id', artistId)
-        .order('last_updated', { ascending: false })
-        .limit(1)
-        .single();
+      try {
+        const { data, error } = await supabase
+          .from('shows')
+          .select('updated_at')
+          .eq('artist_id', artistId)
+          .order('updated_at', { ascending: false })
+          .limit(1)
+          .single();
+          
+        if (error) {
+          console.error('Error fetching last update time:', error);
+          return;
+        }
         
-      if (data?.last_updated) {
-        setLastRefreshed(new Date(data.last_updated));
-      } else {
-        setLastRefreshed(null);
+        if (data?.updated_at) {
+          setLastRefreshed(new Date(data.updated_at));
+        } else {
+          setLastRefreshed(null);
+        }
+      } catch (err) {
+        console.error('Error in checkLastUpdate:', err);
       }
     };
     
     checkLastUpdate();
-  }, [artistId, supabase]);
+  }, [artistId]);
 
   const handleRefresh = async () => {
     setIsLoading(true);

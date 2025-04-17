@@ -17,16 +17,16 @@ export function useSongManagement(showId: string, initialSongs: Song[], isAuthen
     songs: setlist,
     isConnected,
     voteForSong,
-    addSongToSetlist,
+    addSongToSetlist, // Ensure this is destructured
     anonymousVoteCount
   } = useRealtimeVotes({
     showId: showId || '',
-    initialSongs
+    // Removed initialSongs argument as it's no longer expected by useRealtimeVotes
   });
-  
-  const handleVote = (songId: string) => {
-    const voteSuccess = voteForSong(songId, isAuthenticated);
-    
+
+  const handleVote = async (songId: string) => { // Make handler async
+    const voteSuccess = await voteForSong(songId); // Await the async call, remove isAuthenticated arg if not needed by voteForSong
+
     if (voteSuccess) {
       toast.success("Your vote has been counted!");
     } else if (!isAuthenticated && anonymousVoteCount >= 3) {
@@ -54,11 +54,11 @@ export function useSongManagement(showId: string, initialSongs: Song[], isAuthen
         toast.info(`"${trackToAdd.name}" is already in the setlist!`);
         return;
       }
-      
       // Add the song to the setlist
+      // Ensure the object passed matches the expected RealtimeSong type
       addSongToSetlist({
-        id: trackToAdd.id,
-        name: trackToAdd.name,
+        id: trackToAdd.id, // Assuming trackToAdd.id is string
+        name: trackToAdd.name, // Assuming trackToAdd.name is string
         votes: 0,
         userVoted: false
       });

@@ -1,7 +1,6 @@
-
 import React, { useState, useCallback } from 'react';
-import { Artist } from '@/lib/types'; // Keep Artist type if needed
-import { toast } from 'sonner'; // For user feedback
+import { Artist } from '@/lib/types';
+import { toast } from 'sonner';
 import {
   Table,
   TableBody, 
@@ -12,36 +11,39 @@ import {
 } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Search, RefreshCw, Loader2, CloudUpload } from 'lucide-react'; // Add Loader2, CloudUpload
+import { Search, RefreshCw, Loader2, CloudUpload, Music } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
-// Removed Link from react-router-dom if not used
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { supabase } from '@/integrations/supabase/client';
 
-// Define a type for the search results (might differ from DB Artist type)
 interface SearchResultArtist {
-  id: string; // Assuming this is the external ID (e.g., Ticketmaster ID)
+  id: string;
   name: string;
   image_url?: string | null;
   url?: string | null;
-  // Add other relevant fields returned by your search API if needed
+}
+
+interface SyncStatus {
+  artist: boolean;
+  shows: boolean;
+  songs: boolean;
 }
 
 const AdminArtists = () => {
   const [artists, setArtists] = useState<SearchResultArtist[]>([]);
-  const [loading, setLoading] = useState(false); // Not loading initially
+  const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [syncingArtistId, setSyncingArtistId] = useState<string | null>(null);
+  const [syncingStatus, setSyncingStatus] = useState<Record<string, SyncStatus>>({});
 
   const handleSearch = useCallback(async (e?: React.FormEvent) => {
-    if (e) e.preventDefault(); // Prevent form submission if called from form
+    if (e) e.preventDefault();
     if (!searchQuery.trim()) {
-      // Optionally clear results or show message if query is empty
       setArtists([]);
       return;
     }
 
     setLoading(true);
-    setArtists([]); // Clear previous results
+    setArtists([]);
     try {
       const params = new URLSearchParams({ type: 'artist', query: searchQuery });
       const response = await fetch(`/api/search?${params.toString()}`);
@@ -65,40 +67,94 @@ const AdminArtists = () => {
   }, [searchQuery]);
 
   const handleSync = async (artistId: string, artistName: string) => {
-    setSyncingArtistId(artistId);
-    const toastId = toast.loading(`Syncing artist: ${artistName}...`);
+    // Initialize sync status
+    setSyncingStatus(prev => ({
+      ...prev,
+      [artistId]: { artist: true, shows: false, songs: false }
+    }));
+
+    const toastId = toast.loading(`Starting sync for ${artistName}...`);
+
     try {
-      const response = await fetch('/api/sync', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'artist',
-          id: artistId, // Use external ID
-          operation: 'create' // 'create' operation handles upsert via sync service
-        }),
+      // 1. Sync Artist
+      const artistResult = await supabase.functions.invoke('sync-artist', {
+        body: { artistId }
       });
 
-      const result = await response.json();
-
-      if (!response.ok || !result.success) {
-        throw new Error(result.error || result.message || 'Sync request failed');
+      if (!artistResult.data?.success) {
+        throw new Error(artistResult.error?.message || 'Artist sync failed');
       }
 
-      toast.success(`Sync task queued for ${artistName}.`, { id: toastId });
-      // Optionally refresh the view or indicate sync status
+      // Update status and toast
+      setSyncingStatus(prev => ({
+        ...prev,
+        [artistId]: { ...prev[artistId], artist: false, shows: true }
+      }));
+      toast.loading(`Syncing shows for ${artistName}...`, { id: toastId });
+
+      // 2. Get artist details to get Spotify ID
+      const { data: artistData } = await supabase
+        .from('artists')
+        .select('spotify_id, name')
+        .eq('id', artistId)
+        .single();
+
+      // 3. Sync Songs
+      setSyncingStatus(prev => ({
+        ...prev,
+        [artistId]: { ...prev[artistId], shows: false, songs: true }
+      }));
+      toast.loading(`Syncing song catalog for ${artistName}...`, { id: toastId });
+
+      const songResult = await supabase.functions.invoke('sync-song', {
+        body: {
+          artistId,
+          artistName: artistData?.name || artistName,
+          spotifyId: artistData?.spotify_id
+        }
+      });
+
+      if (!songResult.data?.success) {
+        throw new Error(songResult.error?.message || 'Song sync failed');
+      }
+
+      // Clear sync status and show success
+      setSyncingStatus(prev => {
+        const newStatus = { ...prev };
+        delete newStatus[artistId];
+        return newStatus;
+      });
+
+      toast.success(`Successfully synced ${artistName} with shows and songs`, { id: toastId });
 
     } catch (error) {
       console.error(`Error syncing artist ${artistId}:`, error);
-      toast.error(`Failed to queue sync for ${artistName}: ${error instanceof Error ? error.message : 'Unknown error'}`, { id: toastId });
-    } finally {
-      setSyncingArtistId(null);
+      toast.error(`Sync failed for ${artistName}: ${error instanceof Error ? error.message : 'Unknown error'}`, { id: toastId });
+      
+      // Clear error state
+      setSyncingStatus(prev => {
+        const newStatus = { ...prev };
+        delete newStatus[artistId];
+        return newStatus;
+      });
     }
   };
 
+  const getSyncStatusText = (status: SyncStatus) => {
+    if (status.artist) return "Syncing artist...";
+    if (status.shows) return "Syncing shows...";
+    if (status.songs) return "Syncing songs...";
+    return "Sync";
+  };
 
   return (
     <div className="space-y-6">
-      <h2 className="text-2xl font-bold">Search & Sync Artists</h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-2xl font-bold">Search & Sync Artists</h2>
+        <div className="text-sm text-muted-foreground">
+          Syncs artist data, shows, and song catalog
+        </div>
+      </div>
 
       <form onSubmit={handleSearch} className="flex items-center space-x-2">
         <div className="relative flex-1">
@@ -121,20 +177,13 @@ const AdminArtists = () => {
           <TableHeader>
             <TableRow>
               <TableHead className="w-[80px]">Image</TableHead>
-              <TableHead className="w-[80px]">Image</TableHead>
               <TableHead>Name</TableHead>
               <TableHead>External ID</TableHead>
-              {/* Remove columns not directly available from search API or less relevant here */}
-              {/* <TableHead>Spotify ID</TableHead> */}
-              {/* <TableHead>Upcoming Shows</TableHead> */}
-              {/* <TableHead>Popularity</TableHead> */}
-              {/* <TableHead>Last Updated</TableHead> */}
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
-              // Show skeleton rows while loading search results
               Array.from({ length: 3 }).map((_, i) => (
                 <TableRow key={`skeleton-${i}`}>
                   <TableCell><Skeleton className="h-10 w-10 rounded-full" /></TableCell>
@@ -145,18 +194,18 @@ const AdminArtists = () => {
                   </TableCell>
                 </TableRow>
               ))
-            ) : artists.length === 0 && searchQuery ? ( // Show message only if search was performed
+            ) : artists.length === 0 && searchQuery ? (
               <TableRow>
                 <TableCell colSpan={4} className="text-center py-4 text-muted-foreground">
                   No artists found matching "{searchQuery}"
                 </TableCell>
               </TableRow>
             ) : artists.length === 0 && !searchQuery ? (
-                 <TableRow>
-                   <TableCell colSpan={4} className="text-center py-4 text-muted-foreground">
-                     Enter a query to search for artists.
-                   </TableCell>
-                 </TableRow>
+              <TableRow>
+                <TableCell colSpan={4} className="text-center py-4 text-muted-foreground">
+                  Enter a query to search for artists.
+                </TableCell>
+              </TableRow>
             ) : (
               artists.map((artist) => (
                 <TableRow key={artist.id}>
@@ -168,20 +217,24 @@ const AdminArtists = () => {
                   </TableCell>
                   <TableCell className="font-medium">{artist.name}</TableCell>
                   <TableCell className="text-xs text-muted-foreground">{artist.id}</TableCell>
-                  {/* Removed extra cells */}
                   <TableCell className="text-right">
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => handleSync(artist.id, artist.name)}
-                      disabled={syncingArtistId === artist.id}
+                      disabled={!!syncingStatus[artist.id]}
                     >
-                      {syncingArtistId === artist.id ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      {syncingStatus[artist.id] ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          {getSyncStatusText(syncingStatus[artist.id])}
+                        </>
                       ) : (
-                        <CloudUpload className="mr-2 h-4 w-4" />
+                        <>
+                          <CloudUpload className="mr-2 h-4 w-4" />
+                          Sync All
+                        </>
                       )}
-                      Sync
                     </Button>
                   </TableCell>
                 </TableRow>

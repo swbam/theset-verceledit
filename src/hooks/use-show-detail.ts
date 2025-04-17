@@ -6,6 +6,7 @@ import { useSongManagement } from '@/hooks/use-song-management';
 import { useAuth } from '@/contexts/auth';
 import { supabase } from '@/integrations/supabase/client'; // Import supabase client
 import { isPast } from 'date-fns'; // Import date-fns helper
+import { Song } from '@/lib/types'; // Import Song type
 
 export function useShowDetail(id: string | undefined) {
   const [documentMetadata, setDocumentMetadata] = useState({
@@ -136,16 +137,13 @@ export function useShowDetail(id: string | undefined) {
   // Get artist tracks with optimized settings:
   // - staleTime set to 1 hour to better utilize cache
   // - immediate loading enabled
-  // - prioritize stored tracks
+  // - prioritize stored tracks (Note: prioritizeStored option removed from useArtistTracks)
   const artistTracksResponse = useArtistTracks(
-    show?.artist_id || undefined, // Ensure null becomes undefined
-    spotifyArtistId,
-    {
-      immediate: true,  // Always load tracks immediately
-      prioritizeStored: true // Prioritize stored tracks for faster loading
-    }
+    show?.artist_id || undefined, // 1st arg: Internal Artist UUID
+    // undefined,                 // Removed 2nd (unused) argument entirely
+    { immediate: true }           // Now the 2nd argument is the options object
   );
-  
+
   // Function to load tracks manually when needed
   const loadTracks = useCallback(() => {
     if (artistTracksResponse.refetch) {
@@ -175,21 +173,29 @@ export function useShowDetail(id: string | undefined) {
     handleVote,
     handleAddSong,
     anonymousVoteCount
-  } = useSongManagement(id || '', initialSongs, isAuthenticated, login);
-  
-  // Compute available tracks with memoization to prevent recalculations
-  const availableTracks = useMemo(() => {
-    if (storedTracksData && Array.isArray(storedTracksData) && storedTracksData.length > 0) {
-      const setlistIds = new Set((setlist || []).map(song => song.id));
-      return storedTracksData.filter((track: any) => !setlistIds.has(track.id));
-    }
-    
-    if (typeof getAvailableTracks === 'function') {
-      return getAvailableTracks(setlist || []);
-    }
-    
-    return [];
-  }, [storedTracksData, setlist, getAvailableTracks]);
+  } = useSongManagement(
+      id || '',
+      // Filter initialSongs to ensure 'id' is defined and map to add default vote properties
+      initialSongs
+        .filter((song): song is Song & { id: string } => song.id !== undefined) // Type guard to ensure id is string
+        .map(song => ({ ...song, votes: 0, userVoted: false })),
+      isAuthenticated,
+      login
+    );
+
+  // Compute available tracks directly without useMemo
+  // Type guard to ensure an object has a non-null, string 'id' property
+  const hasStringId = (item: any): item is { id: string } => typeof item?.id === 'string';
+
+  // Create a Set of IDs from the current setlist, filtering for valid IDs
+  const setlistIds = new Set(
+    (setlist || []).filter(hasStringId).map(song => song.id)
+  );
+
+  // Filter storedTracksData, ensuring track.id is defined before checking
+  const availableTracks = (storedTracksData || [])
+    .filter(hasStringId) // Ensure track has a string ID
+    .filter(track => !setlistIds.has(track.id)); // Check against the Set
   
   // Optimized add song handler with better error handling
   const handleAddSongClick = useCallback((trackId?: string) => {

@@ -12,45 +12,40 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Check if admin exists on auth state change
   useEffect(() => {
     const checkAndSetupAdmin = async () => {
+      // Special handling for the hardcoded admin email
       if (auth.user?.email === 'a@theset.live') {
         try {
-          const { data: profileData, error: profileError } = await supabase
-            .from('profiles')
-            .select('is_admin')
-            .eq('id', auth.user.id)
-            .single();
-            
-          if (profileError) {
-            console.error('Error checking admin profile:', profileError);
-            return;
+          // Check if user exists in the admins table
+          const { data: adminEntry, error: adminCheckError } = await supabase
+            .from('admins')
+            .select('user_id')
+            .eq('user_id', auth.user.id)
+            .maybeSingle();
+
+          if (adminCheckError) {
+            console.error('Error checking admin table:', adminCheckError);
+            return; // Don't proceed if check fails
           }
-          
-          // If not an admin, update the profile
-          if (!profileData?.is_admin) {
-            const { error: updateError } = await supabase
-              .from('profiles')
-              .update({ 
-                is_admin: true,
-                username: 'admin',
-                full_name: 'Site Admin'
-              })
-              .eq('id', auth.user.id);
-              
-            if (updateError) {
-              console.error('Error updating admin status:', updateError);
+
+          // If user is not in the admins table, add them
+          if (!adminEntry) {
+            console.log(`User ${auth.user.email} not found in admins table. Adding...`);
+            const { error: insertError } = await supabase
+              .from('admins')
+              .insert({ user_id: auth.user.id }); // Only user_id is needed based on schema
+
+            if (insertError) {
+              console.error('Error adding user to admins table:', insertError);
             } else {
-              console.log('Admin status updated for', auth.user.email);
-              // Refresh the profile in the auth state
-              auth.profile = {
-                ...auth.profile,
-                is_admin: true,
-                username: 'admin',
-                full_name: 'Site Admin'
-              };
+              console.log('User added to admins table:', auth.user.email);
+              // Optionally update local auth state if it tracks admin status directly
+              // auth.isAdmin = true; // Example if state exists
             }
+          } else {
+             console.log(`User ${auth.user.email} already exists in admins table.`);
           }
         } catch (error) {
-          console.error('Admin setup error:', error);
+          console.error('Error during admin setup check:', error);
         }
       }
     };

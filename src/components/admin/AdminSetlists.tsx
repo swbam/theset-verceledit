@@ -47,9 +47,6 @@ const AdminSetlists = () => {
             name,
             date,
             artist_id (name)
-          ),
-          songs:id (
-            count
           )
         `)
         .order('created_at', { ascending: false })
@@ -61,7 +58,7 @@ const AdminSetlists = () => {
       const setlistsWithSongs = await Promise.all(
         (data || []).map(async (setlist) => {
           const { count, error: songsError } = await supabase
-            .from('setlist_songs')
+            .from('played_setlist_songs')
             .select('*', { count: 'exact', head: true })
             .eq('setlist_id', setlist.id);
             
@@ -74,7 +71,20 @@ const AdminSetlists = () => {
         })
       );
       
-      setSetlists(setlistsWithSongs);
+      // Convert null values to undefined to match the Setlist type definition
+      const typeSafeSetlists = setlistsWithSongs.map(setlist => ({
+        ...setlist,
+        created_at: setlist.created_at || undefined,
+        updated_at: setlist.updated_at || undefined,
+        date: setlist.date || undefined,
+        artist_id: setlist.artist_id || undefined,
+        show_id: setlist.show_id || undefined,
+        tour_name: setlist.tour_name || undefined,
+        venue: setlist.venue || undefined,
+        venue_city: setlist.venue_city || undefined
+      })) as SetlistWithMeta[];
+      
+      setSetlists(typeSafeSetlists);
     } catch (error) {
       console.error('Error fetching setlists:', error);
     } finally {

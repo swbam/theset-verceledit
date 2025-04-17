@@ -1,3 +1,20 @@
+type Venue = {
+  id: string;
+  name: string;
+  city: string | null;
+  state: string | null;
+  country: string | null;
+};
+
+type Show = {
+  id: string;
+  name: string;
+  date: string;
+  venue: Venue | null;
+  ticket_url: string;
+  image_url?: string;
+  artist_id: string;
+};
 
 import { toast } from "sonner";
 import { callTicketmasterApi } from "../ticketmaster-config";
@@ -6,7 +23,7 @@ import { supabase } from "@/integrations/supabase/client";
 /**
  * Fetch upcoming shows for an artist
  */
-export async function fetchArtistEvents(artistIdentifier: string): Promise<any[]> {
+export async function fetchArtistEvents(artistIdentifier: string): Promise<Show[]> {
   try {
     console.log(`Fetching events for artist ID: ${artistIdentifier}`);
     
@@ -59,15 +76,15 @@ export async function fetchArtistEvents(artistIdentifier: string): Promise<any[]
       }
       
       // Process venue
-      let venue = null;
+      let venue: Venue | null = null;
       if (event._embedded?.venues?.[0]) {
         const venueData = event._embedded.venues[0];
         venue = {
           id: venueData.id,
           name: venueData.name,
-          city: venueData.city?.name,
-          state: venueData.state?.name,
-          country: venueData.country?.name,
+          city: venueData.city?.name ?? null,
+          state: venueData.state?.name ?? null,
+          country: venueData.country?.name ?? null,
         };
       }
       

@@ -8,7 +8,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { supabase } from "@/integrations/supabase/client";
+// Removed direct supabase client import, use API function instead
+// import { supabase } from "@/integrations/supabase/client";
+import { addVoteToSong } from "@/lib/api/database/votes"; // Import the corrected API function
 
 interface SetlistSong {
   id: string;
@@ -54,28 +56,28 @@ export function SetlistSongRequests({ setlist, showId }: Props) {
     setVotingInProgress(prev => ({ ...prev, [songId]: true }));
     
     try {
-      // Update vote count in the database
-      const { error } = await supabase
-        .from('setlist_songs')
-        .update({ 
-          vote_count: songs.find(s => s.id === songId)?.votes + 1 
-        })
-        .eq('id', songId);
-      
-      if (error) {
-        throw error;
+      // Call the API function to add the vote
+      const result = await addVoteToSong(songId, showId); // Pass songId and showId
+
+      if (!result.success) {
+        // Handle cases like "Already voted"
+        toast.info(result.message || "Could not record vote.");
+        // Optionally re-enable button if it wasn't a true "already voted" scenario
+        // but maybe some other failure handled by the API
+        setVotingInProgress(prev => ({ ...prev, [songId]: false }));
+        return; // Stop processing if vote wasn't successful
       }
-      
-      // Update local state
-      setSongs(currentSongs => 
-        currentSongs.map(song => 
-          song.id === songId 
-            ? { ...song, votes: song.votes + 1 } 
+
+      // Vote was successful, update local state with the new count from the API response
+      setSongs(currentSongs =>
+        currentSongs.map(song =>
+          song.id === songId
+            ? { ...song, votes: result.votes ?? song.votes + 1 } // Use API count, fallback to increment
             : song
-        ).sort((a, b) => b.votes - a.votes)
+        ).sort((a, b) => b.votes - a.votes) // Re-sort based on new counts
       );
-      
-      // Mark song as voted
+
+      // Mark song as voted locally (client-side state)
       setVotedSongs(prev => ({ ...prev, [songId]: true }));
       
       // Save vote in localStorage to prevent multiple votes
@@ -181,4 +183,4 @@ export function SetlistSongRequests({ setlist, showId }: Props) {
       )}
     </div>
   );
-} 
+}

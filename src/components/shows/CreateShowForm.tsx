@@ -23,14 +23,15 @@ import {
 import { Calendar } from '@/components/ui/calendar';
 import { format } from 'date-fns';
 import { CalendarIcon, Search, X } from 'lucide-react';
-import { Artist } from '@/lib/types'; // Import Artist type
+import { Artist } from '@/lib/types'; // Import local Artist type
+import { SpotifyArtist } from '@/lib/spotify/types'; // Import Spotify's Artist type
 
 const CreateShowForm = () => {
   const navigate = useNavigate();
   const [date, setDate] = useState<Date | undefined>(undefined);
   const [artistSearch, setArtistSearch] = useState('');
-  // Use Artist type, allowing null
-  const [selectedArtist, setSelectedArtist] = useState<Artist | null>(null);
+  // Use SpotifyArtist type since we're working with Spotify API results
+  const [selectedArtist, setSelectedArtist] = useState<SpotifyArtist | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     venue: '',
@@ -47,16 +48,16 @@ const CreateShowForm = () => {
     enabled: artistSearch.length > 2,
   });
 
-  // Assuming searchArtists returns items compatible with Artist type
-  const artists: Artist[] = artistResults?.artists?.items || [];
+  // searchArtists returns SpotifyArtist items
+  const artists: SpotifyArtist[] = artistResults?.artists?.items || [];
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  // Use Artist type for parameter
-  const handleSelectArtist = (artist: Artist) => {
+  // Use SpotifyArtist type for parameter
+  const handleSelectArtist = (artist: SpotifyArtist) => {
     setSelectedArtist(artist);
     setArtistSearch('');
     setFormData(prev => ({
@@ -91,12 +92,13 @@ const CreateShowForm = () => {
    // Prepare data for API submission
    const showPayload = {
      ...formData,
-     artist: { // Ensure artist object matches expected structure
+     artist: { // Convert SpotifyArtist to the format expected by the API
        id: selectedArtist.id,
        name: selectedArtist.name,
-       image: selectedArtist.images?.[0]?.url, // Use optional chaining
-       spotify_id: selectedArtist.id, // Assuming Spotify ID is the same as TM ID for now
-       // Add other relevant artist fields if available from search
+       image_url: selectedArtist.images?.[0]?.url, // Use optional chaining and match our DB schema
+       spotify_id: selectedArtist.id,
+       genres: selectedArtist.genres,
+       popularity: selectedArtist.popularity
      },
      date: date?.toISOString(),
    };
@@ -151,7 +153,7 @@ const CreateShowForm = () => {
               )}
               <div className="flex-1">
                 <p className="font-medium">{selectedArtist.name}</p>
-                {selectedArtist.genres?.length > 0 && (
+                {selectedArtist.genres && selectedArtist.genres.length > 0 && (
                   <p className="text-sm text-muted-foreground">
                     {selectedArtist.genres.slice(0, 2).join(', ')}
                   </p>
@@ -185,8 +187,8 @@ const CreateShowForm = () => {
                     <div className="p-4 text-center text-muted-foreground">No artists found</div>
                   ) : (
                     <ul className="max-h-60 overflow-y-auto">
-                      {/* Use Artist type for map parameter */}
-                      {artists.map((artist: Artist) => (
+                      {/* Use SpotifyArtist type for map parameter */}
+                      {artists.map((artist: SpotifyArtist) => (
                         <li
                           key={artist.id}
                           className="flex items-center p-2 hover:bg-accent cursor-pointer"

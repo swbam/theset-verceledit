@@ -110,11 +110,10 @@ export const getMyTopArtists = async () => {
     
     console.log(`Fetched ${data.length} top artists for the user`);
     
-    // Enhance the data with randomized popularity scores
+    // Enhance the data with randomized popularity scores if needed
     return data.map(artist => ({
       ...artist,
-      popularity: artist.popularity || Math.floor(Math.random() * 30) + 70,
-      upcoming_shows: artist.upcoming_shows || Math.floor(Math.random() * 5) + 1
+      popularity: artist.popularity || Math.floor(Math.random() * 30) + 70
     }));
   } catch (error) {
     console.error('Error getting user top artists:', error);

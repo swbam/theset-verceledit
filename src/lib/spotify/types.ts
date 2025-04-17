@@ -9,7 +9,11 @@ export interface SpotifyTrack {
   popularity?: number;
   preview_url?: string;
   uri?: string;
-  album?: string;
+  album?: {
+    id?: string; // Include album ID if available
+    name: string;
+    images?: { url: string; height?: number; width?: number }[];
+  };
   votes?: number;
 }
 

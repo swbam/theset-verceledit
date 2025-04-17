@@ -1,151 +1,157 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import React, { useState, useEffect } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { toast } from 'sonner';
-import { Loader2, RefreshCw } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
 
-// Define known valid external IDs for testing (replace with actual valid IDs)
-const TEST_IDS = {
-  artist: 'K8vZ9175BhV', // Example: Coldplay TM ID
-  venue: 'KovZpZAEkIIA', // Example: Madison Square Garden TM ID
-  show: 'G5v0Z9JkNd7Pk', // Example: A specific event TM ID
-  setlist: '33b6a49d', // Example: A specific setlist.fm ID (if setlist sync is implemented)
-  song: '4u7EnebtmKWzUH433cf5Qv' // Example: A specific Spotify Song ID (if song sync is implemented)
-};
+interface SyncStats {
+  entity_type: string;
+  total: number;
+  last_24h: number;
+  last_sync: string | null;
+}
+
+interface QueryResult {
+  entity_type: string;
+  total: string; // PostgreSQL COUNT returns string
+  last_24h: string;
+  last_sync: string | null;
+}
 
 const AdminSyncStatus = () => {
-  const [syncingType, setSyncingType] = useState<string | null>(null);
-  const [queueStatus, setQueueStatus] = useState<any>(null);
-  const [loadingStatus, setLoadingStatus] = useState(false);
+  const [stats, setStats] = useState<SyncStats[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const fetchQueueStatus = useCallback(async () => {
-    setLoadingStatus(true);
+  const fetchStats = async () => {
     try {
-      const response = await fetch('/api/sync'); // GET request
-      const data = await response.json();
-      if (!response.ok || !data.success) {
-        throw new Error(data.error || 'Failed to fetch queue status');
-      }
-      setQueueStatus(data.queueStatus);
+      const { data, error } = await supabase
+        .rpc('exec_sql', {
+          sql: `
+            SELECT 
+              entity_type::text,
+              COUNT(*)::text as total,
+              COUNT(*) FILTER (WHERE last_synced >= NOW() - INTERVAL '24 hours')::text as last_24h,
+              MAX(last_synced) as last_sync
+            FROM sync_states
+            GROUP BY entity_type
+          `
+        });
+      
+      if (error) throw error;
+      
+      // Ensure we have entries for all entity types
+      const entityTypes = ['artist', 'show', 'venue', 'song'];
+      const results = (data as unknown as QueryResult[]) || [];
+      const statsMap = new Map(results.map(s => [s.entity_type, s]));
+      
+      const fullStats = entityTypes.map(type => ({
+        entity_type: type,
+        total: parseInt(statsMap.get(type)?.total || '0', 10),
+        last_24h: parseInt(statsMap.get(type)?.last_24h || '0', 10),
+        last_sync: statsMap.get(type)?.last_sync || null
+      }));
+
+      setStats(fullStats);
     } catch (error) {
-      console.error("Error fetching queue status:", error);
-      toast.error(`Failed to fetch queue status: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      setQueueStatus(null);
+      console.error('Error fetching sync stats:', error);
     } finally {
-      setLoadingStatus(false);
+      setLoading(false);
     }
-  }, []);
+  };
 
   useEffect(() => {
-    fetchQueueStatus();
-    // Optional: Refresh status periodically
-    // const interval = setInterval(fetchQueueStatus, 30000); // Refresh every 30s
-    // return () => clearInterval(interval);
-  }, [fetchQueueStatus]);
+    fetchStats();
+    // Set up auto-refresh every minute
+    const interval = setInterval(fetchStats, 60000);
+    return () => clearInterval(interval);
+  }, []);
 
-  const handleTestSync = async (entityType: keyof typeof TEST_IDS) => {
-    const entityId = TEST_IDS[entityType];
-    if (!entityId) {
-      toast.error(`No test ID configured for entity type: ${entityType}`);
-      return;
-    }
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await fetchStats();
+    setRefreshing(false);
+  };
 
-    setSyncingType(entityType);
-    const toastId = toast.loading(`Queueing test sync for ${entityType}: ${entityId}...`);
-    console.log(`ADMIN TEST: Queueing sync task - Type: ${entityType}, ID: ${entityId}, Operation: create`);
-
-    try {
-      const response = await fetch('/api/sync', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: entityType,
-          id: entityId,
-          operation: 'create' // Use 'create' to ensure it fetches and upserts
-        }),
-      });
-
-      const result = await response.json();
-
-      if (!response.ok || !result.success) {
-        throw new Error(result.error || result.message || 'Sync request failed');
-      }
-
-      toast.success(`Sync task queued for ${entityType} ${entityId}.`, { id: toastId });
-      fetchQueueStatus(); // Refresh queue status after queuing
-
-    } catch (error) {
-      console.error(`Error queuing test sync for ${entityType} ${entityId}:`, error);
-      toast.error(`Failed to queue test sync: ${error instanceof Error ? error.message : 'Unknown error'}`, { id: toastId });
-    } finally {
-      setSyncingType(null);
-    }
+  const formatDate = (dateStr: string | null) => {
+    if (!dateStr) return 'Never';
+    const date = new Date(dateStr);
+    return date.toLocaleString();
   };
 
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex justify-between items-center">
-            <span>Sync Queue Status</span>
-            <Button size="sm" variant="outline" onClick={fetchQueueStatus} disabled={loadingStatus}>
-              <RefreshCw className={`h-4 w-4 ${loadingStatus ? 'animate-spin' : ''}`} />
-            </Button>
-          </CardTitle>
-          <CardDescription>Overview of pending and active sync tasks.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {loadingStatus ? (
-            <div className="flex justify-center items-center p-4">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-            </div>
-          ) : queueStatus ? (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-              <div><span className="font-medium">Pending:</span> {queueStatus.pending}</div>
-              <div><span className="font-medium">Active:</span> {queueStatus.active}</div>
-              <div className="col-span-2 md:col-span-1"><span className="font-medium">Max Concurrent:</span> {queueStatus.maxConcurrent}</div>
-              <div className="col-span-2 md:col-span-4 mt-2 border-t pt-2">
-                <h4 className="font-medium mb-1">Pending by Priority:</h4>
-                <div className="flex gap-4">
-                  <span>High: {queueStatus.byPriority?.high || 0}</span>
-                  <span>Medium: {queueStatus.byPriority?.medium || 0}</span>
-                  <span>Low: {queueStatus.byPriority?.low || 0}</span>
-                </div>
-              </div>
-               <div className="col-span-2 md:col-span-4 mt-2 border-t pt-2">
-                 <h4 className="font-medium mb-1">Pending by Type:</h4>
-                 <div className="flex flex-wrap gap-x-4 gap-y-1">
-                   {Object.entries(queueStatus.byType || {}).map(([type, count]) => (
-                     <span key={type}>{type}: {count as number}</span>
-                   ))}
-                 </div>
-               </div>
-            </div>
-          ) : (
-            <p className="text-muted-foreground">Could not load queue status.</p>
-          )}
-        </CardContent>
-      </Card>
+      <div className="flex items-center justify-between">
+        <h2 className="text-2xl font-bold">Sync Status</h2>
+        <Button 
+          variant="outline" 
+          size="sm"
+          onClick={handleRefresh}
+          disabled={refreshing}
+        >
+          <RefreshCw className={`mr-2 h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+          Refresh
+        </Button>
+      </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Trigger Test Syncs</CardTitle>
-          <CardDescription>Queue a sync task for a specific entity type using a test ID.</CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-wrap gap-2">
-          {(Object.keys(TEST_IDS) as Array<keyof typeof TEST_IDS>).map((type) => (
-            <Button
-              key={type}
-              onClick={() => handleTestSync(type)}
-              disabled={syncingType === type}
-              variant="secondary"
-            >
-              {syncingType === type ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              Test {type.charAt(0).toUpperCase() + type.slice(1)} Sync
-            </Button>
-          ))}
-        </CardContent>
-      </Card>
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        {stats.map(entityStats => (
+          <Card key={entityStats.entity_type}>
+            <CardHeader>
+              <CardTitle className="capitalize">{entityStats.entity_type}s</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <dl className="space-y-2">
+                <div className="flex justify-between">
+                  <dt className="text-sm text-muted-foreground">Total Synced:</dt>
+                  <dd className="text-sm font-medium">{entityStats.total}</dd>
+                </div>
+                <div className="flex justify-between">
+                  <dt className="text-sm text-muted-foreground">Last 24 Hours:</dt>
+                  <dd className="text-sm font-medium">{entityStats.last_24h}</dd>
+                </div>
+                <div className="flex justify-between">
+                  <dt className="text-sm text-muted-foreground">Last Sync:</dt>
+                  <dd className="text-sm font-medium">{formatDate(entityStats.last_sync)}</dd>
+                </div>
+              </dl>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      <div className="mt-8">
+        <h3 className="text-lg font-semibold mb-4">Recent Sync Operations</h3>
+        <div className="rounded-lg border bg-card">
+          <div className="p-4">
+            <table className="w-full">
+              <thead>
+                <tr className="text-sm text-muted-foreground">
+                  <th className="text-left font-medium">Entity</th>
+                  <th className="text-left font-medium">ID</th>
+                  <th className="text-left font-medium">Status</th>
+                  <th className="text-left font-medium">Last Updated</th>
+                </tr>
+              </thead>
+              <tbody className="text-sm">
+                {loading ? (
+                  <tr>
+                    <td colSpan={4} className="py-3 text-center text-muted-foreground">
+                      Loading...
+                    </td>
+                  </tr>
+                ) : (
+                  <tr>
+                    <td colSpan={4} className="py-3 text-center text-muted-foreground">
+                      No recent sync operations
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };

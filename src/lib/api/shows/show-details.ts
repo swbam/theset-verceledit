@@ -1,230 +1,117 @@
-import { toast } from "sonner";
-import { callTicketmasterApi } from "../ticketmaster-config";
 import { supabase } from "@/integrations/supabase/client";
-// Import SyncManager - assuming a singleton instance or instantiate locally
-import { SyncManager } from '@/lib/sync/manager';
-const syncManager = new SyncManager(); // Instantiate - consider singleton pattern if needed
+import { Show } from "@/lib/types";
+import { fetchShowDetails as fetchShowFromTicketmaster } from "@/lib/ticketmaster";
 
-// Define a more specific type for the show object returned by this function
-// Adjust properties based on what the calling code actually needs
-type FetchedShowDetails = {
-  id: string;
-  name: string;
-  date: string | null;
-  artist: { id: string; name: string; image?: any; upcoming_shows?: number } | null;
-  // Allow null for optional venue properties to match DB types
-  venue: { id: string; name: string; city?: string | null | undefined; state?: string | null | undefined; country?: string | null | undefined; address?: string | null | undefined; } | null;
-  ticket_url: string | null;
-  image_url: string | null;
-  artist_id: string | null;
-  venue_id: string | null;
-};
-
-
-/**
- * Fetch details for a specific show, triggering sync if not found locally.
- */
-export async function fetchShowDetails(eventId: string): Promise<FetchedShowDetails | null> { // Return specific type or null
+export async function getShowDetails(showId: string): Promise<Show | null> {
   try {
-    console.log(`Fetching details for show ID: ${eventId}`);
-
-    // First check if we have this show in the database
-    const { data: dbShow, error: dbError } = await supabase
+    // First try to get from database
+    const { data: show, error } = await supabase
       .from('shows')
       .select(`
-        id,
-        name,
-        date,
-        artist_id,
-        venue_id,
-        ticket_url,
-        image_url
+        *,
+        artist:artists(*),
+        venue:venues(*)
       `)
-      .eq('id', eventId)
-      .maybeSingle();
+      .eq('id', showId)
+      .single();
 
-    if (dbError) {
-      console.error("Error fetching show from database:", dbError);
-      // Don't throw, proceed to fetch from API
+    if (error) {
+      console.error('[getShowDetails] Database error:', error);
+      return null;
     }
 
-    if (dbShow) {
-      console.log(`Found show in database: ${dbShow.name}`);
+    // If found in database, trigger background refresh and return
+    if (show) {
+      // Trigger background refresh
+      supabase.functions.invoke('sync-show', {
+        body: { showId }
+      }).catch(error => {
+        console.error(`[getShowDetails] Background sync failed for show ${showId}:`, error);
+      });
 
-      // Fetch related artist and venue
-      const [artistResult, venueResult] = await Promise.all([
-        dbShow.artist_id ? supabase
-          .from('artists')
-          .select('*')
-          .eq('id', dbShow.artist_id)
-          .maybeSingle() : Promise.resolve({ data: null }), // Ensure promise resolves
-        dbShow.venue_id ? supabase
-          .from('venues')
-          .select('*')
-          .eq('id', dbShow.venue_id)
-          .maybeSingle() : Promise.resolve({ data: null }) // Ensure promise resolves
-      ]);
-
-      // Construct the return object matching FetchedShowDetails
-      const enrichedShow: FetchedShowDetails = {
-        id: dbShow.id, // id is string here
-        name: dbShow.name,
-        date: dbShow.date,
-        artist: artistResult?.data || null,
-        venue: venueResult?.data || null,
-        ticket_url: dbShow.ticket_url,
-        image_url: dbShow.image_url,
-        artist_id: dbShow.artist_id,
-        venue_id: dbShow.venue_id
-      };
-
-      console.log("Returning enriched show from database:", enrichedShow);
-      // Optionally trigger a background refresh
-      await syncManager.enqueueTask({ type: 'show', id: eventId, operation: 'refresh', priority: 'low' });
-      return enrichedShow;
+      return show as Show;
     }
 
     // If not in database, fetch from Ticketmaster
-    console.log(`Show not found in database, fetching from Ticketmaster API...`);
-    // Define expected structure from Ticketmaster API call
-    // This helps with type safety later
-    const event = await callTicketmasterApi(`events/${eventId}.json`) as any; // Use 'as any' for now, or define TM types
-
-    if (!event || !event.id) { // Check event and event.id
-      console.error(`No event found or event missing ID: ${eventId}`);
-      throw new Error("Show not found");
+    console.log(`[getShowDetails] Show ${showId} not found in database, fetching from Ticketmaster`);
+    const event = await fetchShowFromTicketmaster(showId);
+    if (!event) {
+      console.log(`[getShowDetails] Show ${showId} not found in Ticketmaster`);
+      return null;
     }
 
-    console.log(`Fetched show from Ticketmaster: ${event.name}`);
+    // Process the fetched event
+    const { artist, venue, ...showData } = event;
 
-    // --- Process Artist ---
-    let artistName = '';
-    let artistId: string | null = null;
-    let artistData: { id: string; name: string; image?: any; upcoming_shows?: number } | null = null;
+    // 1. Sync Artist if available
+    if (artist?.id) {
+      console.log(`[getShowDetails] Syncing artist ${artist.name}`);
+      const artistResult = await supabase.functions.invoke('sync-artist', {
+        body: { artistId: artist.id }
+      });
 
-    if (event._embedded?.attractions?.[0]) {
-      const attraction = event._embedded.attractions[0];
-      artistName = attraction.name;
-      artistId = attraction.id; // Should be string from TM
-
-      if (typeof artistId === 'string') {
-        artistData = {
-          id: artistId,
-          name: artistName,
-          image: attraction.images?.find((img: any) => img.ratio === "16_9" && img.width > 500)?.url,
-          upcoming_shows: 1
-        };
-        // Queue artist sync task
-        await syncManager.enqueueTask({
-          type: 'artist',
-          id: artistId,
-          operation: 'create',
-          priority: 'high'
-        });
-        console.log(`Queued sync task for artist: ${artistName} (ID: ${artistId})`);
+      if (!artistResult.data?.success) {
+        console.error(`[getShowDetails] Artist sync failed:`, artistResult.error);
       }
-    } else {
-      // Fallback - Less reliable
-      artistName = event.name.split(' at ')[0].split(' - ')[0].trim();
-      // Generate a temporary/placeholder ID if needed, but ideally sync handles this
-      // artistId = `tm-fallback-${encodeURIComponent(artistName.toLowerCase().replace(/\s+/g, '-'))}`;
-      // artistData = { id: artistId, name: artistName };
-      // console.warn(`Artist ID not found in TM data for event ${event.id}. Sync might fail or create partial data.`);
-      // Optionally queue with just the name if your sync service can handle lookups?
-      // For now, we'll leave artistId and artistData as null if not found directly.
-      artistId = null;
-      artistData = null;
-      console.warn(`Could not reliably determine artist ID for event ${event.id}`);
     }
 
-    // --- Process Venue ---
-    let venue: { id: string; name: string; city?: string; state?: string; country?: string; address?: string } | null = null;
-    let venueId: string | null = null;
+    // 2. Sync Venue if available
+    if (venue?.id) {
+      console.log(`[getShowDetails] Syncing venue ${venue.name}`);
+      const venueResult = await supabase.functions.invoke('sync-venue', {
+        body: { venueId: venue.id }
+      });
 
-    if (event._embedded?.venues?.[0]) {
-      const venueData = event._embedded.venues[0];
-      venueId = venueData.id; // Should be string from TM
-
-      if (typeof venueId === 'string') {
-        venue = {
-          id: venueId,
-          name: venueData.name,
-          city: venueData.city?.name,
-          state: venueData.state?.name,
-          country: venueData.country?.name,
-          address: venueData.address?.line1
-        };
-        // Queue venue sync task
-        await syncManager.enqueueTask({
-          type: 'venue',
-          id: venueId,
-          operation: 'create',
-          priority: 'high'
-        });
-        console.log(`Queued sync task for venue: ${venue.name} (ID: ${venueId})`);
+      if (!venueResult.data?.success) {
+        console.error(`[getShowDetails] Venue sync failed:`, venueResult.error);
       }
-    } else {
-        console.warn(`Venue ID not found in TM data for event ${event.id}`);
     }
 
-    // --- Process Date ---
-    let formattedDate: string | null = null;
-    if (event.dates?.start?.dateTime) {
-      try {
-        const dateObject = new Date(event.dates.start.dateTime);
-        if (!isNaN(dateObject.getTime())) {
-          formattedDate = dateObject.toISOString();
-        } else {
-          // Fallback to localDate if dateTime is invalid
-          if (event.dates.start.localDate) {
-            const localDate = new Date(event.dates.start.localDate);
-            if (!isNaN(localDate.getTime())) {
-              formattedDate = localDate.toISOString(); // Use localDate if valid
-            } else {
-                 console.error('Invalid localDate from Ticketmaster:', event.dates.start.localDate);
-            }
-          } else {
-             console.error('Invalid dateTime and no localDate from Ticketmaster:', event.dates.start.dateTime);
-          }
+    // 3. Sync Show
+    console.log(`[getShowDetails] Syncing show ${showId}`);
+    const showResult = await supabase.functions.invoke('sync-show', {
+      body: { 
+        showId,
+        payload: {
+          ...showData,
+          artist_id: artist?.id,
+          venue_id: venue?.id
         }
-      } catch (dateError) {
-        console.error('Error processing show date:', dateError);
       }
+    });
+
+    if (!showResult.data?.success) {
+      console.error(`[getShowDetails] Show sync failed:`, showResult.error);
+      return null;
     }
 
-    // --- Construct Show Object for Return ---
-    // This object is for immediate display, using data directly from the API fetch
-    const showForDisplay: FetchedShowDetails = {
-      id: event.id, // event.id is guaranteed string if event exists
-      name: event.name,
-      date: formattedDate,
-      artist: artistData, // Use the object created above (or null)
-      venue: venue,       // Use the object created above (or null)
-      ticket_url: event.url || null,
-      image_url: event.images?.find((img: any) => img.ratio === "16_9" && img.width > 500)?.url || null,
-      artist_id: artistId, // Use the variable derived above (string | null)
-      venue_id: venueId   // Use the variable derived above (string | null)
-    };
-
-    // --- Queue Show Sync Task ---
-    // The background task will handle database persistence using the external ID
-    await syncManager.enqueueTask({
-      type: 'show',
-      id: event.id, // Use the external event ID
-      operation: 'create',
-      priority: 'high',
-      // Optionally pass payload if sync service needs hints
-      // payload: { artist_external_id: artistId, venue_external_id: venueId }
-    });
-    console.log(`Queued sync task for show: ${showForDisplay.name} (ID: ${event.id})`);
-
-    return showForDisplay; // Return the API-derived data
+    // Return the synced show data
+    return showResult.data.data as Show;
 
   } catch (error) {
-    console.error("Show details fetch/sync error:", error);
-    toast.error("Failed to load show details");
-    // Depending on desired behavior, you might return null or re-throw
+    console.error('[getShowDetails] Error:', error);
     return null;
-    // throw error; // Re-throwing might be better if caller handles errors
+  }
+}
+
+export async function getUpcomingShows(limit: number = 10): Promise<Show[]> {
+  try {
+    const { data: shows, error } = await supabase
+      .from('shows')
+      .select(`
+        *,
+        artist:artists(*),
+        venue:venues(*)
+      `)
+      .gt('date', new Date().toISOString())
+      .order('date', { ascending: true })
+      .limit(limit);
+
+    if (error) throw error;
+    return shows as Show[];
+
+  } catch (error) {
+    console.error('[getUpcomingShows] Error:', error);
+    return [];
   }
 }

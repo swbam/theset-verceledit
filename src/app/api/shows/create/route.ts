@@ -1,11 +1,7 @@
-// Use standard Response object for non-Next.js environments
-import { supabase } from '../../../../lib/db'; // Use server-side client
-import { saveShowToDatabase } from '../../../../lib/api/database-utils';
-import { syncVenueShows } from '../../../../lib/api/shows';
-// Import specific types needed
-import { Show, Artist } from '../../../../lib/types'; // Removed Venue import
+import { adminClient } from '@/lib/db';
+import { supabase } from '@/integrations/supabase/client';
+import type { Show, Artist } from '@/lib/types';
 
-// Define Venue structure based on Show type (since Venue type isn't exported)
 interface VenueData {
   id: string;
   name: string;
@@ -14,7 +10,6 @@ interface VenueData {
   country?: string;
 }
 
-// Define custom type for the show creation payload
 interface ShowCreate {
   id?: string;
   ticketmaster_id?: string;
@@ -27,11 +22,6 @@ interface ShowCreate {
   image_url?: string;
 }
 
-/**
- * POST /api/shows/create
- * Creates a new show in the database based on user input.
- * This triggers saving related artist/venue and setlist creation.
- */
 export async function POST(request: Request) {
   try {
     const body = await request.json() as ShowCreate;
@@ -42,7 +32,7 @@ export async function POST(request: Request) {
     }
 
     // Check if show exists already to avoid duplicates
-    const { data: existingShows, error: checkError } = await supabase
+    const { data: existingShows, error: checkError } = await adminClient
       .from('shows')
       .select('id')
       .eq('date', new Date(body.date).toISOString())
@@ -62,9 +52,8 @@ export async function POST(request: Request) {
       }, { status: 200 });
     }
 
-    // Prepare the show object to save
+    // Prepare the show object
     const showToSave = {
-      // Use provided Ticketmaster ID or generate a UUID if manual
       id: body.ticketmaster_id || crypto.randomUUID(),
       name: body.name || `${body.artist.name} Concert`,
       date: new Date(body.date).toISOString(),
@@ -72,8 +61,6 @@ export async function POST(request: Request) {
       venue_id: body.venue.id,
       external_url: body.external_url,
       image_url: body.image_url,
-      
-      // Construct venue object - generate ID if needed, rely on saveVenueToDatabase
       venue: {
         id: body.venue.id,
         name: body.venue.name,
@@ -81,39 +68,51 @@ export async function POST(request: Request) {
         state: body.venue.state,
         country: body.venue.country || 'USA',
       },
-      // Pass the full artist object (ensure name is present as required by internal type)
       artist: body.artist
     };
 
-    console.log('API Route: Attempting to save show:', showToSave);
+    console.log('API Route: Starting sync for show:', showToSave);
 
-    // Call the core save function which handles all related sync logic
-    // Cast is still needed because the imported Show type might slightly differ from the internal one
-    const savedShow = await saveShowToDatabase(showToSave as Show);
+    // 1. Sync Artist
+    console.log(`[API/shows/create] Syncing artist ${showToSave.artist_id}`);
+    const artistResult = await supabase.functions.invoke('sync-artist', {
+      body: { artistId: showToSave.artist_id }
+    });
 
-    if (!savedShow) {
-      console.error('API Route: Failed to save show using saveShowToDatabase');
-      // Use standard Response
-      return new Response(JSON.stringify({ error: 'Failed to save show to database' }), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' },
-      });
+    if (!artistResult.data?.success) {
+      console.error(`[API/shows/create] Artist sync failed:`, artistResult.error);
     }
 
-    console.log('API Route: Show saved successfully:', savedShow);
-    // Trigger background sync for the venue (fire-and-forget)
-    if (savedShow.venue_id) {
-      console.log(`API Route: Triggering venue sync for venue ID: ${savedShow.venue_id}`);
-      syncVenueShows(savedShow.venue_id).catch(syncError => {
-        console.error(`API Route: Background venue sync failed for ${savedShow.venue_id}:`, syncError);
-      });
-    } else {
-      console.warn(`API Route: Cannot trigger venue sync, venue_id missing for show ${savedShow.id}`);
+    // 2. Sync Venue
+    console.log(`[API/shows/create] Syncing venue ${showToSave.venue_id}`);
+    const venueResult = await supabase.functions.invoke('sync-venue', {
+      body: { venueId: showToSave.venue_id }
+    });
+
+    if (!venueResult.data?.success) {
+      console.error(`[API/shows/create] Venue sync failed:`, venueResult.error);
     }
 
+    // 3. Sync Show
+    console.log(`[API/shows/create] Syncing show ${showToSave.id}`);
+    const showResult = await supabase.functions.invoke('sync-show', {
+      body: { 
+        showId: showToSave.id,
+        payload: showToSave
+      }
+    });
 
-    // Use standard Response
-    return new Response(JSON.stringify({ success: true, show: savedShow }), {
+    if (!showResult.data?.success) {
+      throw new Error(showResult.error?.message || 'Show sync failed');
+    }
+
+    console.log(`[API/shows/create] Successfully synced show ${showToSave.id}`);
+
+    return new Response(JSON.stringify({ 
+      success: true, 
+      message: `Show ${showToSave.id} synced successfully`,
+      showData: showToSave
+    }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
     });
@@ -124,8 +123,10 @@ export async function POST(request: Request) {
       errorMessage = error.message;
     }
     console.error("Error in POST /api/shows/create:", error);
-    // Use standard Response
-    return new Response(JSON.stringify({ error: "Server error creating show", details: errorMessage }), {
+    return new Response(JSON.stringify({ 
+      error: "Server error creating show", 
+      details: errorMessage 
+    }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' },
     });

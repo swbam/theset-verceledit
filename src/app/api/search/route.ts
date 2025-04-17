@@ -1,197 +1,162 @@
-import { NextRequest, NextResponse } from 'next/server';
-// Import the correct server-side client utility
-import { createServerActionClient } from '@/integrations/supabase/utils'; 
-import { ArtistSyncService } from '@/lib/sync/artist-service';
-import { VenueSyncService } from '@/lib/sync/venue-service';
-import { ShowSyncService } from '@/lib/sync/show-service';
-import { SongSyncService } from '@/lib/sync/song-service';
-import { SetlistSyncService } from '@/lib/sync/setlist-service'; // Import SetlistSyncService
-// Import SyncManager to access services consistently
-import { SyncManager } from '@/lib/sync/manager'; 
+import { supabase } from "@/integrations/supabase/client";
+import { searchArtistsWithEvents } from "@/lib/ticketmaster";
+import { Artist, Show, Venue } from "@/lib/types";
 
-// Initialize SyncManager - this will instantiate all services internally
-// Note: For serverless, consider singleton pattern if manager/queue state needs persistence beyond request lifecycle
-const syncManager = new SyncManager();
-// Access services via the manager instance if needed, or instantiate directly if manager is stateless for the request
-const artistService = new ArtistSyncService(); // Keep direct instantiation if services are stateless
-const venueService = new VenueSyncService();
-const showService = new ShowSyncService();
-const songService = new SongSyncService();
-// SetlistSyncService needs the manager, get it from the instantiated manager
-const setlistService = new SetlistSyncService(syncManager); 
-
-// Define expected structure for Setlist.fm search response
-interface SetlistFmSearchResult {
-  setlist?: Array<{
-    id: string;
-    eventDate: string;
-    venue?: { name?: string; city?: { name?: string } };
-    // Add other fields if needed
-  }>;
-  // Add other top-level fields like 'total', 'page', 'itemsPerPage' if needed
-}
-
-/**
- * API route for searching external data sources
- */
-export async function GET(request: NextRequest) {
+export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const type = searchParams.get('type');
     const query = searchParams.get('query');
-    const city = searchParams.get('city');
-    const stateCode = searchParams.get('state');
 
     if (!type || !query) {
-      return NextResponse.json(
-        { error: 'Missing required parameters: type and query' },
-        { 
-          status: 400,
-          headers: {
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-            'Access-Control-Allow-Headers': 'Content-Type',
-          }
-        }
-      );
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'Missing required parameters: type, query'
+      }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
     }
 
     let results: any[] = [];
 
-    if (type === 'venue') {
-      // Call the searchVenues method from the venue service
-      results = await venueService.searchVenues(
-        query,
-        city || undefined,
-        stateCode || undefined
-      );
-    } else if (type === 'artist') {
-       // Call the searchArtists method from the artist service
-       results = await artistService.searchArtists(query);
-    } else {
-      // Handle unsupported search types
-      return NextResponse.json(
-        { error: `Unsupported search type: ${type}. Supported types: venue, artist` },
-        {
-          status: 400,
-          headers: {
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-            'Access-Control-Allow-Headers': 'Content-Type',
-          }
-        }
-      );
-    }
+    switch (type) {
+      case 'artist':
+        // Search Ticketmaster for artists
+        const artists = await searchArtistsWithEvents(query);
+        if (artists && artists.length > 0) {
+          // Process each artist through sync function
+          const processedArtists = await Promise.all(artists.map(async (artist) => {
+            try {
+              const result = await supabase.functions.invoke('sync-artist', {
+                body: { 
+                  artistId: artist.id,
+                  payload: artist
+                }
+              });
 
-    // Return results for supported types
-    return NextResponse.json(
-      { results, count: results.length },
-      {
-        headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-          'Access-Control-Allow-Headers': 'Content-Type',
-        }
-      }
-    );
-  } catch (error) {
-    console.error('Search API error:', error);
-    
-    return NextResponse.json(
-      { error: 'Failed to perform search', details: error instanceof Error ? error.message : String(error) },
-      { 
-        status: 500,
-        headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-          'Access-Control-Allow-Headers': 'Content-Type',
-        }
-      }
-    );
-  }
-}
+              if (!result.data?.success) {
+                console.error(`Error syncing artist ${artist.name}:`, result.error);
+                return null;
+              }
 
-// Add OPTIONS handler for CORS preflight requests
-export async function OPTIONS(request: NextRequest) {
-  return new NextResponse(null, {
-    status: 204,
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type',
-    },
-  });
-}
+              return result.data.data as Artist;
+            } catch (error) {
+              console.error(`Error processing artist ${artist.name}:`, error);
+              return null;
+            }
+          }));
 
-/**
- * API route for getting artist top songs
- */
-export async function POST(request: NextRequest) {
-  try {
-    // Check if user is authenticated using the correct server client
-    const supabaseServerClient = createServerActionClient(); // Use the correct utility
-    const { data: { user }, error: authError } = await supabaseServerClient.auth.getUser(); // Check for auth error too
-    
-    if (authError || !user) {
-      return NextResponse.json(
-        { error: 'Authentication required' },
-        { status: 401 }
-      );
-    }
-    
-    // Parse request body
-    const body = await request.json();
-    
-    if (!body.type || !body.id) {
-      return NextResponse.json(
-        { error: 'Missing required fields: type, id' },
-        { status: 400 }
-      );
-    }
-    
-    let results: any[] = [];
-    
-    // Execute request based on type
-    switch (body.type) {
-      case 'artist_top_songs':
-        results = await songService.getArtistTopSongs(body.id, body.limit || 10);
+          // Filter out failed syncs
+          results = processedArtists.filter(artist => artist !== null);
+        }
         break;
-        
-      case 'artist_upcoming_shows':
-        results = await artistService.getArtistUpcomingShows(body.id);
+
+      case 'venue':
+        // Search for venues in database first
+        const { data: venues, error: venueError } = await supabase
+          .from('venues')
+          .select('*')
+          .ilike('name', `%${query}%`)
+          .limit(10);
+
+        if (venueError) {
+          throw venueError;
+        }
+
+        // Process each venue
+        if (venues && venues.length > 0) {
+          const processedVenues = await Promise.all(venues.map(async (venue) => {
+            try {
+              const result = await supabase.functions.invoke('sync-venue', {
+                body: { venueId: venue.id }
+              });
+
+              if (!result.data?.success) {
+                console.error(`Error syncing venue ${venue.name}:`, result.error);
+                return null;
+              }
+
+              return result.data.data as Venue;
+            } catch (error) {
+              console.error(`Error processing venue ${venue.name}:`, error);
+              return null;
+            }
+          }));
+
+          results = processedVenues.filter(venue => venue !== null);
+        }
         break;
-        
-      case 'venue_upcoming_shows':
-        results = await venueService.getVenueUpcomingShows(body.id);
+
+      case 'show':
+        // Search for shows in database
+        const { data: shows, error: showError } = await supabase
+          .from('shows')
+          .select(`
+            *,
+            artist:artists(*),
+            venue:venues(*)
+          `)
+          .ilike('name', `%${query}%`)
+          .limit(10);
+
+        if (showError) {
+          throw showError;
+        }
+
+        // Process each show
+        if (shows && shows.length > 0) {
+          const processedShows = await Promise.all(shows.map(async (show) => {
+            try {
+              const result = await supabase.functions.invoke('sync-show', {
+                body: { showId: show.id }
+              });
+
+              if (!result.data?.success) {
+                console.error(`Error syncing show ${show.name}:`, result.error);
+                return null;
+              }
+
+              return result.data.data as Show;
+            } catch (error) {
+              console.error(`Error processing show ${show.name}:`, error);
+              return null;
+            }
+          }));
+
+          results = processedShows.filter(show => show !== null);
+        }
         break;
-        
-      case 'artist_setlists':
-        // Use the refactored SetlistSyncService method
-        // This method now returns basic info and queues the full sync task
-        results = await setlistService.getArtistSetlists(body.id, body.limit || 10);
-        // The sync task is now handled by the SyncQueue via the service method
-        break;
-      
+
       default:
-        return NextResponse.json(
-          { error: 'Invalid request type' },
-          { status: 400 }
-        );
+        return new Response(JSON.stringify({
+          success: false,
+          error: `Invalid search type: ${type}`
+        }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' }
+        });
     }
-    
-    return NextResponse.json(
-      { 
-        success: true, 
-        results,
-        count: results.length
-      },
-      { status: 200 }
-    );
+
+    return new Response(JSON.stringify({
+      success: true,
+      results
+    }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' }
+    });
+
   } catch (error) {
-    console.error('Error in search API (POST):', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    console.error('[API/search] Error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    
+    return new Response(JSON.stringify({
+      success: false,
+      error: 'Search failed',
+      details: errorMessage
+    }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
   }
 }

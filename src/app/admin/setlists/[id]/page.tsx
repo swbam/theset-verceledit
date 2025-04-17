@@ -22,28 +22,56 @@ export default async function EditSetlistPage({ params }: SetlistPageProps) {
   const setlistId = params.id;
   
   // Fetch setlist data
-  const setlist = await getSetlistById(setlistId);
-  
-  if (!setlist) {
+  try {
+    const setlistData = await getSetlistById(setlistId);
+    
+    if (!setlistData) {
+      notFound();
+    }
+    
+    // Convert to the expected format for the component
+    interface DbSetlist {
+      id: string;
+      artist_id: string;
+      songs: Array<{ 
+        position: number;
+        info: string | null;
+        is_encore: boolean;
+        song: { id: string; name: string } 
+      }>;
+    }
+    
+    // Cast to any first to bypass TypeScript error, then properly transform
+    const rawSetlist = setlistData as any as DbSetlist;
+    
+    // Transform the data to match the expected Song interface
+    const formattedSongs = rawSetlist.songs.map(item => ({
+      id: item.song.id,
+      name: item.song.name,
+      position: item.position
+    }));
+    
+    return (
+      <Container className="py-8">
+        <div className="flex flex-col gap-4">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Edit Setlist</h1>
+            <p className="text-muted-foreground mt-1">
+              Manage songs for this setlist
+            </p>
+          </div>
+          
+          <SetlistEditor 
+            setlistId={setlistId} 
+            initialSongs={formattedSongs} 
+            artistId={rawSetlist.artist_id} 
+          />
+        </div>
+      </Container>
+    );
+  } catch (error) {
+    console.error("Error fetching setlist data:", error);
     notFound();
   }
   
-  return (
-    <Container className="py-8">
-      <div className="flex flex-col gap-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Edit Setlist</h1>
-          <p className="text-muted-foreground mt-1">
-            Manage songs for this setlist
-          </p>
-        </div>
-        
-        <SetlistEditor 
-          setlistId={setlistId} 
-          initialSongs={setlist.songs} 
-          artistId={setlist.artist_id} 
-        />
-      </div>
-    </Container>
-  );
-} 
+}

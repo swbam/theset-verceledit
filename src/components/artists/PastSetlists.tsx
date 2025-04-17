@@ -6,57 +6,72 @@ import { Music, ArrowRight, Calendar, Clock, MapPin } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { SetlistData } from '@/lib/sync/types'; // Import the central type
 
 interface PastSetlistsProps {
   artistId: string;
   artistName: string;
 }
 
+// Define a type for the data structure expected from the API
+// (Matches SetlistData structure from sync/types.ts, including nested song details)
+interface PastSetlistDisplayData extends Omit<SetlistData, 'songs'> {
+  id: string; // Ensure id is always present
+  eventDate?: string | null; // From Setlist.fm data potentially
+  venue?: { name?: string; city?: { name?: string; country?: { name?: string } } } | null; // Structure from Setlist.fm
+  sets?: { set?: { song?: { name: string }[] }[] } | null; // Structure from Setlist.fm
+  // Add fields from the local DB query in the API route
+  show?: {
+    id: string;
+    name: string;
+    date: string | null;
+    venue?: { // Add the nested venue object
+      name: string;
+      city: string | null;
+      state: string | null;
+    } | null;
+  } | null;
+  artist?: { id: string; name: string } | null;
+  songs?: {
+      id: string;
+      position: number;
+      is_encore: boolean;
+      info: string | null;
+      song: {
+          id: string;
+          name: string;
+          // Add other song fields if needed by the component
+      } | null;
+  }[] | null;
+}
+
+
 const PastSetlists: React.FC<PastSetlistsProps> = ({ artistId, artistName }) => {
-  // Fetch past setlists from setlist.fm via our edge function
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error } = useQuery<PastSetlistDisplayData[]>({ // Use the display data type
     queryKey: ['pastSetlists', artistId],
     queryFn: async () => {
       try {
-        // First check if we already have setlists in the database
-        const { data: existingSetlists, error } = await supabase
-          .from('past_setlists')
-          .select('id, setlist_data')
-          .eq('artist_id', artistId)
-          .order('event_date', { ascending: false })
-          .limit(3);
-          
-        if (error) {
-          throw new Error(error.message);
+        // Fetch past setlists from the new API route
+        const response = await fetch(`/api/artists/${artistId}/past-setlists?limit=3`);
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || `API request failed with status ${response.status}`);
         }
-        
-        if (existingSetlists && existingSetlists.length > 0) {
-          return existingSetlists.map(item => ({
-            id: item.id,
-            // Fix the spread operator issue by parsing and accessing properties properly
-            ...(typeof item.setlist_data === 'string' ? JSON.parse(item.setlist_data) : item.setlist_data)
-          }));
-        }
-        
-        // If not in database, fetch from setlist.fm API via edge function
-        const response = await supabase.functions.invoke('fetch-past-setlists', {
-          body: { artistId, artistName }
-        });
-        
-        if (response.error) {
-          throw new Error(response.error.message);
-        }
-        
-        return response.data?.setlists || [];
-      } catch (error) {
-        console.error('Error fetching past setlists:', error);
+
+        const setlists = await response.json();
+        console.log("Fetched past setlists from API:", setlists);
+        return setlists || [];
+      } catch (err) {
+        console.error('Error fetching past setlists via API route:', err);
         toast.error('Failed to load past setlists');
-        return [];
+        // Re-throw the error so React Query marks the query as errored
+        throw err;
       }
     },
-    staleTime: 1000 * 60 * 60, // 1 hour
+    staleTime: 1000 * 60 * 30, // 30 minutes (adjust as needed)
+    retry: 1, // Retry once on failure
   });
 
   // Format date in a readable way
@@ -140,27 +155,18 @@ const PastSetlists: React.FC<PastSetlistsProps> = ({ artistId, artistName }) => 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {data.slice(0, 3).map((setlist) => {
             // Extract venue and songs info
-            const venueName = setlist.venue?.name || 'Unknown Venue';
-            const venueLocation = setlist.venue?.city 
-              ? `${setlist.venue.city}${setlist.venue.country ? `, ${setlist.venue.country}` : ''}` 
-              : '';
-              
-            // Extract songs from setlist
-            const extractSongs = () => {
-              const songs = [];
-              if (setlist.sets && setlist.sets.set) {
-                for (const set of setlist.sets.set) {
-                  if (set.song) {
-                    for (const song of set.song) {
-                      songs.push(song.name);
-                    }
-                  }
-                }
-              }
-              return songs.slice(0, 5); // Top 5 songs
-            };
-            
-            const songs = extractSongs();
+            // Use data potentially joined from the DB via the API route
+            const venueName = setlist.show?.venue?.name || 'Unknown Venue';
+            const venueCity = setlist.show?.venue?.city || '';
+            const venueState = setlist.show?.venue?.state || '';
+            const venueLocation = [venueCity, venueState].filter(Boolean).join(', ');
+
+            // Extract songs from the joined played_setlist_songs data
+            const songs = (setlist.songs ?? [])
+              .sort((a, b) => (a.position ?? 0) - (b.position ?? 0)) // Sort by position
+              .slice(0, 5) // Limit to 5
+              .map(playedSong => playedSong.song?.name) // Get song name
+              .filter((name): name is string => !!name); // Filter out null/undefined names
             
             return (
               <Card 
@@ -171,7 +177,7 @@ const PastSetlists: React.FC<PastSetlistsProps> = ({ artistId, artistName }) => 
                   <CardTitle className="text-lg font-semibold">{venueName}</CardTitle>
                   <CardDescription className="flex items-center gap-1.5">
                     <Calendar size={14} className="text-primary" />
-                    {formatDate(setlist.eventDate)}
+                    {formatDate(setlist.show?.date || setlist.eventDate || '')}
                   </CardDescription>
                   {venueLocation && (
                     <CardDescription className="flex items-center gap-1.5 mt-1">
@@ -195,14 +201,24 @@ const PastSetlists: React.FC<PastSetlistsProps> = ({ artistId, artistName }) => 
                         <li className="text-sm text-muted-foreground">No song information available</li>
                       )}
                     </ul>
-                    <Button variant="outline" size="sm" className="mt-3 w-full" asChild>
-                      <Link to={`/setlists/${setlist.id}`}>
-                        <div className="flex items-center justify-center gap-1.5">
-                          <Clock size={14} />
-                          View full setlist
-                        </div>
-                      </Link>
-                    </Button>
+                    {/* Link to the show page if available, otherwise maybe disable or hide */}
+                    {setlist.show?.id ? (
+                      <Button variant="outline" size="sm" className="mt-3 w-full" asChild>
+                        <Link to={`/show/${setlist.show.id}`}>
+                          <div className="flex items-center justify-center gap-1.5">
+                            <Clock size={14} />
+                            View Show & Setlist
+                          </div>
+                        </Link>
+                      </Button>
+                    ) : (
+                       <Button variant="outline" size="sm" className="mt-3 w-full" disabled>
+                         <div className="flex items-center justify-center gap-1.5 text-muted-foreground">
+                           <Clock size={14} />
+                           Setlist details unavailable
+                         </div>
+                       </Button>
+                    )}
                   </div>
                 </CardContent>
               </Card>

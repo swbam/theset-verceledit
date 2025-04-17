@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { Venue } from '@/lib/types'; // Assuming Venue type exists
+import { Venue } from '@/lib/types';
 import { toast } from 'sonner';
 import {
   Table,
@@ -11,13 +11,13 @@ import {
 } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Search, Loader2, CloudUpload } from 'lucide-react';
+import { Search, Loader2, CloudUpload, Calendar } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'; // Use Avatar for consistency
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { supabase } from '@/integrations/supabase/client';
 
-// Define a type for the search results
 interface SearchResultVenue {
-  id: string; // Assuming this is the external ID (e.g., Ticketmaster ID)
+  id: string;
   name: string;
   city?: string | null;
   state?: string | null;
@@ -26,11 +26,17 @@ interface SearchResultVenue {
   url?: string | null;
 }
 
+interface SyncStatus {
+  venue: boolean;
+  shows: boolean;
+  artists: boolean;
+}
+
 const AdminVenues = () => {
   const [venues, setVenues] = useState<SearchResultVenue[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [syncingVenueId, setSyncingVenueId] = useState<string | null>(null);
+  const [syncingStatus, setSyncingStatus] = useState<Record<string, SyncStatus>>({});
 
   const handleSearch = useCallback(async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -64,38 +70,91 @@ const AdminVenues = () => {
   }, [searchQuery]);
 
   const handleSync = async (venueId: string, venueName: string) => {
-    setSyncingVenueId(venueId);
-    const toastId = toast.loading(`Syncing venue & shows: ${venueName}...`);
+    // Initialize sync status
+    setSyncingStatus(prev => ({
+      ...prev,
+      [venueId]: { venue: true, shows: false, artists: false }
+    }));
+
+    const toastId = toast.loading(`Starting sync for ${venueName}...`);
+
     try {
-      const response = await fetch('/api/sync', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'venue',
-          id: venueId, // Use external ID
-          operation: 'cascade_sync' // Trigger cascade sync
-        }),
+      // 1. Sync Venue
+      const venueResult = await supabase.functions.invoke('sync-venue', {
+        body: { venueId }
       });
 
-      const result = await response.json();
-
-      if (!response.ok || !result.success) {
-        throw new Error(result.error || result.message || 'Sync request failed');
+      if (!venueResult.data?.success) {
+        throw new Error(venueResult.error?.message || 'Venue sync failed');
       }
 
-      toast.success(`Cascade sync task queued for ${venueName}.`, { id: toastId });
+      // Update status and toast
+      setSyncingStatus(prev => ({
+        ...prev,
+        [venueId]: { ...prev[venueId], venue: false, shows: true }
+      }));
+      toast.loading(`Syncing upcoming shows for ${venueName}...`, { id: toastId });
+
+      // 2. Get venue's upcoming shows
+      const showResult = await supabase.functions.invoke('sync-show', {
+        body: { 
+          venueId,
+          operation: 'venue_shows'
+        }
+      });
+
+      if (!showResult.data?.success) {
+        throw new Error(showResult.error?.message || 'Shows sync failed');
+      }
+
+      // Update status for artist sync
+      setSyncingStatus(prev => ({
+        ...prev,
+        [venueId]: { ...prev[venueId], shows: false, artists: true }
+      }));
+      toast.loading(`Syncing show artists for ${venueName}...`, { id: toastId });
+
+      // 3. Artists are automatically synced by the show sync
+      // Just wait a moment for visual feedback
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      // Clear sync status and show success
+      setSyncingStatus(prev => {
+        const newStatus = { ...prev };
+        delete newStatus[venueId];
+        return newStatus;
+      });
+
+      toast.success(`Successfully synced ${venueName} with all shows and artists`, { id: toastId });
 
     } catch (error) {
       console.error(`Error syncing venue ${venueId}:`, error);
-      toast.error(`Failed to queue sync for ${venueName}: ${error instanceof Error ? error.message : 'Unknown error'}`, { id: toastId });
-    } finally {
-      setSyncingVenueId(null);
+      toast.error(`Sync failed for ${venueName}: ${error instanceof Error ? error.message : 'Unknown error'}`, { id: toastId });
+      
+      // Clear error state
+      setSyncingStatus(prev => {
+        const newStatus = { ...prev };
+        delete newStatus[venueId];
+        return newStatus;
+      });
     }
+  };
+
+  const getSyncStatusText = (status: SyncStatus) => {
+    if (status.venue) return "Syncing venue...";
+    if (status.shows) return "Syncing shows...";
+    if (status.artists) return "Syncing artists...";
+    return "Sync All";
   };
 
   return (
     <div className="space-y-6">
-      <h2 className="text-2xl font-bold">Search & Sync Venues</h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-2xl font-bold">Search & Sync Venues</h2>
+        <div className="text-sm text-muted-foreground">
+          Syncs venue data, upcoming shows, and performing artists
+        </div>
+      </div>
 
       <form onSubmit={handleSearch} className="flex items-center space-x-2">
         <div className="relative flex-1">
@@ -128,7 +187,7 @@ const AdminVenues = () => {
             {loading ? (
               Array.from({ length: 3 }).map((_, i) => (
                 <TableRow key={`skeleton-${i}`}>
-                  <TableCell><Skeleton className="h-10 w-10 rounded" /></TableCell> {/* Square for venue */}
+                  <TableCell><Skeleton className="h-10 w-10 rounded" /></TableCell>
                   <TableCell><Skeleton className="h-4 w-[250px]" /></TableCell>
                   <TableCell><Skeleton className="h-4 w-[150px]" /></TableCell>
                   <TableCell><Skeleton className="h-4 w-[180px]" /></TableCell>
@@ -144,17 +203,16 @@ const AdminVenues = () => {
                 </TableCell>
               </TableRow>
             ) : venues.length === 0 && !searchQuery ? (
-                 <TableRow>
-                   <TableCell colSpan={5} className="text-center py-4 text-muted-foreground">
-                     Enter a query to search for venues.
-                   </TableCell>
-                 </TableRow>
+              <TableRow>
+                <TableCell colSpan={5} className="text-center py-4 text-muted-foreground">
+                  Enter a query to search for venues.
+                </TableCell>
+              </TableRow>
             ) : (
               venues.map((venue) => (
                 <TableRow key={venue.id}>
                   <TableCell>
-                     {/* Use a generic icon or placeholder if no image */}
-                    <Avatar className="h-10 w-10 rounded"> {/* Use rounded square */}
+                    <Avatar className="h-10 w-10 rounded">
                       <AvatarImage src={venue.image_url || undefined} alt={venue.name} />
                       <AvatarFallback className="rounded">{venue.name?.charAt(0)?.toUpperCase() || 'V'}</AvatarFallback>
                     </Avatar>
@@ -169,14 +227,19 @@ const AdminVenues = () => {
                       variant="outline"
                       size="sm"
                       onClick={() => handleSync(venue.id, venue.name)}
-                      disabled={syncingVenueId === venue.id}
+                      disabled={!!syncingStatus[venue.id]}
                     >
-                      {syncingVenueId === venue.id ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      {syncingStatus[venue.id] ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          {getSyncStatusText(syncingStatus[venue.id])}
+                        </>
                       ) : (
-                        <CloudUpload className="mr-2 h-4 w-4" />
+                        <>
+                          <Calendar className="mr-2 h-4 w-4" />
+                          Sync All
+                        </>
                       )}
-                      Sync Venue & Shows
                     </Button>
                   </TableCell>
                 </TableRow>

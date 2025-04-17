@@ -2,7 +2,7 @@
 import { toast } from "sonner";
 import { callTicketmasterApi } from "../ticketmaster-config";
 import { supabase } from "@/integrations/supabase/client";
-import { saveVenueToDatabase } from "../database-utils";
+import { saveVenueToDatabase } from "../database/venues";
 
 /**
  * Fetch venue details

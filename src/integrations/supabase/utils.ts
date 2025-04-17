@@ -1,5 +1,7 @@
 import { createBrowserClient, createServerClient, type CookieOptions } from '@supabase/ssr';
-import { cookies } from 'next/headers'; // Assuming Next.js API routes use this
+// Removed: import { cookies } from 'next/headers';
+import { createServerActionClient } from './server-actions-client';
+export { createServerActionClient }; // Re-export for backward compatibility
 
 // --- Environment Variables ---
 // Ensure these are correctly defined in your .env files
@@ -24,33 +26,12 @@ export function createClient() {
   );
 }
 
-// --- Server-Side Client (for Next.js API Routes) ---
-// This assumes usage within Next.js API routes where `cookies` from `next/headers` is available.
-// If used elsewhere (e.g., server components), adjust cookie handling accordingly.
+// Removed createServerActionClient function - moved to server-actions-client.ts
+/*
 export function createServerActionClient() {
-  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-    console.error('Supabase URL or Anon Key is missing. Check environment variables.');
-    throw new Error('Supabase URL or Anon Key is missing.');
-  }
-  const cookieStore = cookies();
-  return createServerClient(
-    SUPABASE_URL,
-    SUPABASE_ANON_KEY,
-    {
-      cookies: {
-        get(name: string) {
-          return cookieStore.get(name)?.value;
-        },
-        set(name: string, value: string, options: CookieOptions) {
-          cookieStore.set({ name, value, ...options });
-        },
-        remove(name: string, options: CookieOptions) {
-          cookieStore.delete({ name, ...options });
-        },
-      },
-    }
-  );
+  // ... implementation removed ...
 }
+*/
 
 // --- Server-Side Client (for API Route Handlers - req/res pattern) ---
 // Use this version if you are working within traditional Next.js API route handlers

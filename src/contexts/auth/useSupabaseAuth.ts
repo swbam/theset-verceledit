@@ -1,4 +1,5 @@
 
+import { User, Session } from '@supabase/supabase-js'; // Import User and Session types
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
@@ -21,19 +22,21 @@ export function useSupabaseAuth(): AuthState & {
   logout: () => Promise<void>;
   login: () => void;
 } {
-  const [user, setUser] = useState(null);
+  // Initialize state with correct types
+  const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [session, setSession] = useState(null);
+  const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
 
-  // Handle profile fetching (extracted from the original implementation)
-  const handleProfileFetch = useCallback(async (userId: string) => {
-    const userProfile = await fetchUserProfile(userId);
-    if (userProfile) {
-      setProfile(userProfile);
-    }
-  }, []);
+  // Update handleProfileFetch to accept User object
+  const handleProfileFetch = useCallback(async (currentUser: User | null) => {
+    // Pass the full user object to fetchUserProfile
+    const userProfile = await fetchUserProfile(currentUser);
+    // Set profile state, will be null if fetchUserProfile returns null
+    setProfile(userProfile);
+    // Removed extra closing brace from previous error
+  }, []); // Keep handleProfileFetch stable
 
   // Session check and auth state management
   useEffect(() => {
@@ -51,13 +54,14 @@ export function useSupabaseAuth(): AuthState & {
         console.log("Session check result:", session ? "Active session found" : "No active session");
         setSession(session);
         
-        if (session?.user) {
-          console.log("User found in session:", session.user.id);
-          setUser(session.user);
-          await handleProfileFetch(session.user.id);
+        const currentUser = session?.user || null;
+        setUser(currentUser); // Set user state
+
+        if (currentUser) {
+          console.log("User found in session:", currentUser.id);
+          await handleProfileFetch(currentUser); // Pass the full user object
         } else {
           console.log("No user in session");
-          setUser(null);
           setProfile(null);
         }
       } catch (error) {
@@ -76,14 +80,15 @@ export function useSupabaseAuth(): AuthState & {
         console.log('Current session:', currentSession ? "Present" : "None");
         
         setSession(currentSession);
-        setUser(currentSession?.user || null);
-        
-        if (currentSession?.user) {
-          console.log("User in auth change:", currentSession.user.id);
-          await handleProfileFetch(currentSession.user.id);
+        const changedUser = currentSession?.user || null;
+        setUser(changedUser); // Set user state
+
+        if (changedUser) {
+          console.log("User in auth change:", changedUser.id);
+          await handleProfileFetch(changedUser); // Pass the full user object
         } else {
           console.log("No user in auth change");
-          setProfile(null);
+          setProfile(null); // Clear profile if user logs out
         }
         
         setIsLoading(false);

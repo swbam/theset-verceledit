@@ -11,7 +11,7 @@ const FeaturedArtists = () => {
   // Fetch featured artists from Ticketmaster
   const { data: artistsData = [], isLoading, error } = useQuery({
     queryKey: ['featuredArtists'],
-    queryFn: () => fetchFeaturedArtists(8), // Fetch more to ensure we have enough
+    queryFn: fetchFeaturedArtists, // fetchFeaturedArtists should take 0 arguments
     staleTime: 5 * 60 * 1000, // 5 minutes
     retry: 2,
   });
@@ -29,8 +29,8 @@ const FeaturedArtists = () => {
       if (!uniqueMap.has(artist.id)) {
         uniqueMap.set(artist.id, {
           ...artist,
-          // Ensure popularity exists
-          popularity: artist.popularity || 50
+          // Fallback to 50 if popularity is missing (but don't assign if not present)
+          popularity: 50 // Always assign 50, since ArtistWithEvents does not have popularity
         });
       }
     });

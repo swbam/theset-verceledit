@@ -34,11 +34,11 @@ export async function fetchFeaturedArtists(limit = 4): Promise<any[]> {
             // Prioritize high-res images
             const image = attraction.images?.find((img: any) => img.ratio === "16_9" && img.width > 500)?.url || 
                          attraction.images?.find((img: any) => img.ratio === "1_1" && img.width > 300)?.url ||
-                         attraction.images?.[0]?.url;
-            
-            const genres = [];
-            if (attraction.classifications?.[0]?.genre?.name) {
-              genres.push(attraction.classifications[0].genre.name);
+                          attraction.images?.[0]?.url;
+             
+             const genres: string[] = []; // Explicitly type as string array
+             if (attraction.classifications?.[0]?.genre?.name) {
+               genres.push(attraction.classifications[0].genre.name);
             }
             if (attraction.classifications?.[0]?.subGenre?.name) {
               genres.push(attraction.classifications[0].subGenre.name);

@@ -12,7 +12,7 @@ const FeaturedArtistsSection = () => {
     isLoading: isArtistsLoading,
   } = useQuery({
     queryKey: ['featuredArtists'],
-    queryFn: () => fetchFeaturedArtists(6),
+    queryFn: () => fetchFeaturedArtists(), // Remove argument
   });
 
   return (

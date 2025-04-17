@@ -177,8 +177,8 @@ export async function fetchFeaturedShows(limit = 4): Promise<ProcessedShow[]> {
             name: artistName,
             image_url: attraction.images?.find(img => img.ratio === "16_9" && img.width > 500)?.url,
             upcoming_shows: 1,
-            genres: attraction.classifications && attraction.classifications.length > 0 
-              ? [attraction.classifications[0].genre?.name, attraction.classifications[0].subGenre?.name].filter(Boolean)
+            genres: attraction.classifications && attraction.classifications.length > 0
+              ? [attraction.classifications[0].genre?.name, attraction.classifications[0].subGenre?.name].filter((g): g is string => typeof g === "string")
               : []
           };
         } else {
@@ -194,16 +194,16 @@ export async function fetchFeaturedShows(limit = 4): Promise<ProcessedShow[]> {
         }
         
         // Process venue
-        let venue = null;
-        let venueId = null;
+        let venue: Venue | null = null;
+        let venueId: string | null = null;
         if (event._embedded?.venues?.[0]) {
           const venueData = event._embedded.venues[0];
           venue = {
             id: venueData.id,
             name: venueData.name,
-            city: venueData.city?.name,
-            state: venueData.state?.name,
-            country: venueData.country?.name,
+            city: venueData.city?.name ?? null,
+            state: venueData.state?.name ?? null,
+            country: venueData.country?.name ?? null,
           };
           venueId = venueData.id;
         }
@@ -242,7 +242,7 @@ export async function fetchFeaturedShows(limit = 4): Promise<ProcessedShow[]> {
     // Create a better data syncing process for Supabase
     Promise.all(
       topShows.map(async (show) => {
-        const syncResults = [];
+        const syncResults: { type: string; success: boolean }[] = [];
         
         // 1. Save the artist
         if (show.artist) {

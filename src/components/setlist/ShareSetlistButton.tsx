@@ -110,12 +110,12 @@ const ShareSetlistButton: React.FC<ShareSetlistButtonProps> = ({
           <Facebook size={14} className="mr-2" />
           Share on Facebook
         </DropdownMenuItem>
-        {navigator.share && (
+        {'share' in navigator && typeof navigator.share === 'function' && (
           <>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={nativeShare} className="cursor-pointer">
-              <Share2 size={14} className="mr-2" />
-              Share via device
+              <Share2 className="mr-2 h-4 w-4" />
+              Share via Device
             </DropdownMenuItem>
           </>
         )}

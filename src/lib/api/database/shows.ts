@@ -1,235 +1,236 @@
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from '@/integrations/supabase/client';
+import { Show, Artist, Venue } from '@/lib/types';
 
 /**
- * Save show to database
+ * Save a show to the database (insert or update)
  */
-export async function saveShowToDatabase(show: any) {
-  try {
-    if (!show || !show.id) {
-      console.error("Invalid show object:", show);
+export async function saveShow(show: Partial<Show>) {
+    // Add check for show.name as it's NOT NULL in the DB
+    if (!show || !show.id || !show.name) {
+      console.error("Missing show data, ID, or name for saving");
       return null;
     }
-    
+
     console.log(`Saving show to database: ${show.name} (ID: ${show.id})`);
-    
-    // Check if show already exists first
+
     try {
       const { data: dbShow, error: checkError } = await supabase
         .from('shows')
         .select('id, updated_at')
         .eq('id', show.id)
         .maybeSingle();
-      
-      if (checkError) {
-        if (checkError.code === '42501') {
-          console.log("Permission denied when checking show", show.name, "in database - continuing with API data");
-        } else {
-          console.error("Error checking show in database:", checkError);
-        }
-        // Continue with insert/update anyway
-      }
-      
-      // If show exists and was updated recently, don't update it
-      if (dbShow) {
-        const lastUpdated = new Date(dbShow.updated_at || 0);
-        const now = new Date();
-        const hoursSinceUpdate = (now.getTime() - lastUpdated.getTime()) / (1000 * 60 * 60);
-        
-        if (hoursSinceUpdate < 24) {
-          console.log(`Show ${show.name} was updated ${hoursSinceUpdate.toFixed(1)} hours ago. No update needed.`);
-          return dbShow;
-        }
-        
-        console.log(`Show ${show.name} exists but was updated ${hoursSinceUpdate.toFixed(1)} hours ago. Updating...`);
-      } else {
-        console.log(`Show ${show.name} is new, creating record`);
-      }
-    } catch (checkError) {
-      console.error("Error checking if show exists:", checkError);
-      // Continue to try adding the show anyway
-    }
-    
-    // Prepare show data for upsert
-    const showData = {
-      id: show.id,
-      name: show.name,
-      artist_id: show.artist_id,
-      venue_id: show.venue_id,
-      date: show.date && new Date(show.date).toISOString(),
-      image_url: show.image_url || show.imageUrl || show.image,
-      ticket_url: show.ticket_url || show.ticketUrl,
-      genre_ids: Array.isArray(show.genre_ids) ? show.genre_ids : [],
-      updated_at: new Date().toISOString()
-    };
-    
-    try {
-      // Try to insert or update the show
-      const { data, error } = await supabase
-        .from('shows')
-        .upsert(showData)
-        .select();
-      
-      if (error) {
-        if (error.code === '42501') {
-          console.log("Permission denied when saving show", show.name, "- trying insert-only approach");
-        } else {
-          console.error("Error saving show to database:", error);
-        }
-        
-        // If it's a permission error, try an insert-only approach
-        const { data: insertData, error: insertError } = await supabase
-          .from('shows')
-          .insert(showData)
-          .select();
-          
-        if (insertError) {
-          console.error("Insert-only approach for show also failed:", insertError);
-          return showData; // Return our data object as fallback
-        }
-        
-        console.log(`Successfully inserted show ${show.name} using insert-only approach`);
-        return insertData?.[0] || showData;
-      }
-      
-      console.log(`Successfully saved show ${show.name} to database: ${data ? 'Success' : 'No data returned'}`);
-      return data?.[0] || showData;
-    } catch (saveError) {
-      console.error("Error in saveShowToDatabase:", saveError);
-      return showData; // Return our data object as fallback
-    }
-  } catch (error) {
-    console.error("Error in saveShowToDatabase:", error);
-    return show; // Return the original show object as fallback
-  }
-}
 
-/**
- * Get show from database
- */
-export async function getShowFromDatabase(showId: string) {
-  try {
-    console.log(`Fetching show details for ID: ${showId} from database`);
-    
-    const { data, error } = await supabase
-      .from('shows')
-      .select(`
-        *,
-        artist:artist_id (*),
-        venue:venue_id (*)
-      `)
-      .eq('id', showId)
-      .maybeSingle();
-    
-    if (error) {
-      console.error("Error fetching show from database:", error);
+      if (checkError) {
+          console.error(`Error checking for existing show: ${checkError.message}`);
+          return null;
+      }
+
+      const showDataForUpsert = {
+        id: show.id,
+        name: show.name,
+        artist_id: show.artist_id || null,
+        venue_id: show.venue_id || null,
+        date: show.date || null,
+        image_url: show.image_url || null,
+        ticket_url: (show as any).ticket_url || null,
+        url: show.url || null,
+        status: show.status || null, // Use null if undefined
+        ticketmaster_id: show.ticketmaster_id || null,
+        updated_at: new Date().toISOString(),
+        ...( !dbShow && { created_at: show.created_at || new Date().toISOString() } )
+      };
+
+      const { data: savedShow, error: upsertError } = await supabase
+        .from('shows')
+        .upsert(showDataForUpsert, { onConflict: 'id' })
+        .select()
+        .single();
+
+      if (upsertError) {
+        console.error(`Error saving show ${show.id}:`, upsertError);
+        return null;
+      }
+
+      console.log(`Successfully saved show ${savedShow?.id}`);
+      return savedShow as Show;
+
+    } catch (error) {
+      console.error(`Unexpected error in saveShow: ${(error as Error).message}`);
       return null;
     }
-    
-    return data;
-  } catch (error) {
-    console.error("Error in getShowFromDatabase:", error);
-    return null;
-  }
 }
 
+// --- Stricter Types for Component Props ---
+// Type matching ShowHeroProps['show']
+type ShowForHero = {
+  id: string;
+  date: string;
+  name?: string | undefined; // Optional string
+  image_url?: string | undefined; // Optional string
+  artist: {
+    id: string;
+    name: string;
+    image_url?: string | undefined; // Optional string
+  };
+  venue: {
+    id: string;
+    name: string;
+    city?: string | undefined; // Optional string
+    state?: string | undefined; // Optional string
+    country?: string | undefined; // Optional string
+  };
+  external_url?: string | undefined; // Optional string (maps to show.url or show.ticket_url?)
+};
+
+// Type matching ShowInfoProps['show'] (assuming similar requirements)
+type ShowForInfo = {
+  id: string;
+  date: string;
+  time?: string | undefined;
+  name?: string | undefined;
+  status?: string | undefined;
+  attendance?: number | undefined;
+  external_url?: string | undefined;
+  artist: {
+    id: string;
+    name: string;
+  };
+  venue: {
+    id: string;
+    name: string;
+    city?: string | undefined;
+    state?: string | undefined;
+    country?: string | undefined;
+    address?: string | undefined;
+  };
+};
+// --- End Stricter Types ---
+
+
 /**
- * Get a single show with detailed venue and artist information
- * @param showId ID of the show to fetch
- * @returns Show details or null if not found
+ * Get details for a single show by ID, formatted for display components.
+ * Returns null if the show is not found, or if essential data (date, artist, venue) is missing.
  */
-export async function getShow(showId: string) {
+export async function getShow(showId: string): Promise<ShowForHero | null> { // Return type matches ShowHero
   try {
     if (!showId) {
       console.error("Missing show ID");
       return null;
     }
-    
-    const { data: show, error } = await supabase
+
+    // 1. Fetch basic show details
+    const { data: showResult, error: showError } = await supabase
       .from('shows')
       .select(`
-        id,
-        name,
-        date,
-        time,
-        description,
-        cover_image,
-        venue_id,
-        artist_id,
-        venue:venue_id (
-          id, 
-          name, 
-          city, 
-          state, 
-          address,
-          maps_url,
-          image
-        ),
-        artist:artist_id (
-          id, 
-          name, 
-          image
-        )
+        id, name, date, image_url, venue_id, artist_id, url, status, ticketmaster_id, ticket_url
       `)
       .eq('id', showId)
       .maybeSingle();
-    
-    if (error) {
-      console.error(`Error fetching show: ${error.message}`);
+
+    if (showError || !showResult) {
+      // Handle error or not found
       return null;
     }
-    
-    if (!show) {
-      return null;
+
+    // Check for required date early
+    if (!showResult.date) {
+        console.warn(`Show ${showId} found but is missing a required date. Returning null.`);
+        return null;
     }
-    
-    return {
-      ...show,
-      date: show.date || null,
+
+    // 2. Fetch related venue details (must exist)
+    if (!showResult.venue_id) {
+        console.warn(`Show ${showId} is missing required venue_id. Returning null.`);
+        return null;
+    }
+    const { data: venueResult, error: venueError } = await supabase
+      .from('venues')
+      .select(`id, name, city, state, country, address, image_url`) // Select needed fields
+      .eq('id', showResult.venue_id)
+      .single(); // Use single, expect it to exist
+
+    if (venueError || !venueResult) {
+        console.warn(`Required venue ${showResult.venue_id} not found for show ${showId}. Returning null. Error: ${venueError?.message}`);
+        return null;
+    }
+
+    // 3. Fetch related artist details (must exist)
+     if (!showResult.artist_id) {
+        console.warn(`Show ${showId} is missing required artist_id. Returning null.`);
+        return null;
+    }
+    const { data: artistResult, error: artistError } = await supabase
+      .from('artists')
+      .select(`id, name, image_url`) // Select needed fields
+      .eq('id', showResult.artist_id)
+      .single(); // Use single, expect it to exist
+
+    if (artistError || !artistResult) {
+        console.warn(`Required artist ${showResult.artist_id} not found for show ${showId}. Returning null. Error: ${artistError?.message}`);
+        return null;
+    }
+
+    // 4. Construct the final object conforming to ShowForHero
+    // Perform null -> undefined conversions where needed by the target type
+    const finalShowData: ShowForHero = {
+      id: showResult.id, // Known non-null
+      date: showResult.date, // Known non-null
+      name: showResult.name ?? undefined, // Use ?? for null/undefined -> undefined
+      image_url: showResult.image_url ?? undefined,
+      external_url: showResult.url ?? showResult.ticket_url ?? undefined, // Combine URL sources
+      artist: {
+        id: artistResult.id, // Known non-null
+        name: artistResult.name, // Known non-null
+        image_url: artistResult.image_url ?? undefined,
+      },
+      venue: {
+        id: venueResult.id, // Known non-null
+        name: venueResult.name, // Known non-null
+        city: venueResult.city ?? undefined,
+        state: venueResult.state ?? undefined,
+        country: venueResult.country ?? undefined,
+        // Note: ShowForHero doesn't need address, ShowForInfo does.
+        // If ShowInfo needs different fields, adjust its type and this mapping.
+      },
+      // Add fields needed only by ShowForInfo if necessary, or create a separate function/type
+      // status: showResult.status ?? undefined,
     };
+
+    // Validate that the constructed object matches the target type (optional runtime check)
+    // console.log("Final Show Data:", finalShowData);
+
+    return finalShowData;
+
   } catch (error) {
     console.error(`Error in getShow: ${(error as Error).message}`);
     return null;
   }
 }
 
+
 /**
  * Get upcoming shows, ordered by date
  */
 export async function getUpcomingShows(limit = 10) {
   try {
-    const today = new Date().toISOString().split('T')[0];
-    
-    const { data: shows, error } = await supabase
+    const today = new Date().toISOString();
+    const { data, error } = await supabase
       .from('shows')
       .select(`
-        id,
-        name,
-        date,
-        venue_id,
-        artist_id,
-        cover_image,
-        venue:venue_id (
-          id,
-          name,
-          city,
-          state
-        ),
-        artist:artist_id (
-          id,
-          name,
-          image
-        )
+        id, name, date, image_url,
+        artists (id, name),
+        venues (id, name, city, state)
       `)
       .gte('date', today)
       .order('date', { ascending: true })
       .limit(limit);
-    
+
     if (error) {
-      console.error(`Error fetching upcoming shows: ${error.message}`);
+      console.error("Error fetching upcoming shows:", error);
       return [];
     }
-    
-    return shows || [];
+    // TODO: Map data if needed to match specific component prop types
+    return data || [];
   } catch (error) {
     console.error(`Error in getUpcomingShows: ${(error as Error).message}`);
     return [];
@@ -237,86 +238,35 @@ export async function getUpcomingShows(limit = 10) {
 }
 
 /**
- * Get shows for a specific artist
+ * Get past shows for a specific artist, ordered by date descending
  */
-export async function getShowsByArtist(artistId: string) {
-  try {
-    if (!artistId) {
-      console.error("Missing artist ID");
-      return [];
-    }
-    
-    const today = new Date().toISOString().split('T')[0];
-    
-    const { data: shows, error } = await supabase
-      .from('shows')
-      .select(`
-        id,
-        name,
-        date,
-        venue_id,
-        cover_image,
-        venue:venue_id (
-          id,
-          name,
-          city,
-          state
-        )
-      `)
-      .eq('artist_id', artistId)
-      .gte('date', today)
-      .order('date', { ascending: true });
-    
-    if (error) {
-      console.error(`Error fetching shows for artist: ${error.message}`);
-      return [];
-    }
-    
-    return shows || [];
-  } catch (error) {
-    console.error(`Error in getShowsByArtist: ${(error as Error).message}`);
-    return [];
-  }
-}
+export async function getArtistPastShows(artistId: string, limit = 10) {
+    try {
+        if (!artistId) {
+            console.error("Missing artist ID for getArtistPastShows");
+            return [];
+        }
+        const today = new Date().toISOString();
+        const { data, error } = await supabase
+            .from('shows')
+            .select(`
+                id, name, date, image_url,
+                artists!inner (id, name),
+                venues (id, name, city, state)
+            `)
+            .eq('artist_id', artistId)
+            .lt('date', today)
+            .order('date', { ascending: false })
+            .limit(limit);
 
-/**
- * Get shows at a specific venue
- */
-export async function getShowsByVenue(venueId: string) {
-  try {
-    if (!venueId) {
-      console.error("Missing venue ID");
-      return [];
+        if (error) {
+            console.error(`Error fetching past shows for artist ${artistId}:`, error);
+            return [];
+        }
+        // TODO: Map data if needed
+        return data || [];
+    } catch (error) {
+        console.error(`Error in getArtistPastShows: ${(error as Error).message}`);
+        return [];
     }
-    
-    const today = new Date().toISOString().split('T')[0];
-    
-    const { data: shows, error } = await supabase
-      .from('shows')
-      .select(`
-        id,
-        name,
-        date,
-        artist_id,
-        cover_image,
-        artist:artist_id (
-          id,
-          name,
-          image
-        )
-      `)
-      .eq('venue_id', venueId)
-      .gte('date', today)
-      .order('date', { ascending: true });
-    
-    if (error) {
-      console.error(`Error fetching shows for venue: ${error.message}`);
-      return [];
-    }
-    
-    return shows || [];
-  } catch (error) {
-    console.error(`Error in getShowsByVenue: ${(error as Error).message}`);
-    return [];
-  }
 }

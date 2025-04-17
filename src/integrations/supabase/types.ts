@@ -59,6 +59,7 @@ export type Database = {
           setlist_fm_mbid: string | null
           spotify_id: string | null
           spotify_url: string | null
+          stored_tracks: Json | null
           ticketmaster_id: string | null
           tm_id: string | null
           updated_at: string | null
@@ -77,6 +78,7 @@ export type Database = {
           setlist_fm_mbid?: string | null
           spotify_id?: string | null
           spotify_url?: string | null
+          stored_tracks?: Json | null
           ticketmaster_id?: string | null
           tm_id?: string | null
           updated_at?: string | null
@@ -95,6 +97,7 @@ export type Database = {
           setlist_fm_mbid?: string | null
           spotify_id?: string | null
           spotify_url?: string | null
+          stored_tracks?: Json | null
           ticketmaster_id?: string | null
           tm_id?: string | null
           updated_at?: string | null
@@ -185,41 +188,6 @@ export type Database = {
             columns: ["song_id"]
             isOneToOne: false
             referencedRelation: "songs"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      setlist_raw_data: {
-        Row: {
-          artist_id: string | null
-          created_at: string | null
-          id: string
-          raw_data: Json | null
-          setlist_id: string | null
-          show_id: string | null
-        }
-        Insert: {
-          artist_id?: string | null
-          created_at?: string | null
-          id?: string
-          raw_data?: Json | null
-          setlist_id?: string | null
-          show_id?: string | null
-        }
-        Update: {
-          artist_id?: string | null
-          created_at?: string | null
-          id?: string
-          raw_data?: Json | null
-          setlist_id?: string | null
-          show_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "setlist_raw_data_setlist_id_fkey"
-            columns: ["setlist_id"]
-            isOneToOne: false
-            referencedRelation: "setlists"
             referencedColumns: ["id"]
           },
         ]
@@ -594,8 +562,8 @@ export type Database = {
           count: number | null
           created_at: string | null
           id: string
-          show_id: string | null
-          song_id: string | null
+          show_id: string
+          song_id: string
           updated_at: string | null
           user_id: string | null
         }
@@ -603,8 +571,8 @@ export type Database = {
           count?: number | null
           created_at?: string | null
           id?: string
-          show_id?: string | null
-          song_id?: string | null
+          show_id: string
+          song_id: string
           updated_at?: string | null
           user_id?: string | null
         }
@@ -612,8 +580,8 @@ export type Database = {
           count?: number | null
           created_at?: string | null
           id?: string
-          show_id?: string | null
-          song_id?: string | null
+          show_id?: string
+          song_id?: string
           updated_at?: string | null
           user_id?: string | null
         }
@@ -623,6 +591,13 @@ export type Database = {
             columns: ["show_id"]
             isOneToOne: false
             referencedRelation: "shows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "votes_song_id_fkey"
+            columns: ["song_id"]
+            isOneToOne: false
+            referencedRelation: "songs"
             referencedColumns: ["id"]
           },
         ]
@@ -712,6 +687,15 @@ export type Database = {
           spotify_id: string | null
           updated_at: string | null
           vote_count: number | null
+        }[]
+      }
+      get_sync_stats: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          entity_type: string
+          total: number
+          last_24h: number
+          last_sync: string
         }[]
       }
       gtrgm_compress: {

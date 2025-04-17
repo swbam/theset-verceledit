@@ -76,13 +76,21 @@ export async function fetchArtistById(artistId: string): Promise<any> {
     if (data._embedded?.attractions && data._embedded.attractions.length > 0) {
       const attraction = data._embedded.attractions[0];
       
-      const artistData = {
-        id: attraction.id,
-        name: attraction.name,
-        image: attraction.images?.find((img: any) => img.ratio === "16_9" && img.width > 500)?.url,
-        genres: [],
-        upcomingShows: 0,
-        spotify_id: null
+      // Explicitly define the type for artistData or at least for genres
+       const artistData: {
+         id: string;
+         name: string;
+         image: string | undefined;
+         genres: string[]; // Explicitly type genres
+         upcomingShows: number;
+         spotify_id: string | null;
+       } = {
+         id: attraction.id,
+         name: attraction.name,
+         image: attraction.images?.find((img: any) => img.ratio === "16_9" && img.width > 500)?.url,
+         genres: [], // Initialize as empty string array
+         upcomingShows: 0,
+         spotify_id: null
       };
       
       if (attraction.classifications && attraction.classifications.length > 0) {

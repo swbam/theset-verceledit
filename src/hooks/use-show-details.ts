@@ -112,33 +112,17 @@ export function useShowDetails(id: string | undefined) {
   });
 
   // vote for a song in the database
-  const voteForSong = useCallback(async (songId: string) => {
-    if (!songId) return false;
-    
+  const voteForSong = useCallback(async (songId: string, showId: string) => {
+    if (!songId || !showId) return false;
     try {
-      // Get the current votes for this song
-      const { data: songData, error: fetchError } = await supabase
-        .from('setlist_songs')
-        .select('votes')
-        .eq('id', songId)
-        .single();
-      
-      if (fetchError) {
-        console.error("Error fetching song votes:", fetchError);
+      const { error } = await supabase.rpc('add_vote', {
+        p_song_id: songId,
+        p_show_id: showId,
+      });
+      if (error) {
+        console.error("Error voting for song:", error);
         return false;
       }
-      
-      // Increment the votes
-      const { error: updateError } = await supabase
-        .from('setlist_songs')
-        .update({ votes: (songData.votes || 0) + 1 })
-        .eq('id', songId);
-      
-      if (updateError) {
-        console.error("Error updating song votes:", updateError);
-        return false;
-      }
-      
       console.log(`Vote recorded for song ${songId}`);
       return true;
     } catch (error) {
@@ -148,28 +132,26 @@ export function useShowDetails(id: string | undefined) {
   }, []);
   
   // Add new song to setlist in database
-  // Define a basic type for the track object expected here
-  type TrackInput = { id: string; name: string; /* add other relevant fields if needed */ };
+  // Define a basic type for the song object expected here
+  type SongInput = { id: string; position: number; info?: string | null; is_encore?: boolean };
 
-  const addSongToSetlist = useCallback(async (setlistId: string, track: TrackInput) => { // Use TrackInput type
-    if (!setlistId || !track) return false;
-    
+  const addSongToSetlist = useCallback(async (setlistId: string, song: SongInput) => {
+    if (!setlistId || !song) return false;
     try {
       const { error } = await supabase
-        .from('setlist_songs')
+        .from('played_setlist_songs')
         .insert({
           id: uuidv4(),
           setlist_id: setlistId,
-          track_id: track.id,
-          name: track.name,
-          votes: 0
+          song_id: song.id,
+          position: song.position,
+          info: song.info ?? null,
+          is_encore: song.is_encore ?? false,
         });
-      
       if (error) {
         console.error("Error adding song to setlist:", error);
         return false;
       }
-      
       return true;
     } catch (error) {
       console.error("Error adding song to setlist:", error);

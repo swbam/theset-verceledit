@@ -44,7 +44,7 @@ export const getArtistAllTracks = async (artistSpotifyId: string): Promise<Spoti
           name: track.name,
           duration_ms: track.duration_ms,
           popularity: track.popularity,
-          preview_url: track.preview_url,
+          preview_url: track.preview_url ?? undefined,
         });
       }
     });
@@ -83,7 +83,7 @@ export const getArtistAllTracks = async (artistSpotifyId: string): Promise<Spoti
               name: track.name,
               duration_ms: track.duration_ms,
               popularity: track.popularity,
-              preview_url: track.preview_url,
+              preview_url: track.preview_url ?? undefined,
             });
           }
         });

@@ -1,6 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { Show } from '@/lib/types';
 import { 
   Table, 
   TableBody, 
@@ -15,8 +16,19 @@ import { Search, RefreshCw } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Link } from 'react-router-dom';
 
+type AdminShowType = Show & {
+  artist?: {
+    name: string;
+  } | null;
+  venue?: {
+    name: string;
+    city: string | null;
+    state: string | null;
+  } | null;
+};
+
 const AdminShows = () => {
-  const [shows, setShows] = useState([]);
+  const [shows, setShows] = useState<AdminShowType[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [refreshing, setRefreshing] = useState(false);
@@ -42,7 +54,21 @@ const AdminShows = () => {
       
       if (error) throw error;
       
-      setShows(data || []);
+      // Convert null values to undefined to match the Show type definition
+      const typeSafeShows = (data || []).map(show => ({
+        ...show,
+        id: show.id,
+        name: show.name,
+        date: show.date || undefined,
+        artist_id: show.artist_id || undefined,
+        venue_id: show.venue_id || undefined,
+        created_at: show.created_at || undefined,
+        updated_at: show.updated_at || undefined,
+        artist: show.artist || undefined,
+        venue: show.venue || undefined
+      })) as AdminShowType[];
+      
+      setShows(typeSafeShows);
     } catch (error) {
       console.error('Error fetching shows:', error);
     } finally {

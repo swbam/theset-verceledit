@@ -157,12 +157,12 @@ const Profile = () => {
                           className="flex items-center p-4 bg-card border border-border rounded-lg hover:bg-accent/50 transition-colors"
                         >
                           <Avatar className="h-12 w-12 mr-4">
-                            <AvatarImage src={artist.image} alt={artist.name} />
+                            <AvatarImage src={artist.image || undefined} alt={artist.name || "Artist"} />
                             <AvatarFallback className="bg-primary/10 text-primary">
-                              {artist.name.charAt(0)}
+                              {(artist.name && artist.name.charAt(0)) || "?"}
                             </AvatarFallback>
                           </Avatar>
-                          <span className="font-medium">{artist.name}</span>
+                          <span className="font-medium">{artist.name || "Unknown Artist"}</span>
                         </Link>
                       ))}
                     </div>

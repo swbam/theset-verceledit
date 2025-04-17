@@ -38,20 +38,20 @@ import {
 
 interface Setlist {
   id: string;
-  show_id: string;
-  artist_id: string;
-  created_at: string;
-  updated_at: string;
+  show_id: string | null;
+  artist_id: string | null;
+  created_at: string | null;
+  updated_at: string | null;
   song_count?: number;
   show?: {
     id: string;
     name: string;
-    date: string;
-  };
+    date: string | null;
+  } | null;
   artist?: {
     id: string;
     name: string;
-  };
+  } | null;
 }
 
 export function SetlistsTable() {
@@ -99,7 +99,7 @@ export function SetlistsTable() {
       const setlistsWithSongCount = await Promise.all(
         data.map(async (setlist) => {
           const { count, error: countError } = await supabase
-            .from('setlist_songs')
+            .from('played_setlist_songs')
             .select('id', { count: 'exact', head: true })
             .eq('setlist_id', setlist.id);
           
@@ -145,7 +145,7 @@ export function SetlistsTable() {
       
       // First delete all songs in the setlist
       const { error: songsError } = await supabase
-        .from('setlist_songs')
+        .from('played_setlist_songs')
         .delete()
         .eq('setlist_id', setlistToDelete);
       
@@ -341,4 +341,4 @@ export function SetlistsTable() {
       </AlertDialog>
     </div>
   );
-} 
+}
