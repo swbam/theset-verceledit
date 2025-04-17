@@ -1,6 +1,6 @@
 // Types shared between Edge Functions and potentially the frontend
 
-export type ConcertData = {
+export interface ConcertData {
   id: string;
   date: string;
   venue: string;
@@ -24,63 +24,58 @@ export type SyncStatus = {
 };
 
 // Define base types used across functions
-export type Artist = {
-  id: string; // Usually Ticketmaster ID initially
+export interface SpotifyTrack {
+  id: string;
+  name: string;
+  duration_ms: number;
+  preview_url: string | null;
+  popularity: number;
+}
+
+export interface Song {
+  id: string;
+  artist_id: string;
+  name: string;
+  spotify_id: string;
+  duration_ms: number;
+  preview_url?: string | null;
+  popularity?: number;
+  created_at?: string;
+  updated_at?: string;
+  vote_count?: number;
+}
+
+export interface Artist {
+  id: string;
   name: string;
   spotify_id?: string;
-  setlist_fm_mbid?: string;
-  setlist_fm_id?: string;
   image_url?: string;
-  images?: Array<{ url: string; height?: number; width?: number }>;
-  genres?: string[];
-  spotify_url?: string;
-  url?: string;
   popularity?: number;
-  followers?: number;
-  last_updated?: string; // From DB
-  updated_at?: string; // From DB
-  created_at?: string; // From DB
-  ticketmaster_id?: string; // Explicit TM ID 
-  external_id?: string; // Legacy ID field
-  tm_id?: string; // Old naming convention, possibly used
-};
+  genres?: string[];
+}
 
-export type Venue = {
-  id: string; // Usually Ticketmaster ID initially
+export interface Venue {
+  id: string;
   name: string;
-  ticketmaster_id?: string; // Explicit TM ID
-  external_id?: string; // Legacy ID field
   city?: string;
   state?: string;
   country?: string;
-  address?: string;
-  postal_code?: string;
-  image_url?: string;
-  updated_at?: string; // From DB
-  created_at?: string; // From DB
-  last_updated?: string; // From DB
-};
+  latitude?: number;
+  longitude?: number;
+}
 
-export type Show = {
-  id: string; // Usually Ticketmaster ID initially
-  name?: string;
-  date?: string;
-  image_url?: string;
-  ticket_url?: string;
-  popularity?: number;
-  artist_id?: string; // Usually Ticketmaster Artist ID initially
-  venue_id?: string; // Usually Ticketmaster Venue ID initially
-  ticketmaster_id?: string; // Explicit TM ID
-  external_id?: string; // Legacy ID field
-  artist?: Artist; // Nested artist data from API
-  venue?: Venue; // Nested venue data from API
-  last_updated?: string; // From DB
-  updated_at?: string; // From DB
-  created_at?: string; // From DB
-  setlist_id?: string; // Added by DB utils after setlist creation
-};
+export interface Show {
+  id: string;
+  name: string;
+  artist_id: string;
+  venue_id: string;
+  date: string;
+  ticketmaster_id?: string;
+  created_at?: string;
+  updated_at?: string;
+}
 
-export type Setlist = {
+export interface Setlist {
   id: string; // DB generated UUID
   show_id: string; // Foreign key to shows table (using DB show ID)
   artist_id: string; // Foreign key to artists table (using DB artist ID)
@@ -93,22 +88,8 @@ export type Setlist = {
   updated_at?: string; // DB timestamp
 };
 
-// Represents a song in the DB
-export type Song = {
-  id: string; // DB generated UUID
-  name: string;
-  artist_id: string; // Foreign key to artists table (using DB artist ID)
-  spotify_id?: string;
-  duration_ms?: number;
-  popularity?: number;
-  preview_url?: string | null;
-  vote_count?: number; // Managed by voting logic
-  created_at?: string; // DB timestamp
-  updated_at?: string; // DB timestamp
-};
-
 // Represents an entry in the junction table
-export type SetlistSong = {
+export interface SetlistSong {
     id?: string; // DB generated UUID
     setlist_id: string; // Foreign key to setlists table
     song_id: string; // Foreign key to songs table
@@ -122,7 +103,7 @@ export type SetlistSong = {
     last_updated?: string; // From DB? Check usage
 };
 
-export type Vote = {
+export interface Vote {
   id: string;
   song_id: string;
   user_id: string;
@@ -131,23 +112,13 @@ export type Vote = {
   updated_at: string;
 };
 
-// Type for Spotify track object (simplified)
-export type SpotifyTrack = {
-  id: string;
-  name: string;
-  duration_ms?: number;
-  popularity?: number;
-  preview_url?: string | null; // Move this back inside SpotifyTrack
-  // Add other fields if needed from Spotify API response
-};
-
 // Type for the response structure of Spotify track fetching
 export type SpotifyTracksResponse = {
   tracks: SpotifyTrack[];
 };
 
 // Type for Spotify artist object (simplified)
-export type SpotifyArtist = {
+export interface SpotifyArtist {
     id: string;
     name: string;
     external_urls: {

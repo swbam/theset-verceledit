@@ -11,8 +11,13 @@ import ShowDetailSkeleton from '@/components/shows/ShowDetailSkeleton';
 import ShowNotFound from '@/components/shows/ShowNotFound';
 import { useShowDetail } from '@/hooks/use-show-detail';
 
-const ShowDetail = () => {
-  const { id } = useParams<{ id: string }>();
+interface ShowDetailProps {
+  id?: string;
+}
+
+const ShowDetail: React.FC<ShowDetailProps> = ({ id: propId }) => {
+  const { id: paramId } = useParams<{ id: string }>();
+  const id = propId || paramId;
   const navigate = useNavigate();
   
   useEffect(() => {

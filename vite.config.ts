@@ -13,14 +13,7 @@ export default defineConfig(({ mode }) => ({
       // Add wildcards to allow any lovable project domain
       "*.lovableproject.com"
     ],
-    proxy: {
-      // Proxy API requests to the Next.js API routes
-      '/api': {
-        target: 'http://localhost:3000',
-        changeOrigin: true,
-        secure: false,
-      }
-    }
+    // proxy: { ... } // Removed incorrect proxy setting
   },
   plugins: [
     react(),

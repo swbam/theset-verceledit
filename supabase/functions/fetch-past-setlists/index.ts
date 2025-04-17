@@ -88,48 +88,97 @@ serve(async (req) => {
     for (const setlist of setlistsData.setlist.slice(0, 5)) { // Limit to 5 most recent
       // Check if this setlist is already in our database
       const { data: existingSetlist } = await supabase
-        .from("past_setlists")
-        .select("id, setlist_data")
+        .from("setlists")
+        .select(`
+          id,
+          show:shows (
+            id,
+            name,
+            date,
+            venue:venues (
+              name,
+              city,
+              state
+            )
+          ),
+          songs:played_setlist_songs (
+            id,
+            position,
+            is_encore,
+            info,
+            song:songs (
+              id,
+              name
+            )
+          )
+        `)
         .eq("setlist_id", setlist.id)
         .maybeSingle();
       
       if (existingSetlist) {
-        processedSetlists.push({
-          id: existingSetlist.id,
-          ...existingSetlist.setlist_data
-        });
+        processedSetlists.push(existingSetlist);
         continue;
       }
       
-      // Process setlist data
-      const processedSetlist = {
-        id: setlist.id,
-        artist: {
-          name: setlist.artist.name,
-          mbid: setlist.artist.mbid
-        },
-        venue: {
-          name: setlist.venue.name,
+      // Extract songs from the setlist
+      const songs = [];
+      if (setlist.sets?.set) {
+        let position = 1;
+        for (const set of setlist.sets.set) {
+          const isEncore = set.encore || false;
+          for (const song of (set.song || [])) {
+            songs.push({
+              name: song.name,
+              position: position++,
+              is_encore: isEncore,
+              info: song.info || null
+            });
+          }
+        }
+      }
+
+      // Create show record first
+      const { data: show, error: showError } = await supabase
+        .from("shows")
+        .insert({
+          name: `${setlist.artist.name} at ${setlist.venue.name}`,
+          date: setlist.eventDate ?
+            `${setlist.eventDate.slice(6, 10)}-${setlist.eventDate.slice(3, 5)}-${setlist.eventDate.slice(0, 2)}` :
+            null,
+          artist_id: artistId,
+          venue_name: setlist.venue.name,
           city: setlist.venue.city.name,
           country: setlist.venue.city.country.name
-        },
-        tour: setlist.tour?.name,
-        eventDate: setlist.eventDate,
-        sets: setlist.sets
-      };
-      
-      // Store in database
+        })
+        .select()
+        .single();
+
+      if (showError) {
+        console.error("Error creating show:", showError);
+        continue;
+      }
+
+      // Create setlist record
       const { data: insertedSetlist, error } = await supabase
-        .from("past_setlists")
+        .from("setlists")
         .insert({
           setlist_id: setlist.id,
           artist_id: artistId,
-          event_date: setlist.eventDate ? 
-            `${setlist.eventDate.slice(6, 10)}-${setlist.eventDate.slice(3, 5)}-${setlist.eventDate.slice(0, 2)}` : 
-            null,
-          setlist_data: processedSetlist
+          show_id: show.id
         })
-        .select("id")
+        .select(`
+          id,
+          show:shows (
+            id,
+            name,
+            date,
+            venue:venues (
+              name,
+              city,
+              state
+            )
+          )
+        `)
         .single();
       
       if (error) {

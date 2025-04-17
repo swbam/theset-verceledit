@@ -1,6 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
-import { searchArtistsWithEvents } from "@/lib/ticketmaster";
-import { Artist, Show, Venue } from "@/lib/types";
+import { Artist } from "@/lib/types";
+import { callTicketmasterApi } from "@/lib/api/ticketmaster-config";
 
 export async function GET(request: Request) {
   try {
@@ -18,126 +18,79 @@ export async function GET(request: Request) {
       });
     }
 
-    let results: any[] = [];
-
-    switch (type) {
-      case 'artist':
-        // Search Ticketmaster for artists
-        const artists = await searchArtistsWithEvents(query);
-        if (artists && artists.length > 0) {
-          // Process each artist through sync function
-          const processedArtists = await Promise.all(artists.map(async (artist) => {
-            try {
-              const result = await supabase.functions.invoke('sync-artist', {
-                body: { 
-                  artistId: artist.id,
-                  payload: artist
-                }
-              });
-
-              if (!result.data?.success) {
-                console.error(`Error syncing artist ${artist.name}:`, result.error);
-                return null;
-              }
-
-              return result.data.data as Artist;
-            } catch (error) {
-              console.error(`Error processing artist ${artist.name}:`, error);
-              return null;
-            }
-          }));
-
-          // Filter out failed syncs
-          results = processedArtists.filter(artist => artist !== null);
-        }
-        break;
-
-      case 'venue':
-        // Search for venues in database first
-        const { data: venues, error: venueError } = await supabase
-          .from('venues')
-          .select('*')
-          .ilike('name', `%${query}%`)
-          .limit(10);
-
-        if (venueError) {
-          throw venueError;
-        }
-
-        // Process each venue
-        if (venues && venues.length > 0) {
-          const processedVenues = await Promise.all(venues.map(async (venue) => {
-            try {
-              const result = await supabase.functions.invoke('sync-venue', {
-                body: { venueId: venue.id }
-              });
-
-              if (!result.data?.success) {
-                console.error(`Error syncing venue ${venue.name}:`, result.error);
-                return null;
-              }
-
-              return result.data.data as Venue;
-            } catch (error) {
-              console.error(`Error processing venue ${venue.name}:`, error);
-              return null;
-            }
-          }));
-
-          results = processedVenues.filter(venue => venue !== null);
-        }
-        break;
-
-      case 'show':
-        // Search for shows in database
-        const { data: shows, error: showError } = await supabase
-          .from('shows')
-          .select(`
-            *,
-            artist:artists(*),
-            venue:venues(*)
-          `)
-          .ilike('name', `%${query}%`)
-          .limit(10);
-
-        if (showError) {
-          throw showError;
-        }
-
-        // Process each show
-        if (shows && shows.length > 0) {
-          const processedShows = await Promise.all(shows.map(async (show) => {
-            try {
-              const result = await supabase.functions.invoke('sync-show', {
-                body: { showId: show.id }
-              });
-
-              if (!result.data?.success) {
-                console.error(`Error syncing show ${show.name}:`, result.error);
-                return null;
-              }
-
-              return result.data.data as Show;
-            } catch (error) {
-              console.error(`Error processing show ${show.name}:`, error);
-              return null;
-            }
-          }));
-
-          results = processedShows.filter(show => show !== null);
-        }
-        break;
-
-      default:
-        return new Response(JSON.stringify({
-          success: false,
-          error: `Invalid search type: ${type}`
-        }), {
-          status: 400,
-          headers: { 'Content-Type': 'application/json' }
-        });
+    if (type !== 'artist') {
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'Only artist search is currently supported'
+      }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
     }
 
+    // Search Ticketmaster for artists using server-side API call
+    const data = await callTicketmasterApi('attractions.json', {
+      keyword: query,
+      size: '10'
+    });
+
+    if (!data._embedded?.attractions) {
+      return new Response(JSON.stringify({
+        success: true,
+        results: []
+      }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    // Filter and transform attractions
+    const artists = data._embedded.attractions
+      .filter((attraction: any) => {
+        // Filter out tribute/cover bands
+        const name = attraction.name.toLowerCase();
+        const isTribute = name.includes('tribute') ||
+                        name.includes('cover') ||
+                        name.includes('experience') ||
+                        name.includes('celebrating');
+        
+        const segment = attraction.classifications?.[0]?.segment?.name?.toLowerCase();
+        const isAttractionSegment = segment === 'attraction' || segment === 'miscellaneous';
+        
+        return !isTribute && !isAttractionSegment;
+      })
+      .map((attraction: any) => ({
+        id: attraction.id,
+        name: attraction.name,
+        image_url: attraction.images?.find((img: any) => img.ratio === "16_9" && img.width > 500)?.url,
+        genres: attraction.classifications?.[0]?.genre?.name ? [attraction.classifications[0].genre.name] : [],
+        url: attraction.url
+      }));
+
+    // Process each artist through sync function
+    const processedArtists = await Promise.all(artists.map(async (artist) => {
+      try {
+        const result = await supabase.functions.invoke('sync-artist', {
+          body: {
+            artistId: artist.id,
+            payload: artist
+          }
+        });
+
+        if (!result.data?.success) {
+          console.error(`Error syncing artist ${artist.name}:`, result.error);
+          return null;
+        }
+
+        return result.data.data as Artist;
+      } catch (error) {
+        console.error(`Error processing artist ${artist.name}:`, error);
+        return null;
+      }
+    }));
+
+    // Filter out failed syncs and return results
+    const results = processedArtists.filter(artist => artist !== null);
     return new Response(JSON.stringify({
       success: true,
       results

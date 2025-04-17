@@ -1,59 +1,92 @@
 import { supabaseAdmin } from './supabaseClient.ts';
-import type { SpotifyTrack } from './types.ts';
-// Assuming Spotify API logic is moved to a shared utility or another function
-import { getArtistAllTracks } from './spotifyUtils.ts'; // Adjust if Spotify logic is elsewhere
+import type { SpotifyTrack, Song } from './types.ts';
+import { getArtistAllTracks } from './spotifyUtils.ts';
+import { retry } from './retryUtils.ts';
+import { handleError, ErrorSource } from './errorUtils.ts';
 
 /**
- * Store artist songs in the database (used internally by fetchAndStoreArtistTracks)
+ * Store artist songs in the database with retry logic and error reporting
  */
 async function storeSongsInDatabase(artistId: string, tracks: SpotifyTrack[]) {
-  if (!tracks || tracks.length === 0) return false; // Return boolean for consistency
+  if (!tracks || tracks.length === 0) return false;
 
   try {
     console.log(`Storing ${tracks.length} songs for artist ${artistId}`);
 
-    const batchSize = 50; // Supabase recommends batch sizes around 50-100
+    const batchSize = 50;
+    let totalStored = 0;
 
     for (let i = 0; i < tracks.length; i += batchSize) {
       const batch = tracks.slice(i, i + batchSize);
 
       const songs = batch.map(track => ({
-        // Assuming your 'songs' table has these columns
-        // Generate a UUID for the song ID if your table requires it and it's not auto-generated
-        // id: crypto.randomUUID(), // Uncomment if needed
+        id: track.id,
+        artist_id: artistId,
         name: track.name,
-        artist_id: artistId, // Ensure this artistId corresponds to the DB entry
         spotify_id: track.id,
         duration_ms: track.duration_ms,
-        popularity: track.popularity || 0,
-        preview_url: track.preview_url || null,
+        preview_url: track.preview_url || undefined,
+        popularity: track.popularity || undefined,
         updated_at: new Date().toISOString()
       }));
 
-      // Use the admin client imported for Edge Functions
-      const { error } = await supabaseAdmin
-        .from('songs')
-        .upsert(songs, {
-          onConflict: 'spotify_id', // Ensure this constraint exists on your 'songs' table
-          ignoreDuplicates: false // Update existing songs based on spotify_id
-        });
+      // Use retry utility for resilient database operations
+      await retry(
+        async () => {
+          const { error: upsertError } = await supabaseAdmin
+            .from('songs')
+            .upsert(songs, {
+              onConflict: 'spotify_id',
+              ignoreDuplicates: false
+            });
 
-      if (error) {
-        console.error(`[storeSongsInDatabase] Error storing songs batch for artist ${artistId}:`, error);
-        // Throw error to signal failure to the calling function
-        throw new Error(`Failed to store song batch for artist ${artistId}. Code: ${error.code}, Message: ${error.message}`);
-      }
+          if (upsertError) {
+            // Specific error handling based on error type
+            if (upsertError.code === '23505') { // Unique violation
+              console.warn(`[storeSongsInDatabase] Duplicate songs detected for artist ${artistId}`);
+              return; // Continue with next batch
+            }
+            
+            if (upsertError.code === '23503') { // Foreign key violation
+              handleError({
+                message: `Invalid artist ID ${artistId} - ensure artist exists first`,
+                source: ErrorSource.Database,
+                originalError: upsertError,
+                context: { artistId, batchSize: songs.length }
+              });
+              throw upsertError; // Retry might help if artist was just created
+            }
+
+            // For other errors, throw to trigger retry
+            throw upsertError;
+          }
+
+          totalStored += songs.length;
+          console.log(`[storeSongsInDatabase] Stored batch of ${songs.length} songs for artist ${artistId}`);
+        },
+        {
+          retries: 3,
+          minTimeout: 1000,
+          maxTimeout: 5000,
+          onRetry: (error: Error, attempt: number) => {
+            console.warn(`[storeSongsInDatabase] Retry attempt ${attempt} for artist ${artistId}:`, error);
+          }
+        }
+      );
     }
 
-    console.log(`Successfully stored/updated ${tracks.length} songs for artist ${artistId}`);
+    console.log(`[storeSongsInDatabase] Successfully stored/updated ${totalStored} songs for artist ${artistId}`);
     return true;
   } catch (error) {
-    console.error(`Error in storeSongsInDatabase for artist ${artistId}:`, error);
-    // Re-throw the error so fetchAndStoreArtistTracks knows it failed
-    throw error;
+    handleError({
+      message: `Failed to store songs for artist ${artistId}`,
+      source: ErrorSource.Database,
+      originalError: error,
+      context: { artistId, trackCount: tracks.length }
+    });
+    throw error; // Re-throw for the calling function to handle
   }
 }
-
 
 /**
  * Fetch and store artist tracks from Spotify

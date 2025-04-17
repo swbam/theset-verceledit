@@ -3,6 +3,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { supabase } from '@/integrations/supabase/client';
 import { addVoteToSong, getSetlistWithVotes } from '@/lib/api/database/votes';
 import { toast } from 'sonner';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface Song {
   id: string;
@@ -24,6 +25,7 @@ export default function SetlistTable({ setlistId, showTitle }: SetlistTableProps
   const [songs, setSongs] = useState<Song[]>([]);
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   
   // Fetch setlist data on component mount
   useEffect(() => {
@@ -32,10 +34,7 @@ export default function SetlistTable({ setlistId, showTitle }: SetlistTableProps
     async function fetchSetlist() {
       try {
         setLoading(true);
-        
-        // Use the database function to get setlist with user's vote status
         const songsData = await getSetlistWithVotes(setlistId, user?.id);
-        // Map/transform to ensure vote_count is a number and name is present
         setSongs(
           songsData.map((song: any) => ({
             ...song,
@@ -52,34 +51,39 @@ export default function SetlistTable({ setlistId, showTitle }: SetlistTableProps
     }
     
     fetchSetlist();
-    
-    // Set up real-time subscription for votes
+  }, [setlistId, user?.id]);
+
+  // Subscribe to realtime vote updates
+  useEffect(() => {
+    if (!setlistId) return;
+
     const channel = supabase
-      .channel(`setlist:${setlistId}`)
-      .on('postgres_changes', { 
-        event: 'UPDATE', 
-        schema: 'public', 
-        table: 'played_setlist_songs',
+      .channel(`setlist-votes-${setlistId}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'votes',
         filter: `setlist_id=eq.${setlistId}`
-      }, (payload) => {
-        console.log('Setlist song updated:', payload);
-        // Update the song in the local state
-        setSongs(currentSongs => 
-          currentSongs.map(song => 
-            song.id === payload.new.id 
-              ? { ...song, vote_count: typeof payload.new.vote_count === 'number' ? payload.new.vote_count : 0 } 
-              : song
-          ).sort((a, b) => b.vote_count - a.vote_count) // Re-sort by vote_count
+      }, async () => {
+        // Refetch the entire setlist to get updated vote counts
+        const updatedSongs = await getSetlistWithVotes(setlistId, user?.id);
+        setSongs(
+          updatedSongs.map((song: any) => ({
+            ...song,
+            name: song.name ?? song.title ?? 'Untitled',
+            vote_count: typeof song.vote_count === 'number' ? song.vote_count : 0,
+          }))
         );
+        // Invalidate any related queries
+        queryClient.invalidateQueries(['setlist', setlistId]);
       })
       .subscribe();
-    
-    // Clean up subscription on unmount
+
     return () => {
-      supabase.removeChannel(channel);
+      channel.unsubscribe();
     };
-  }, [setlistId, user?.id]);
-  
+  }, [setlistId, user?.id, queryClient]);
+
   // Vote for a song
   const handleVote = async (songId: string) => {
     if (!user) {

@@ -4,6 +4,8 @@ import { Calendar, MapPin } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { format, parseISO } from 'date-fns';
+import { generateShowUrl } from '@/lib/utils';
+import { generateShowUrl } from '@/lib/utils';
 
 interface ShowCardProps {
   show: {
@@ -40,8 +42,16 @@ export default function ShowCard({ show }: ShowCardProps) {
     ? `${show.venue.name}${show.venue.city ? `, ${show.venue.city}` : ''}${show.venue.state ? `, ${show.venue.state}` : ''}`
     : 'Venue TBA';
 
+  // Generate SEO-friendly URL
+  const showUrl = generateShowUrl({
+    artistName,
+    cityName: show.venue?.city || 'TBA',
+    date: show.date,
+    showId: show.id
+  });
+
   return (
-    <Link to={`/shows/${show.id}`}>
+    <Link to={showUrl}>
       <Card className="h-full bg-[#111111]/80 border-white/10 overflow-hidden hover:border-white/30 transition duration-200 hover:translate-y-[-2px]">
         {/* Image section */}
         <div className="relative aspect-[16/9] overflow-hidden">

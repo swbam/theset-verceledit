@@ -100,23 +100,23 @@ async function syncArtistSongs(supabaseAdmin: any, artistId: string, artistName:
     for (let i = 0; i < tracks.length; i += batchSize) {
       const batch = tracks.slice(i, i + batchSize);
       const songsToUpsert = batch.map(track => ({
-        id: track.id, // Use Spotify ID as primary key
+        // id: track.id, // Let the DB generate the UUID PK
         name: track.name,
         artist_id: artistId,
-        spotify_id: track.id,
+        spotify_id: track.id, // Use spotify_id for conflict resolution
         spotify_url: track.external_urls?.spotify || null,
         preview_url: track.preview_url || null,
         duration_ms: track.duration_ms || null,
         popularity: track.popularity || null,
         album_name: track.album?.name || null,
-        album_image: track.album?.images?.[0]?.url || null,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
+        album_image: track.album?.images?.[0]?.url || null, // Ensure this column exists
+        // created_at will default
+        updated_at: new Date().toISOString() // Set updated_at
       }));
 
       const { error } = await supabaseAdmin
-        .from('songs')
-        .upsert(songsToUpsert, { onConflict: 'spotify_id' });
+        .from('tracks') // Corrected table name
+        .upsert(songsToUpsert, { onConflict: 'spotify_id' }); // Use spotify_id for conflict
 
       if (error) {
         console.error(`Error upserting songs batch for ${artistName}:`, error);
@@ -141,7 +141,7 @@ async function syncSingleSong(supabaseAdmin: any, songId: string): Promise<Song 
   try {
     // Get existing song data
     const { data: song, error } = await supabaseAdmin
-      .from('songs')
+      .from('tracks') // Corrected table name
       .select('*')
       .eq('id', songId)
       .single();
@@ -191,7 +191,7 @@ async function syncSingleSong(supabaseAdmin: any, songId: string): Promise<Song 
     };
 
     const { error: upsertError } = await supabaseAdmin
-      .from('songs')
+      .from('tracks') // Corrected table name
       .upsert(updatedSong);
 
     if (upsertError) {

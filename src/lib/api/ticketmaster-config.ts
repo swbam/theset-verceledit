@@ -1,10 +1,10 @@
 import { ErrorSource, handleError } from '@/lib/error-handling';
 
-// Ticketmaster API key
-const TICKETMASTER_API_KEY = import.meta.env.VITE_TICKETMASTER_API_KEY;
+// Ticketmaster API key - use VITE_ prefix for both server and client
+const TICKETMASTER_API_KEY = typeof process !== 'undefined' ? process.env.VITE_TICKETMASTER_API_KEY : import.meta.env.VITE_TICKETMASTER_API_KEY;
 
 // Determine if we're in a development environment
-const isDevelopment = import.meta.env.DEV || (typeof window !== 'undefined' && window.location.hostname === 'localhost');
+const isDevelopment = typeof process !== 'undefined' ? process.env.NODE_ENV === 'development' : import.meta.env.DEV || (typeof window !== 'undefined' && window.location.hostname === 'localhost');
 
 // API base URL - use direct API in development, proxy in production
 const API_BASE_URL = isDevelopment 

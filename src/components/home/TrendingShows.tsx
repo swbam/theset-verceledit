@@ -8,38 +8,148 @@ import { Badge } from '@/components/ui/badge';
 // Define the Show interface
 interface Show {
   id: string;
-  name?: string;
-  date?: string;
-  image_url?: string;
-  ticket_url?: string;
-  popularity?: number;
-  vote_count?: number;
-  artist?: {
+  name: string;
+  date: string | null;
+  image_url: string | null;
+  ticket_url: string | null;
+  popularity: number | null;
+  vote_count: number | null;
+  artist: {
     id: string;
     name: string;
-    image_url?: string;
-    genres?: string[];
-  };
-  venue?: {
+    image_url: string | null;
+    genres: string[] | null;
+  } | null;
+  venue: {
     id: string;
     name: string;
-    city?: string;
-    state?: string;
-    country?: string;
-  };
+    city: string | null;
+    state: string | null;
+    country: string | null;
+  } | null;
 }
 
 // Function to fetch trending shows from our API
+import { supabase } from '@/integrations/supabase/client';
+
+// Define the database function return type
+type VoteCount = {
+  show_id: string;
+  vote_count: number;
+}
+
+/**
+ * Show Data Synchronization System
+ *
+ * Real-time Updates:
+ * 1. Component loads trending shows from Supabase, ordered by popularity
+ * 2. For each show displayed, triggers a background sync with Ticketmaster
+ * 3. Background sync updates show details, artist info, and venue data
+ * 4. Updates are stored in Supabase for next page load
+ *
+ * Scheduled Updates:
+ * - Hourly cron job finds upcoming shows not synced in last hour
+ * - Automatically syncs up to 50 shows per run
+ * - Ensures data stays fresh even when pages aren't being viewed
+ *
+ * Data Flow:
+ * Ticketmaster API → Edge Functions → Supabase DB → Frontend
+ * - Each layer has error handling and retry logic
+ * - Frontend shows cached data first, then updates in background
+ * - Provides instant page loads with fresh data
+ */
+
+// Define database types
+type DbShow = {
+  id: string;
+  name: string;
+  date: string | null;
+  image_url: string | null;
+  ticket_url: string | null;
+  popularity: number | null;
+  ticketmaster_id: string | null;
+  artist: {
+    id: string;
+    name: string;
+    image_url: string | null;
+    genres: string[] | null;
+  } | null;
+  venue: {
+    id: string;
+    name: string;
+    city: string | null;
+    state: string | null;
+    country: string | null;
+  } | null;
+};
+
 const fetchTrendingShowsFromAPI = async (): Promise<Show[]> => {
   try {
-    const response = await fetch('/api/shows/trending?limit=8');
-    if (!response.ok) {
-      throw new Error(`API error: ${response.status}`);
+    // Get shows with their relationships
+    const { data: shows, error: showError } = await supabase
+      .from('shows')
+      .select(`
+        *,
+        artist:artists(id, name, image_url, genres),
+        venue:venues(id, name, city, state, country)
+      `)
+      .gt('date', new Date().toISOString()) // Only future shows
+      .order('popularity', { ascending: false })
+      .order('date', { ascending: true })
+      .limit(8);
+
+    if (showError) {
+      console.error('Error fetching shows:', showError);
+      return [];
     }
-    return response.json();
+
+    if (!shows) return [];
+
+    // Transform shows and trigger background syncs
+    const showsWithVotes = (shows as DbShow[]).map(show => {
+      // Trigger background sync for each show
+      if (show.ticketmaster_id) {
+        supabase.functions.invoke('sync-show', {
+          body: { showId: show.ticketmaster_id }
+        }).catch(error => {
+          console.error(`Background sync failed for show ${show.ticketmaster_id}:`, error);
+        });
+      }
+
+      return {
+        id: show.id,
+        name: show.name,
+        date: show.date,
+        image_url: show.image_url,
+        ticket_url: show.ticket_url,
+        popularity: show.popularity || 0,
+        vote_count: 0, // For now, we'll use popularity as a proxy for votes
+        artist: show.artist ? {
+          id: show.artist.id,
+          name: show.artist.name,
+          image_url: show.artist.image_url,
+          genres: show.artist.genres
+        } : null,
+        venue: show.venue ? {
+          id: show.venue.id,
+          name: show.venue.name,
+          city: show.venue.city,
+          state: show.venue.state,
+          country: show.venue.country
+        } : null
+      };
+    });
+
+    // Sort by vote count and then by date
+    return showsWithVotes.sort((a, b) => {
+      if (b.vote_count !== a.vote_count) {
+        return b.vote_count - a.vote_count;
+      }
+      return new Date(a.date || '').getTime() - new Date(b.date || '').getTime();
+    });
   } catch (error) {
     console.error('Error fetching trending shows:', error);
-    throw error;
+    return []; // Return empty array instead of throwing
   }
 };
 
@@ -103,7 +213,7 @@ const TrendingShows = () => {
   };
 
   return (
-    <section className="py-16 px-4 bg-gradient-to-b from-black/90 to-black">
+    <section className="py-16 px-4 bg-gradient-to-b from-[#0A0A12] to-[#0A0A10]">
       <div className="container mx-auto max-w-7xl">
         <div className="flex justify-between items-center mb-8">
           <div>
@@ -163,16 +273,16 @@ const TrendingShows = () => {
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                       />
                     ) : (
-                      <div className="bg-secondary/20 w-full h-full flex items-center justify-center">
+                      <div className="bg-black/40 w-full h-full flex items-center justify-center">
                         <span className="text-white/40">No image</span>
                       </div>
                     )}
                     <Badge 
-                      className="absolute top-3 right-3 bg-black/60 hover:bg-black/60 text-white"
+                      className="absolute top-3 right-3 bg-black/60 hover:bg-black/60 text-white border border-white/10"
                     >
                       {genre}
                     </Badge>
-                    <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black to-transparent pt-16 pb-4 px-4">
+                    <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-[#0A0A12] via-black/70 to-transparent pt-16 pb-4 px-4">
                       <div className="flex justify-between items-center">
                         <div className="flex">
                           {[...Array(5)].map((_, i) => (

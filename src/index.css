@@ -1,5 +1,5 @@
-/* Import Inter font from Google Fonts */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@100;200;300;400;500;600;700;800;900&display=swap');
+/* Import Overpass font from Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Overpass:wght@100;200;300;400;500;600;700;800;900&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -7,83 +7,83 @@
 
 @layer base {
   :root {
-    --background: 0 0% 0%; /* Pure black background like X/Twitter */
+    --background: 185 20% 3%; /* Dark teal-black background */
     --foreground: 0 0% 95%;
 
-    --card: 0 0% 7%; /* Just slightly lighter than background */
+    --card: 185 20% 5%; /* Slightly lighter than background */
     --card-foreground: 0 0% 95%;
 
-    --popover: 0 0% 7%;
+    --popover: 185 20% 5%;
     --popover-foreground: 0 0% 95%;
 
-    --primary: 142 76% 36%; /* Spotify-like green */
-    --primary-foreground: 0 0% 98%;
+    --primary: 175 84% 36%; /* Teal */
+    --primary-foreground: 0 0% 0%;
 
-    --secondary: 0 0% 12%; /* Dark grey secondary */
+    --secondary: 185 20% 8%; /* Dark teal-grey secondary */
     --secondary-foreground: 0 0% 95%;
 
-    --muted: 0 0% 12%;
+    --muted: 185 20% 8%;
     --muted-foreground: 0 0% 65%;
 
-    --accent: 142 76% 36%; /* Green for accents */
-    --accent-foreground: 0 0% 98%;
+    --accent: 175 84% 36%; /* Same teal for accents */
+    --accent-foreground: 0 0% 0%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 98%;
 
-    --border: 0 0% 15%; /* Grey border */
-    --input: 0 0% 15%;
-    --ring: 142 76% 36%; /* Green for focus rings */
+    --border: 185 20% 12%; /* Dark teal-grey border */
+    --input: 185 20% 12%;
+    --ring: 175 84% 36%; /* Teal for focus rings */
 
-    --sidebar-background: 0 0% 5%;
+    --sidebar-background: 185 20% 2%;
     --sidebar-foreground: 0 0% 96%;
-    --sidebar-primary: 142 76% 36%; /* Green */
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 0 0% 15%;
+    --sidebar-primary: 175 84% 36%; /* Teal */
+    --sidebar-primary-foreground: 0 0% 0%;
+    --sidebar-accent: 185 20% 12%;
     --sidebar-accent-foreground: 0 0% 96%;
-    --sidebar-border: 0 0% 15%;
-    --sidebar-ring: 142 76% 36%; /* Green */
+    --sidebar-border: 185 20% 12%;
+    --sidebar-ring: 175 84% 36%; /* Teal */
 
     --radius: 0.5rem;
   }
 
   .light {
     --background: 0 0% 100%;
-    --foreground: 0 0% 10%;
+    --foreground: 185 20% 3%;
 
-    --card: 0 0% 100%;
-    --card-foreground: 0 0% 10%;
+    --card: 0 0% 98%;
+    --card-foreground: 185 20% 3%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 10%;
+    --popover: 0 0% 98%;
+    --popover-foreground: 185 20% 3%;
 
-    --primary: 142 76% 36%; /* Green */
-    --primary-foreground: 0 0% 100%;
+    --primary: 175 84% 36%; /* Same teal as dark theme */
+    --primary-foreground: 0 0% 0%;
 
-    --secondary: 0 0% 96%;
-    --secondary-foreground: 0 0% 10%;
+    --secondary: 185 20% 96%;
+    --secondary-foreground: 185 20% 3%;
 
-    --muted: 0 0% 96%;
-    --muted-foreground: 0 0% 46%;
+    --muted: 185 20% 96%;
+    --muted-foreground: 185 20% 40%;
 
-    --accent: 142 76% 36%; /* Green */
-    --accent-foreground: 0 0% 100%;
+    --accent: 175 84% 36%; /* Same teal as dark theme */
+    --accent-foreground: 0 0% 0%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 98%;
 
-    --border: 0 0% 90%;
-    --input: 0 0% 90%;
-    --ring: 142 76% 36%; /* Green */
+    --border: 185 20% 90%;
+    --input: 185 20% 90%;
+    --ring: 175 84% 36%; /* Same teal as dark theme */
 
     --sidebar-background: 0 0% 100%;
-    --sidebar-foreground: 0 0% 26%;
-    --sidebar-primary: 142 76% 36%; /* Green */
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 210 95% 95%;
-    --sidebar-accent-foreground: 210 100% 50%;
-    --sidebar-border: 0 0% 91%;
-    --sidebar-ring: 142 76% 36%; /* Green */
+    --sidebar-foreground: 185 20% 3%;
+    --sidebar-primary: 175 84% 36%; /* Same teal as dark theme */
+    --sidebar-primary-foreground: 0 0% 0%;
+    --sidebar-accent: 175 84% 95%;
+    --sidebar-accent-foreground: 175 84% 30%;
+    --sidebar-border: 185 20% 91%;
+    --sidebar-ring: 175 84% 36%; /* Same teal as dark theme */
   }
 }
 
@@ -123,15 +123,15 @@
   }
 
   .app-gradient {
-    @apply bg-gradient-to-b from-black to-[#0A1F13]; /* Dark green gradient */
+    @apply bg-gradient-to-b from-[#0A1516] to-[#0A1214]; /* Dark teal gradient */
   }
 
   .card-gradient {
-    @apply bg-gradient-to-b from-[#0A1F13] to-[#122D1C]; /* Slightly lighter green gradient for cards */
+    @apply bg-gradient-to-b from-[#0A1516] to-[#0A1214]; /* Dark teal gradient for cards */
   }
 
   .header-gradient {
-    @apply bg-gradient-to-b from-black/90 via-[#0A1F13]/80 to-transparent;
+    @apply bg-gradient-to-b from-[#0A1516] via-black/70 to-transparent;
   }
   
   .neo-blur {
@@ -151,12 +151,53 @@
     scrollbar-width: none;  /* Firefox */
   }
 
-  /* Twitter-like button styles */
-  .btn-twitter {
-    @apply rounded-full bg-primary hover:bg-primary/90 text-white font-medium transition-colors;
+  /* Button styles */
+  .btn-primary {
+    @apply rounded-full bg-primary hover:bg-primary/90 text-black font-medium transition-colors;
   }
 
-  .btn-twitter-outline {
-    @apply rounded-full border border-primary text-primary hover:bg-primary/10 font-medium transition-colors;
+  .btn-outline {
+    @apply rounded-full border border-primary/20 text-primary hover:bg-primary/10 font-medium transition-colors;
   }
+  
+  .btn-secondary {
+    @apply rounded-full bg-secondary/50 hover:bg-secondary/70 text-white font-medium transition-colors;
+  }
+  
+  .btn-ghost {
+    @apply rounded-full hover:bg-white/5 text-white font-medium transition-colors;
+  }
+}
+
+/* Custom utilities and extensions */
+.hover-primary {
+  @apply hover:text-primary transition-colors duration-200;
+}
+
+.gradient-text {
+  @apply bg-gradient-to-r from-primary to-[#00EFC4] bg-clip-text text-transparent;
+}
+
+.gradient-border {
+  @apply border border-transparent bg-gradient-to-r from-primary to-[#00EFC4] bg-clip-border;
+}
+
+.card-hover {
+  @apply transition-all duration-300 hover:shadow-md hover:shadow-primary/10 hover:border-primary/30;
+}
+
+.nav-link {
+  @apply text-foreground/80 hover:text-primary transition-colors;
+}
+
+.nav-link-active {
+  @apply text-primary;
+}
+
+.icon-button {
+  @apply p-2 rounded-full hover:bg-white/5 text-foreground/70 hover:text-primary transition-colors;
+}
+
+.search-input {
+  @apply bg-secondary/50 border border-border/50 rounded-lg px-4 py-2 focus:outline-none focus:ring-1 focus:ring-primary/30 text-foreground placeholder:text-foreground/40;
 }

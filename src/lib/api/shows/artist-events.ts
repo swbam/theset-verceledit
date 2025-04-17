@@ -27,20 +27,29 @@ export async function fetchArtistEvents(artistIdentifier: string): Promise<Show[
   try {
     console.log(`Fetching events for artist ID: ${artistIdentifier}`);
     
-    // Skip database check and go straight to API
     // Determine search parameter based on ID format
     let searchParam: any = {};
     
-    if (artistIdentifier.startsWith('K')) {
+    // Check if it's a Ticketmaster ID (usually starts with K or G)
+    if (/^[KG]\d/.test(artistIdentifier)) {
       // Ticketmaster ID
       searchParam = { attractionId: artistIdentifier };
-    } else if (artistIdentifier.startsWith('tm-')) {
-      // Custom ID with artist name
-      const artistName = decodeURIComponent(artistIdentifier.replace('tm-', '')).replace(/-/g, ' ');
-      searchParam = { keyword: artistName };
     } else {
-      // Treat as keyword
-      searchParam = { keyword: artistIdentifier };
+      // First try to get the artist from Supabase to get their Ticketmaster ID
+      const { data: artist } = await supabase
+        .from('artists')
+        .select('ticketmaster_id, name')
+        .eq('id', artistIdentifier)
+        .single();
+
+      if (artist?.ticketmaster_id) {
+        searchParam = { attractionId: artist.ticketmaster_id };
+      } else if (artist?.name) {
+        searchParam = { keyword: artist.name };
+      } else {
+        // Fallback to using the ID as a keyword
+        searchParam = { keyword: artistIdentifier };
+      }
     }
     
     console.log(`Fetching from Ticketmaster API with params:`, searchParam);
