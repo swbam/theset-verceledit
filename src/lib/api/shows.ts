@@ -12,7 +12,7 @@ export async function fetchShowDetails(showId: string): Promise<Show | null> {
         artist:artists(*),
         venue:venues(*)
       `)
-      .or(`id.eq.${showId},external_id.eq.${showId}`)
+      .or(`id.eq.${showId},ticketmaster_id.eq.${showId}`)
       .single();
 
     if (error) throw error;
@@ -29,7 +29,7 @@ export async function fetchShowDetails(showId: string): Promise<Show | null> {
     
     return {
       ...show,
-      external_id: show.external_id || undefined,
+      ticketmaster_id: show.ticketmaster_id || undefined,
       artist: show.artist ? {
         id: show.artist.id,
         name: show.artist.name
@@ -169,7 +169,7 @@ export async function getShowById(id: string): Promise<Show | null> {
         artist:artists(*),
         venue:venues(*)
       `)
-      .or(`id.eq.${id},external_id.eq.${id}`)
+      .or(`id.eq.${id},ticketmaster_id.eq.${id}`)
       .single();
 
     if (error) throw error;
