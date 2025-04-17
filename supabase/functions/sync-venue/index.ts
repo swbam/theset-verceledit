@@ -11,7 +11,7 @@ interface SyncVenuePayload {
 
 interface Venue {
   id?: string;
-  external_id: string;
+  ticketmaster_id: string;
   name: string;
   city?: string | null;
   state?: string | null;
@@ -31,131 +31,96 @@ function getBestImage(images?: Array<{url: string, width: number, height: number
   return sorted[0].url;
 }
 
-async function fetchAndTransformVenueData(supabaseAdmin: any, venueExternalId: string): Promise<Venue | null> {
-  console.log(`Fetching data for venue with external_id ${venueExternalId}`);
+async function fetchAndTransformVenueData(supabaseAdmin: any, venueId: string): Promise<Venue | null> {
+  console.log(`Fetching data for venue ${venueId}`);
   let venue: Venue | null = null;
 
   try {
     const { data: existingVenue, error: existingError } = await supabaseAdmin
       .from('venues')
       .select('*')
-      .eq('external_id', venueExternalId)
+      .eq('ticketmaster_id', venueId)
       .maybeSingle();
 
     if (existingError) {
-      console.warn(`Error fetching existing venue ${venueExternalId}:`, existingError.message);
+      console.warn(`Error fetching existing venue ${venueId}:`, existingError.message);
     }
     if (existingVenue) {
-      console.log(`Found existing data for venue ${venueExternalId}`);
+      console.log(`Found existing data for venue ${venueId}`);
       venue = existingVenue as Venue;
     }
-  } catch (e) {
-     const errorMsg = e instanceof Error ? e.message : String(e);
-     console.warn(`Exception fetching existing venue ${venueExternalId}:`, errorMsg);
-  }
 
-  const tmApiKey = Deno.env.get('TICKETMASTER_API_KEY');
-  if (!tmApiKey) {
-    console.error('TICKETMASTER_API_KEY not set in environment variables.');
-    if (!venue) return null;
-  } else {
-    try {
-      const tmUrl = `https://app.ticketmaster.com/discovery/v2/venues/${venueExternalId}.json?apikey=${tmApiKey}`;
-      console.log(`Fetching from Ticketmaster: ${tmUrl}`);
-      const tmResponse = await fetch(tmUrl);
+    const tmApiKey = Deno.env.get('TICKETMASTER_API_KEY');
+    if (!tmApiKey) {
+      console.error('TICKETMASTER_API_KEY not set in environment variables.');
+      if (!venue) return null;
+    } else {
+      try {
+        const tmUrl = `https://app.ticketmaster.com/discovery/v2/venues/${venueId}.json?apikey=${tmApiKey}`;
+        console.log(`Fetching from Ticketmaster: ${tmUrl}`);
+        const tmResponse = await fetch(tmUrl);
 
-      if (!tmResponse.ok) {
-        console.warn(`Ticketmaster API error for venue ${venueExternalId}: ${tmResponse.status} ${await tmResponse.text()}`);
-        if (!venue) return null;
-      } else {
-        const tmData = await tmResponse.json();
-        console.log(`Received Ticketmaster data for venue ${venueExternalId}`);
+        if (!tmResponse.ok) {
+          console.warn(`Ticketmaster API error for venue ${venueId}: ${tmResponse.status} ${await tmResponse.text()}`);
+          if (!venue) return null;
+        } else {
+          const tmData = await tmResponse.json();
+          console.log(`Received Ticketmaster data for venue ${venueId}`);
 
-        const address = [
-          tmData.address?.line1,
-          tmData.city?.name
-        ].filter(Boolean).join(', ');
+          const address = [
+            tmData.address?.line1,
+            tmData.city?.name
+          ].filter(Boolean).join(', ');
 
-        // Check for upcoming shows to queue
-        if (tmData._embedded?.events) {
-          for (const event of tmData._embedded.events) {
-            if (event.id) {
-              queueEntitySync(supabaseAdmin, 'show', event.id);
-            }
-            if (event._embedded?.attractions?.[0]?.id) {
-              queueEntitySync(supabaseAdmin, 'artist', event._embedded.attractions[0].id);
-            }
+          if (venue) {
+            venue.name = tmData.name;
+            venue.city = tmData.city?.name || venue.city || null;
+            venue.state = tmData.state?.stateCode || venue.state || null;
+            venue.country = tmData.country?.countryCode || venue.country || null;
+            venue.address = address || venue.address || null;
+            venue.latitude = typeof tmData.location?.latitude === 'string' ? parseFloat(tmData.location.latitude) : (tmData.location?.latitude ?? venue.latitude ?? null);
+            venue.longitude = typeof tmData.location?.longitude === 'string' ? parseFloat(tmData.location.longitude) : (tmData.location?.longitude ?? venue.longitude ?? null);
+            venue.url = tmData.url || venue.url || null;
+            venue.image_url = getBestImage(tmData.images) || venue.image_url || null;
+            venue.updated_at = new Date().toISOString();
+          } else {
+            venue = {
+              ticketmaster_id: venueId,
+              name: tmData.name,
+              city: tmData.city?.name || null,
+              state: tmData.state?.stateCode || null,
+              country: tmData.country?.countryCode || null,
+              address: address || null,
+              latitude: typeof tmData.location?.latitude === 'string' ? parseFloat(tmData.location.latitude) : (tmData.location?.latitude ?? null),
+              longitude: typeof tmData.location?.longitude === 'string' ? parseFloat(tmData.location.longitude) : (tmData.location?.longitude ?? null),
+              url: tmData.url || null,
+              image_url: getBestImage(tmData.images) || null,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            };
           }
         }
-
-        if (venue) {
-          venue.name = tmData.name;
-          venue.city = tmData.city?.name || venue.city || null;
-          venue.state = tmData.state?.stateCode || venue.state || null;
-          venue.country = tmData.country?.countryCode || venue.country || null;
-          venue.address = address || venue.address || null;
-          venue.latitude = typeof tmData.location?.latitude === 'string' ? parseFloat(tmData.location.latitude) : (tmData.location?.latitude ?? venue.latitude ?? null);
-          venue.longitude = typeof tmData.location?.longitude === 'string' ? parseFloat(tmData.location.longitude) : (tmData.location?.longitude ?? venue.longitude ?? null);
-          venue.url = tmData.url || venue.url || null;
-          venue.image_url = getBestImage(tmData.images) || venue.image_url || null;
-          venue.updated_at = new Date().toISOString();
-        } else {
-          venue = {
-            external_id: venueExternalId,
-            name: tmData.name,
-            city: tmData.city?.name || null,
-            state: tmData.state?.stateCode || null,
-            country: tmData.country?.countryCode || null,
-            address: address || null,
-            latitude: typeof tmData.location?.latitude === 'string' ? parseFloat(tmData.location.latitude) : (tmData.location?.latitude ?? null),
-            longitude: typeof tmData.location?.longitude === 'string' ? parseFloat(tmData.location.longitude) : (tmData.location?.longitude ?? null),
-            url: tmData.url || null,
-            image_url: getBestImage(tmData.images) || null,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          };
-        }
+      } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        console.error(`Error fetching or processing Ticketmaster data for venue ${venueId}:`, errorMsg);
+        if (!venue) return null;
       }
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : String(error);
-      console.error(`Error fetching or processing Ticketmaster data for venue ${venueExternalId}:`, errorMsg);
-      if (!venue) return null;
     }
-  }
 
-  if (!venue?.name) {
-     console.error(`Failed to resolve venue name for external_id ${venueExternalId} from any source.`);
-     return null;
-  }
-
-  return venue;
-}
-
-// Added: Queue sync for related entities
-async function queueEntitySync(client: any, entityType: string, entityId: string) {
-  try {
-    const { error } = await client
-      .from('sync_queue')
-      .insert({
-        entity_type: entityType,
-        entity_id: entityId,
-        operation: 'create',
-        priority: 'medium',
-        attempts: 0,
-        status: 'pending'
-      });
-
-    if (error) {
-      console.error(`Error queueing ${entityType} sync for ${entityId}:`, error);
-    } else {
-      console.log(`Queued ${entityType} sync for ${entityId}`);
+    if (!venue?.name) {
+      console.error(`Failed to resolve venue name for ID ${venueId} from any source.`);
+      return null;
     }
+
+    return venue;
   } catch (error) {
-    console.error(`Exception queueing ${entityType} sync for ${entityId}:`, error);
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    console.error(`Error in fetchAndTransformVenueData: ${errorMsg}`);
+    return null;
   }
 }
 
-// Added: Update sync state in database
+// Update sync state in database
 async function updateSyncStatus(client: any, entityId: string, entityType: string) {
   try {
     const now = new Date().toISOString();
@@ -164,7 +129,7 @@ async function updateSyncStatus(client: any, entityId: string, entityType: strin
       .upsert({
         entity_id: entityId,
         entity_type: entityType,
-        external_id: entityId,
+        external_id: null,
         last_synced: now,
         sync_version: 1
       }, {
@@ -188,41 +153,41 @@ serve(async (req: Request) => {
 
   try {
     const payload: SyncVenuePayload = await req.json();
-    const venueExternalId = payload.venueId;
+    const { venueId } = payload;
 
-    if (!venueExternalId) {
-      return new Response(JSON.stringify({ error: 'Missing venueId (external_id) in request body' }), {
+    if (!venueId) {
+      return new Response(JSON.stringify({ error: 'Missing venueId in request body' }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 400,
       })
     }
 
-    console.log(`Sync request received for venue: ${venueExternalId}`);
+    console.log(`Sync request received for venue: ${venueId}`);
 
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    const venueData = await fetchAndTransformVenueData(supabaseAdmin, venueExternalId);
+    const venueData = await fetchAndTransformVenueData(supabaseAdmin, venueId);
 
     if (!venueData) {
-      console.error(`Failed to fetch or transform data for venue ${venueExternalId}`);
+      console.error(`Failed to fetch or transform data for venue ${venueId}`);
       return new Response(JSON.stringify({ error: 'Failed to fetch venue data from external APIs' }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 500,
       })
     }
 
-    console.log(`Upserting venue ${venueExternalId} into database...`);
+    console.log(`Upserting venue ${venueId} into database...`);
     const { id: venueUUID, ...upsertData } = venueData;
 
     const { data: upsertedData, error: upsertError } = await supabaseAdmin
       .from('venues')
       .upsert(upsertData, {
-         onConflict: 'external_id',
-         ignoreDuplicates: false
-       })
+        onConflict: 'ticketmaster_id',
+        ignoreDuplicates: false
+      })
       .select()
       .single();
 
@@ -235,9 +200,9 @@ serve(async (req: Request) => {
     }
 
     // Added: Update sync state after successful upsert
-    await updateSyncStatus(supabaseAdmin, venueExternalId, 'venue');
+    await updateSyncStatus(supabaseAdmin, venueId, 'venue');
 
-    console.log(`Successfully synced venue ${venueExternalId}`);
+    console.log(`Successfully synced venue ${venueId}`);
 
     return new Response(JSON.stringify({ success: true, data: upsertedData }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

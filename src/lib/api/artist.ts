@@ -49,17 +49,32 @@ export async function searchArtistsWithEvents(
       return [];
     }
 
-    const artists = response._embedded.attractions.map((attraction: any) => {
-      // Get the best image
-      let image;
-      if (attraction.images && attraction.images.length > 0) {
-        // Try to get a high quality image
-        const sortedImages = [...attraction.images].sort((a, b) => 
-          (b.width || 0) - (a.width || 0)
-        );
+    const artists = response._embedded.attractions
+      .filter((attraction: any) => {
+        // Filter out tribute/cover bands by checking name and segment
+        const name = attraction.name.toLowerCase();
+        const isTribute = name.includes('tribute') ||
+                         name.includes('cover') ||
+                         name.includes('experience') ||
+                         name.includes('celebrating');
         
-        image = sortedImages[0]?.url;
-      }
+        // Check if it's a cover/tribute in the classification
+        const segment = attraction.classifications?.[0]?.segment?.name?.toLowerCase();
+        const isAttractionSegment = segment === 'attraction' || segment === 'miscellaneous';
+        
+        return !isTribute && !isAttractionSegment;
+      })
+      .map((attraction: any) => {
+        // Get the best image
+        let image;
+        if (attraction.images && attraction.images.length > 0) {
+          // Try to get a high quality image
+          const sortedImages = [...attraction.images].sort((a, b) =>
+            (b.width || 0) - (a.width || 0)
+          );
+          
+          image = sortedImages[0]?.url;
+        }
 
       // Extract upcoming shows count
       let upcomingShows = 0;

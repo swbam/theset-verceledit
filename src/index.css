@@ -16,7 +16,7 @@
     --popover: 0 0% 7%;
     --popover-foreground: 0 0% 95%;
 
-    --primary: 210 100% 50%; /* Twitter blue color */
+    --primary: 142 76% 36%; /* Spotify-like green */
     --primary-foreground: 0 0% 98%;
 
     --secondary: 0 0% 12%; /* Dark grey secondary */
@@ -25,7 +25,7 @@
     --muted: 0 0% 12%;
     --muted-foreground: 0 0% 65%;
 
-    --accent: 210 100% 50%; /* Twitter blue for accents */
+    --accent: 142 76% 36%; /* Green for accents */
     --accent-foreground: 0 0% 98%;
 
     --destructive: 0 84% 60%;
@@ -33,16 +33,16 @@
 
     --border: 0 0% 15%; /* Grey border */
     --input: 0 0% 15%;
-    --ring: 210 100% 50%; /* Twitter blue for focus rings */
+    --ring: 142 76% 36%; /* Green for focus rings */
 
     --sidebar-background: 0 0% 5%;
     --sidebar-foreground: 0 0% 96%;
-    --sidebar-primary: 210 100% 50%; /* Twitter blue */
+    --sidebar-primary: 142 76% 36%; /* Green */
     --sidebar-primary-foreground: 0 0% 100%;
     --sidebar-accent: 0 0% 15%;
     --sidebar-accent-foreground: 0 0% 96%;
     --sidebar-border: 0 0% 15%;
-    --sidebar-ring: 210 100% 50%; /* Twitter blue */
+    --sidebar-ring: 142 76% 36%; /* Green */
 
     --radius: 0.5rem;
   }
@@ -57,7 +57,7 @@
     --popover: 0 0% 100%;
     --popover-foreground: 0 0% 10%;
 
-    --primary: 210 100% 50%; /* Twitter blue */
+    --primary: 142 76% 36%; /* Green */
     --primary-foreground: 0 0% 100%;
 
     --secondary: 0 0% 96%;
@@ -66,7 +66,7 @@
     --muted: 0 0% 96%;
     --muted-foreground: 0 0% 46%;
 
-    --accent: 210 100% 50%; /* Twitter blue */
+    --accent: 142 76% 36%; /* Green */
     --accent-foreground: 0 0% 100%;
 
     --destructive: 0 84% 60%;
@@ -74,16 +74,16 @@
 
     --border: 0 0% 90%;
     --input: 0 0% 90%;
-    --ring: 210 100% 50%; /* Twitter blue */
+    --ring: 142 76% 36%; /* Green */
 
     --sidebar-background: 0 0% 100%;
     --sidebar-foreground: 0 0% 26%;
-    --sidebar-primary: 210 100% 50%; /* Twitter blue */
+    --sidebar-primary: 142 76% 36%; /* Green */
     --sidebar-primary-foreground: 0 0% 100%;
     --sidebar-accent: 210 95% 95%;
     --sidebar-accent-foreground: 210 100% 50%;
     --sidebar-border: 0 0% 91%;
-    --sidebar-ring: 210 100% 50%; /* Twitter blue */
+    --sidebar-ring: 142 76% 36%; /* Green */
   }
 }
 
@@ -123,15 +123,15 @@
   }
 
   .app-gradient {
-    @apply bg-gradient-to-b from-black to-[#15181C]; /* Twitter dark mode gradient */
+    @apply bg-gradient-to-b from-black to-[#0A1F13]; /* Dark green gradient */
   }
 
   .card-gradient {
-    @apply bg-gradient-to-b from-[#15181C] to-[#1A1D23]; /* Slightly lighter gradient for cards */
+    @apply bg-gradient-to-b from-[#0A1F13] to-[#122D1C]; /* Slightly lighter green gradient for cards */
   }
 
   .header-gradient {
-    @apply bg-gradient-to-b from-black/90 via-[#15181C]/80 to-transparent;
+    @apply bg-gradient-to-b from-black/90 via-[#0A1F13]/80 to-transparent;
   }
   
   .neo-blur {

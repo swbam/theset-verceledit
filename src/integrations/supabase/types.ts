@@ -371,96 +371,6 @@ export type Database = {
           },
         ]
       }
-      sync_operations: {
-        Row: {
-          completed_at: string | null
-          entity_id: string
-          entity_type: string
-          error: string | null
-          id: string
-          parent_task: string | null
-          priority: string | null
-          started_at: string | null
-          status: string | null
-          task: string
-        }
-        Insert: {
-          completed_at?: string | null
-          entity_id: string
-          entity_type: string
-          error?: string | null
-          id?: string
-          parent_task?: string | null
-          priority?: string | null
-          started_at?: string | null
-          status?: string | null
-          task: string
-        }
-        Update: {
-          completed_at?: string | null
-          entity_id?: string
-          entity_type?: string
-          error?: string | null
-          id?: string
-          parent_task?: string | null
-          priority?: string | null
-          started_at?: string | null
-          status?: string | null
-          task?: string
-        }
-        Relationships: []
-      }
-      sync_queue: {
-        Row: {
-          attempts: number
-          created_at: string | null
-          entity_type: string
-          error: string | null
-          external_id: string
-          id: number
-          max_attempts: number
-          operation: string
-          payload: Json | null
-          priority: number | null
-          processed_at: string | null
-          reference_data: Json | null
-          status: string
-          updated_at: string
-        }
-        Insert: {
-          attempts?: number
-          created_at?: string | null
-          entity_type: string
-          error?: string | null
-          external_id: string
-          id?: number
-          max_attempts?: number
-          operation: string
-          payload?: Json | null
-          priority?: number | null
-          processed_at?: string | null
-          reference_data?: Json | null
-          status?: string
-          updated_at?: string
-        }
-        Update: {
-          attempts?: number
-          created_at?: string | null
-          entity_type?: string
-          error?: string | null
-          external_id?: string
-          id?: number
-          max_attempts?: number
-          operation?: string
-          payload?: Json | null
-          priority?: number | null
-          processed_at?: string | null
-          reference_data?: Json | null
-          status?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
       sync_states: {
         Row: {
           entity_id: string
@@ -614,25 +524,6 @@ export type Database = {
       begin_transaction: {
         Args: Record<PropertyKey, never>
         Returns: undefined
-      }
-      claim_next_sync_item: {
-        Args: Record<PropertyKey, never>
-        Returns: {
-          attempts: number
-          created_at: string | null
-          entity_type: string
-          error: string | null
-          external_id: string
-          id: number
-          max_attempts: number
-          operation: string
-          payload: Json | null
-          priority: number | null
-          processed_at: string | null
-          reference_data: Json | null
-          status: string
-          updated_at: string
-        }[]
       }
       commit_transaction: {
         Args: Record<PropertyKey, never>

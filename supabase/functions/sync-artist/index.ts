@@ -11,7 +11,8 @@ interface SyncArtistPayload {
 }
 
 interface Artist {
-  id: string;
+  id?: string;
+  external_id?: string | null;
   name: string;
   image_url?: string | null;
   url?: string | null;
@@ -22,6 +23,11 @@ interface Artist {
   created_at?: string;
   updated_at?: string;
   setlist_fm_mbid?: string | null;
+  setlist_fm_id?: string | null;
+  ticketmaster_id?: string | null;
+  followers?: number | null;
+  tm_id?: string | null;
+  stored_tracks?: any[] | null;
 }
 
 // Helper to get Spotify Access Token (Client Credentials Flow)
@@ -105,122 +111,131 @@ async function fetchAndTransformArtistData(supabaseAdmin: any, artistId: string)
   let artist: Artist | null = null;
 
   try {
+    // Try to find by ticketmaster_id first
     const { data: existingArtist, error: existingError } = await supabaseAdmin
       .from('artists')
       .select('*')
-      .eq('id', artistId)
+      .eq('ticketmaster_id', artistId)
       .maybeSingle();
 
     if (existingError) {
-      console.warn(`Error fetching existing artist ${artistId}:`, existingError.message);
+      console.warn(`Error fetching existing artist with ticketmaster_id ${artistId}:`, existingError.message);
     }
+    
     if (existingArtist) {
-      console.log(`Found existing data for artist ${artistId}`);
+      console.log(`Found existing data for artist with ticketmaster_id ${artistId}`);
       artist = existingArtist as Artist;
     }
-  } catch (e) {
-    const errorMsg = e instanceof Error ? e.message : String(e);
-    console.warn(`Exception fetching existing artist ${artistId}:`, errorMsg);
-  }
 
-  // --- Ticketmaster API ---
-  const tmApiKey = Deno.env.get('TICKETMASTER_API_KEY');
-  if (!tmApiKey) {
-    console.error('TICKETMASTER_API_KEY not set in environment variables.');
-  } else {
-    try {
-      const tmUrl = `https://app.ticketmaster.com/discovery/v2/attractions/${artistId}.json?apikey=${tmApiKey}`;
-      console.log(`Fetching from Ticketmaster: ${tmUrl}`);
-      const tmResponse = await fetch(tmUrl);
-
-      if (!tmResponse.ok) {
-        console.warn(`Ticketmaster API error for ${artistId}: ${tmResponse.status} ${await tmResponse.text()}`);
-      } else {
-        const tmData = await tmResponse.json();
-        console.log(`Received Ticketmaster data for ${artistId}`);
-        if (artist) {
-          artist.name = tmData.name;
-          artist.image_url = getBestImage(tmData.images) || artist.image_url || null;
-          artist.url = tmData.url || artist.url || null;
-          artist.updated_at = new Date().toISOString();
-        } else {
-          artist = {
-            id: artistId,
-            name: tmData.name,
-            image_url: getBestImage(tmData.images) || null,
-            url: tmData.url || null,
-            spotify_id: null,
-            spotify_url: null,
-            genres: [],
-            popularity: null,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          };
-        }
-      }
-    } catch (tmError) {
-      const errorMsg = tmError instanceof Error ? tmError.message : String(tmError);
-      console.error(`Error fetching or processing Ticketmaster data for artist ${artistId}:`, errorMsg);
-    }
-  }
-
-  // --- Spotify API ---
-  if (artist && artist.name) {
-    const spotifyToken = await getSpotifyToken();
-    if (spotifyToken) {
+    // --- Ticketmaster API ---
+    const tmApiKey = Deno.env.get('TICKETMASTER_API_KEY');
+    if (!tmApiKey) {
+      console.error('TICKETMASTER_API_KEY not set in environment variables.');
+    } else {
       try {
-        const searchUrl = `https://api.spotify.com/v1/search?q=${encodeURIComponent(artist.name)}&type=artist&limit=1`;
-        console.log(`Fetching from Spotify: ${searchUrl}`);
-        const spotifyResponse = await fetch(searchUrl, {
-          headers: {
-            'Authorization': `Bearer ${spotifyToken}`
-          }
-        });
+        const tmUrl = `https://app.ticketmaster.com/discovery/v2/attractions/${artistId}.json?apikey=${tmApiKey}`;
+        console.log(`Fetching from Ticketmaster: ${tmUrl}`);
+        const tmResponse = await fetch(tmUrl);
 
-        if (!spotifyResponse.ok) {
-          console.warn(`Spotify API error for ${artist.name}: ${spotifyResponse.status} ${await spotifyResponse.text()}`);
+        if (!tmResponse.ok) {
+          console.warn(`Ticketmaster API error for ${artistId}: ${tmResponse.status} ${await tmResponse.text()}`);
         } else {
-          const spotifyData = await spotifyResponse.json();
-          if (spotifyData?.artists?.items?.length > 0) {
-            const spotifyArtist = spotifyData.artists.items[0];
-            console.log(`Received Spotify data for ${artist.name}`);
-            artist.spotify_id = spotifyArtist.id;
-            artist.spotify_url = spotifyArtist.external_urls?.spotify || null;
-            artist.genres = spotifyArtist.genres || artist.genres || [];
-            artist.popularity = spotifyArtist.popularity ?? artist.popularity ?? null;
-
-            if (!artist.image_url && spotifyArtist.images?.length > 0) {
-              artist.image_url = spotifyArtist.images[0].url;
-            }
+          const tmData = await tmResponse.json();
+          console.log(`Received Ticketmaster data for ${artistId}`);
+          if (artist) {
+            artist.name = tmData.name;
+            artist.image_url = getBestImage(tmData.images) || artist.image_url || null;
+            artist.url = tmData.url || artist.url || null;
             artist.updated_at = new Date().toISOString();
           } else {
-            console.log(`No Spotify artist found for query: ${artist.name}`);
+            artist = {
+              external_id: null,
+              name: tmData.name,
+              image_url: getBestImage(tmData.images) || null,
+              url: tmData.url || null,
+              spotify_id: null,
+              spotify_url: null,
+              genres: [],
+              popularity: null,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+              setlist_fm_mbid: null,
+              setlist_fm_id: null,
+              ticketmaster_id: artistId,
+              followers: null,
+              tm_id: artistId,
+              stored_tracks: null
+            };
           }
         }
-      } catch (spotifyError) {
-        const errorMsg = spotifyError instanceof Error ? spotifyError.message : String(spotifyError);
-        console.error(`Error fetching or processing Spotify data for artist ${artist.name}:`, errorMsg);
+      } catch (tmError) {
+        const errorMsg = tmError instanceof Error ? tmError.message : String(tmError);
+        console.error(`Error fetching or processing Ticketmaster data for artist ${artistId}:`, errorMsg);
       }
-    } else {
-      console.warn(`Skipping Spotify enrichment for ${artist.name} due to missing token.`);
     }
-  }
 
-  // --- Setlist.fm API ---
-  if (artist?.name) {
-    const mbid = await searchSetlistFmArtist(artist.name);
-    if (mbid) {
-      artist.setlist_fm_mbid = mbid;
-      artist.updated_at = new Date().toISOString();
+    // --- Spotify API ---
+    if (artist && artist.name) {
+      const spotifyToken = await getSpotifyToken();
+      if (spotifyToken) {
+        try {
+          const searchUrl = `https://api.spotify.com/v1/search?q=${encodeURIComponent(artist.name)}&type=artist&limit=1`;
+          console.log(`Fetching from Spotify: ${searchUrl}`);
+          const spotifyResponse = await fetch(searchUrl, {
+            headers: {
+              'Authorization': `Bearer ${spotifyToken}`
+            }
+          });
+
+          if (!spotifyResponse.ok) {
+            console.warn(`Spotify API error for ${artist.name}: ${spotifyResponse.status} ${await spotifyResponse.text()}`);
+          } else {
+            const spotifyData = await spotifyResponse.json();
+            if (spotifyData?.artists?.items?.length > 0) {
+              const spotifyArtist = spotifyData.artists.items[0];
+              console.log(`Received Spotify data for ${artist.name}`);
+              artist.spotify_id = spotifyArtist.id;
+              artist.spotify_url = spotifyArtist.external_urls?.spotify || null;
+              artist.genres = spotifyArtist.genres || artist.genres || [];
+              artist.popularity = spotifyArtist.popularity ?? artist.popularity ?? null;
+
+              if (!artist.image_url && spotifyArtist.images?.length > 0) {
+                artist.image_url = spotifyArtist.images[0].url;
+              }
+              artist.updated_at = new Date().toISOString();
+            } else {
+              console.log(`No Spotify artist found for query: ${artist.name}`);
+            }
+          }
+        } catch (spotifyError) {
+          const errorMsg = spotifyError instanceof Error ? spotifyError.message : String(spotifyError);
+          console.error(`Error fetching or processing Spotify data for artist ${artist.name}:`, errorMsg);
+        }
+      } else {
+        console.warn(`Skipping Spotify enrichment for ${artist.name} due to missing token.`);
+      }
     }
-  }
 
-  if (!artist?.name) {
-    console.error(`Failed to resolve artist name for ID ${artistId} from any source.`);
+    // --- Setlist.fm API ---
+    if (artist?.name) {
+      const mbid = await searchSetlistFmArtist(artist.name);
+      if (mbid) {
+        artist.setlist_fm_mbid = mbid;
+        artist.updated_at = new Date().toISOString();
+      }
+    }
+
+    if (!artist?.name) {
+      console.error(`Failed to resolve artist name for ID ${artistId} from any source.`);
+      return null;
+    }
+
+    return artist;
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    console.error(`Error in fetchAndTransformArtistData: ${errorMsg}`);
     return null;
   }
-
-  return artist;
 }
 
 function getBestImage(images?: Array<{url: string, width: number, height: number}>): string | null {
@@ -229,7 +244,7 @@ function getBestImage(images?: Array<{url: string, width: number, height: number
   return sorted[0].url;
 }
 
-// Added: Update sync state in database
+// Update sync state in database
 async function updateSyncStatus(client: any, entityId: string, entityType: string) {
   try {
     const now = new Date().toISOString();
@@ -238,7 +253,7 @@ async function updateSyncStatus(client: any, entityId: string, entityType: strin
       .upsert({
         entity_id: entityId,
         entity_type: entityType,
-        external_id: entityId,
+        external_id: null,
         last_synced: now,
         sync_version: 1 // Current sync version
       }, {
@@ -290,9 +305,12 @@ serve(async (req: Request) => {
     }
 
     console.log(`Upserting artist ${artistId} into database...`);
+    // Remove the id field if it exists in artistData to prevent auto-incrementation conflicts
+    const { id: existingId, ...dataForUpsert } = artistData;
+    
     const { data: upsertedData, error: upsertError } = await supabaseAdmin
       .from('artists')
-      .upsert(artistData, { onConflict: 'id' })
+      .upsert(dataForUpsert, { onConflict: 'ticketmaster_id' })
       .select()
       .single();
 

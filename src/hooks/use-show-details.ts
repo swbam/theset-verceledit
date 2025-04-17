@@ -4,25 +4,26 @@ import { fetchShowDetails } from '@/lib/ticketmaster';
 import { searchArtists } from '@/lib/spotify';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
-// Removed import for createSetlistDirectly as setlist creation is handled server-side by Edge Functions
+import { Database } from '@/integrations/supabase/types';
 import { v4 as uuidv4 } from 'uuid';
 
 export function useShowDetails(id: string | undefined) {
   const [spotifyArtistId, setSpotifyArtistId] = useState<string>('');
   
+  type ShowWithRelations = Database['public']['Tables']['shows']['Row'] & {
+    artist: Database['public']['Tables']['artists']['Row'] | null;
+    venue: Database['public']['Tables']['venues']['Row'] | null;
+  };
+
   // Memoize the checkShowInDatabase function to prevent recreating it on each render
-  const checkShowInDatabase = useCallback(async (showId: string) => {
+  const checkShowInDatabase = useCallback(async (showId: string): Promise<ShowWithRelations | null> => {
     try {
       const { data, error } = await supabase
         .from('shows')
         .select(`
-          id, 
-          name, 
-          date, 
-          artist_id,
-          venue_id,
-          ticket_url,
-          image_url
+          *,
+          artist:artists(*),
+          venue:venues(*)
         `)
         .eq('id', showId)
         .maybeSingle();
@@ -76,27 +77,64 @@ export function useShowDetails(id: string | undefined) {
     queryKey: ['show', id],
     queryFn: async () => {
       if (!id) throw new Error("Show ID is required");
-      
-      // First check if show exists in database
+
+      // First try to get show from database
       const dbShow = await checkShowInDatabase(id);
       
-      // Whether or not show was in database, fetch fresh details
-      const showDetails = await fetchShowDetails(id);
-      
-      // Find and set Spotify artist ID if we have an artist name
-      if (showDetails?.artist?.name) {
-        const spotifyId = await findSpotifyArtistId(showDetails.artist.name);
-        setSpotifyArtistId(spotifyId);
-      } else {
-        setSpotifyArtistId('mock-artist');
+      if (!dbShow) {
+        // If not in database, trigger sync and wait for it
+        console.log("Show not found in database, triggering sync...");
+        const { error: syncError } = await supabase.functions.invoke('sync-show', {
+          body: { showId: id }
+        });
+
+        if (syncError) {
+          console.error("Error syncing show:", syncError);
+          throw new Error("Failed to sync show data");
+        }
+
+        // Wait a moment for sync to complete
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        // Try to get from database again
+        const { data: syncedShow, error: fetchError } = await supabase
+          .from('shows')
+          .select(`
+            *,
+            artist:artists(*),
+            venue:venues(*)
+          `)
+          .eq('id', id)
+          .single();
+
+        if (fetchError || !syncedShow) {
+          console.error("Error fetching synced show:", fetchError);
+          throw new Error("Show not found after sync");
+        }
+
+        // Find and set Spotify artist ID
+        if (syncedShow.artist?.name) {
+          const spotifyId = await findSpotifyArtistId(syncedShow.artist.name);
+          setSpotifyArtistId(spotifyId);
+        }
+
+        return syncedShow;
       }
-      
-      // Removed client-side call to createSetlistDirectly.
-      // Setlist creation is now handled automatically by the Edge Functions
-      // when the show is saved to the database (via import-artist or sync-venue).
-      // This hook should focus only on fetching data for display.
-      
-      return showDetails;
+
+      // If show exists, trigger background sync and return existing data
+      supabase.functions.invoke('sync-show', {
+        body: { showId: id }
+      }).catch(error => {
+        console.error("Background sync failed:", error);
+      });
+
+      // Find and set Spotify artist ID
+      if (dbShow.artist?.name) {
+        const spotifyId = await findSpotifyArtistId(dbShow.artist.name);
+        setSpotifyArtistId(spotifyId);
+      }
+
+      return dbShow;
     },
     enabled: !!id,
     retry: 1,

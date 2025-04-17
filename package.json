@@ -4,19 +4,18 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev:frontend": "vite",
-    "dev:api": "node server.cjs",
-    "dev": "concurrently \"npm run dev:frontend\" \"npm run dev:api\"",
+    "dev": "vite",
     "build": "vite build",
-    "build:api": "next build",
     "build:dev": "vite build --mode development",
-    "build:all": "npm run build && npm run build:api",
     "lint": "eslint .",
     "preview": "vite preview",
-    "start": "NODE_ENV=production concurrently \"vite preview --port 8080\" \"node server.cjs\"",
+    "start": "NODE_ENV=production vite preview --port 8080",
     "db:migration:apply": "node ./scripts/apply-migrations.js",
     "reset:cache": "node ./scripts/clear-cache.js",
-    "updateall": "echo 'Applying migrations...' && supabase db push --include-all && echo 'Generating types...' && supabase gen types typescript --project-id kzjnkqeosrycfpxjwhil --schema public > src/integrations/supabase/types.ts && echo 'Setting secrets...' && supabase secrets set --env-file ./supabase/.env && echo 'Deploying functions...' && supabase functions deploy fetch-past-setlists --no-verify-jwt && supabase functions deploy import-artist --no-verify-jwt && supabase functions deploy sync-artist --no-verify-jwt && supabase functions deploy sync-setlist --no-verify-jwt && supabase functions deploy sync-show --no-verify-jwt && supabase functions deploy sync-song --no-verify-jwt && supabase functions deploy sync-venue --no-verify-jwt && echo 'Building application...' && npm run build:all && echo 'Build complete. Committing and pushing changes...' && git add . && git commit -m \"Automated update via npm run updateall\" && echo 'Pushing changes...' && git push && echo 'Update, commit, and push complete!'"
+    "updateall": "npm run db:update && npm run deploy:functions && npm run build && npm run verify && git add . && git commit -m \"Automated update\" && git push",
+    "db:update": "supabase db push --include-all && supabase gen types typescript --project-id kzjnkqeosrycfpxjwhil --schema public > src/integrations/supabase/types.ts && supabase secrets set --env-file ./supabase/.env",
+    "deploy:functions": "for func in fetch-past-setlists import-artist sync-artist sync-setlist sync-show sync-song sync-venue; do supabase functions deploy $func --no-verify-jwt; done",
+    "verify": "curl https://theset-verceledit.vercel.app/api/test-db-connection"
   },
   "dependencies": {
     "@hello-pangea/dnd": "^18.0.1",

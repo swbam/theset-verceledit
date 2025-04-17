@@ -51,9 +51,30 @@ export async function POST(request: Request) {
         break;
 
       case EntityType.Song:
-        result = await supabase.functions.invoke('sync-song', {
-          body: { songId: id }
-        });
+        // Check if this is a songId or an artistId based on format
+        // Artist IDs from Ticketmaster are typically non-UUIDs
+        const isSongId = id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+        
+        if (isSongId) {
+          // This is an individual song
+          result = await supabase.functions.invoke('sync-song', {
+            body: { songId: id }
+          });
+        } else {
+          // This is likely an artist ID - get artist details first
+          const { data: artist } = await supabase
+            .from('artists')
+            .select('name')
+            .eq('id', id)
+            .maybeSingle();
+            
+          result = await supabase.functions.invoke('sync-song', {
+            body: { 
+              artistId: id,
+              artistName: artist?.name || 'Unknown Artist'
+            }
+          });
+        }
         break;
 
       case EntityType.Setlist:
