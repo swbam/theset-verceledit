@@ -25,7 +25,7 @@ export function useShowDetails(id: string | undefined) {
           artist:artists(*),
           venue:venues(*)
         `)
-        .eq('id', showId)
+        .or(`id.eq.${showId},ticketmaster_id.eq.${showId}`)
         .maybeSingle();
       
       if (error) {
@@ -104,7 +104,7 @@ export function useShowDetails(id: string | undefined) {
             artist:artists(*),
             venue:venues(*)
           `)
-          .eq('id', id)
+          .or(`id.eq.${id},ticketmaster_id.eq.${id}`)
           .single();
 
         if (fetchError || !syncedShow) {
