@@ -60,7 +60,7 @@ const Hero = () => {
             </div>
             
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-6 leading-tight">
-              Shape the Concert <span className="text-primary">Experience</span> You Want
+              Shape the Concert <span className="text-gradient">Experience</span> You Want
             </h1>
             
             <p className="text-lg text-white/80 mb-8 max-w-lg">
@@ -70,16 +70,15 @@ const Hero = () => {
             
             <div className="flex flex-col sm:flex-row gap-4 mb-8">
               <Button 
+                variant="primary"
                 size="lg" 
-                className="btn-twitter"
                 onClick={() => navigate('/shows')}
               >
                 Explore Shows
               </Button>
               <Button 
                 size="lg" 
-                variant="outline" 
-                className="border-white/20 hover:bg-white/10"
+                variant="default"
                 onClick={() => navigate('/how-it-works')}
               >
                 How It Works
@@ -88,22 +87,22 @@ const Hero = () => {
             
             <div className="grid grid-cols-3 gap-4">
               <div className="flex items-center gap-2">
-                <Music className="h-5 w-5 text-primary" />
+                <Music className="h-5 w-5 text-gradient" />
                 <span className="text-sm text-white/80">Vote on Songs</span>
               </div>
               <div className="flex items-center gap-2">
-                <Users className="h-5 w-5 text-primary" />
+                <Users className="h-5 w-5 text-gradient" />
                 <span className="text-sm text-white/80">Join Community</span>
               </div>
               <div className="flex items-center gap-2">
-                <Award className="h-5 w-5 text-primary" />
+                <Award className="h-5 w-5 text-gradient" />
                 <span className="text-sm text-white/80">Discover Artists</span>
               </div>
             </div>
           </div>
           
           <div className="bg-black/30 p-6 rounded-xl border border-white/10 backdrop-blur-sm">
-            <h2 className="text-xl font-semibold mb-4">Find Your Next Show</h2>
+            <h2 className="text-xl font-semibold mb-4 text-gradient">Find Your Next Show</h2>
             <div className="relative mb-6">
               <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
                 <Search className="h-5 w-5 text-white/60" />

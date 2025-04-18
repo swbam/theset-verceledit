@@ -65,7 +65,7 @@ const Navbar = ({ showSearch = true }) => {
     <header className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-16 items-center justify-between">
         <Link to="/" className="flex items-center" onClick={closeMenu}>
-          <span className="text-xl font-semibold bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent">TheSet</span>
+          <span className="text-xl font-semibold logo">TheSet</span>
         </Link>
 
         {!isHomePage && showSearch && !isMobile && (

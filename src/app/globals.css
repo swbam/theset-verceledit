@@ -57,6 +57,15 @@
     @apply bg-background text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;
   }
+  
+  /* Apply direct gradient to headings */
+  h1, h2, h3, h4, h5, h6 {
+    background: linear-gradient(to right, #40e6bf, #01ec8d);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    display: inline-block;
+  }
 }
 
 /* Custom button variants */
@@ -81,7 +90,43 @@
     @apply btn-gradient;
   }
   
-  h1, h2, h3, h4, h5, h6 {
-    @apply text-gradient;
+  /* Stronger gradient styles */
+  .text-gradient {
+    background: linear-gradient(to right, #40e6bf, #01ec8d);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    display: inline-block;
+  }
+  
+  .btn-gradient {
+    background: linear-gradient(to right, #40e6bf, #01ec8d);
+    color: #000;
+    transition: all 0.2s ease;
+  }
+  
+  .btn-gradient:hover {
+    box-shadow: 0 4px 12px rgba(1, 236, 141, 0.3);
+    transform: translateY(-2px);
+  }
+  
+  .btn-white {
+    background-color: #fff;
+    color: #000224;
+    transition: all 0.2s ease;
+  }
+  
+  .btn-white:hover {
+    box-shadow: 0 4px 12px rgba(255, 255, 255, 0.3);
+    transform: translateY(-2px);
+  }
+  
+  /* Logo styling */
+  .logo {
+    background: linear-gradient(to right, #40e6bf, #01ec8d);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    font-weight: bold;
   }
 } 
