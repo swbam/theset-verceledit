@@ -1,8 +1,14 @@
+/// <reference types="https://deno.land/x/supabase@1.3.1/mod.ts" />
+/// <reference types="https://deno.land/x/xhr@0.1.0/mod.ts" />
 /// <reference types="https://esm.sh/@supabase/functions-js/src/edge-runtime.d.ts" />
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { corsHeaders } from '../_shared/cors.ts'
+import { retry } from '../_shared/retryUtils.ts'
+import { handleError, ErrorSource } from '../_shared/errorUtils.ts'
+import { storeSongsInDatabase } from '../_shared/songDbUtils.ts'
+import { Song, SpotifyTrack, ApiResponse, Deno } from '../_shared/types.ts'
 
 interface SyncSongPayload {
   songId?: string;
@@ -11,143 +17,205 @@ interface SyncSongPayload {
   spotifyId?: string;
 }
 
-interface Song {
-  id: string;
-  name: string;
-  artist_id?: string | null;
-  spotify_id?: string | null;
-  spotify_url?: string | null;
-  preview_url?: string | null;
-  duration_ms?: number | null;
-  popularity?: number | null;
-  album_name?: string | null;
-  album_image?: string | null;
-  created_at?: string;
-  updated_at?: string;
-}
-
 async function getSpotifyToken(): Promise<string | null> {
-  const clientId = Deno.env.get('SPOTIFY_CLIENT_ID');
-  const clientSecret = Deno.env.get('SPOTIFY_CLIENT_SECRET');
-
-  if (!clientId || !clientSecret) {
-    console.error('Spotify client ID or secret not configured.');
-    return null;
-  }
-
   try {
-    const response = await fetch('https://accounts.spotify.com/api/token', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Authorization': 'Basic ' + btoa(clientId + ':' + clientSecret)
-      },
-      body: 'grant_type=client_credentials'
-    });
+    const clientId = Deno.env.get('SPOTIFY_CLIENT_ID');
+    const clientSecret = Deno.env.get('SPOTIFY_CLIENT_SECRET');
 
-    if (!response.ok) {
-      console.error('Failed to get Spotify token:', response.status, await response.text());
+    if (!clientId || !clientSecret) {
+      handleError({
+        message: 'Spotify client ID or secret not configured',
+        source: ErrorSource.Spotify,
+        context: { hasClientId: !!clientId, hasClientSecret: !!clientSecret }
+      });
       return null;
     }
+
+    const response = await retry(
+      async () => {
+        const res = await fetch('https://accounts.spotify.com/api/token', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Authorization': 'Basic ' + btoa(clientId + ':' + clientSecret)
+          },
+          body: 'grant_type=client_credentials'
+        });
+
+        if (!res.ok) {
+          throw new Error(`Failed to get Spotify token: ${res.statusText}`);
+        }
+
+        return res;
+      },
+      {
+        retries: 3,
+        minTimeout: 1000,
+        maxTimeout: 5000,
+        onRetry: (error, attempt) => {
+          console.warn(`[getSpotifyToken] Retry attempt ${attempt}:`, error);
+        }
+      }
+    );
+
     const data = await response.json();
     return data.access_token;
   } catch (error) {
-    const errorMsg = error instanceof Error ? error.message : String(error);
-    console.error('Error fetching Spotify token:', errorMsg);
+    handleError({
+      message: 'Failed to get Spotify access token',
+      source: ErrorSource.Spotify,
+      originalError: error
+    });
     return null;
   }
 }
 
 async function syncArtistSongs(supabaseAdmin: any, artistId: string, artistName: string, spotifyId?: string): Promise<void> {
-  console.log(`Syncing songs for artist ${artistName} (ID: ${artistId})`);
-  
-  const spotifyToken = await getSpotifyToken();
-  if (!spotifyToken) {
-    console.error('Failed to get Spotify token for artist songs sync');
-    return;
-  }
-
   try {
-    // If we have Spotify ID, get top tracks directly
-    let tracks = [];
+    const token = await getSpotifyToken();
+    if (!token) {
+      handleError({
+        message: 'Failed to get Spotify token for artist sync',
+        source: ErrorSource.Spotify,
+        context: { artistId, artistName }
+      });
+      return;
+    }
+
+    // If we have a Spotify ID, use it directly
     if (spotifyId) {
-      const topTracksUrl = `https://api.spotify.com/v1/artists/${spotifyId}/top-tracks?market=US`;
-      const response = await fetch(topTracksUrl, {
-        headers: { 'Authorization': `Bearer ${spotifyToken}` }
-      });
-      if (response.ok) {
-        const data = await response.json();
-        tracks = data.tracks || [];
+      const response = await retry(
+        async () => {
+          const res = await fetch(`https://api.spotify.com/v1/artists/${spotifyId}/top-tracks?market=US`, {
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          });
+
+          if (!res.ok) {
+            throw new Error(`Failed to fetch artist top tracks: ${res.statusText}`);
+          }
+
+          return res;
+        },
+        {
+          retries: 3,
+          minTimeout: 1000,
+          maxTimeout: 5000,
+          onRetry: (error, attempt) => {
+            console.warn(`[syncArtistSongs] Retry attempt ${attempt} for ${spotifyId}:`, error);
+          }
+        }
+      );
+
+      const data = await response.json();
+      const tracks: SpotifyTrack[] = data.tracks;
+
+      if (tracks && tracks.length > 0) {
+        await storeSongsInDatabase(artistId, tracks);
       }
+      return;
     }
 
-    // If no tracks found via ID or no ID provided, search by name
-    if (tracks.length === 0) {
-      const searchUrl = `https://api.spotify.com/v1/search?q=artist:${encodeURIComponent(artistName)}&type=track&limit=50`;
-      const response = await fetch(searchUrl, {
-        headers: { 'Authorization': `Bearer ${spotifyToken}` }
-      });
-      if (response.ok) {
-        const data = await response.json();
-        tracks = data.tracks?.items || [];
+    // Otherwise, search for the artist first
+    const searchResponse = await retry(
+      async () => {
+        const res = await fetch(
+          `https://api.spotify.com/v1/search?q=${encodeURIComponent(artistName)}&type=artist&limit=1`,
+          {
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          }
+        );
+
+        if (!res.ok) {
+          throw new Error(`Failed to search for artist: ${res.statusText}`);
+        }
+
+        return res;
+      },
+      {
+        retries: 3,
+        minTimeout: 1000,
+        maxTimeout: 5000,
+        onRetry: (error, attempt) => {
+          console.warn(`[syncArtistSongs] Search retry attempt ${attempt} for ${artistName}:`, error);
+        }
       }
+    );
+
+    const searchData = await searchResponse.json();
+    
+    if (!searchData.artists?.items?.length) {
+      console.log(`No Spotify artist found for ${artistName}`);
+      return;
     }
 
-    console.log(`Found ${tracks.length} songs for artist ${artistName}`);
+    const artist = searchData.artists.items[0];
+    const artistSpotifyId = artist.id;
 
-    // Process tracks in batches
-    const batchSize = 10;
-    for (let i = 0; i < tracks.length; i += batchSize) {
-      const batch = tracks.slice(i, i + batchSize);
-      const songsToUpsert = batch.map(track => ({
-        // id: track.id, // Let the DB generate the UUID PK
-        name: track.name,
-        artist_id: artistId,
-        spotify_id: track.id, // Use spotify_id for conflict resolution
-        spotify_url: track.external_urls?.spotify || null,
-        preview_url: track.preview_url || null,
-        duration_ms: track.duration_ms || null,
-        popularity: track.popularity || null,
-        album_name: track.album?.name || null,
-        album_image: track.album?.images?.[0]?.url || null, // Ensure this column exists
-        // created_at will default
-        updated_at: new Date().toISOString() // Set updated_at
-      }));
+    const tracksResponse = await retry(
+      async () => {
+        const res = await fetch(
+          `https://api.spotify.com/v1/artists/${artistSpotifyId}/top-tracks?market=US`,
+          {
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          }
+        );
 
-      const { error } = await supabaseAdmin
-        .from('tracks') // Corrected table name
-        .upsert(songsToUpsert, { onConflict: 'spotify_id' }); // Use spotify_id for conflict
+        if (!res.ok) {
+          throw new Error(`Failed to fetch artist top tracks: ${res.statusText}`);
+        }
 
-      if (error) {
-        console.error(`Error upserting songs batch for ${artistName}:`, error);
-      } else {
-        console.log(`Successfully upserted ${songsToUpsert.length} songs for ${artistName}`);
+        return res;
+      },
+      {
+        retries: 3,
+        minTimeout: 1000,
+        maxTimeout: 5000,
+        onRetry: (error, attempt) => {
+          console.warn(`[syncArtistSongs] Tracks retry attempt ${attempt} for ${artistSpotifyId}:`, error);
+        }
       }
+    );
 
-      // Update sync state for each song
-      for (const song of songsToUpsert) {
-        await updateSyncStatus(supabaseAdmin, song.id, 'song');
-      }
+    const tracksData = await tracksResponse.json();
+    const tracks: SpotifyTrack[] = tracksData.tracks;
+
+    if (tracks && tracks.length > 0) {
+      await storeSongsInDatabase(artistId, tracks);
     }
+
   } catch (error) {
-    const errorMsg = error instanceof Error ? error.message : String(error);
-    console.error(`Error syncing songs for artist ${artistName}:`, errorMsg);
+    handleError({
+      message: 'Failed to sync artist songs',
+      source: ErrorSource.Spotify,
+      originalError: error,
+      context: { artistId, artistName, spotifyId }
+    });
+    throw error;
   }
 }
 
 async function syncSingleSong(supabaseAdmin: any, songId: string): Promise<Song | null> {
-  console.log(`Syncing single song ${songId}`);
-  
   try {
     // Get existing song data
     const { data: song, error } = await supabaseAdmin
-      .from('tracks') // Corrected table name
+      .from('songs')
       .select('*')
       .eq('id', songId)
       .single();
 
     if (error || !song) {
-      console.error(`Error fetching song ${songId}:`, error?.message || 'Not found');
+      handleError({
+        message: 'Failed to fetch song data',
+        source: ErrorSource.Supabase,
+        originalError: error,
+        context: { songId }
+      });
       return null;
     }
 
@@ -167,43 +235,70 @@ async function syncSingleSong(supabaseAdmin: any, songId: string): Promise<Song 
       : `track:${song.name}`;
     
     const searchUrl = `https://api.spotify.com/v1/search?q=${encodeURIComponent(query)}&type=track&limit=1`;
-    const response = await fetch(searchUrl, {
-      headers: { 'Authorization': `Bearer ${spotifyToken}` }
-    });
+    const response = await retry(
+      async () => {
+        const res = await fetch(searchUrl, {
+          headers: { 'Authorization': `Bearer ${spotifyToken}` }
+        });
 
-    if (!response.ok) return null;
+        if (!res.ok) {
+          throw new Error(`Failed to search for song: ${res.statusText}`);
+        }
+
+        return res;
+      },
+      {
+        retries: 3,
+        minTimeout: 1000,
+        maxTimeout: 5000,
+        onRetry: (error, attempt) => {
+          console.warn(`[searchSong] Retry attempt ${attempt} for ${songId}:`, error);
+        }
+      }
+    );
 
     const data = await response.json();
-    const track = data.tracks?.items?.[0];
+    const track: SpotifyTrack = data.tracks?.items?.[0];
     if (!track) return null;
 
     // Update song with Spotify data
     const updatedSong: Song = {
       ...song,
       spotify_id: track.id,
-      spotify_url: track.external_urls?.spotify || null,
-      preview_url: track.preview_url || null,
-      duration_ms: track.duration_ms || null,
-      popularity: track.popularity || null,
-      album_name: track.album?.name || null,
-      album_image: track.album?.images?.[0]?.url || null,
       updated_at: new Date().toISOString()
     };
 
+    // Handle optional fields
+    if (track.external_urls?.spotify) updatedSong.spotify_url = track.external_urls.spotify;
+    if (track.preview_url !== null) updatedSong.preview_url = track.preview_url;
+    if (track.duration_ms !== null) updatedSong.duration_ms = track.duration_ms;
+    if (track.popularity !== null) updatedSong.popularity = track.popularity;
+    if (track.album?.name) updatedSong.album_name = track.album.name;
+    if (track.album?.images?.[0]?.url) updatedSong.album_image = track.album.images[0].url;
+
     const { error: upsertError } = await supabaseAdmin
-      .from('tracks') // Corrected table name
+      .from('songs')
       .upsert(updatedSong);
 
     if (upsertError) {
-      console.error(`Error upserting song ${songId}:`, upsertError);
+      handleError({
+        message: 'Failed to upsert song',
+        source: ErrorSource.Supabase,
+        originalError: upsertError,
+        context: { songId }
+      });
       return null;
     }
 
     await updateSyncStatus(supabaseAdmin, songId, 'song');
     return updatedSong;
   } catch (error) {
-    const errorMsg = error instanceof Error ? error.message : String(error);
-    console.error(`Error syncing song ${songId}:`, errorMsg);
+    handleError({
+      message: 'Failed to sync song',
+      source: ErrorSource.API,
+      originalError: error,
+      context: { songId }
+    });
     return null;
   }
 }
@@ -224,14 +319,25 @@ async function updateSyncStatus(client: any, entityId: string, entityType: strin
       });
 
     if (error) {
-      console.error(`Error updating sync state for ${entityType} ${entityId}:`, error);
+      handleError({
+        message: 'Failed to update sync status',
+        source: ErrorSource.Supabase,
+        originalError: error,
+        context: { entityId, entityType }
+      });
     }
   } catch (error) {
-    console.error(`Exception updating sync state for ${entityType} ${entityId}:`, error);
+    handleError({
+      message: 'Failed to update sync status',
+      source: ErrorSource.API,
+      originalError: error,
+      context: { entityId, entityType }
+    });
   }
 }
 
 serve(async (req: Request) => {
+  console.log('--- sync-song function handler started ---');
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
@@ -241,12 +347,12 @@ serve(async (req: Request) => {
     const { songId, artistId, artistName, spotifyId } = payload;
 
     if (!songId && (!artistId || !artistName)) {
-      return new Response(JSON.stringify({ 
-        error: 'Must provide either songId or both artistId and artistName' 
-      }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 400,
-      })
+      return new Response(
+        JSON.stringify({ error: 'Missing required parameters' }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 400,
+        }
+      );
     }
 
     const supabaseAdmin = createClient(
@@ -254,38 +360,41 @@ serve(async (req: Request) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
+    let song: Song | null = null;
+
     if (songId) {
-      // Single song sync
-      console.log(`Sync request received for song: ${songId}`);
-      const song = await syncSingleSong(supabaseAdmin, songId);
-      
-      return new Response(JSON.stringify({ 
-        success: true, 
-        updated: !!song,
-        data: song 
-      }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200,
-      })
-    } else {
-      // Artist songs sync
-      console.log(`Sync request received for artist: ${artistName}`);
-      await syncArtistSongs(supabaseAdmin, artistId!, artistName!, spotifyId);
-      
-      return new Response(JSON.stringify({ 
-        success: true,
-        message: `Songs synced for artist ${artistName}`
-      }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200,
-      })
+      song = await syncSingleSong(supabaseAdmin, songId);
+    } else if (artistId && artistName) {
+      await syncArtistSongs(supabaseAdmin, artistId, artistName, spotifyId);
     }
+
+    const response: ApiResponse<Song | null> = {
+      success: true,
+      data: song
+    };
+
+    return new Response(
+      JSON.stringify(response), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200,
+      }
+    );
+
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-    console.error('Unhandled error:', errorMessage, error);
-    return new Response(JSON.stringify({ error: errorMessage }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 500,
-    })
+    handleError({
+      message: 'Unhandled error in sync-song function',
+      source: ErrorSource.API,
+      originalError: error
+    });
+
+    return new Response(
+      JSON.stringify({ 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Unknown error occurred' 
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 500,
+      }
+    );
   }
-})
+});

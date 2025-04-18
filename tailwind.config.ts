@@ -20,7 +20,7 @@ export default {
 		extend: {
 			fontFamily: {
 				sans: [
-					'Inter',
+					'Overpass',
 					'system-ui',
 					'-apple-system',
 					'BlinkMacSystemFont',
@@ -73,6 +73,10 @@ export default {
 					'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
 					border: 'hsl(var(--sidebar-border))',
 					ring: 'hsl(var(--sidebar-ring))'
+				},
+				teal: {
+					DEFAULT: 'hsl(175, 84%, 36%)',
+					light: 'hsl(170, 84%, 45%)'
 				}
 			},
 			borderRadius: {
@@ -159,5 +163,27 @@ export default {
 			}
 		}
 	},
-	plugins: [require("tailwindcss-animate")],
+	plugins: [
+		require("tailwindcss-animate"),
+		function({ addUtilities }) {
+			const newUtilities = {
+				'.text-gradient': {
+					background: 'linear-gradient(to right, hsl(175, 84%, 36%), hsl(170, 84%, 45%))',
+					'-webkit-background-clip': 'text',
+					'background-clip': 'text',
+					'color': 'transparent',
+				},
+				'.btn-gradient': {
+					background: 'linear-gradient(to right, hsl(175, 84%, 36%), hsl(170, 84%, 45%))',
+					'color': '#000',
+					'transition': 'all 0.2s ease',
+				},
+				'.btn-gradient:hover': {
+					'box-shadow': '0 4px 12px rgba(0, 184, 169, 0.3)',
+					'transform': 'translateY(-2px)',
+				},
+			}
+			addUtilities(newUtilities)
+		}
+	],
 } satisfies Config;

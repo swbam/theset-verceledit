@@ -5,7 +5,6 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { format, parseISO } from 'date-fns';
 import { generateShowUrl } from '@/lib/utils';
-import { generateShowUrl } from '@/lib/utils';
 
 interface ShowCardProps {
   show: {

@@ -2,8 +2,8 @@
 // @ts-ignore: Cannot find module 'next/server' type declarations
 import { NextResponse } from 'next/server';
 
-// Ticketmaster API key from environment variables
-const TICKETMASTER_API_KEY = process.env.VITE_TICKETMASTER_API_KEY || import.meta.env.VITE_TICKETMASTER_API_KEY;
+// Ticketmaster API key
+const TICKETMASTER_API_KEY = 'k8GrSAkbFaN0w7qDxGl7ohr8LwdAQm9b';
 
 // Ticketmaster API base URL
 const API_BASE_URL = 'https://app.ticketmaster.com/discovery/v2/';

@@ -1,15 +1,7 @@
 import { ErrorSource, handleError } from '@/lib/error-handling';
 
-// Ticketmaster API key - use VITE_ prefix for both server and client
-const TICKETMASTER_API_KEY = typeof process !== 'undefined' ? process.env.VITE_TICKETMASTER_API_KEY : import.meta.env.VITE_TICKETMASTER_API_KEY;
-
-// Determine if we're in a development environment
-const isDevelopment = typeof process !== 'undefined' ? process.env.NODE_ENV === 'development' : import.meta.env.DEV || (typeof window !== 'undefined' && window.location.hostname === 'localhost');
-
-// API base URL - use direct API in development, proxy in production
-const API_BASE_URL = isDevelopment 
-  ? 'https://app.ticketmaster.com/discovery/v2/'
-  : '/api/ticketmaster';
+// API base URL - use proxy in both development and production
+const API_BASE_URL = '/api/ticketmaster';
 
 // API request configuration
 const API_CONFIG = {
@@ -59,31 +51,16 @@ export async function callTicketmasterApi(endpoint: string, params: Record<strin
 
   while (retryCount <= API_CONFIG.maxRetries) {
     try {
-      let url: URL;
+      // Use proxy API for all environments
+      const url = new URL(API_BASE_URL, typeof window !== 'undefined' ? window.location.origin : undefined);
       
-      if (isDevelopment) {
-        // In development, call Ticketmaster API directly
-        url = new URL(endpoint, API_BASE_URL);
-        
-        // Add API key to all requests
-        url.searchParams.append('apikey', TICKETMASTER_API_KEY);
-        
-        // Add additional parameters
-        Object.entries(params).forEach(([key, value]) => {
-          url.searchParams.append(key, value);
-        });
-      } else {
-        // In production, use our proxy API
-        url = new URL(API_BASE_URL, typeof window !== 'undefined' ? window.location.origin : undefined);
-        
-        // Add endpoint as a query parameter
-        url.searchParams.append('endpoint', endpoint);
-        
-        // Add additional parameters
-        Object.entries(params).forEach(([key, value]) => {
-          url.searchParams.append(key, value);
-        });
-      }
+      // Add endpoint as a query parameter
+      url.searchParams.append('endpoint', endpoint);
+      
+      // Add additional parameters
+      Object.entries(params).forEach(([key, value]) => {
+        url.searchParams.append(key, value);
+      });
       
       console.log(`Calling Ticketmaster API: ${url.toString()} (attempt ${retryCount + 1})`);
       

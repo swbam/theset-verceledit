@@ -7,7 +7,7 @@ import { handleError, ErrorSource } from './errorUtils.ts';
 /**
  * Store artist songs in the database with retry logic and error reporting
  */
-async function storeSongsInDatabase(artistId: string, tracks: SpotifyTrack[]) {
+export async function storeSongsInDatabase(artistId: string, tracks: SpotifyTrack[]): Promise<boolean> {
   if (!tracks || tracks.length === 0) return false;
 
   try {
@@ -19,16 +19,25 @@ async function storeSongsInDatabase(artistId: string, tracks: SpotifyTrack[]) {
     for (let i = 0; i < tracks.length; i += batchSize) {
       const batch = tracks.slice(i, i + batchSize);
 
-      const songs = batch.map(track => ({
-        id: track.id,
-        artist_id: artistId,
-        name: track.name,
-        spotify_id: track.id,
-        duration_ms: track.duration_ms,
-        preview_url: track.preview_url || undefined,
-        popularity: track.popularity || undefined,
-        updated_at: new Date().toISOString()
-      }));
+      const songs: Song[] = batch.map(track => {
+        const song: Song = {
+          id: track.id,
+          artist_id: artistId,
+          name: track.name,
+          spotify_id: track.id,
+          updated_at: new Date().toISOString()
+        };
+
+        // Handle optional fields with undefined values
+        if (track.external_urls?.spotify) song.spotify_url = track.external_urls.spotify;
+        if (track.preview_url !== null) song.preview_url = track.preview_url === null ? undefined : track.preview_url;
+        if (track.duration_ms !== null) song.duration_ms = track.duration_ms === null ? undefined : track.duration_ms;
+        if (track.popularity !== null) song.popularity = track.popularity === null ? undefined : track.popularity;
+        if (track.album?.name) song.album_name = track.album.name;
+        if (track.album?.images?.[0]?.url) song.album_image = track.album.images[0].url;
+
+        return song;
+      });
 
       // Use retry utility for resilient database operations
       await retry(
@@ -195,10 +204,10 @@ export async function saveSongToDatabase(songInput: Partial<Song>): Promise<Song
       ...songInput,
       spotify_id: songInput.spotify_id, // Ensure Spotify ID is present
       name: songInput.name,
-      artist_id: songInput.artist_id || existingSong?.artist_id || null, // Ensure artist link is present if provided
-      duration_ms: songInput.duration_ms ?? existingSong?.duration_ms ?? null,
+      artist_id: songInput.artist_id || existingSong?.artist_id || undefined, // Ensure artist link is present if provided
+      duration_ms: songInput.duration_ms ?? existingSong?.duration_ms,
       popularity: songInput.popularity ?? existingSong?.popularity ?? 0,
-      preview_url: songInput.preview_url || existingSong?.preview_url || null,
+      preview_url: songInput.preview_url ?? existingSong?.preview_url,
       // vote_count is likely managed separately by triggers or explicit updates, avoid setting here
       updated_at: new Date().toISOString(),
     };

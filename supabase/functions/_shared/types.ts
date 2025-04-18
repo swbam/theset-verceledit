@@ -23,35 +23,54 @@ export type SyncStatus = {
   lastUpdated: string;
 };
 
-// Define base types used across functions
+// Spotify API Types
 export interface SpotifyTrack {
   id: string;
   name: string;
-  duration_ms: number;
+  duration_ms: number | null;
   preview_url: string | null;
-  popularity: number;
+  popularity: number | null;
+  external_urls?: { spotify?: string };
+  album?: {
+    name?: string;
+    images?: Array<{ url: string }>;
+  };
 }
 
+// Database Types
 export interface Song {
   id: string;
-  artist_id: string;
   name: string;
+  artist_id: string;
   spotify_id: string;
-  duration_ms: number;
-  preview_url?: string | null;
+  spotify_url?: string;
+  preview_url?: string;
+  duration_ms?: number;
   popularity?: number;
+  album_name?: string;
+  album_image?: string;
   created_at?: string;
-  updated_at?: string;
-  vote_count?: number;
+  updated_at: string;
 }
 
 export interface Artist {
   id: string;
   name: string;
-  spotify_id?: string;
+  external_id?: string;
   image_url?: string;
-  popularity?: number;
+  url?: string;
+  spotify_id?: string;
+  spotify_url?: string;
   genres?: string[];
+  popularity?: number;
+  created_at?: string;
+  updated_at: string;
+  setlist_fm_mbid?: string;
+  setlist_fm_id?: string;
+  ticketmaster_id?: string;
+  followers?: number;
+  tm_id?: string;
+  stored_tracks?: any[];
 }
 
 export interface Venue {
@@ -111,6 +130,13 @@ export interface Vote {
   created_at: string;
   updated_at: string;
 };
+
+// API Response Types
+export interface ApiResponse<T> {
+  success: boolean;
+  data?: T;
+  error?: string;
+}
 
 // Type for the response structure of Spotify track fetching
 export type SpotifyTracksResponse = {
@@ -179,3 +205,19 @@ export interface TicketmasterEvent {
     }>;
   };
 }
+
+// Deno Types
+declare global {
+  interface Window {
+    Deno: {
+      env: {
+        get(key: string): string | undefined;
+      };
+    };
+  }
+}
+
+// Make Deno available in the global scope
+declare const Deno: Window['Deno'];
+
+export { Deno };

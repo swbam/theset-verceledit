@@ -1,61 +1,66 @@
+/// <reference types="https://deno.land/x/supabase@1.3.1/mod.ts" />
+/// <reference types="https://deno.land/x/xhr@0.1.0/mod.ts" />
 /// <reference types="https://esm.sh/@supabase/functions-js/src/edge-runtime.d.ts" />
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { corsHeaders } from '../_shared/cors.ts'
-
-// Define expected request body structure
-interface SyncArtistPayload {
-  artistId: string;
-  force?: boolean;
-}
-
-interface Artist {
-  id?: string;
-  external_id?: string | null;
-  name: string;
-  image_url?: string | null;
-  url?: string | null;
-  spotify_id?: string | null;
-  spotify_url?: string | null;
-  genres?: string[];
-  popularity?: number | null;
-  created_at?: string;
-  updated_at?: string;
-  setlist_fm_mbid?: string | null;
-  setlist_fm_id?: string | null;
-  ticketmaster_id?: string | null;
-  followers?: number | null;
-  tm_id?: string | null;
-  stored_tracks?: any[] | null;
-}
+import { retry } from '../_shared/retryUtils.ts'
+import { handleError, ErrorSource } from '../_shared/errorUtils.ts'
+import { Artist, ApiResponse, Deno } from '../_shared/types.ts'
 
 // Helper to get Spotify Access Token (Client Credentials Flow)
 async function getSpotifyToken(): Promise<string | null> {
-  const clientId = Deno.env.get('SPOTIFY_CLIENT_ID');
-  const clientSecret = Deno.env.get('SPOTIFY_CLIENT_SECRET');
+  try {
+    const clientId = Deno.env.get('SPOTIFY_CLIENT_ID');
+    const clientSecret = Deno.env.get('SPOTIFY_CLIENT_SECRET');
 
-  if (!clientId || !clientSecret) {
-    console.error('Spotify client ID or secret not configured in environment variables.');
+    if (!clientId || !clientSecret) {
+      handleError({
+        message: 'Spotify client ID or secret not configured',
+        source: ErrorSource.Spotify,
+        context: { hasClientId: !!clientId, hasClientSecret: !!clientSecret }
+      });
+      return null;
+    }
+
+    const response = await retry(
+      async () => {
+        const res = await fetch('https://accounts.spotify.com/api/token', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Authorization': 'Basic ' + btoa(clientId + ':' + clientSecret)
+          },
+          body: 'grant_type=client_credentials'
+        });
+
+        if (!res.ok) {
+          throw new Error(`Failed to get Spotify token: ${res.statusText}`);
+        }
+
+        return res;
+      },
+      {
+        retries: 3,
+        minTimeout: 1000,
+        maxTimeout: 5000,
+        onRetry: (error, attempt) => {
+          console.warn(`[getSpotifyToken] Retry attempt ${attempt}:`, error);
+        }
+      }
+    );
+
+    const data = await response.json();
+    return data.access_token;
+  } catch (error) {
+    handleError({
+      message: 'Failed to get Spotify access token',
+      source: ErrorSource.Spotify,
+      originalError: error
+    });
     return null;
   }
-
-  const response = await fetch('https://accounts.spotify.com/api/token', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-      'Authorization': 'Basic ' + btoa(clientId + ':' + clientSecret)
-    },
-    body: 'grant_type=client_credentials'
-  });
-
-  if (!response.ok) {
-    console.error('Failed to get Spotify token:', response.status, await response.text());
-    return null;
-  }
-
-  const data = await response.json();
-  return data.access_token;
 }
 
 // --- Setlist.fm API Helper ---
@@ -69,39 +74,53 @@ interface SetlistFmSearchResponse {
 }
 
 async function searchSetlistFmArtist(artistName: string): Promise<string | null> {
-  const apiKey = Deno.env.get('SETLIST_FM_API_KEY');
-  if (!apiKey) {
-    console.warn('SETLIST_FM_API_KEY not set, skipping Setlist.fm search.');
-    return null;
-  }
-
   try {
-    const searchUrl = `https://api.setlist.fm/rest/1.0/search/artists?artistName=${encodeURIComponent(artistName)}&p=1&sort=relevance`;
-    console.log(`Fetching from Setlist.fm: ${searchUrl}`);
-    const response = await fetch(searchUrl, {
-      headers: {
-        'Accept': 'application/json',
-        'x-api-key': apiKey,
-      },
-    });
-
-    if (!response.ok) {
-      console.warn(`Setlist.fm API error for ${artistName}: ${response.status} ${await response.text()}`);
+    const apiKey = Deno.env.get('SETLIST_FM_API_KEY');
+    if (!apiKey) {
+      handleError({
+        message: 'Setlist.fm API key not configured',
+        source: ErrorSource.Setlist,
+      });
       return null;
     }
+
+    const response = await retry(
+      async () => {
+        const res = await fetch(
+          `https://api.setlist.fm/rest/1.0/search/artists?artistName=${encodeURIComponent(artistName)}&sort=relevance`,
+          {
+            headers: {
+              'x-api-key': apiKey,
+              'Accept': 'application/json'
+            }
+          }
+        );
+
+        if (!res.ok) {
+          throw new Error(`Failed to search Setlist.fm: ${res.statusText}`);
+        }
+
+        return res;
+      },
+      {
+        retries: 3,
+        minTimeout: 1000,
+        maxTimeout: 5000,
+        onRetry: (error, attempt) => {
+          console.warn(`[searchSetlistFmArtist] Retry attempt ${attempt} for ${artistName}:`, error);
+        }
+      }
+    );
 
     const data: SetlistFmSearchResponse = await response.json();
-    if (data.artist && data.artist.length > 0) {
-      const mbid = data.artist[0].mbid;
-      console.log(`Found Setlist.fm MBID for ${artistName}: ${mbid}`);
-      return mbid;
-    } else {
-      console.log(`No Setlist.fm artist found for query: ${artistName}`);
-      return null;
-    }
+    return data.artist?.[0]?.mbid ?? null;
   } catch (error) {
-    const errorMsg = error instanceof Error ? error.message : String(error);
-    console.error(`Error fetching or processing Setlist.fm data for artist ${artistName}:`, errorMsg);
+    handleError({
+      message: `Failed to search for artist on Setlist.fm`,
+      source: ErrorSource.Setlist,
+      originalError: error,
+      context: { artistName }
+    });
     return null;
   }
 }
@@ -115,15 +134,15 @@ async function fetchAndTransformArtistData(supabaseAdmin: any, artistId: string)
     const { data: existingArtist, error: existingError } = await supabaseAdmin
       .from('artists')
       .select('*')
-      .eq('ticketmaster_id', artistId)
-      .maybeSingle();
+      .eq('id', artistId)
+      .single();
 
     if (existingError) {
-      console.warn(`Error fetching existing artist with ticketmaster_id ${artistId}:`, existingError.message);
+      console.warn(`Error fetching existing artist with id ${artistId}:`, existingError.message);
     }
     
     if (existingArtist) {
-      console.log(`Found existing data for artist with ticketmaster_id ${artistId}`);
+      console.log(`Found existing data for artist with id ${artistId}`);
       artist = existingArtist as Artist;
     }
 
@@ -144,8 +163,8 @@ async function fetchAndTransformArtistData(supabaseAdmin: any, artistId: string)
           console.log(`Received Ticketmaster data for ${artistId}`);
           if (artist) {
             artist.name = tmData.name;
-            artist.image_url = getBestImage(tmData.images) || artist.image_url || null;
-            artist.url = tmData.url || artist.url || null;
+            artist.image_url = getBestImage(tmData.images) || artist.image_url || undefined;
+            artist.url = tmData.url || artist.url || undefined;
             artist.updated_at = new Date().toISOString();
           } else {
             artist = {
@@ -194,14 +213,8 @@ async function fetchAndTransformArtistData(supabaseAdmin: any, artistId: string)
             if (spotifyData?.artists?.items?.length > 0) {
               const spotifyArtist = spotifyData.artists.items[0];
               console.log(`Received Spotify data for ${artist.name}`);
-              artist.spotify_id = spotifyArtist.id;
-              artist.spotify_url = spotifyArtist.external_urls?.spotify || null;
-              artist.genres = spotifyArtist.genres || artist.genres || [];
-              artist.popularity = spotifyArtist.popularity ?? artist.popularity ?? null;
-
-              if (!artist.image_url && spotifyArtist.images?.length > 0) {
-                artist.image_url = spotifyArtist.images[0].url;
-              }
+              const spotifyArtistData = transformSpotifyArtist(spotifyArtist);
+              artist = { ...artist, ...spotifyArtistData };
               artist.updated_at = new Date().toISOString();
             } else {
               console.log(`No Spotify artist found for query: ${artist.name}`);
@@ -238,8 +251,23 @@ async function fetchAndTransformArtistData(supabaseAdmin: any, artistId: string)
   }
 }
 
-function getBestImage(images?: Array<{url: string, width: number, height: number}>): string | null {
-  if (!images || images.length === 0) return null;
+async function transformSpotifyArtist(spotifyData: any): Promise<Partial<Artist>> {
+  return {
+    name: spotifyData.name,
+    external_id: spotifyData.id || undefined,
+    image_url: spotifyData.images?.[0]?.url || undefined,
+    url: spotifyData.external_urls?.spotify || undefined,
+    spotify_id: spotifyData.id || undefined,
+    spotify_url: spotifyData.external_urls?.spotify || undefined,
+    genres: spotifyData.genres || [],
+    popularity: spotifyData.popularity || undefined,
+    followers: spotifyData.followers?.total || undefined,
+    updated_at: new Date().toISOString()
+  };
+}
+
+function getBestImage(images?: Array<{url: string, width: number, height: number}>): string | undefined {
+  if (!images || images.length === 0) return undefined;
   const sorted = [...images].sort((a, b) => (b.width || 0) - (a.width || 0));
   return sorted[0].url;
 }
@@ -277,14 +305,15 @@ serve(async (req: Request) => {
   }
 
   try {
-    const payload: SyncArtistPayload = await req.json();
-    const { artistId } = payload;
+    const { artistId } = await req.json();
 
     if (!artistId) {
-      return new Response(JSON.stringify({ error: 'Missing artistId in request body' }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 400,
-      })
+      return new Response(
+        JSON.stringify({ error: 'Artist ID is required' }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 400,
+        }
+      );
     }
 
     console.log(`Sync request received for artist: ${artistId}`);
@@ -294,32 +323,39 @@ serve(async (req: Request) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    const artistData = await fetchAndTransformArtistData(supabaseAdmin, artistId);
-
-    if (!artistData) {
-      console.error(`Failed to fetch or transform data for artist ${artistId}`);
-      return new Response(JSON.stringify({ error: 'Failed to fetch artist data from external APIs' }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 500,
-      })
-    }
+    const artistData = await retry(
+      async () => {
+        const data = await fetchAndTransformArtistData(supabaseAdmin, artistId);
+        if (!data) {
+          throw new Error('Failed to fetch or transform artist data');
+        }
+        return data;
+      },
+      {
+        retries: 3,
+        minTimeout: 1000,
+        maxTimeout: 5000,
+        onRetry: (error, attempt) => {
+          console.warn(`[fetchAndTransformArtistData] Retry attempt ${attempt} for ${artistId}:`, error);
+        }
+      }
+    );
 
     console.log(`Upserting artist ${artistId} into database...`);
-    // Remove the id field if it exists in artistData to prevent auto-incrementation conflicts
-    const { id: existingId, ...dataForUpsert } = artistData;
-    
-    const { data: upsertedData, error: upsertError } = await supabaseAdmin
-      .from('artists')
-      .upsert(dataForUpsert, { onConflict: 'ticketmaster_id' })
-      .select()
-      .single();
+    const dataForUpsert = artistData;
 
-    if (upsertError) {
-      console.error('Supabase upsert error:', upsertError);
-      return new Response(JSON.stringify({ error: 'Database error during upsert', details: upsertError.message }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 500,
-      })
+    const { error } = await supabaseAdmin
+      .from('artists')
+      .upsert(dataForUpsert);
+
+    if (error) {
+      handleError({
+        message: 'Failed to upsert artist data',
+        source: ErrorSource.Supabase,
+        originalError: error,
+        context: { artistId }
+      });
+      throw error;
     }
 
     // Added: Update sync state after successful upsert
@@ -327,16 +363,34 @@ serve(async (req: Request) => {
 
     console.log(`Successfully synced artist ${artistId}`);
 
-    return new Response(JSON.stringify({ success: true, data: upsertedData }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 200,
-    })
+    const response: ApiResponse<Artist> = {
+      success: true,
+      data: artistData
+    };
+
+    return new Response(
+      JSON.stringify(response), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200,
+      }
+    );
   } catch (error) {
+    handleError({
+      message: 'Unhandled error in sync-artist function',
+      source: ErrorSource.API,
+      originalError: error,
+      context: { endpoint: 'sync-artist' }
+    });
+
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-    console.error('Unhandled error:', errorMessage, error);
-    return new Response(JSON.stringify({ error: errorMessage }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 500,
-    })
+    return new Response(
+      JSON.stringify({ 
+        success: false, 
+        error: errorMessage 
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 500,
+      }
+    );
   }
-})
+});
