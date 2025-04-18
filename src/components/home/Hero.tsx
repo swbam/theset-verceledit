@@ -60,7 +60,7 @@ const Hero = () => {
             </div>
             
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-6 leading-tight">
-              Shape the Concert <span className="text-primary">Experience</span> You Want
+              Shape the Concert <span className="gradient-text">Experience</span> You Want
             </h1>
             
             <p className="text-lg text-white/80 mb-8 max-w-lg">
@@ -71,7 +71,7 @@ const Hero = () => {
             <div className="flex flex-col sm:flex-row gap-4 mb-8">
               <Button 
                 size="lg" 
-                className="btn-twitter"
+                className="btn-gradient"
                 onClick={() => navigate('/shows')}
               >
                 Explore Shows

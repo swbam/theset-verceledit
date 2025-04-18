@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { UserProfile } from './types';
 import { setUserId } from '@/integrations/google-analytics';
@@ -18,38 +17,36 @@ export async function fetchUserProfile(user: User | null): Promise<UserProfile |
     // 1. Check admin status
     let isAdmin = false;
     try {
-      // Correctly destructure 'count' from the response when using head: true
-      const { count, error: adminCheckError } = await supabase
+      const { data: adminData, error: adminCheckError } = await supabase
         .from('admins')
-        .select('*', { count: 'exact', head: true }) // Select '*' is fine with head:true
-        .eq('user_id', userId);
+        .select('user_id')
+        .eq('user_id', userId)
+        .maybeSingle();
 
       if (adminCheckError) {
-        console.error(`Error checking admin status for ${userId}:`, adminCheckError);
-        // Continue without admin status if check fails
+        // Only log error if it's not a "no rows returned" error
+        if (adminCheckError.code !== 'PGRST116') {
+          console.error(`Error checking admin status for ${userId}:`, adminCheckError);
+        }
       } else {
-        // Use the destructured 'count' variable
-        isAdmin = (count ?? 0) > 0;
-        console.log(`User ${userId} admin status: ${isAdmin} (Count: ${count})`);
+        isAdmin = !!adminData;
       }
     } catch (adminCheckCatchError) {
-       console.error(`Exception checking admin status for ${userId}:`, adminCheckCatchError);
+      console.error(`Exception checking admin status for ${userId}:`, adminCheckCatchError);
     }
-
 
     // 2. Extract data from Auth user object (user_metadata)
     const metadata = user.user_metadata;
     const profile: UserProfile = {
       id: userId,
-      // Prefer metadata, fallback to email parts
-      username: metadata?.user_name || metadata?.full_name || user.email?.split('@')[0],
-      full_name: metadata?.full_name,
-      avatar_url: metadata?.avatar_url,
-      // Provider info might be in app_metadata or identities array
-      provider: user.app_metadata?.provider || user.identities?.[0]?.provider,
-      // provider_id: user.identities?.[0]?.id, // Usually not needed directly
+      username: metadata?.username || metadata?.preferred_username || metadata?.name || user.email?.split('@')[0] || userId,
+      full_name: metadata?.full_name || metadata?.name || '',
+      avatar_url: metadata?.avatar_url || metadata?.picture || null,
+      provider: user.app_metadata?.provider || 'email',
+      provider_id: user.app_metadata?.provider_id,
       is_admin: isAdmin,
       created_at: user.created_at, // Get creation time from Auth user
+      updated_at: new Date().toISOString()
     };
 
     console.log("Constructed user profile:", profile);

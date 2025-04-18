@@ -9,39 +9,30 @@
     --background: 185 20% 3%; /* Dark teal-black background */
     --foreground: 0 0% 95%;
 
-    --card: 185 20% 5%; /* Slightly lighter than background */
+    --card: 185 20% 5%;
     --card-foreground: 0 0% 95%;
 
     --popover: 185 20% 5%;
     --popover-foreground: 0 0% 95%;
 
-    --primary: 175 84% 36%; /* Teal */
+    --primary: 160 84% 45%; /* Adjusted to match gradient midpoint */
     --primary-foreground: 0 0% 0%;
 
-    --secondary: 185 20% 8%; /* Dark teal-grey secondary */
+    --secondary: 185 20% 8%;
     --secondary-foreground: 0 0% 95%;
 
     --muted: 185 20% 8%;
     --muted-foreground: 0 0% 65%;
 
-    --accent: 175 84% 36%; /* Same teal for accents */
+    --accent: 160 84% 45%; /* Adjusted to match gradient */
     --accent-foreground: 0 0% 0%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 98%;
 
-    --border: 185 20% 12%; /* Dark teal-grey border */
+    --border: 185 20% 12%;
     --input: 185 20% 12%;
-    --ring: 175 84% 36%; /* Teal for focus rings */
-
-    --sidebar-background: 185 20% 2%;
-    --sidebar-foreground: 0 0% 96%;
-    --sidebar-primary: 175 84% 36%; /* Teal */
-    --sidebar-primary-foreground: 0 0% 0%;
-    --sidebar-accent: 185 20% 12%;
-    --sidebar-accent-foreground: 0 0% 96%;
-    --sidebar-border: 185 20% 12%;
-    --sidebar-ring: 175 84% 36%; /* Teal */
+    --ring: 160 84% 45%;
 
     --radius: 0.5rem;
   }
@@ -155,27 +146,43 @@
   }
   
   .search-tag {
-    @apply bg-white/10 hover:bg-gradient-to-r hover:from-teal hover:to-teal-light hover:text-black px-3 py-1 rounded-full text-sm transition-all duration-200;
+    @apply bg-white/10 hover:bg-gradient-to-r hover:from-[#40e6bf] hover:to-[#01ec8d] hover:text-black px-3 py-1 rounded-full text-sm transition-all duration-200;
   }
   
   .tag {
     @apply bg-primary/10 text-primary px-3 py-1 rounded-full text-sm;
   }
+  
+  /* Updated gradient styles */
+  .logo {
+    @apply text-transparent bg-clip-text bg-gradient-to-r from-[#40e6bf] to-[#01ec8d] font-bold;
+  }
+
+  .gradient-text {
+    @apply text-transparent bg-clip-text bg-gradient-to-r from-[#40e6bf] to-[#01ec8d];
+  }
+  
+  .explore-button {
+    @apply bg-gradient-to-r from-[#40e6bf] to-[#01ec8d] text-black px-4 py-2 rounded-full font-medium hover:opacity-90 transition-opacity;
+  }
+}
+
+/* Updated utility for Gradient Text */
+@layer utilities {
+  .text-gradient {
+    @apply bg-gradient-to-r from-[#40e6bf] to-[#01ec8d] bg-clip-text text-transparent;
+  }
+
+  .btn-gradient {
+    @apply bg-gradient-to-r from-[#40e6bf] to-[#01ec8d] text-black transition-all duration-200;
+  }
+
+  .btn-gradient:hover {
+    @apply shadow-[0_4px_12px_rgba(64,230,191,0.3)] transform -translate-y-0.5;
+  }
 }
 
 /* Additional Utility Classes */
-.logo {
-  @apply text-transparent bg-clip-text bg-gradient-to-r from-teal to-teal-light font-bold;
-}
-
-.gradient-text {
-  @apply text-transparent bg-clip-text bg-gradient-to-r from-teal to-teal-light;
-}
-
-.explore-button {
-  @apply btn-gradient px-4 py-2 rounded-full font-medium;
-}
-
 .works-button {
   @apply bg-transparent border border-border rounded-full px-4 py-2 text-foreground hover:bg-white/5 transition-colors font-medium;
 }
