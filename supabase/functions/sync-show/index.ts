@@ -1,8 +1,23 @@
 /// <reference types="https://esm.sh/@supabase/functions-js/src/edge-runtime.d.ts" />
+/// <reference lib="deno.ns" />
+
+// @deno-types="https://raw.githubusercontent.com/denoland/deno/main/cli/dts/lib.deno.d.ts"
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { corsHeaders } from '../_shared/cors.ts'
+
+declare global {
+  interface Window {
+    Deno: {
+      env: {
+        get(key: string): string | undefined;
+      };
+    };
+  }
+}
+
+const deno = (globalThis as any).Deno;
 
 interface SyncShowPayload {
   showId: string;
@@ -13,14 +28,42 @@ interface Show {
   id?: string;
   ticketmaster_id: string;
   name: string;
-  date?: string | null;
-  artist_id?: string | null;
-  venue_id?: string | null;
-  ticket_url?: string | null;
-  image_url?: string | null;
-  popularity?: number | null;
+  date: string | null;
+  artist_id: string | null;
+  venue_id: string | null;
+  ticket_url: string | null;
+  image_url: string | null;
+  popularity: number | null;
   created_at?: string;
-  updated_at?: string;
+  updated_at: string;
+}
+
+interface TicketmasterEvent {
+  id: string;
+  name: string;
+  url?: string;
+  dates?: {
+    start?: {
+      dateTime?: string;
+    };
+  };
+  images?: Array<{
+    url: string;
+    width: number;
+    height: number;
+    ratio?: string;
+  }>;
+  _embedded?: {
+    venues?: Array<{
+      id: string;
+      name: string;
+    }>;
+    attractions?: Array<{
+      id: string;
+      name: string;
+    }>;
+  };
+  popularity?: number;
 }
 
 function getBestImage(images?: Array<{url: string, width: number, height: number}>): string | null {
@@ -51,160 +94,153 @@ async function fetchAndTransformShowData(supabaseAdmin: any, showId: string): Pr
     }
 
     // --- Ticketmaster API ---
-    const tmApiKey = Deno.env.get('TICKETMASTER_API_KEY');
+    const tmApiKey = deno.env.get('TICKETMASTER_API_KEY');
     if (!tmApiKey) {
-      console.error('TICKETMASTER_API_KEY not set in environment variables.');
-      if (!show) return null;
-    } else {
-      try {
-        const tmUrl = `https://app.ticketmaster.com/discovery/v2/events/${showId}.json?apikey=${tmApiKey}`;
-        console.log(`Fetching from Ticketmaster: ${tmUrl}`);
-        const tmResponse = await fetch(tmUrl);
-
-        if (!tmResponse.ok) {
-          console.warn(`Ticketmaster API error for show ${showId}: ${tmResponse.status} ${await tmResponse.text()}`);
-          if (!show) return null;
-        } else {
-          const tmData = await tmResponse.json();
-          console.log(`Received Ticketmaster data for show ${showId}`);
-
-          const tmArtistId = tmData._embedded?.attractions?.[0]?.id;
-          const tmVenueId = tmData._embedded?.venues?.[0]?.id;
-          const artistName = tmData._embedded?.attractions?.[0]?.name;
-
-          // First sync artist and venue to get their IDs
-          let artistDbId = null;
-          let venueDbId = null;
-
-          if (tmArtistId && artistName) {
-            console.log(`Syncing artist ${artistName} (${tmArtistId})...`);
-            try {
-              const artistResponse = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/sync-artist`, {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
-                },
-                body: JSON.stringify({ artistId: tmArtistId })
-              });
-
-              const artistResponseText = await artistResponse.text();
-              if (!artistResponse.ok) {
-                console.error(`Failed to sync artist: ${artistResponse.status} ${artistResponseText}`);
-              } else {
-                try {
-                  const artistData = JSON.parse(artistResponseText);
-                  if (artistData?.data?.id) {
-                    artistDbId = artistData.data.id;
-                    console.log(`Got artist DB ID: ${artistDbId}`);
-                  }
-                } catch (parseError) {
-                  console.error("Error parsing artist response:", parseError);
-                }
-              }
-            } catch (artistError) {
-              console.error("Error syncing artist:", artistError);
-            }
-          }
-
-          if (tmVenueId) {
-            console.log("Syncing venue...");
-            try {
-              const venueResponse = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/sync-venue`, {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
-                },
-                body: JSON.stringify({ venueId: tmVenueId })
-              });
-
-              const venueResponseText = await venueResponse.text();
-              if (!venueResponse.ok) {
-                console.error(`Failed to sync venue: ${venueResponse.status} ${venueResponseText}`);
-              } else {
-                try {
-                  const venueData = JSON.parse(venueResponseText);
-                  if (venueData?.data?.id) {
-                    venueDbId = venueData.data.id;
-                    console.log(`Got venue DB ID: ${venueDbId}`);
-                  }
-                } catch (parseError) {
-                  console.error("Error parsing venue response:", parseError);
-                }
-              }
-            } catch (venueError) {
-              console.error("Error syncing venue:", venueError);
-            }
-          }
-
-          if (show) {
-            show.name = tmData.name;
-            show.date = tmData.dates?.start?.dateTime || show.date || null;
-            show.ticket_url = tmData.url || show.ticket_url || null;
-            show.image_url = getBestImage(tmData.images) || show.image_url || null;
-            show.popularity = show.popularity ?? 0;
-            show.updated_at = new Date().toISOString();
-            show.artist_id = artistDbId || show.artist_id;
-            show.venue_id = venueDbId || show.venue_id;
-          } else {
-            show = {
-              ticketmaster_id: showId,
-              name: tmData.name,
-              date: tmData.dates?.start?.dateTime || null,
-              ticket_url: tmData.url || null,
-              image_url: getBestImage(tmData.images) || null,
-              popularity: 0,
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString(),
-              artist_id: artistDbId,
-              venue_id: venueDbId
-            };
-          }
-        }
-      } catch (error) {
-        const errorMsg = error instanceof Error ? error.message : String(error);
-        console.error(`Error fetching or processing Ticketmaster data for show ${showId}:`, errorMsg);
-        if (!show) return null;
-      }
+      throw new Error('TICKETMASTER_API_KEY not set in environment variables.');
     }
+
+    const tmUrl = `https://app.ticketmaster.com/discovery/v2/events/${showId}.json?apikey=${tmApiKey}`;
+    console.log(`Fetching from Ticketmaster: ${tmUrl}`);
+    const tmResponse = await fetch(tmUrl);
+
+    if (!tmResponse.ok) {
+      const responseText = await tmResponse.text();
+      throw new Error(`Ticketmaster API error (${tmResponse.status}): ${responseText}`);
+    }
+
+    const tmData = await tmResponse.json() as TicketmasterEvent;
+    console.log(`Received Ticketmaster data for show ${showId}`);
+
+    const tmArtistId = tmData._embedded?.attractions?.[0]?.id;
+    const tmVenueId = tmData._embedded?.venues?.[0]?.id;
+    const artistName = tmData._embedded?.attractions?.[0]?.name;
+
+    if (!tmArtistId || !artistName) {
+      throw new Error(`No artist data found for show ${showId}`);
+    }
+
+    if (!tmData._embedded?.venues?.[0]) {
+      throw new Error(`No venue data found for show ${showId}`);
+    }
+
+    const venueName = tmData._embedded.venues[0].name;
+
+    // First sync artist and venue to get their IDs
+    let artistDbId: string | null = null;
+    let venueDbId: string | null = null;
+
+    // Sync artist
+    console.log(`Syncing artist ${artistName} (${tmArtistId})...`);
+    const artistResponse = await fetch(`${deno.env.get('SUPABASE_URL')}/functions/v1/sync-artist`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+      },
+      body: JSON.stringify({ artistId: tmArtistId })
+    });
+
+    if (!artistResponse.ok) {
+      const artistResponseText = await artistResponse.text();
+      throw new Error(`Artist sync failed: ${artistResponse.status} ${artistResponseText}`);
+    }
+
+    const artistData = await artistResponse.json();
+    if (!artistData?.data?.id) {
+      throw new Error('Artist sync succeeded but no ID returned');
+    }
+
+    artistDbId = artistData.data.id;
+    console.log(`Got artist DB ID: ${artistDbId}`);
+
+    // Sync venue
+    console.log(`Syncing venue ${venueName} (${tmVenueId})...`);
+    const venueResponse = await fetch(`${deno.env.get('SUPABASE_URL')}/functions/v1/sync-venue`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+      },
+      body: JSON.stringify({ venueId: tmVenueId })
+    });
+
+    if (!venueResponse.ok) {
+      const venueResponseText = await venueResponse.text();
+      throw new Error(`Venue sync failed: ${venueResponse.status} ${venueResponseText}`);
+    }
+
+    const venueData = await venueResponse.json();
+    if (!venueData?.data?.id) {
+      throw new Error('Venue sync succeeded but no ID returned');
+    }
+
+    venueDbId = venueData.data.id;
+    console.log(`Got venue DB ID: ${venueDbId}`);
+
+    // Transform the show data
+    const transformedShow: Show = {
+      ticketmaster_id: showId,
+      name: tmData.name,
+      date: tmData.dates?.start?.dateTime || null,
+      artist_id: artistDbId,
+      venue_id: venueDbId,
+      ticket_url: tmData.url || null,
+      image_url: getBestImage(tmData.images) || null,
+      popularity: tmData.popularity || null,
+      updated_at: new Date().toISOString()
+    };
+
+    // If we found an existing show, update it
+    if (show?.id) {
+      console.log(`Updating existing show ${show.id}...`);
+      const { error: updateError } = await supabaseAdmin
+        .from('shows')
+        .update(transformedShow)
+        .eq('id', show.id);
+
+      if (updateError) {
+        throw new Error(`Failed to update show: ${updateError.message}`);
+      }
+
+      return { ...transformedShow, id: show.id };
+    }
+
+    // Otherwise insert new show
+    console.log('Inserting new show...');
+    const { data: newShow, error: insertError } = await supabaseAdmin
+      .from('shows')
+      .insert(transformedShow)
+      .select()
+      .single();
+
+    if (insertError) {
+      throw new Error(`Failed to insert show: ${insertError.message}`);
+    }
+
+    return newShow;
+
   } catch (error) {
-    const errorMsg = error instanceof Error ? error.message : String(error);
-    console.error(`Error in fetchAndTransformShowData: ${errorMsg}`);
-    return null;
+    console.error(`Error processing show ${showId}:`, error);
+    throw error instanceof Error ? error : new Error('Unknown error occurred');
   }
-
-  if (!show?.name) {
-    console.error(`Failed to resolve show name for ID ${showId} from any source.`);
-    return null;
-  }
-
-  return show;
 }
 
 // Update sync state in database
-async function updateSyncStatus(client: any, entityId: string, entityType: string) {
+async function updateSyncStatus(supabaseAdmin: any, entityId: string, entityType: string) {
   try {
-    const now = new Date().toISOString();
-    const { error } = await client
+    const { error } = await supabaseAdmin
       .from('sync_states')
       .upsert({
         entity_id: entityId,
         entity_type: entityType,
-        external_id: null,
-        last_synced: now,
-        sync_version: 1
+        last_synced: new Date().toISOString()
       }, {
         onConflict: 'entity_id,entity_type'
       });
 
-    if (error) {
-      console.error(`Error updating sync state for ${entityType} ${entityId}:`, error);
-    } else {
-      console.log(`Updated sync state for ${entityType} ${entityId}`);
-    }
+    if (error) throw error;
   } catch (error) {
-    console.error(`Exception updating sync state for ${entityType} ${entityId}:`, error);
+    console.error(`Failed to update sync status for ${entityType} ${entityId}:`, error);
   }
 }
 
@@ -214,63 +250,68 @@ serve(async (req: Request) => {
   }
 
   try {
-    const payload: SyncShowPayload = await req.json();
-    const { showId } = payload;
+    const supabaseClient = createClient(
+      deno.env.get('SUPABASE_URL') ?? '',
+      deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    )
+
+    const { showId, force = false } = await req.json() as SyncShowPayload;
 
     if (!showId) {
-      return new Response(JSON.stringify({ error: 'Missing showId in request body' }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 400,
-      })
+      throw new Error('showId is required');
     }
 
-    console.log(`Sync request received for show: ${showId}`);
+    // Check if we've synced this show recently
+    if (!force) {
+      const { data: syncState } = await supabaseClient
+        .from('sync_states')
+        .select('last_synced')
+        .eq('entity_id', showId)
+        .eq('entity_type', 'show')
+        .maybeSingle();
 
-    const supabaseAdmin = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
+      if (syncState?.last_synced) {
+        const lastSync = new Date(syncState.last_synced);
+        const now = new Date();
+        const hoursSinceSync = (now.getTime() - lastSync.getTime()) / (1000 * 60 * 60);
 
-    const showData = await fetchAndTransformShowData(supabaseAdmin, showId);
-
-    if (!showData) {
-      console.error(`Failed to fetch or transform data for show ${showId}`);
-      return new Response(JSON.stringify({ error: 'Failed to fetch show data from external APIs' }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 500,
-      })
+        if (hoursSinceSync < 24) {
+          console.log(`Show ${showId} was synced ${hoursSinceSync.toFixed(1)} hours ago, skipping...`);
+          return new Response(
+            JSON.stringify({
+              message: 'Show was synced recently',
+              data: null,
+              error: null
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
+          )
+        }
+      }
     }
 
-    console.log(`Upserting show ${showId} into database...`);
-    const { data: upsertedData, error: upsertError } = await supabaseAdmin
-      .from('shows')
-      .upsert(showData, { onConflict: 'ticketmaster_id' })
-      .select()
-      .single();
+    const show = await fetchAndTransformShowData(supabaseClient, showId);
 
-    if (upsertError) {
-      console.error('Supabase upsert error:', upsertError);
-      return new Response(JSON.stringify({ error: 'Database error during upsert', details: upsertError.message }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 500,
-      })
-    }
+    // Update sync state
+    await updateSyncStatus(supabaseClient, showId, 'show');
 
-    // Added: Update sync state after successful upsert
-    await updateSyncStatus(supabaseAdmin, showId, 'show');
+    return new Response(
+      JSON.stringify({
+        message: show ? 'Show synced successfully' : 'Failed to sync show',
+        data: show,
+        error: null
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
+    )
 
-    console.log(`Successfully synced show ${showId}`);
-
-    return new Response(JSON.stringify({ success: true, data: upsertedData }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 200,
-    })
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-    console.error('Unhandled error:', errorMessage, error);
-    return new Response(JSON.stringify({ error: errorMessage }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 500,
-    })
+    console.error('Error:', error);
+    return new Response(
+      JSON.stringify({
+        message: 'Error syncing show',
+        data: null,
+        error: error instanceof Error ? error.message : 'Unknown error occurred'
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
+    )
   }
 })

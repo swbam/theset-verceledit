@@ -1,15 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
-import { useState, useEffect, useCallback } from 'react';
-import { fetchShowDetails } from '@/lib/ticketmaster';
-import { searchArtists } from '@/lib/spotify';
-import { toast } from 'sonner';
+import { useCallback, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Database } from '@/integrations/supabase/types';
 import { v4 as uuidv4 } from 'uuid';
 
 export function useShowDetails(id: string | undefined) {
   const [spotifyArtistId, setSpotifyArtistId] = useState<string>('');
-  
+
   type ShowWithRelations = Database['public']['Tables']['shows']['Row'] & {
     artist: Database['public']['Tables']['artists']['Row'] | null;
     venue: Database['public']['Tables']['venues']['Row'] | null;
@@ -27,47 +24,19 @@ export function useShowDetails(id: string | undefined) {
         `)
         .or(`id.eq.${showId},ticketmaster_id.eq.${showId}`)
         .maybeSingle();
-      
+
       if (error) {
         console.log("Database check error:", error.message);
         return null;
       }
-      
+
       return data;
     } catch (err) {
       console.error("Error checking show in database:", err);
       return null;
     }
   }, []);
-  
-  // Optimize the Spotify artist ID search with better caching
-  const findSpotifyArtistId = useCallback(async (artistName: string) => {
-    if (!artistName) return 'mock-artist';
-    
-    try {
-      // Check localStorage cache first to avoid unnecessary API calls
-      const cachedId = localStorage.getItem(`spotify_artist_${artistName}`);
-      if (cachedId) {
-        console.log(`Using cached Spotify ID for ${artistName}: ${cachedId}`);
-        return cachedId;
-      }
-      
-      const artistResult = await searchArtists(artistName, 1);
-      if (artistResult?.artists?.items && artistResult.artists.items.length > 0) {
-        const spotifyId = artistResult.artists.items[0].id;
-        
-        // Cache the result
-        localStorage.setItem(`spotify_artist_${artistName}`, spotifyId);
-        return spotifyId;
-      } else {
-        return 'mock-artist';
-      }
-    } catch (error) {
-      console.error("Error searching for artist by name:", error);
-      return 'mock-artist';
-    }
-  }, []);
-  
+
   const { 
     data: show, 
     isLoading: isLoadingShow,
@@ -93,60 +62,48 @@ export function useShowDetails(id: string | undefined) {
           throw new Error("Failed to sync show data");
         }
 
-        // Wait a moment for sync to complete
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        
-        // Try to get from database again
-        const { data: syncedShow, error: fetchError } = await supabase
-          .from('shows')
-          .select(`
-            *,
-            artist:artists(*),
-            venue:venues(*)
-          `)
-          .or(`id.eq.${id},ticketmaster_id.eq.${id}`)
-          .single();
+        // Wait for sync to complete with retries
+        let retries = 0;
+        const maxRetries = 5;
+        let syncedShow = null;
 
-        if (fetchError || !syncedShow) {
-          console.error("Error fetching synced show:", fetchError);
-          throw new Error("Show not found after sync");
+        while (retries < maxRetries) {
+          const { data: show, error } = await supabase
+            .from('shows')
+            .select(`
+              *,
+              artist:artists(*),
+              venue:venues(*)
+            `)
+            .or(`id.eq.${id},ticketmaster_id.eq.${id}`)
+            .maybeSingle();
+
+          if (error) {
+            console.error("Error fetching synced show:", error);
+          }
+
+          if (show) {
+            syncedShow = show;
+            break;
+          }
+
+          retries++;
+          if (retries < maxRetries) {
+            await new Promise(resolve => setTimeout(resolve, 2000 * retries)); // Exponential backoff
+          }
         }
 
-        // Find and set Spotify artist ID
-        if (syncedShow.artist?.name) {
-          const spotifyId = await findSpotifyArtistId(syncedShow.artist.name);
-          setSpotifyArtistId(spotifyId);
+        if (!syncedShow) {
+          throw new Error("Failed to find synced show after multiple retries");
         }
 
         return syncedShow;
       }
 
-      // If show exists, trigger background sync and return existing data
-      supabase.functions.invoke('sync-show', {
-        body: { showId: id }
-      }).catch(error => {
-        console.error("Background sync failed:", error);
-      });
-
-      // Find and set Spotify artist ID
-      if (dbShow.artist?.name) {
-        const spotifyId = await findSpotifyArtistId(dbShow.artist.name);
-        setSpotifyArtistId(spotifyId);
-      }
-
       return dbShow;
     },
-    enabled: !!id,
-    retry: 1,
-    retryDelay: 1000,
-    staleTime: 1000 * 60 * 60, // 60 minutes
-    gcTime: 1000 * 60 * 120,   // 2 hours
-    refetchOnWindowFocus: false,
-    meta: {
-      onError: (error: unknown) => { // Use unknown for better type safety
-        console.error("Show details query error:", error);
-      }
-    }
+    staleTime: 1000 * 60 * 5, // Consider data fresh for 5 minutes
+    retry: 3
   });
 
   // vote for a song in the database
@@ -168,7 +125,7 @@ export function useShowDetails(id: string | undefined) {
       return false;
     }
   }, []);
-  
+
   // Add new song to setlist in database
   // Define a basic type for the song object expected here
   type SongInput = { id: string; position: number; info?: string | null; is_encore?: boolean };

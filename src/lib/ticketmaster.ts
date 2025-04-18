@@ -1,5 +1,25 @@
 import { supabase } from '@/integrations/supabase/client';
 import { callTicketmasterApi, popularMusicGenres } from './api/ticketmaster-config';
+import { createClient } from '@supabase/supabase-js';
+
+interface Image {
+  url: string;
+  width: number;
+  height: number;
+  ratio?: string;
+}
+
+function getBestImage(images?: Image[]): string | null {
+  if (!images || images.length === 0) return null;
+  
+  // First try to find a 16:9 image with width > 500
+  const wideImage = images.find(img => img.ratio === "16_9" && img.width > 500);
+  if (wideImage) return wideImage.url;
+  
+  // Otherwise get the largest image
+  const sorted = [...images].sort((a, b) => (b.width || 0) - (a.width || 0));
+  return sorted[0].url;
+}
 
 export { popularMusicGenres };
 
@@ -24,23 +44,56 @@ export async function fetchShowDetails(showId: string) {
       .eq('id', showId)
       .single();
 
-    if (error) throw error;
+    if (error) {
+      if (error.code === 'PGRST116') { // Record not found
+        // Trigger sync and wait for it
+        const { error: syncError } = await supabase.functions.invoke('sync-show', {
+          body: { showId }
+        });
 
-    // Trigger background sync
-    supabase.functions.invoke('sync-show', {
-      body: { showId }
-    }).catch(error => {
-      console.error(`Background sync failed for show ${showId}:`, error);
-    });
+        if (syncError) throw syncError;
+
+        // Try fetching again after sync
+        const { data: syncedShow, error: refetchError } = await supabase
+          .from('shows')
+          .select(`
+            *,
+            artist:artists(*),
+            venue:venues(*)
+          `)
+          .eq('id', showId)
+          .single();
+
+        if (refetchError) throw refetchError;
+        return syncedShow;
+      }
+      throw error;
+    }
+
+    // If show exists but might be stale, trigger background sync
+    if (show) {
+      const lastUpdated = new Date(show.updated_at || show.created_at);
+      const now = new Date();
+      const hoursSinceUpdate = (now.getTime() - lastUpdated.getTime()) / (1000 * 60 * 60);
+
+      if (hoursSinceUpdate > 24) {
+        // Trigger background sync if data is older than 24 hours
+        supabase.functions.invoke('sync-show', {
+          body: { showId }
+        }).catch(error => {
+          console.error(`Background sync failed for show ${showId}:`, error);
+        });
+      }
+    }
 
     return show;
   } catch (error) {
     console.error('[API/shows] Error fetching show details:', error);
-    return null;
+    throw error; // Let the UI handle the error
   }
 }
 
-export async function fetchShowsByGenre(genre: string) {
+export async function fetchShowsByGenre(genre: string): Promise<any[]> {
   try {
     const data = await callTicketmasterApi('events.json', {
       classificationName: 'music',
@@ -48,28 +101,39 @@ export async function fetchShowsByGenre(genre: string) {
       size: '20'
     });
 
-    if (!data._embedded?.events) {
+    if (!data || !data._embedded) {
+      console.log(`No events found for genre: ${genre}`);
       return [];
     }
 
-    return data._embedded.events.map((event: any) => ({
-      id: event.id,
-      name: event.name,
-      date: event.dates.start.dateTime,
-      venue: event._embedded?.venues?.[0] ? {
-        id: event._embedded.venues[0].id,
-        name: event._embedded.venues[0].name,
-        city: event._embedded.venues[0].city?.name,
-        state: event._embedded.venues[0].state?.name,
-        country: event._embedded.venues[0].country?.name
-      } : null,
-      ticket_url: event.url,
-      image_url: event.images?.find((img: any) => img.ratio === "16_9" && img.width > 500)?.url,
-      artist_id: event._embedded?.attractions?.[0]?.id
-    }));
+    const shows = data._embedded.events
+      .filter((event: any) => {
+        // Ensure event has required data
+        return event && 
+               event._embedded?.attractions?.[0] &&
+               event._embedded?.venues?.[0];
+      })
+      .map((event: any) => ({
+        id: event.id,
+        name: event.name,
+        date: event.dates?.start?.dateTime ? new Date(event.dates.start.dateTime).toISOString() : null,
+        artist: {
+          id: event._embedded.attractions[0].id,
+          name: event._embedded.attractions[0].name
+        },
+        venue: {
+          id: event._embedded.venues[0].id,
+          name: event._embedded.venues[0].name
+        },
+        ticketUrl: event.url || null,
+        imageUrl: getBestImage(event.images) || null,
+        popularity: event.popularity || null
+      }));
+
+    return shows;
   } catch (error) {
-    console.error('[API/shows] Error fetching shows by genre:', error);
-    return [];
+    console.error('Error fetching shows by genre:', error);
+    throw error;
   }
 }
 
@@ -89,3 +153,39 @@ export const fetchPastSetlists = async (artistId: string, artistName: string) =>
     return [];
   }
 };
+
+export async function syncArtist(artistId: string, artistName: string): Promise<void> {
+  try {
+    const supabase = createClient(
+      import.meta.env.VITE_SUPABASE_URL,
+      import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY
+    );
+
+    // Check if artist exists
+    const { data: existingArtist, error: existingError } = await supabase
+      .from('artists')
+      .select('*')
+      .eq('ticketmaster_id', artistId)
+      .single();
+
+    if (existingError && existingError.code !== 'PGRST116') {
+      throw existingError;
+    }
+
+    if (!existingArtist) {
+      // Insert new artist
+      const { error: insertError } = await supabase
+        .from('artists')
+        .insert({
+          ticketmaster_id: artistId,
+          name: artistName,
+          updated_at: new Date().toISOString()
+        });
+
+      if (insertError) throw insertError;
+    }
+  } catch (error) {
+    console.error(`Error syncing artist ${artistName} (${artistId}):`, error);
+    throw error;
+  }
+}

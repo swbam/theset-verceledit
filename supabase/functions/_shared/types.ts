@@ -38,6 +38,40 @@ export interface SpotifyTrack {
 }
 
 // Database Types
+export interface Database {
+  public: {
+    Tables: {
+      setlist_songs: {
+        Row: {
+          id: string;
+          setlist_id: string;
+          song_id: string;
+          name?: string;
+          position: number;
+          artist_id: string;
+          votes: number;
+          track_id?: string;
+          created_at?: string;
+          updated_at?: string;
+          last_updated?: string;
+        };
+        Insert: Omit<Database['public']['Tables']['setlist_songs']['Row'], 'id'>;
+        Update: Partial<Database['public']['Tables']['setlist_songs']['Row']>;
+      };
+      user_votes: {
+        Row: {
+          user_id: string;
+          song_id: string;
+          vote_type: 'upvote' | 'downvote';
+          created_at: string;
+        };
+        Insert: Database['public']['Tables']['user_votes']['Row'];
+        Update: Partial<Database['public']['Tables']['user_votes']['Row']>;
+      };
+    };
+  };
+}
+
 export interface Song {
   id: string;
   name: string;
@@ -49,8 +83,6 @@ export interface Song {
   popularity?: number;
   album_name?: string;
   album_image?: string;
-  created_at?: string;
-  updated_at: string;
 }
 
 export interface Artist {
@@ -95,32 +127,32 @@ export interface Show {
 }
 
 export interface Setlist {
-  id: string; // DB generated UUID
-  show_id: string; // Foreign key to shows table (using DB show ID)
-  artist_id: string; // Foreign key to artists table (using DB artist ID)
-  date?: string; // Copied from show
-  venue?: string; // Copied from show/venue
-  venue_city?: string; // Copied from show/venue
-  tour_name?: string; // Optional
-  setlist_fm_id?: string; // Optional
-  created_at?: string; // DB timestamp
-  updated_at?: string; // DB timestamp
-};
+  id: string;
+  show_id: string;
+  artist_id: string;
+  date?: string;
+  venue?: string;
+  venue_city?: string;
+  tour_name?: string;
+  setlist_fm_id?: string;
+  created_at?: string;
+  updated_at?: string;
+}
 
 // Represents an entry in the junction table
 export interface SetlistSong {
-    id?: string; // DB generated UUID
-    setlist_id: string; // Foreign key to setlists table
-    song_id: string; // Foreign key to songs table
-    name?: string; // Denormalized song name
-    position: number; // Order in the setlist
-    artist_id: string; // Denormalized artist ID
-    vote_count?: number; // Initialized to 0
-    track_id?: string; // Potentially spotify_id? Check usage
-    created_at?: string; // DB timestamp
-    updated_at?: string; // DB timestamp
-    last_updated?: string; // From DB? Check usage
-};
+  id?: string;
+  setlist_id: string;
+  song_id: string;
+  name?: string;
+  position: number;
+  artist_id: string;
+  vote_count?: number;
+  track_id?: string;
+  created_at?: string;
+  updated_at?: string;
+  last_updated?: string;
+}
 
 export interface Vote {
   id: string;
@@ -129,7 +161,7 @@ export interface Vote {
   count: number;
   created_at: string;
   updated_at: string;
-};
+}
 
 // API Response Types
 export interface ApiResponse<T> {
@@ -139,24 +171,24 @@ export interface ApiResponse<T> {
 }
 
 // Type for the response structure of Spotify track fetching
-export type SpotifyTracksResponse = {
+export interface SpotifyTracksResponse {
   tracks: SpotifyTrack[];
-};
+}
 
 // Type for Spotify artist object (simplified)
 export interface SpotifyArtist {
-    id: string;
-    name: string;
-    external_urls: {
-        spotify?: string;
-    };
-    popularity?: number;
-    followers: {
-        total?: number;
-    };
-    images?: Array<{ url: string; height?: number; width?: number }>;
-    genres?: string[];
-};
+  id: string;
+  name: string;
+  external_urls: {
+    spotify?: string;
+  };
+  popularity?: number;
+  followers: {
+    total?: number;
+  };
+  images?: Array<{ url: string; height?: number; width?: number }>;
+  genres?: string[];
+}
 
 // Type for Ticketmaster Image object
 export interface TicketmasterImage {
@@ -184,7 +216,6 @@ export interface TicketmasterEvent {
     };
   };
   images?: TicketmasterImage[];
-  popularity?: number;
   _embedded?: {
     venues?: Array<{
       id: string;
