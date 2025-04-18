@@ -84,14 +84,22 @@ export default async function ArtistPage({ params }: ArtistPageProps) {
     notFound();
   }
   
-  // Fetch upcoming shows for this artist
-  const { data: upcomingShows } = await supabase
-    .from('shows')
-    .select('*')
-    .eq('artist_id', artist.id)
-    .gte('date', new Date().toISOString())
-    .order('date', { ascending: true })
-    .limit(5);
+  // Fetch upcoming shows from Ticketmaster API
+  const ticketmasterResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/ticketmaster?endpoint=events.json&keyword=${encodeURIComponent(artist.name)}&sort=date,asc&size=5`);
+  const ticketmasterData = await ticketmasterResponse.json();
+  
+  const upcomingShows = ticketmasterData._embedded?.events?.map((event: any) => ({
+    id: event.id,
+    name: event.name,
+    date: event.dates.start.dateTime,
+    venue: event._embedded?.venues?.[0] ? {
+      name: event._embedded.venues[0].name,
+      city: event._embedded.venues[0].city?.name,
+      state: event._embedded.venues[0].state?.stateCode
+    } : null,
+    ticket_url: event.url,
+    image_url: event.images?.[0]?.url
+  })) || [];
 
   // Fetch past setlists
   const { data: pastSetlists } = await supabase

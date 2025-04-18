@@ -21,22 +21,25 @@ export default async function Home() {
       {/* Hero Section */}
       <section className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12">
         <div className="flex flex-col justify-center">
-          <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4">
-            Vote for your favorite concert songs
+          <h1 className="text-4xl md:text-5xl font-bold mb-2">
+            Shape the Concert<br />
+            <span className="text-gradient">Experience</span> You<br />
+            Want
           </h1>
-          <p className="text-lg text-gray-600 mb-6">
-            Help your favorite artists know which songs you want to hear live.
-            Browse upcoming shows, vote on setlists, and see what others are excited to hear.
+          <p className="text-lg text-muted-foreground mb-6">
+            Discover upcoming shows and vote on setlists for your favorite
+            artists. Join a community of fans influencing what songs get
+            played live.
           </p>
           <div className="flex flex-wrap gap-4">
-            <Button asChild size="lg">
-              <Link href="/artists">
-                Browse Artists
+            <Button asChild size="lg" className="btn-primary">
+              <Link href="/explore">
+                Explore Shows
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
             </Button>
-            <Button variant="outline" size="lg" asChild>
-              <Link href="/shows">View Upcoming Shows</Link>
+            <Button variant="outline" size="lg" asChild className="btn-outline">
+              <Link href="/how-it-works">How It Works</Link>
             </Button>
           </div>
         </div>
