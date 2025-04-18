@@ -16,13 +16,13 @@ BEGIN
   DO UPDATE SET count = votes.count + 1;
   
   -- Update the total vote count
-  UPDATE setlist_songs
+  UPDATE played_setlist_songs
   SET vote_count = (
     SELECT COALESCE(SUM(count), 0)
     FROM votes
     WHERE song_id = p_song_id
   )
-  WHERE id = p_song_id;
+  WHERE song_id = p_song_id;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -39,20 +39,20 @@ BEGIN
   WHERE song_id = p_song_id AND user_id = p_user_id;
   
   -- Update the total vote count
-  UPDATE setlist_songs
+  UPDATE played_setlist_songs
   SET vote_count = (
     SELECT COALESCE(SUM(count), 0)
     FROM votes
     WHERE song_id = p_song_id
   )
-  WHERE id = p_song_id;
+  WHERE song_id = p_song_id;
 END;
 $$ LANGUAGE plpgsql;
 
 -- Add missing indexes
 CREATE INDEX IF NOT EXISTS idx_shows_artist_id ON shows(artist_id);
 CREATE INDEX IF NOT EXISTS idx_setlists_artist_id ON setlists(artist_id);
-CREATE INDEX IF NOT EXISTS idx_setlist_songs_setlist_id ON setlist_songs(setlist_id);
+CREATE INDEX IF NOT EXISTS idx_played_setlist_songs_setlist_id ON played_setlist_songs(setlist_id);
 CREATE INDEX IF NOT EXISTS idx_votes_song_id ON votes(song_id);
 CREATE INDEX IF NOT EXISTS idx_votes_user_id ON votes(user_id);
 
@@ -60,7 +60,7 @@ CREATE INDEX IF NOT EXISTS idx_votes_user_id ON votes(user_id);
 ALTER TABLE artists ENABLE ROW LEVEL SECURITY;
 ALTER TABLE shows ENABLE ROW LEVEL SECURITY;
 ALTER TABLE setlists ENABLE ROW LEVEL SECURITY;
-ALTER TABLE setlist_songs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE played_setlist_songs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE votes ENABLE ROW LEVEL SECURITY;
 
 -- Create policies
@@ -73,7 +73,7 @@ CREATE POLICY "Public shows are viewable by everyone" ON shows
 CREATE POLICY "Public setlists are viewable by everyone" ON setlists
   FOR SELECT USING (true);
 
-CREATE POLICY "Public setlist songs are viewable by everyone" ON setlist_songs
+CREATE POLICY "Public played setlist songs are viewable by everyone" ON played_setlist_songs
   FOR SELECT USING (true);
 
 CREATE POLICY "Users can view all votes" ON votes

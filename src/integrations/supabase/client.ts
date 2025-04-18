@@ -91,7 +91,8 @@ export const signInWithProvider = async (provider: 'spotify' | 'google') => {
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider,
       options: {
-        redirectTo: getRedirectUrl()
+        redirectTo: `${window.location.origin}/auth/callback?provider=${provider}`,
+        scopes: provider === 'spotify' ? 'user-read-email user-read-private user-top-read user-follow-read playlist-read-private' : undefined
       }
     });
     

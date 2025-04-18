@@ -15,3 +15,10 @@
 -Implement Carousels with Embla Carousel: Use Embla Carousel for creating accessible and responsive carousels.
 -Handle OTP Inputs Securely: Use Input OTP for one-time password inputs, ensuring security and usability best practices.
 -Generate Unique IDs with UUID: Use the UUID library to generate unique identifiers when necessary.
+- the supabse id is kzjnkqeosrycfpxjwhil
+- always write complete code. never use placeholders
+- you are a genius full stack developer and designer
+- Never just stop implementing after finishing a task. always keep going until this app is finalized. 
+- the supabase project ID is kzjnkqeosrycfpxjwhil. Always use supabase mcp for mirgrations
+- use browsertools if available to see logs 
+- this app uses supabase secrets and a sync manager with background tasks

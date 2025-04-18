@@ -745,6 +745,10 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: undefined
       }
+      call_orchestrate_sync: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean
+      }
       check_rate_limit: {
         Args: { p_key: string; p_limit: number; p_window: unknown }
         Returns: boolean
@@ -875,6 +879,10 @@ export type Database = {
         Args: { p_song_id: string; p_user_id: string }
         Returns: undefined
       }
+      process_sync_tasks: {
+        Args: { p_limit?: number }
+        Returns: number
+      }
       rollback_transaction: {
         Args: Record<PropertyKey, never>
         Returns: undefined
@@ -893,7 +901,7 @@ export type Database = {
       }
       sync_upcoming_shows: {
         Args: Record<PropertyKey, never>
-        Returns: undefined
+        Returns: number
       }
       test_sync_system: {
         Args: { target_id: string; entity_type: string }

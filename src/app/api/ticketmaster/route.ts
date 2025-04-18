@@ -2,14 +2,23 @@
 // @ts-ignore: Cannot find module 'next/server' type declarations
 import { NextResponse } from 'next/server';
 
-// Ticketmaster API key
-const TICKETMASTER_API_KEY = 'k8GrSAkbFaN0w7qDxGl7ohr8LwdAQm9b';
+// Ticketmaster API key - Read from environment variables
+const TICKETMASTER_API_KEY = process.env.TICKETMASTER_API_KEY;
 
 // Ticketmaster API base URL
 const API_BASE_URL = 'https://app.ticketmaster.com/discovery/v2/';
 
 export async function GET(request: Request) {
   try {
+    // Check if API key is configured
+    if (!TICKETMASTER_API_KEY) {
+      console.error('Ticketmaster API Key is not configured in environment variables.');
+      return NextResponse.json(
+        { error: 'Server configuration error: Missing Ticketmaster API Key' },
+        { status: 500 }
+      );
+    }
+
     // Get endpoint and params from query string
     const url = new URL(request.url);
     const endpoint = url.searchParams.get('endpoint');
@@ -44,6 +53,19 @@ export async function GET(request: Request) {
         'Accept': 'application/json',
       },
     });
+
+    // Check if the response was successful
+    if (!response.ok) {
+      const errorBody = await response.text(); // Read the error response body
+      console.error(`Ticketmaster API Error (${response.status}): ${errorBody}`);
+      return NextResponse.json(
+        { 
+          error: `Ticketmaster API Error: ${response.statusText}`,
+          details: errorBody 
+        },
+        { status: response.status }
+      );
+    }
     
     // Get the response data
     const data = await response.json();
@@ -58,7 +80,7 @@ export async function GET(request: Request) {
   } catch (error) {
     console.error('Error proxying Ticketmaster API:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch data from Ticketmaster API' },
+      { error: `Failed to fetch data from Ticketmaster API: ${error instanceof Error ? error.message : 'Unknown error'}` },
       { status: 500 }
     );
   }

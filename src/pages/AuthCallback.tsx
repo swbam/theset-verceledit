@@ -26,106 +26,54 @@ const AuthCallback = () => {
         
         console.log('Provider from URL:', provider);
         console.log('Auth code present:', code ? 'Yes' : 'No');
-        
-        // Get the current session
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-        
-        if (sessionError) {
-          console.error('Session error:', sessionError);
-          throw sessionError;
-        }
-        
-        if (session) {
-          console.log('Session found:', session.user.id);
-          console.log('Provider token:', session.provider_token ? 'Yes' : 'No');
+
+        if (code) {
+          console.log('Code found, exchanging for session...');
+          setStatus('Finalizing authentication...');
           
-          if (session.provider_token) {
-            console.log('Provider token is available');
-          } else {
-            console.warn('Provider token is not available - this may cause issues with Spotify API calls');
+          // Explicitly exchange the code for a session
+          const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+          
+          if (exchangeError) {
+            console.error('Error exchanging code for session:', exchangeError);
+            throw exchangeError;
           }
           
-          // Store authentication state in localStorage for persistence
-          localStorage.setItem('user_id', session.user.id);
-          
-          if (provider) {
-            localStorage.setItem('auth_provider', provider);
-          }
-          
-          toast.success('Successfully signed in!');
-          
-          // Check if auth was with Spotify - use both the URL parameter and session info
-          if (provider === 'spotify' || session.provider_token) {
-            console.log('Spotify login detected, synchronizing data');
-            setStatus('Syncing your Spotify artists...');
+          if (data?.session) {
+            console.log('Session obtained:', data.session.user.id);
+            localStorage.setItem('user_id', data.session.user.id);
             
-            try {
-              // Trigger background sync for Spotify top artists
-              await syncSpotifyData(session.user.id);
-            } catch (syncError: AuthCallbackErrorType) {
-              console.error('Error syncing Spotify data:', syncError);
-              // Continue with redirection even if sync fails
+            if (provider) {
+              localStorage.setItem('auth_provider', provider);
             }
             
-            setStatus('Redirecting to your personalized dashboard...');
-            navigate('/my-artists');
-          } else {
-            console.log('Non-Spotify login, redirecting to home page');
-            setTimeout(() => {
+            toast.success('Successfully signed in!');
+            
+            // Check if auth was with Spotify
+            if (provider === 'spotify' || data.session.provider_token) {
+              setStatus('Syncing your Spotify artists...');
+              
+              try {
+                // Trigger background sync for Spotify top artists
+                await syncSpotifyData(data.session.user.id);
+              } catch (syncError: AuthCallbackErrorType) {
+                console.error('Error syncing Spotify data:', syncError);
+                // Continue with redirection even if sync fails
+              }
+              
+              setStatus('Redirecting to your personalized dashboard...');
+              navigate('/my-artists');
+            } else {
               navigate('/');
-            }, 1000);
+            }
+          } else {
+            console.error('No session data after code exchange');
+            throw new Error('Authentication failed. Please try again.');
           }
         } else {
-          // If we have a code but no session, try to exchange the code for a session
-          if (code) {
-            console.log('No session found but code is present, attempting to exchange code for session');
-            setStatus('Finalizing authentication...');
-            
-            // The code exchange should happen automatically, but we'll wait a moment
-            setTimeout(async () => {
-              const { data: { session: newSession }, error: exchangeError } = await supabase.auth.getSession();
-              
-              if (exchangeError) {
-                console.error('Error exchanging code for session:', exchangeError);
-                throw exchangeError;
-              }
-              
-              if (newSession) {
-                console.log('Session obtained after code exchange:', newSession.user.id);
-                localStorage.setItem('user_id', newSession.user.id);
-                
-                if (provider) {
-                  localStorage.setItem('auth_provider', provider);
-                }
-                
-                toast.success('Successfully signed in!');
-                
-                if (provider === 'spotify' || newSession.provider_token) {
-                  setStatus('Syncing your Spotify artists...');
-                  
-                  try {
-                    // Trigger background sync for Spotify top artists
-                    await syncSpotifyData(newSession.user.id);
-                  } catch (syncError: AuthCallbackErrorType) {
-                    console.error('Error syncing Spotify data:', syncError);
-                    // Continue with redirection even if sync fails
-                  }
-                  
-                  setStatus('Redirecting to your personalized dashboard...');
-                  navigate('/my-artists');
-                } else {
-                  navigate('/');
-                }
-              } else {
-                console.error('No session after code exchange');
-                throw new Error('Authentication failed. Please try again.');
-              }
-            }, 2000);
-          } else {
-            console.log('No session found after redirect and no code present');
-            setError('Authentication process was interrupted. Please try again.');
-            setTimeout(() => navigate('/auth'), 2000);
-          }
+          console.log('No code found in URL');
+          setError('Authentication process was interrupted. Please try again.');
+          setTimeout(() => navigate('/auth'), 2000);
         }
       } catch (err: AuthCallbackErrorType) {
         console.error('Error during auth callback:', err);

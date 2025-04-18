@@ -24,12 +24,14 @@ interface VenueResult {
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') {
+    res.setHeader('Content-Type', 'application/json');
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
   const { query, type } = req.query;
 
   if (!query || !type) {
+    res.setHeader('Content-Type', 'application/json');
     return res.status(400).json({ error: 'Missing required parameters: query and type' });
   }
 
@@ -39,6 +41,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Check if user is authenticated and is an admin
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) {
+      res.setHeader('Content-Type', 'application/json');
       return res.status(401).json({ error: 'Unauthorized' });
     }
     
@@ -50,6 +53,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       .single();
       
     if (!adminCheck) {
+      res.setHeader('Content-Type', 'application/json');
       return res.status(403).json({ error: 'Forbidden: Admin access required' });
     }
 
@@ -59,14 +63,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       // Search for artists using Ticketmaster API
       const tmApiKey = process.env.TICKETMASTER_API_KEY;
       if (!tmApiKey) {
-        throw new Error('Ticketmaster API key is not configured');
+        throw new Error('Server configuration error: Ticketmaster API key is not configured');
       }
       
       const searchUrl = `https://app.ticketmaster.com/discovery/v2/attractions.json?keyword=${encodeURIComponent(query as string)}&apikey=${tmApiKey}`;
+      console.log(`Fetching artists from: ${searchUrl}`);
       const response = await fetch(searchUrl);
       
       if (!response.ok) {
-        throw new Error(`Ticketmaster API error: ${response.statusText}`);
+        const errorBody = await response.text();
+        console.error(`Ticketmaster API error (${response.status}): ${errorBody}`);
+        throw new Error(`Ticketmaster API error: ${response.statusText} - ${errorBody}`); 
       }
       
       const data = await response.json();
@@ -106,14 +113,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       // Search for venues using Ticketmaster API
       const tmApiKey = process.env.TICKETMASTER_API_KEY;
       if (!tmApiKey) {
-        throw new Error('Ticketmaster API key is not configured');
+        throw new Error('Server configuration error: Ticketmaster API key is not configured');
       }
       
       const searchUrl = `https://app.ticketmaster.com/discovery/v2/venues.json?keyword=${encodeURIComponent(query as string)}&apikey=${tmApiKey}`;
+      console.log(`Fetching venues from: ${searchUrl}`);
       const response = await fetch(searchUrl);
       
       if (!response.ok) {
-        throw new Error(`Ticketmaster API error: ${response.statusText}`);
+        const errorBody = await response.text();
+        console.error(`Ticketmaster API error (${response.status}): ${errorBody}`);
+        throw new Error(`Ticketmaster API error: ${response.statusText} - ${errorBody}`);
       }
       
       const data = await response.json();
@@ -132,11 +142,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
     }
 
+    res.setHeader('Content-Type', 'application/json');
     return res.status(200).json({ results });
   } catch (error) {
     console.error('Search API error:', error);
+    res.setHeader('Content-Type', 'application/json'); 
     return res.status(500).json({ 
-      error: error instanceof Error ? error.message : 'An unknown error occurred' 
+      error: `Search failed: ${error instanceof Error ? error.message : 'An unknown server error occurred'}` 
     });
   }
 }
