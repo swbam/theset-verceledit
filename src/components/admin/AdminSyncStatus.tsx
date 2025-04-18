@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { RefreshCw, Play, AlertTriangle } from 'lucide-react';
+import { Play, AlertTriangle, Clock, CheckCircle, XCircle, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { Badge } from '@/components/ui/badge';
+import { format, formatDistanceToNow } from 'date-fns';
 
 interface SyncStats {
   entity_type: string;
@@ -50,7 +52,7 @@ const AdminSyncStatus = () => {
       const statsMap = new Map<string, SyncStats>();
       
       // Initialize with default entity types
-      ['artist', 'show', 'venue', 'song'].forEach(type => {
+      ['artist', 'show', 'venue', 'song', 'setlist'].forEach(type => {
         statsMap.set(type, {
           entity_type: type,
           total: 0,
@@ -167,10 +169,13 @@ const AdminSyncStatus = () => {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
+              operation: 'sync',
               entityType: 'artist',
-              entityId: '1f9e8a14-7bca-4f1e-b2d3-431fe1e31595', // Coldplay
-              priority: 'high',
-              sync: ['artist', 'shows', 'songs']
+              entityId: '1f9e8a14-7bca-4f1e-b2d3-431fe1e31595', // Example artist ID
+              options: {
+                priority: 'high',
+                entityName: 'Test Artist'
+              }
             })
           });
           break;
@@ -181,21 +186,36 @@ const AdminSyncStatus = () => {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
+              operation: 'sync',
               entityType: 'show',
-              entityId: 'vvG1iZ9aVt5jDk', // Some show ID
-              priority: 'high'
+              entityId: 'vvG1iZ9aVt5jDk', // Example show ID
+              options: {
+                priority: 'high',
+                entityName: 'Test Show'
+              }
             })
           });
           break;
           
-        case 'pipeline':
-          // Test entire sync pipeline
-          response = await fetch('/api/sync', {
+        case 'process':
+          // Process pending tasks
+          response = await fetch('/api/background-sync', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              test: true,
-              fullPipeline: true
+              operation: 'process',
+              limit: 5
+            })
+          });
+          break;
+          
+        case 'spotify':
+          // Test Spotify sync
+          response = await fetch('/api/spotify-sync', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              operation: 'sync_top_artists'
             })
           });
           break;
@@ -204,20 +224,16 @@ const AdminSyncStatus = () => {
           throw new Error(`Unknown test type: ${testType}`);
       }
 
-      const result = await response.json();
-      
       if (!response.ok) {
-        throw new Error(result.error || result.message || 'Test failed');
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Test failed with status ${response.status}`);
       }
+
+      const result = await response.json();
+      toast.success(`${testType} test completed successfully`, { id: toastId });
       
-      toast.success(`${testType} test started successfully`, { id: toastId });
-      
-      // Refresh data after a short delay
-      setTimeout(() => {
-        fetchStats();
-        fetchRecentTasks();
-      }, 2000);
-      
+      // Refresh data after test
+      await handleRefresh();
     } catch (error) {
       console.error(`Error running ${testType} test:`, error);
       toast.error(`Test failed: ${error instanceof Error ? error.message : 'Unknown error'}`, { id: toastId });
@@ -226,25 +242,29 @@ const AdminSyncStatus = () => {
     }
   };
 
-  const formatDate = (dateStr: string | null) => {
-    if (!dateStr) return 'Never';
-    try {
-      const date = new Date(dateStr);
-      if (isNaN(date.getTime())) return 'Invalid date';
-      return date.toLocaleString();
-    } catch {
-      return 'Invalid date';
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'pending':
+        return <Badge variant="outline" className="bg-yellow-50"><Clock className="h-3 w-3 mr-1 text-yellow-500" /> Pending</Badge>;
+      case 'processing':
+        return <Badge variant="outline" className="bg-blue-50"><Loader2 className="h-3 w-3 mr-1 text-blue-500 animate-spin" /> Processing</Badge>;
+      case 'completed':
+        return <Badge variant="outline" className="bg-green-50"><CheckCircle className="h-3 w-3 mr-1 text-green-500" /> Completed</Badge>;
+      case 'failed':
+        return <Badge variant="outline" className="bg-red-50"><XCircle className="h-3 w-3 mr-1 text-red-500" /> Failed</Badge>;
+      default:
+        return <Badge variant="outline">{status}</Badge>;
     }
   };
 
-  const getStatusColor = (status: string) => {
-    switch(status) {
-      case 'completed': return 'text-green-500';
-      case 'failed': return 'text-red-500';
-      case 'processing': return 'text-blue-500';
-      case 'pending': return 'text-yellow-500';
-      default: return '';
-    }
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return 'Never';
+    const date = new Date(dateString);
+    return (
+      <span title={format(date, 'PPpp')}>
+        {formatDistanceToNow(date, { addSuffix: true })}
+      </span>
+    );
   };
 
   return (
@@ -253,130 +273,162 @@ const AdminSyncStatus = () => {
         <h2 className="text-2xl font-bold">Sync Status</h2>
         <Button 
           variant="outline" 
-          size="sm"
+          size="sm" 
           onClick={handleRefresh}
           disabled={refreshing}
         >
-          <RefreshCw className={`mr-2 h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+          <Loader2 className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
           Refresh
         </Button>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {stats.map(entityStats => (
-          <Card key={entityStats.entity_type}>
-            <CardHeader>
-              <CardTitle className="capitalize">{entityStats.entity_type}s</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <dl className="space-y-2">
-                <div className="flex justify-between">
-                  <dt className="text-sm text-muted-foreground">Total Syncs:</dt>
-                  <dd className="text-sm font-medium">{entityStats.total}</dd>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {isLoading ? (
+          Array.from({ length: 3 }).map((_, i) => (
+            <Card key={`skeleton-${i}`} className="h-[180px] animate-pulse bg-muted/10" />
+          ))
+        ) : (
+          stats.map((stat) => (
+            <Card key={stat.entity_type}>
+              <CardHeader className="pb-2">
+                <CardTitle className="capitalize">{stat.entity_type}s</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div>
+                    <div className="text-muted-foreground">Total</div>
+                    <div className="text-xl font-bold">{stat.total}</div>
+                  </div>
+                  <div>
+                    <div className="text-muted-foreground">Pending</div>
+                    <div className="text-xl font-bold">{stat.pending}</div>
+                  </div>
+                  <div>
+                    <div className="text-muted-foreground">Completed</div>
+                    <div className="text-xl font-bold">{stat.completed}</div>
+                  </div>
+                  <div>
+                    <div className="text-muted-foreground">Failed</div>
+                    <div className="text-xl font-bold">{stat.failed}</div>
+                  </div>
                 </div>
-                <div className="flex justify-between">
-                  <dt className="text-sm text-muted-foreground">Pending/Processing:</dt>
-                  <dd className="text-sm font-medium text-yellow-500">{entityStats.pending}</dd>
-                </div>
-                <div className="flex justify-between">
-                  <dt className="text-sm text-muted-foreground">Completed:</dt>
-                  <dd className="text-sm font-medium text-green-500">{entityStats.completed}</dd>
-                </div>
-                <div className="flex justify-between">
-                  <dt className="text-sm text-muted-foreground">Failed:</dt>
-                  <dd className="text-sm font-medium text-red-500">{entityStats.failed}</dd>
-                </div>
-                <div className="flex justify-between">
-                  <dt className="text-sm text-muted-foreground">Last Sync:</dt>
-                  <dd className="text-sm font-medium">{formatDate(entityStats.last_sync)}</dd>
-                </div>
-              </dl>
-            </CardContent>
-          </Card>
-        ))}
+              </CardContent>
+              <CardFooter className="text-xs text-muted-foreground pt-0">
+                Last synced: {formatDate(stat.last_sync)}
+              </CardFooter>
+            </Card>
+          ))
+        )}
       </div>
 
-      <div className="mt-8">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold">Test Sync System</h3>
-          <div className="flex gap-2">
-            <Button 
-              size="sm" 
-              variant="outline" 
-              onClick={() => runTest('artist')}
-              disabled={testing['artist']}
-            >
-              <Play className="mr-2 h-4 w-4" />
-              Test Artist Sync
-            </Button>
-            <Button 
-              size="sm" 
-              variant="outline" 
-              onClick={() => runTest('show')}
-              disabled={testing['show']}
-            >
-              <Play className="mr-2 h-4 w-4" />
-              Test Show Sync
-            </Button>
-            <Button 
-              size="sm" 
-              variant="outline" 
-              onClick={() => runTest('pipeline')}
-              disabled={testing['pipeline']}
-            >
-              <Play className="mr-2 h-4 w-4" />
-              Test Full Pipeline
-            </Button>
-          </div>
+      <div className="space-y-4">
+        <h3 className="text-xl font-bold">Test Sync Operations</h3>
+        <div className="flex flex-wrap gap-2">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => runTest('artist')}
+            disabled={testing['artist']}
+          >
+            {testing['artist'] ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <Play className="h-4 w-4 mr-2" />
+            )}
+            Test Artist Sync
+          </Button>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => runTest('show')}
+            disabled={testing['show']}
+          >
+            {testing['show'] ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <Play className="h-4 w-4 mr-2" />
+            )}
+            Test Show Sync
+          </Button>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => runTest('process')}
+            disabled={testing['process']}
+          >
+            {testing['process'] ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <Play className="h-4 w-4 mr-2" />
+            )}
+            Process Pending Tasks
+          </Button>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => runTest('spotify')}
+            disabled={testing['spotify']}
+          >
+            {testing['spotify'] ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <Play className="h-4 w-4 mr-2" />
+            )}
+            Sync Spotify Top Artists
+          </Button>
         </div>
-        <div className="rounded-lg border bg-card">
-          <div className="p-4">
-            <table className="w-full">
-              <thead>
-                <tr className="text-sm text-muted-foreground">
-                  <th className="text-left font-medium">Entity</th>
-                  <th className="text-left font-medium">ID</th>
-                  <th className="text-left font-medium">Status</th>
-                  <th className="text-left font-medium">Updated At</th>
-                </tr>
-              </thead>
-              <tbody className="text-sm">
-                {tasksLoading ? (
-                  <tr>
-                    <td colSpan={4} className="py-3 text-center text-muted-foreground">
-                      Loading...
-                    </td>
-                  </tr>
-                ) : recentTasks.length === 0 ? (
-                  <tr>
-                    <td colSpan={4} className="py-3 text-center text-muted-foreground">
-                      No recent sync operations
-                    </td>
-                  </tr>
-                ) : (
-                  recentTasks.map(task => (
-                    <tr key={task.id} className="border-t">
-                      <td className="py-2 capitalize">{task.entity_type}</td>
-                      <td className="py-2">
-                        <span className="font-mono text-xs">{task.entity_id.substring(0, 13)}...</span>
-                      </td>
-                      <td className="py-2">
-                        <span className={`capitalize ${getStatusColor(task.status)}`}>
-                          {task.status}
-                          {task.error && (
-                            <span className="ml-2" title={task.error}>
-                              <AlertTriangle className="inline h-3 w-3 text-red-500" />
-                            </span>
-                          )}
-                        </span>
-                      </td>
-                      <td className="py-2">{formatDate(task.updated_at)}</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+      </div>
+
+      <div className="space-y-4">
+        <h3 className="text-xl font-bold">Recent Sync Tasks</h3>
+        <div className="rounded-md border">
+          {tasksLoading ? (
+            <div className="p-8 text-center text-muted-foreground">
+              <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2" />
+              Loading recent tasks...
+            </div>
+          ) : recentTasks.length === 0 ? (
+            <div className="p-8 text-center text-muted-foreground">
+              No sync tasks found
+            </div>
+          ) : (
+            <div className="divide-y">
+              {recentTasks.map((task) => (
+                <div key={task.id} className="p-4 hover:bg-muted/10">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center">
+                      <span className="font-medium capitalize mr-2">
+                        {task.entity_name || `${task.entity_type} ${task.entity_id.substring(0, 8)}...`}
+                      </span>
+                      {getStatusBadge(task.status)}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      {formatDate(task.updated_at)}
+                    </div>
+                  </div>
+                  <div className="text-sm text-muted-foreground flex items-center justify-between">
+                    <div>
+                      <span className="capitalize">{task.entity_type}</span> · 
+                      <span className="text-xs font-mono">{task.entity_id}</span>
+                    </div>
+                    <div>
+                      {task.priority && (
+                        <Badge variant="outline" className="text-xs">
+                          Priority: {task.priority >= 10 ? 'High' : task.priority <= 1 ? 'Low' : 'Normal'}
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                  {task.error && (
+                    <div className="mt-2 text-xs text-red-500 flex items-center">
+                      <AlertTriangle className="h-3 w-3 mr-1" />
+                      {task.error}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>

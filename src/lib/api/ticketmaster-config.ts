@@ -41,6 +41,18 @@ interface ApiErrorCause {
   noRetry?: boolean;
 }
 
+// Ticketmaster API error response types
+interface TicketmasterErrorResponse {
+  fault?: {
+    faultstring?: string;
+  };
+  errors?: Array<{
+    code?: string;
+    detail?: string;
+    status?: string;
+  }>;
+}
+
 /**
  * Call Ticketmaster API with specified endpoint and parameters
  * Includes retry logic with exponential backoff
@@ -51,8 +63,12 @@ export async function callTicketmasterApi(endpoint: string, params: Record<strin
 
   while (retryCount <= API_CONFIG.maxRetries) {
     try {
-      // Use proxy API for all environments
-      const url = new URL(API_BASE_URL, typeof window !== 'undefined' ? window.location.origin : undefined);
+      // Build the URL with the current origin to handle any port changes
+      const baseUrl = typeof window !== 'undefined' 
+        ? `${window.location.origin}${API_BASE_URL}` 
+        : API_BASE_URL;
+      
+      const url = new URL(baseUrl);
       
       // Add endpoint as a query parameter
       url.searchParams.append('endpoint', endpoint);
@@ -79,25 +95,45 @@ export async function callTicketmasterApi(endpoint: string, params: Record<strin
       // Clear timeout
       clearTimeout(timeoutId);
       
+      // Parse the response data - handle potential JSON parsing errors
+      let errorData: TicketmasterErrorResponse = {};
+      let data: any;
+      
+      try {
+        data = await response.json();
+        errorData = data as TicketmasterErrorResponse;
+      } catch (parseError) {
+        // If JSON parsing fails, continue with error handling
+        console.error('Failed to parse Ticketmaster API response:', parseError);
+        if (!response.ok) {
+          throw new Error(`Ticketmaster API error (${response.status}): ${response.statusText}`);
+        }
+      }
+      
       if (!response.ok) {
         // Check if we should retry based on status code
         if ([429, 500, 502, 503, 504].includes(response.status)) {
           // These status codes are likely transient issues, so we should retry
-          const errorData = await response.json().catch(() => ({}));
           const errorMessage = `Ticketmaster API error (${response.status}): ${errorData.fault?.faultstring || response.statusText}`;
           throw new Error(errorMessage);
         }
         
         // For other status codes, we shouldn't retry
-        const errorData = await response.json().catch(() => ({}));
-        const errorMessage = `Ticketmaster API error (${response.status}): ${errorData.fault?.faultstring || response.statusText}`;
+        let errorMessage = `Ticketmaster API error (${response.status}): ${response.statusText}`;
+        
+        // Add more details if available
+        if (errorData.fault?.faultstring) {
+          errorMessage = `Ticketmaster API error (${response.status}): ${errorData.fault.faultstring}`;
+        } else if (errorData.errors && Array.isArray(errorData.errors) && errorData.errors.length > 0) {
+          errorMessage = `Ticketmaster API error (${response.status}): ${errorData.errors[0].detail || errorData.errors[0].code || response.statusText}`;
+        }
+        
         const error = new Error(errorMessage);
         // Set the noRetry property
         (error as Error & { cause: ApiErrorCause }).cause = { noRetry: true };
         throw error;
       }
       
-      const data = await response.json();
       return data;
     } catch (error) {
       // Type assertion for the error
@@ -130,5 +166,6 @@ export async function callTicketmasterApi(endpoint: string, params: Record<strin
     originalError: lastError
   });
   
-  return null;
+  // Return empty data instead of null to prevent JSON parsing errors
+  return { _embedded: { events: [] } };
 }

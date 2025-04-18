@@ -33,6 +33,32 @@ export function createServerActionClient() {
 }
 */
 
+// --- Server-Side Client for Next.js API Routes ---
+export function createServerSupabaseClient({ req, res }: { req: any; res: any }) {
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    console.error('Supabase URL or Anon Key is missing. Check environment variables.');
+    throw new Error('Supabase URL or Anon Key is missing.');
+  }
+  
+  return createServerClient(
+    SUPABASE_URL,
+    SUPABASE_ANON_KEY,
+    {
+      cookies: {
+        get(name: string) {
+          return req.cookies?.[name];
+        },
+        set(name: string, value: string, options: CookieOptions) {
+          res.setHeader('Set-Cookie', `${name}=${value}; Path=${options.path || '/'}; ${options.httpOnly ? 'HttpOnly;' : ''} ${options.secure ? 'Secure;' : ''} SameSite=${options.sameSite || 'Lax'}`);
+        },
+        remove(name: string, options: CookieOptions) {
+          res.setHeader('Set-Cookie', `${name}=; Path=${options.path || '/'}; Max-Age=0; ${options.httpOnly ? 'HttpOnly;' : ''} ${options.secure ? 'Secure;' : ''} SameSite=${options.sameSite || 'Lax'}`);
+        },
+      },
+    }
+  );
+}
+
 // --- Server-Side Client (for API Route Handlers - req/res pattern) ---
 // Use this version if you are working within traditional Next.js API route handlers
 // that receive `req` and `res` objects.

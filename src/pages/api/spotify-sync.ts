@@ -1,120 +1,117 @@
-import type { NextApiRequest, NextApiResponse } from 'next';
-import { createClient } from '@supabase/supabase-js';
+import { NextApiRequest, NextApiResponse } from 'next';
+import { createServerSupabaseClient } from '@/integrations/supabase/utils';
+import { SyncManager } from '@/lib/syncManager';
 
-interface SpotifySyncRequest extends NextApiRequest {
-  body: {
-    userId: string;
-  };
-}
-
-type SyncResponse = {
-  success: boolean;
-  data?: any;
-  error?: string;
-  message?: string;
-};
-
-// Create Supabase client with service role key for admin operations
-const adminSupabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-  process.env.SUPABASE_SERVICE_KEY || ''
-);
-
-export default async function handler(req: SpotifySyncRequest, res: NextApiResponse<SyncResponse>) {
-  // Only allow POST
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
-    return res.status(405).json({ success: false, error: 'Method not allowed' });
+    return res.status(405).json({ error: 'Method not allowed' });
   }
 
   try {
-    const { userId } = req.body;
-
-    if (!userId) {
-      return res.status(400).json({ success: false, error: 'Missing userId' });
+    const supabase = createServerSupabaseClient({ req, res });
+    
+    // Check if user is authenticated
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    
+    // Get provider token for Spotify API calls
+    const providerToken = session.provider_token;
+    
+    if (!providerToken) {
+      return res.status(400).json({ error: 'No Spotify token available. Please reconnect your Spotify account.' });
     }
 
-    console.log(`[API] Syncing Spotify data for user ${userId}`);
+    // Get the operation from the request body
+    const { operation } = req.body;
 
-    // Get user's session to retrieve Spotify access token
-    const { data, error: sessionError } = await adminSupabase.auth.admin.getUserById(userId);
-
-    if (sessionError || !data?.user) {
-      console.error('[API] Error getting user session:', sessionError);
-      return res.status(401).json({ 
-        success: false, 
-        error: sessionError?.message || 'User session not found' 
-      });
-    }
-
-    // Check if we have a provider token (Spotify access token)
-    if (!data.user.app_metadata?.provider_token) {
-      console.error('[API] No provider token available');
-      return res.status(400).json({ 
-        success: false, 
-        error: 'No Spotify access token available. Please reconnect your Spotify account.'
-      });
-    }
-
-    // Fetch top artists from Spotify
-    const spotifyArtistsResponse = await fetch('https://api.spotify.com/v1/me/top/artists?time_range=medium_term&limit=20', {
-      headers: {
-        'Authorization': `Bearer ${data.user.app_metadata.provider_token}`,
-        'Content-Type': 'application/json'
-      }
-    });
-
-    if (!spotifyArtistsResponse.ok) {
-      const spotifyError = await spotifyArtistsResponse.text();
-      console.error('[API] Spotify API error:', spotifyError);
-      
-      return res.status(500).json({ 
-        success: false, 
-        error: `Spotify API error: ${spotifyArtistsResponse.status} ${spotifyError}` 
-      });
-    }
-
-    const spotifyData = await spotifyArtistsResponse.json();
-    const topArtists = spotifyData.items || [];
-
-    // Transform the Spotify artists data
-    const artists = topArtists.map((artist: any) => ({
-      id: artist.id,
-      name: artist.name,
-      image: artist.images?.[0]?.url || null,
-      genres: artist.genres || [],
-      popularity: artist.popularity || 0,
-      spotify_url: artist.external_urls?.spotify || null
-    }));
-
-    console.log(`[API] Successfully retrieved ${artists.length} top artists from Spotify for user ${userId}`);
-
-    // Send each artist to be synced in the background
-    artists.forEach(async (artist: any) => {
-      try {
-        // Call the sync API endpoint for each artist
-        await fetch('/api/sync', {
-          method: 'POST',
+    switch (operation) {
+      case 'sync_top_artists':
+        // Fetch top artists from Spotify
+        const response = await fetch('https://api.spotify.com/v1/me/top/artists?limit=20&time_range=medium_term', {
           headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            operation: 'artist',
-            artistId: artist.id
-          })
+            'Authorization': `Bearer ${providerToken}`,
+            'Content-Type': 'application/json'
+          }
         });
-      } catch (error) {
-        console.error(`[API] Error queueing sync for artist ${artist.name}:`, error);
-      }
-    });
 
-    return res.status(200).json({ 
-      success: true,
-      message: `Successfully retrieved ${artists.length} top artists from Spotify`,
-      data: { artists }
+        if (!response.ok) {
+          // If token expired, try to refresh it
+          if (response.status === 401) {
+            return res.status(401).json({ 
+              error: 'Spotify token expired', 
+              needsReauth: true 
+            });
+          }
+          throw new Error(`Spotify API error: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        const artists = data.items || [];
+
+        // Queue sync tasks for each artist
+        const syncPromises = artists.map(async (artist: any) => {
+          // First check if artist exists in our database
+          const { data: existingArtist } = await supabase
+            .from('artists')
+            .select('id')
+            .eq('spotify_id', artist.id)
+            .single();
+
+          if (existingArtist) {
+            // Artist exists, queue a sync task
+            return SyncManager.queueBackgroundSync('artist', existingArtist.id, {
+              priority: 'normal',
+              entityName: artist.name
+            });
+          } else {
+            // Artist doesn't exist, create it first
+            const { data: newArtist, error } = await supabase
+              .from('artists')
+              .insert({
+                name: artist.name,
+                spotify_id: artist.id,
+                spotify_url: artist.external_urls?.spotify,
+                image_url: artist.images?.[0]?.url,
+                genres: artist.genres,
+                popularity: artist.popularity,
+                followers: artist.followers?.total
+              })
+              .select('id')
+              .single();
+
+            if (error) throw error;
+
+            // Queue a sync task for the new artist
+            return SyncManager.queueBackgroundSync('artist', newArtist.id, {
+              priority: 'high',
+              entityName: artist.name
+            });
+          }
+        });
+
+        // Wait for all sync tasks to be queued
+        await Promise.all(syncPromises);
+
+        // Process background tasks immediately
+        SyncManager.processBackgroundTasks(5).catch(error => {
+          console.error('Error processing background tasks:', error);
+        });
+
+        return res.status(200).json({ 
+          success: true, 
+          message: `Synced ${artists.length} top artists from Spotify`,
+          artistCount: artists.length
+        });
+
+      default:
+        return res.status(400).json({ error: 'Invalid operation' });
+    }
+  } catch (error) {
+    console.error('Error in spotify-sync API:', error);
+    return res.status(500).json({ 
+      error: error instanceof Error ? error.message : 'An unknown error occurred' 
     });
-  } catch (e) {
-    const errorMessage = e instanceof Error ? e.message : String(e);
-    console.error('[API] Unhandled exception in Spotify sync API:', errorMessage);
-    return res.status(500).json({ success: false, error: errorMessage });
   }
 }

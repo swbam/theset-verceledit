@@ -1,203 +1,198 @@
-import { supabase } from '@/integrations/supabase/client';
+import { createClient } from '@supabase/supabase-js';
+import type { Database } from '@/integrations/supabase/types';
 
-type EntityType = 'artist' | 'venue' | 'show' | 'setlist' | 'song';
+// Define entity types that can be synced
+export type EntityType = 'artist' | 'show' | 'venue' | 'song' | 'setlist';
+
+// Define priority levels for sync tasks
+export type SyncPriority = 'high' | 'normal' | 'low';
+
+// Options for queueing a sync task
+interface SyncOptions {
+  priority?: SyncPriority;
+  dependencies?: string[];
+  entityName?: string;
+  data?: Record<string, any>;
+}
 
 /**
- * SyncManager provides methods to manage data synchronization between external APIs
- * and the local database.
+ * SyncManager handles the orchestration of background sync tasks
+ * It provides methods to queue, process, and check the status of sync operations
  */
 export class SyncManager {
+  // Create a Supabase client with admin privileges for background operations
+  private static getAdminClient() {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 
+                       (typeof import.meta !== 'undefined' ? import.meta.env.VITE_SUPABASE_URL : undefined) ||
+                       "https://kzjnkqeosrycfpxjwhil.supabase.co";
+    
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || 
+                              (typeof import.meta !== 'undefined' ? import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY : undefined);
+    
+    if (!supabaseUrl || !supabaseServiceKey) {
+      throw new Error('Missing Supabase URL or service role key');
+    }
+    
+    return createClient<Database>(supabaseUrl, supabaseServiceKey);
+  }
+
   /**
-   * Start a sync for a specific entity
+   * Synchronize an entity immediately (blocking operation)
+   * @param entityType Type of entity to sync
+   * @param entityId ID of the entity to sync
+   * @returns Result of the sync operation
    */
   static async syncEntity(entityType: EntityType, entityId: string) {
-    console.log(`[SyncManager] Starting sync for ${entityType} ${entityId}`);
-    
     try {
-      // First try the API endpoint, which is more robust
-      const apiResponse = await fetch('/api/sync', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          operation: entityType,
-          [`${entityType}Id`]: entityId
-        })
-      });
+      console.log(`[SyncManager] Starting sync for ${entityType} ${entityId}`);
+      const supabase = this.getAdminClient();
       
-      if (apiResponse.ok) {
-        const data = await apiResponse.json();
-        console.log(`[SyncManager] API sync successful for ${entityType} ${entityId}`, data);
-        return { success: true, data };
-      }
-      
-      console.warn(`[SyncManager] API sync failed, falling back to direct function call`);
-      
-      // Fallback to direct edge function call
+      // Determine which edge function to call based on entity type
       const functionName = `sync-${entityType}`;
+      
+      // Call the appropriate edge function
       const { data, error } = await supabase.functions.invoke(functionName, {
-        body: { [`${entityType}Id`]: entityId }
+        body: { 
+          [`${entityType}Id`]: entityId 
+        }
       });
       
       if (error) {
+        console.error(`[SyncManager] Error syncing ${entityType} ${entityId}:`, error);
         throw error;
       }
       
-      console.log(`[SyncManager] Direct sync successful for ${entityType} ${entityId}`, data);
-      return { success: true, data };
-      
+      console.log(`[SyncManager] Successfully synced ${entityType} ${entityId}`);
+      return data;
     } catch (error) {
-      console.error(`[SyncManager] Sync failed for ${entityType} ${entityId}:`, error);
-      return { 
-        success: false, 
-        error: error instanceof Error ? error.message : String(error)
-      };
+      console.error(`[SyncManager] Exception in syncEntity:`, error);
+      throw error;
     }
   }
-  
+
   /**
    * Queue a background sync task
+   * @param entityType Type of entity to sync
+   * @param entityId ID of the entity to sync
+   * @param options Additional options for the sync task
+   * @returns ID of the created sync task
    */
-  static async queueBackgroundSync(entityType: EntityType, entityId: string) {
-    console.log(`[SyncManager] Queueing background sync for ${entityType} ${entityId}`);
-    
+  static async queueBackgroundSync(
+    entityType: EntityType, 
+    entityId: string, 
+    options: SyncOptions = {}
+  ): Promise<string> {
     try {
-      const response = await fetch('/api/background-sync', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          operation: 'start',
-          entityType,
-          entityId
+      console.log(`[SyncManager] Queueing background sync for ${entityType} ${entityId}`);
+      const supabase = this.getAdminClient();
+      
+      // Determine priority value
+      const priorityValue = options.priority === 'high' ? 10 : 
+                           options.priority === 'low' ? 1 : 5;
+      
+      // Insert a new sync task
+      const { data, error } = await supabase
+        .from('sync_tasks')
+        .insert({
+          entity_type: entityType,
+          entity_id: entityId,
+          status: 'pending',
+          priority: priorityValue,
+          dependencies: options.dependencies || [],
+          entity_name: options.entityName,
+          data: options.data || {}
         })
-      });
+        .select('id')
+        .single();
       
-      const data = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(data.error || 'Unknown error');
+      if (error) {
+        console.error(`[SyncManager] Error creating sync task:`, error);
+        throw error;
       }
       
-      console.log(`[SyncManager] Successfully queued background sync`);
-      return { success: true, data };
-      
+      console.log(`[SyncManager] Created sync task ${data.id}`);
+      return data.id;
     } catch (error) {
-      console.error(`[SyncManager] Failed to queue background sync:`, error);
-      return { 
-        success: false, 
-        error: error instanceof Error ? error.message : String(error)
-      };
+      console.error(`[SyncManager] Exception in queueBackgroundSync:`, error);
+      throw error;
     }
   }
-  
+
   /**
-   * Process pending background sync tasks
+   * Process a batch of background sync tasks
+   * @param limit Maximum number of tasks to process
+   * @returns Number of tasks processed
    */
-  static async processBackgroundTasks(limit = 5) {
-    console.log(`[SyncManager] Processing up to ${limit} background tasks`);
-    
+  static async processBackgroundTasks(limit = 5): Promise<number> {
     try {
-      const response = await fetch('/api/background-sync', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          operation: 'process',
-          limit
-        })
-      });
+      console.log(`[SyncManager] Processing up to ${limit} background tasks`);
+      const supabase = this.getAdminClient();
       
-      const data = await response.json();
+      // Get tasks that are ready to be processed
+      // 1. Status is 'pending'
+      // 2. All dependencies are completed or don't exist
+      const { data: tasks, error } = await supabase
+        .rpc('get_sync_tasks', {
+          p_status: 'pending',
+          p_limit: limit
+        });
       
-      if (!response.ok) {
-        throw new Error(data.error || 'Unknown error');
+      if (error) {
+        console.error(`[SyncManager] Error fetching tasks:`, error);
+        throw error;
       }
       
-      console.log(`[SyncManager] Successfully processed background tasks`);
-      return { success: true, data };
-      
-    } catch (error) {
-      console.error(`[SyncManager] Failed to process background tasks:`, error);
-      return { 
-        success: false, 
-        error: error instanceof Error ? error.message : String(error)
-      };
-    }
-  }
-  
-  /**
-   * Cascade sync an entity and all its dependencies
-   */
-  static async cascadeSync(entityType: EntityType, entityId: string) {
-    console.log(`[SyncManager] Starting cascade sync for ${entityType} ${entityId}`);
-    
-    try {
-      const response = await fetch('/api/sync', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          operation: 'cascade_sync',
-          [`${entityType}Id`]: entityId
-        })
-      });
-      
-      const data = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(data.error || 'Unknown error');
+      if (!tasks || tasks.length === 0) {
+        console.log(`[SyncManager] No pending tasks found`);
+        return 0;
       }
       
-      console.log(`[SyncManager] Successfully cascade synced ${entityType} ${entityId}`);
-      return { success: true, data };
+      console.log(`[SyncManager] Found ${tasks.length} tasks to process`);
       
-    } catch (error) {
-      console.error(`[SyncManager] Failed to cascade sync:`, error);
-      return { 
-        success: false, 
-        error: error instanceof Error ? error.message : String(error)
-      };
-    }
-  }
-  
-  /**
-   * Get the status of background sync tasks
-   */
-  static async getSyncStatus(entityType?: EntityType, entityId?: string) {
-    console.log(`[SyncManager] Getting sync status`);
-    
-    try {
-      const response = await fetch('/api/background-sync', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          operation: 'status',
-          entityType,
-          entityId
-        })
-      });
-      
-      const data = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(data.error || 'Unknown error');
+      // Process each task
+      let processedCount = 0;
+      for (const task of tasks) {
+        try {
+          // Update task status to processing
+          await supabase
+            .from('sync_tasks')
+            .update({ status: 'processing', updated_at: new Date().toISOString() })
+            .eq('id', task.id);
+          
+          // Process the task
+          await this.syncEntity(task.entity_type as EntityType, task.entity_id);
+          
+          // Update task status to completed
+          await supabase
+            .from('sync_tasks')
+            .update({ 
+              status: 'completed', 
+              updated_at: new Date().toISOString(),
+              completed_at: new Date().toISOString()
+            })
+            .eq('id', task.id);
+          
+          processedCount++;
+        } catch (error) {
+          console.error(`[SyncManager] Error processing task ${task.id}:`, error);
+          
+          // Update task status to failed
+          await supabase
+            .from('sync_tasks')
+            .update({ 
+              status: 'failed', 
+              updated_at: new Date().toISOString(),
+              error: error instanceof Error ? error.message : String(error)
+            })
+            .eq('id', task.id);
+        }
       }
       
-      return { success: true, data };
-      
+      console.log(`[SyncManager] Processed ${processedCount} tasks`);
+      return processedCount;
     } catch (error) {
-      console.error(`[SyncManager] Failed to get sync status:`, error);
-      return { 
-        success: false, 
-        error: error instanceof Error ? error.message : String(error)
-      };
+      console.error(`[SyncManager] Exception in processBackgroundTasks:`, error);
+      throw error;
     }
   }
 }

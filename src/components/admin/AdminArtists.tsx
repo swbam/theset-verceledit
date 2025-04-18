@@ -10,15 +10,19 @@ import {
 } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Search, Loader2, CloudUpload } from 'lucide-react';
+import { Search, Loader2, CloudUpload, Check } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
 
 interface SearchResultArtist {
   id: string;
   name: string;
   image_url?: string | null;
   url?: string | null;
+  external_id?: string;
+  exists_in_db?: boolean;
+  db_id?: string | null;
 }
 
 interface SyncStatus {
@@ -81,10 +85,13 @@ const AdminArtists = () => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
+          operation: 'sync',
           entityType: 'artist',
           entityId: artistId,
-          priority: 'high',
-          sync: ['artist', 'shows', 'songs']
+          options: {
+            priority: 'high',
+            entityName: artistName
+          }
         })
       });
 
@@ -205,18 +212,26 @@ const AdminArtists = () => {
               artists.map((artist) => (
                 <TableRow key={artist.id}>
                   <TableCell>
-                    <Avatar className="h-10 w-10">
-                      <AvatarImage src={artist.image_url || undefined} alt={artist.name} />
-                      <AvatarFallback>{artist.name?.charAt(0)?.toUpperCase() || '?'}</AvatarFallback>
+                    <Avatar>
+                      <AvatarImage src={artist.image_url || undefined} />
+                      <AvatarFallback>{artist.name.substring(0, 2).toUpperCase()}</AvatarFallback>
                     </Avatar>
                   </TableCell>
-                  <TableCell className="font-medium">{artist.name}</TableCell>
-                  <TableCell className="text-xs text-muted-foreground">{artist.id}</TableCell>
+                  <TableCell className="font-medium">
+                    {artist.name}
+                    {artist.exists_in_db && (
+                      <Badge variant="outline" className="ml-2 bg-green-50">
+                        <Check className="h-3 w-3 mr-1" />
+                        In Database
+                      </Badge>
+                    )}
+                  </TableCell>
+                  <TableCell>{artist.id}</TableCell>
                   <TableCell className="text-right">
                     <Button
-                      variant="outline"
                       size="sm"
-                      onClick={() => handleSync(artist.id, artist.name)}
+                      variant="outline"
+                      onClick={() => handleSync(artist.exists_in_db ? artist.db_id! : artist.id, artist.name)}
                       disabled={!!syncingStatus[artist.id]}
                     >
                       {syncingStatus[artist.id] ? (
@@ -227,7 +242,7 @@ const AdminArtists = () => {
                       ) : (
                         <>
                           <CloudUpload className="mr-2 h-4 w-4" />
-                          Sync All
+                          {artist.exists_in_db ? 'Resync' : 'Sync'}
                         </>
                       )}
                     </Button>
