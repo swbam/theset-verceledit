@@ -29,32 +29,85 @@ export const popularMusicGenres = [
 ];
 
 /**
- * Call Ticketmaster API through our Next.js API route
+ * Call Ticketmaster API through our API route
  */
 export async function callTicketmasterApi(endpoint: string, params: Record<string, string> = {}) {
   try {
     // Build query string
     const searchParams = new URLSearchParams({ endpoint, ...params });
     const url = `${API_BASE_URL}?${searchParams.toString()}`;
+    
+    console.log(`[callTicketmasterApi] Calling API: ${url}`);
 
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-      },
-    });
+    // Use AbortController to handle timeouts
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), API_CONFIG.timeout);
 
-    if (!response.ok) {
-      throw new Error(`API error: ${response.status} ${response.statusText}`);
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+        },
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+
+      // Enhanced error handling with detailed logging
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`[callTicketmasterApi] API error: ${response.status} ${response.statusText}`, errorText);
+        
+        // Provide detailed error information based on status code
+        let errorMessage = `API error: ${response.status} ${response.statusText}`;
+        
+        if (response.status === 404) {
+          errorMessage = `Resource not found: ${endpoint}`;
+          console.error(`[callTicketmasterApi] 404 Not Found for endpoint: ${endpoint}`);
+        } else if (response.status === 403) {
+          errorMessage = `API access forbidden - check API key configuration`;
+          console.error(`[callTicketmasterApi] 403 Forbidden - API key issue`);
+        } else if (response.status === 429) {
+          errorMessage = `Rate limit exceeded for Ticketmaster API`;
+          console.error(`[callTicketmasterApi] 429 Too Many Requests - rate limited`);
+        } else if (response.status >= 500) {
+          errorMessage = `Ticketmaster API server error (${response.status})`;
+          console.error(`[callTicketmasterApi] Server error ${response.status}`);
+        }
+        
+        throw new Error(`${errorMessage} - ${errorText}`);
+      }
+
+      const data = await response.json();
+      console.log(`[callTicketmasterApi] Successful response for ${endpoint}`);
+      return data;
+    } catch (fetchError) {
+      if (fetchError.name === 'AbortError') {
+        console.error(`[callTicketmasterApi] Request timeout after ${API_CONFIG.timeout}ms`);
+        throw new Error(`API request timeout after ${API_CONFIG.timeout}ms`);
+      }
+      throw fetchError;
     }
-
-    return await response.json();
   } catch (error) {
+    console.error(`[callTicketmasterApi] Failed to call ${endpoint}:`, error);
+    
+    // Check if the error is related to CORS
+    if (error.message && error.message.includes('CORS')) {
+      console.error('[callTicketmasterApi] CORS error detected. Ensure the server is properly configured with CORS headers.');
+    }
+    
+    // Check if the error is a network error
+    if (error.message && error.message.includes('NetworkError')) {
+      console.error('[callTicketmasterApi] Network error detected. Check your internet connection or if the API server is accessible.');
+    }
+    
     handleError({
       message: "Failed to call Ticketmaster API",
       source: ErrorSource.API,
       originalError: error
     });
+    
     throw error;
   }
 }
