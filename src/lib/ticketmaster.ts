@@ -72,7 +72,7 @@ export async function fetchShowDetails(showId: string) {
 
     // If show exists but might be stale, trigger background sync
     if (show) {
-      const lastUpdated = new Date(show.updated_at || show.created_at);
+      const lastUpdated = new Date(show.updated_at || show.created_at || new Date());
       const now = new Date();
       const hoursSinceUpdate = (now.getTime() - lastUpdated.getTime()) / (1000 * 60 * 60);
 
@@ -144,7 +144,7 @@ export { fetchFeaturedShows } from './api/shows/featured-shows';
 // Removed export for './api/shows' as the file was deleted (logic moved to Edge Functions)
 // Removed export for database-utils as the file was deleted (logic moved to Edge Functions)
 // Setlist.fm related functions
-export const fetchPastSetlists = async (artistId: string, artistName: string) => {
+export const fetchPastSetlists = async () => {
   try {
     // Directly return hardcoded past setlists data as fallback
     return [];

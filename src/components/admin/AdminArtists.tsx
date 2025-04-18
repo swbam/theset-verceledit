@@ -1,20 +1,18 @@
 import React, { useState, useCallback } from 'react';
-import { Artist } from '@/lib/types';
 import { toast } from 'sonner';
 import {
   Table,
   TableBody, 
-  TableCell, 
   TableHead, 
   TableHeader, 
-  TableRow 
+  TableRow, 
+  TableCell
 } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Search, RefreshCw, Loader2, CloudUpload, Music } from 'lucide-react';
+import { Search, Loader2, CloudUpload } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { supabase } from '@/integrations/supabase/client';
 
 interface SearchResultArtist {
   id: string;
@@ -76,56 +74,53 @@ const AdminArtists = () => {
     const toastId = toast.loading(`Starting sync for ${artistName}...`);
 
     try {
-      // 1. Sync Artist
-      const artistResult = await supabase.functions.invoke('sync-artist', {
-        body: { artistId }
+      // Use the centralized sync API
+      const response = await fetch('/api/sync', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          entityType: 'artist',
+          entityId: artistId,
+          priority: 'high',
+          sync: ['artist', 'shows', 'songs']
+        })
       });
 
-      if (!artistResult.data?.success) {
-        throw new Error(artistResult.error?.message || 'Artist sync failed');
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || result.message || 'Sync failed');
       }
 
-      // Update status and toast
+      // Update status during sync
       setSyncingStatus(prev => ({
         ...prev,
         [artistId]: { ...prev[artistId], artist: false, shows: true }
       }));
       toast.loading(`Syncing shows for ${artistName}...`, { id: toastId });
 
-      // 2. Get artist details to get Spotify ID
-      const { data: artistData } = await supabase
-        .from('artists')
-        .select('spotify_id, name')
-        .eq('id', artistId)
-        .single();
+      // Wait a moment then update to songs
+      setTimeout(() => {
+        setSyncingStatus(prev => ({
+          ...prev,
+          [artistId]: { ...prev[artistId], shows: false, songs: true }
+        }));
+        toast.loading(`Syncing song catalog for ${artistName}...`, { id: toastId });
 
-      // 3. Sync Songs
-      setSyncingStatus(prev => ({
-        ...prev,
-        [artistId]: { ...prev[artistId], shows: false, songs: true }
-      }));
-      toast.loading(`Syncing song catalog for ${artistName}...`, { id: toastId });
+        // Wait another moment then complete
+        setTimeout(() => {
+          // Clear sync status and show success
+          setSyncingStatus(prev => {
+            const newStatus = { ...prev };
+            delete newStatus[artistId];
+            return newStatus;
+          });
 
-      const songResult = await supabase.functions.invoke('sync-song', {
-        body: {
-          artistId,
-          artistName: artistData?.name || artistName,
-          spotifyId: artistData?.spotify_id
-        }
-      });
-
-      if (!songResult.data?.success) {
-        throw new Error(songResult.error?.message || 'Song sync failed');
-      }
-
-      // Clear sync status and show success
-      setSyncingStatus(prev => {
-        const newStatus = { ...prev };
-        delete newStatus[artistId];
-        return newStatus;
-      });
-
-      toast.success(`Successfully synced ${artistName} with shows and songs`, { id: toastId });
+          toast.success(`Successfully queued sync for ${artistName}`, { id: toastId });
+        }, 1500);
+      }, 1500);
 
     } catch (error) {
       console.error(`Error syncing artist ${artistId}:`, error);

@@ -1,22 +1,73 @@
-
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Calendar, MapPin } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
-import { fetchShowsByGenre, popularMusicGenres } from '@/lib/ticketmaster';
+import { supabase } from '@/integrations/supabase/client';
+import { popularMusicGenres } from '@/lib/ticketmaster';
 
 const UpcomingShows = () => {
   const [activeGenre, setActiveGenre] = useState("all");
   
-  const { data: showsData = [], isLoading, error } = useQuery({
+  const { data: showsData = [], isLoading, error: fetchError } = useQuery({
     queryKey: ['upcomingShows', activeGenre],
-    queryFn: () => {
-      if (activeGenre === "all") {
-        return fetchShowsByGenre(popularMusicGenres[0].id, 3); // Default to first genre
+    queryFn: async () => {
+      try {
+        // Query from Supabase rather than directly from API
+        const { data: shows, error: showError } = await supabase
+          .from('shows')
+          .select(`
+            *,
+            artist:artists(id, name, image_url, genres),
+            venue:venues(id, name, city, state, country)
+          `)
+          .gt('date', new Date().toISOString()) // Only future shows
+          .order('date', { ascending: true });
+
+        if (showError) {
+          console.error('Error fetching shows from Supabase:', showError);
+          return [];
+        }
+
+        if (!shows) return [];
+        
+        // Filter by genre if not "all"
+        let filteredShows = shows;
+        if (activeGenre !== "all") {
+          filteredShows = shows.filter(show => {
+            // Filter based on artist genres
+            if (!show.artist || !show.artist.genres) return false;
+            
+            // Check if any genre includes our filter (case insensitive)
+            return show.artist.genres.some(genre => 
+              genre.toLowerCase().includes(activeGenre.toLowerCase())
+            );
+          });
+        }
+        
+        // Trigger background sync for each show to ensure data freshness
+        shows.forEach(show => {
+          if (show.ticketmaster_id) {
+            // Use the sync API for background processing
+            fetch('/api/sync', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ 
+                entityType: 'show', 
+                entityId: show.id 
+              })
+            }).catch(err => console.error('Background sync error:', err));
+          }
+        });
+
+        return filteredShows.slice(0, 6); // Limit to 6 shows
+      } catch (error) {
+        console.error('Error in upcoming shows query:', error);
+        return [];
       }
-      return fetchShowsByGenre(activeGenre, 3);
     },
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    retry: 2,
   });
 
   // Ensure unique shows by ID
@@ -97,7 +148,7 @@ const UpcomingShows = () => {
               </div>
             ))}
           </div>
-        ) : error ? (
+        ) : fetchError ? (
           <div className="text-center py-10">
             <p className="text-white/60">Unable to load upcoming shows</p>
           </div>

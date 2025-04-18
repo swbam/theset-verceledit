@@ -4,14 +4,16 @@ import { Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { AuthError } from '@supabase/supabase-js';
+import { SyncManager } from '@/lib/syncManager';
 
-// Define error type
-type AuthCallbackError = AuthError | Error | unknown;
+// Define error types for better type safety
+type AuthCallbackErrorType = AuthError | Error | unknown;
 
 const AuthCallback = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [error, setError] = useState<string | null>(null);
+  const [status, setStatus] = useState('Completing authentication...');
 
   useEffect(() => {
     const handleAuthCallback = async () => {
@@ -54,13 +56,19 @@ const AuthCallback = () => {
           
           // Check if auth was with Spotify - use both the URL parameter and session info
           if (provider === 'spotify' || session.provider_token) {
-            console.log('Redirecting to personalized dashboard since this was a Spotify login');
+            console.log('Spotify login detected, synchronizing data');
+            setStatus('Syncing your Spotify artists...');
             
-            // Force a slight delay to ensure state updates are complete
-            setTimeout(() => {
-              console.log('Now navigating to /dashboard');
-              navigate('/dashboard');
-            }, 1000);
+            try {
+              // Trigger background sync for Spotify top artists
+              await syncSpotifyData(session.user.id);
+            } catch (syncError: AuthCallbackErrorType) {
+              console.error('Error syncing Spotify data:', syncError);
+              // Continue with redirection even if sync fails
+            }
+            
+            setStatus('Redirecting to your personalized dashboard...');
+            navigate('/my-artists');
           } else {
             console.log('Non-Spotify login, redirecting to home page');
             setTimeout(() => {
@@ -71,6 +79,7 @@ const AuthCallback = () => {
           // If we have a code but no session, try to exchange the code for a session
           if (code) {
             console.log('No session found but code is present, attempting to exchange code for session');
+            setStatus('Finalizing authentication...');
             
             // The code exchange should happen automatically, but we'll wait a moment
             setTimeout(async () => {
@@ -92,7 +101,18 @@ const AuthCallback = () => {
                 toast.success('Successfully signed in!');
                 
                 if (provider === 'spotify' || newSession.provider_token) {
-                  navigate('/dashboard');
+                  setStatus('Syncing your Spotify artists...');
+                  
+                  try {
+                    // Trigger background sync for Spotify top artists
+                    await syncSpotifyData(newSession.user.id);
+                  } catch (syncError: AuthCallbackErrorType) {
+                    console.error('Error syncing Spotify data:', syncError);
+                    // Continue with redirection even if sync fails
+                  }
+                  
+                  setStatus('Redirecting to your personalized dashboard...');
+                  navigate('/my-artists');
                 } else {
                   navigate('/');
                 }
@@ -107,7 +127,7 @@ const AuthCallback = () => {
             setTimeout(() => navigate('/auth'), 2000);
           }
         }
-      } catch (err: AuthCallbackError) {
+      } catch (err: AuthCallbackErrorType) {
         console.error('Error during auth callback:', err);
         const errorMessage = err instanceof Error ? err.message : 'Authentication failed';
         setError(errorMessage);
@@ -118,6 +138,48 @@ const AuthCallback = () => {
 
     handleAuthCallback();
   }, [navigate, location]);
+
+  // Function to sync Spotify data
+  const syncSpotifyData = async (userId: string) => {
+    console.log(`Starting Spotify data sync for user ${userId}`);
+    
+    try {
+      // Fetch top artists from Spotify
+      const response = await fetch('/api/sync', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          operation: 'spotify_sync',
+          userId
+        })
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to sync Spotify data');
+      }
+      
+      const result = await response.json();
+      console.log('Spotify sync result:', result);
+      
+      // Queue background processing of artists
+      if (result.data?.artists) {
+        for (const artist of result.data.artists) {
+          if (artist.id) {
+            console.log(`Queueing background sync for artist ${artist.name}`);
+            await SyncManager.queueBackgroundSync('artist', artist.id);
+          }
+        }
+      }
+      
+      return result;
+    } catch (error: AuthCallbackErrorType) {
+      console.error('Error in syncSpotifyData:', error);
+      throw error;
+    }
+  };
 
   if (error) {
     return (
@@ -131,8 +193,8 @@ const AuthCallback = () => {
   return (
     <div className="h-screen flex flex-col items-center justify-center">
       <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-      <p className="text-lg">Completing authentication...</p>
-      <p className="text-sm text-muted-foreground mt-2">Please wait while we verify your identity</p>
+      <p className="text-lg">{status}</p>
+      <p className="text-sm text-muted-foreground mt-2">Please wait while we set up your experience</p>
     </div>
   );
 };

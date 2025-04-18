@@ -2,81 +2,249 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { RefreshCw } from 'lucide-react';
+import { RefreshCw, Play, AlertTriangle } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface SyncStats {
   entity_type: string;
   total: number;
-  last_24h: number;
+  pending: number;
+  completed: number;
+  failed: number;
   last_sync: string | null;
 }
 
-interface QueryResult {
+interface SyncTask {
+  id: string;
   entity_type: string;
-  total: string; // PostgreSQL COUNT returns string
-  last_24h: string;
-  last_sync: string | null;
+  entity_id: string;
+  status: string;
+  created_at: string | null;
+  updated_at: string | null;
+  error?: string | null;
+  entity_name?: string | null;
+  completed_at?: string | null;
+  dependencies?: string[] | null;
+  priority?: number | null;
+  result?: any;
 }
 
 const AdminSyncStatus = () => {
   const [stats, setStats] = useState<SyncStats[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [recentTasks, setRecentTasks] = useState<SyncTask[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [tasksLoading, setTasksLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [testing, setTesting] = useState<Record<string, boolean>>({});
 
   const fetchStats = async () => {
     try {
       const { data, error } = await supabase
-        .rpc('exec_sql', {
-          sql: `
-            SELECT 
-              entity_type::text,
-              COUNT(*)::text as total,
-              COUNT(*) FILTER (WHERE last_synced >= NOW() - INTERVAL '24 hours')::text as last_24h,
-              MAX(last_synced) as last_sync
-            FROM sync_states
-            GROUP BY entity_type
-          `
-        });
+        .from('sync_tasks')
+        .select('entity_type, status')
+        .order('created_at', { ascending: false });
       
       if (error) throw error;
       
-      // Ensure we have entries for all entity types
-      const entityTypes = ['artist', 'show', 'venue', 'song'];
-      const results = (data as unknown as QueryResult[]) || [];
-      const statsMap = new Map(results.map(s => [s.entity_type, s]));
+      // Process data to get stats
+      const statsMap = new Map<string, SyncStats>();
       
-      const fullStats = entityTypes.map(type => ({
-        entity_type: type,
-        total: parseInt(statsMap.get(type)?.total || '0', 10),
-        last_24h: parseInt(statsMap.get(type)?.last_24h || '0', 10),
-        last_sync: statsMap.get(type)?.last_sync || null
-      }));
-
-      setStats(fullStats);
+      // Initialize with default entity types
+      ['artist', 'show', 'venue', 'song'].forEach(type => {
+        statsMap.set(type, {
+          entity_type: type,
+          total: 0,
+          pending: 0,
+          completed: 0,
+          failed: 0,
+          last_sync: null
+        });
+      });
+      
+      // Count tasks by type and status
+      data?.forEach(task => {
+        const type = task.entity_type;
+        const status = task.status;
+        
+        if (!statsMap.has(type)) {
+          statsMap.set(type, {
+            entity_type: type,
+            total: 0,
+            pending: 0,
+            completed: 0,
+            failed: 0,
+            last_sync: null
+          });
+        }
+        
+        const stat = statsMap.get(type)!;
+        stat.total++;
+        
+        if (status === 'pending' || status === 'processing') stat.pending++;
+        if (status === 'completed') stat.completed++;
+        if (status === 'failed') stat.failed++;
+      });
+      
+      // Convert map to array
+      setStats(Array.from(statsMap.values()));
+      
+      // Fetch recent tasks with their last sync time
+      const { data: lastSyncData, error: lastSyncError } = await supabase
+        .from('sync_tasks')
+        .select('entity_type, updated_at, status')
+        .eq('status', 'completed')
+        .order('updated_at', { ascending: false });
+        
+      if (!lastSyncError && lastSyncData) {
+        // Update last sync time for each entity type
+        const lastSyncMap = new Map<string, string>();
+        lastSyncData.forEach(task => {
+          if (!lastSyncMap.has(task.entity_type)) {
+            lastSyncMap.set(task.entity_type, task.updated_at);
+          }
+        });
+        
+        setStats(prevStats => 
+          prevStats.map(stat => ({
+            ...stat,
+            last_sync: lastSyncMap.get(stat.entity_type) || stat.last_sync
+          }))
+        );
+      }
     } catch (error) {
       console.error('Error fetching sync stats:', error);
     } finally {
-      setLoading(false);
+      setIsLoading(false);
+    }
+  };
+
+  const fetchRecentTasks = async () => {
+    setTasksLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('sync_tasks')
+        .select('*')
+        .order('updated_at', { ascending: false })
+        .limit(10);
+      
+      if (error) throw error;
+      setRecentTasks(data || []);
+    } catch (error) {
+      console.error('Error fetching recent tasks:', error);
+    } finally {
+      setTasksLoading(false);
     }
   };
 
   useEffect(() => {
     fetchStats();
-    // Set up auto-refresh every minute
-    const interval = setInterval(fetchStats, 60000);
+    fetchRecentTasks();
+    // Set up auto-refresh every 30 seconds
+    const interval = setInterval(() => {
+      fetchStats();
+      fetchRecentTasks();
+    }, 30000);
     return () => clearInterval(interval);
   }, []);
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await fetchStats();
+    await Promise.all([fetchStats(), fetchRecentTasks()]);
     setRefreshing(false);
+  };
+
+  const runTest = async (testType: string) => {
+    setTesting(prev => ({ ...prev, [testType]: true }));
+    const toastId = toast.loading(`Running ${testType} test...`);
+
+    try {
+      let response;
+      
+      switch(testType) {
+        case 'artist':
+          // Test artist sync
+          response = await fetch('/api/sync', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              entityType: 'artist',
+              entityId: '1f9e8a14-7bca-4f1e-b2d3-431fe1e31595', // Coldplay
+              priority: 'high',
+              sync: ['artist', 'shows', 'songs']
+            })
+          });
+          break;
+          
+        case 'show':
+          // Test show sync
+          response = await fetch('/api/sync', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              entityType: 'show',
+              entityId: 'vvG1iZ9aVt5jDk', // Some show ID
+              priority: 'high'
+            })
+          });
+          break;
+          
+        case 'pipeline':
+          // Test entire sync pipeline
+          response = await fetch('/api/sync', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              test: true,
+              fullPipeline: true
+            })
+          });
+          break;
+          
+        default:
+          throw new Error(`Unknown test type: ${testType}`);
+      }
+
+      const result = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(result.error || result.message || 'Test failed');
+      }
+      
+      toast.success(`${testType} test started successfully`, { id: toastId });
+      
+      // Refresh data after a short delay
+      setTimeout(() => {
+        fetchStats();
+        fetchRecentTasks();
+      }, 2000);
+      
+    } catch (error) {
+      console.error(`Error running ${testType} test:`, error);
+      toast.error(`Test failed: ${error instanceof Error ? error.message : 'Unknown error'}`, { id: toastId });
+    } finally {
+      setTesting(prev => ({ ...prev, [testType]: false }));
+    }
   };
 
   const formatDate = (dateStr: string | null) => {
     if (!dateStr) return 'Never';
-    const date = new Date(dateStr);
-    return date.toLocaleString();
+    try {
+      const date = new Date(dateStr);
+      if (isNaN(date.getTime())) return 'Invalid date';
+      return date.toLocaleString();
+    } catch {
+      return 'Invalid date';
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch(status) {
+      case 'completed': return 'text-green-500';
+      case 'failed': return 'text-red-500';
+      case 'processing': return 'text-blue-500';
+      case 'pending': return 'text-yellow-500';
+      default: return '';
+    }
   };
 
   return (
@@ -103,12 +271,20 @@ const AdminSyncStatus = () => {
             <CardContent>
               <dl className="space-y-2">
                 <div className="flex justify-between">
-                  <dt className="text-sm text-muted-foreground">Total Synced:</dt>
+                  <dt className="text-sm text-muted-foreground">Total Syncs:</dt>
                   <dd className="text-sm font-medium">{entityStats.total}</dd>
                 </div>
                 <div className="flex justify-between">
-                  <dt className="text-sm text-muted-foreground">Last 24 Hours:</dt>
-                  <dd className="text-sm font-medium">{entityStats.last_24h}</dd>
+                  <dt className="text-sm text-muted-foreground">Pending/Processing:</dt>
+                  <dd className="text-sm font-medium text-yellow-500">{entityStats.pending}</dd>
+                </div>
+                <div className="flex justify-between">
+                  <dt className="text-sm text-muted-foreground">Completed:</dt>
+                  <dd className="text-sm font-medium text-green-500">{entityStats.completed}</dd>
+                </div>
+                <div className="flex justify-between">
+                  <dt className="text-sm text-muted-foreground">Failed:</dt>
+                  <dd className="text-sm font-medium text-red-500">{entityStats.failed}</dd>
                 </div>
                 <div className="flex justify-between">
                   <dt className="text-sm text-muted-foreground">Last Sync:</dt>
@@ -121,7 +297,38 @@ const AdminSyncStatus = () => {
       </div>
 
       <div className="mt-8">
-        <h3 className="text-lg font-semibold mb-4">Recent Sync Operations</h3>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold">Test Sync System</h3>
+          <div className="flex gap-2">
+            <Button 
+              size="sm" 
+              variant="outline" 
+              onClick={() => runTest('artist')}
+              disabled={testing['artist']}
+            >
+              <Play className="mr-2 h-4 w-4" />
+              Test Artist Sync
+            </Button>
+            <Button 
+              size="sm" 
+              variant="outline" 
+              onClick={() => runTest('show')}
+              disabled={testing['show']}
+            >
+              <Play className="mr-2 h-4 w-4" />
+              Test Show Sync
+            </Button>
+            <Button 
+              size="sm" 
+              variant="outline" 
+              onClick={() => runTest('pipeline')}
+              disabled={testing['pipeline']}
+            >
+              <Play className="mr-2 h-4 w-4" />
+              Test Full Pipeline
+            </Button>
+          </div>
+        </div>
         <div className="rounded-lg border bg-card">
           <div className="p-4">
             <table className="w-full">
@@ -130,22 +337,42 @@ const AdminSyncStatus = () => {
                   <th className="text-left font-medium">Entity</th>
                   <th className="text-left font-medium">ID</th>
                   <th className="text-left font-medium">Status</th>
-                  <th className="text-left font-medium">Last Updated</th>
+                  <th className="text-left font-medium">Updated At</th>
                 </tr>
               </thead>
               <tbody className="text-sm">
-                {loading ? (
+                {tasksLoading ? (
                   <tr>
                     <td colSpan={4} className="py-3 text-center text-muted-foreground">
                       Loading...
                     </td>
                   </tr>
-                ) : (
+                ) : recentTasks.length === 0 ? (
                   <tr>
                     <td colSpan={4} className="py-3 text-center text-muted-foreground">
                       No recent sync operations
                     </td>
                   </tr>
+                ) : (
+                  recentTasks.map(task => (
+                    <tr key={task.id} className="border-t">
+                      <td className="py-2 capitalize">{task.entity_type}</td>
+                      <td className="py-2">
+                        <span className="font-mono text-xs">{task.entity_id.substring(0, 13)}...</span>
+                      </td>
+                      <td className="py-2">
+                        <span className={`capitalize ${getStatusColor(task.status)}`}>
+                          {task.status}
+                          {task.error && (
+                            <span className="ml-2" title={task.error}>
+                              <AlertTriangle className="inline h-3 w-3 text-red-500" />
+                            </span>
+                          )}
+                        </span>
+                      </td>
+                      <td className="py-2">{formatDate(task.updated_at)}</td>
+                    </tr>
+                  ))
                 )}
               </tbody>
             </table>

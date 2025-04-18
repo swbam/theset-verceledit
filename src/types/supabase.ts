@@ -229,6 +229,83 @@ export interface Database {
           url?: string | null
         }
       }
+      user_follows: {
+        Row: {
+          id: string
+          user_id: string
+          artist_id: string
+          created_at: string
+          artist?: {
+            id: string
+            name: string
+            image_url: string | null
+            genres: string[] | null
+          }
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          artist_id: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          artist_id?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_follows_artist_id_fkey"
+            columns: ["artist_id"]
+            referencedRelation: "artists"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_follows_user_id_fkey"
+            columns: ["user_id"]
+            referencedRelation: "auth.users"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+    }
+    Functions: {
+      add_vote: {
+        Args: { artist_id: string; song_id: string; user_id: string }
+        Returns: boolean
+      }
+      begin_transaction: {
+        Args: Record<string, unknown>
+        Returns: boolean
+      }
+      commit_transaction: {
+        Args: Record<string, unknown>
+        Returns: boolean
+      }
+      complete_sync_item: {
+        Args: { p_id: string }
+        Returns: boolean
+      }
+      decrement_vote: {
+        Args: { artist_id: string; song_id: string; user_id: string }
+        Returns: boolean
+      }
+      get_user_follows: {
+        Args: { p_user_id: string }
+        Returns: {
+          id: string
+          user_id: string
+          artist_id: string
+          created_at: string
+          artist: {
+            id: string
+            name: string
+            image_url: string | null
+            genres: string[] | null
+          }
+        }[]
+      }
     }
   }
 }

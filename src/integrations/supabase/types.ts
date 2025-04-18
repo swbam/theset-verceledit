@@ -105,6 +105,39 @@ export type Database = {
         }
         Relationships: []
       }
+      audit_logs: {
+        Row: {
+          action: string
+          created_at: string | null
+          entity_id: string
+          entity_type: string
+          id: string
+          ip_address: string | null
+          metadata: Json | null
+          user_id: string | null
+        }
+        Insert: {
+          action: string
+          created_at?: string | null
+          entity_id: string
+          entity_type: string
+          id?: string
+          ip_address?: string | null
+          metadata?: Json | null
+          user_id?: string | null
+        }
+        Update: {
+          action?: string
+          created_at?: string | null
+          entity_id?: string
+          entity_type?: string
+          id?: string
+          ip_address?: string | null
+          metadata?: Json | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       error_logs: {
         Row: {
           endpoint: string
@@ -192,6 +225,84 @@ export type Database = {
           },
         ]
       }
+      rate_limits: {
+        Row: {
+          created_at: string | null
+          hits: number | null
+          id: string
+          key: string
+          reset_at: string
+        }
+        Insert: {
+          created_at?: string | null
+          hits?: number | null
+          id?: string
+          key: string
+          reset_at: string
+        }
+        Update: {
+          created_at?: string | null
+          hits?: number | null
+          id?: string
+          key?: string
+          reset_at?: string
+        }
+        Relationships: []
+      }
+      setlist_songs: {
+        Row: {
+          created_at: string
+          id: string
+          name: string | null
+          order_index: number | null
+          position: number
+          setlist_id: string
+          song_id: string
+          spotify_id: string | null
+          updated_at: string
+          votes: number | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name?: string | null
+          order_index?: number | null
+          position: number
+          setlist_id: string
+          song_id: string
+          spotify_id?: string | null
+          updated_at?: string
+          votes?: number | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string | null
+          order_index?: number | null
+          position?: number
+          setlist_id?: string
+          song_id?: string
+          spotify_id?: string | null
+          updated_at?: string
+          votes?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "setlist_songs_setlist_id_fkey"
+            columns: ["setlist_id"]
+            isOneToOne: false
+            referencedRelation: "setlists"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "setlist_songs_song_id_fkey"
+            columns: ["song_id"]
+            isOneToOne: false
+            referencedRelation: "songs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       setlists: {
         Row: {
           artist_id: string | null
@@ -199,6 +310,7 @@ export type Database = {
           date: string | null
           id: string
           setlist_fm_id: string | null
+          setlist_id: string | null
           show_id: string | null
           tour_name: string | null
           updated_at: string | null
@@ -211,6 +323,7 @@ export type Database = {
           date?: string | null
           id?: string
           setlist_fm_id?: string | null
+          setlist_id?: string | null
           show_id?: string | null
           tour_name?: string | null
           updated_at?: string | null
@@ -223,6 +336,7 @@ export type Database = {
           date?: string | null
           id?: string
           setlist_fm_id?: string | null
+          setlist_id?: string | null
           show_id?: string | null
           tour_name?: string | null
           updated_at?: string | null
@@ -395,6 +509,48 @@ export type Database = {
         }
         Relationships: []
       }
+      sync_tasks: {
+        Row: {
+          completed_at: string | null
+          created_at: string | null
+          dependencies: string[] | null
+          entity_id: string
+          entity_type: string
+          error: string | null
+          id: string
+          priority: number | null
+          result: Json | null
+          status: string
+          updated_at: string | null
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string | null
+          dependencies?: string[] | null
+          entity_id: string
+          entity_type: string
+          error?: string | null
+          id?: string
+          priority?: number | null
+          result?: Json | null
+          status: string
+          updated_at?: string | null
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string | null
+          dependencies?: string[] | null
+          entity_id?: string
+          entity_type?: string
+          error?: string | null
+          id?: string
+          priority?: number | null
+          result?: Json | null
+          status?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       trending_shows_cache: {
         Row: {
           cached_at: string
@@ -412,6 +568,70 @@ export type Database = {
           show_id?: string
         }
         Relationships: []
+      }
+      user_follows: {
+        Row: {
+          artist_id: string
+          created_at: string | null
+          id: string
+          user_id: string
+        }
+        Insert: {
+          artist_id: string
+          created_at?: string | null
+          id?: string
+          user_id: string
+        }
+        Update: {
+          artist_id?: string
+          created_at?: string | null
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_follows_artist_id_fkey"
+            columns: ["artist_id"]
+            isOneToOne: false
+            referencedRelation: "artists"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_votes: {
+        Row: {
+          created_at: string | null
+          id: string
+          song_id: string
+          updated_at: string | null
+          user_id: string
+          vote_type: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          song_id: string
+          updated_at?: string | null
+          user_id: string
+          vote_type: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          song_id?: string
+          updated_at?: string | null
+          user_id?: string
+          vote_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_votes_song_id_fkey"
+            columns: ["song_id"]
+            isOneToOne: false
+            referencedRelation: "setlist_songs"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       venues: {
         Row: {
@@ -525,6 +745,10 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: undefined
       }
+      check_rate_limit: {
+        Args: { p_key: string; p_limit: number; p_window: unknown }
+        Returns: boolean
+      }
       commit_transaction: {
         Args: Record<PropertyKey, never>
         Returns: undefined
@@ -580,6 +804,13 @@ export type Database = {
           vote_count: number | null
         }[]
       }
+      get_show_vote_counts: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          show_id: string
+          vote_count: number
+        }[]
+      }
       get_sync_stats: {
         Args: Record<PropertyKey, never>
         Returns: {
@@ -587,6 +818,37 @@ export type Database = {
           total: number
           last_24h: number
           last_sync: string
+        }[]
+      }
+      get_sync_tasks: {
+        Args: {
+          p_status?: string
+          p_entity_type?: string
+          p_limit?: number
+          p_offset?: number
+        }
+        Returns: {
+          completed_at: string | null
+          created_at: string | null
+          dependencies: string[] | null
+          entity_id: string
+          entity_type: string
+          error: string | null
+          id: string
+          priority: number | null
+          result: Json | null
+          status: string
+          updated_at: string | null
+        }[]
+      }
+      get_user_follows: {
+        Args: { p_user_id: string }
+        Returns: {
+          id: string
+          user_id: string
+          artist_id: string
+          created_at: string
+          artist: Json
         }[]
       }
       gtrgm_compress: {
@@ -628,6 +890,10 @@ export type Database = {
       show_trgm: {
         Args: { "": string }
         Returns: string[]
+      }
+      sync_upcoming_shows: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
       }
       test_sync_system: {
         Args: { target_id: string; entity_type: string }
