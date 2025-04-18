@@ -1,20 +1,9 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 
 // Ticketmaster API base URL
-const TICKETMASTER_BASE_URL = 'https://app.ticketmaster.com/discovery/v2/';
+const TICKETMASTER_BASE_URL = 'https://api.ticketmaster.com/discovery/v2/';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  // Set CORS headers
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-
-  // Handle preflight request
-  if (req.method === 'OPTIONS') {
-    res.status(200).end();
-    return;
-  }
-
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
@@ -62,10 +51,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Get response data
     const data = await response.json();
 
-    // Forward the response
-    res.status(response.status).json(data);
+    // Check for API errors
+    if (!response.ok) {
+      console.error(`Ticketmaster API error (${response.status}):`, data);
+      
+      // Return appropriate error response
+      return res.status(response.status).json({
+        error: `Ticketmaster API error: ${response.statusText}`,
+        details: data
+      });
+    }
+
+    // Return successful response
+    return res.status(200).json(data);
   } catch (error) {
-    console.error('Error proxying request to Ticketmaster API:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('Error in Ticketmaster API proxy:', error);
+    return res.status(500).json({ 
+      error: error instanceof Error ? error.message : 'An unknown error occurred' 
+    });
   }
 }

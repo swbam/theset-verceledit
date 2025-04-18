@@ -23,3 +23,4 @@
 - use browsertools if available to see logs 
 - this app uses supabase secrets and a sync manager with background tasks
 - the app should use the sync system to import artist data and songs from spotify and shows from ticketmaster and past setlists from setlist.fm. But to the user the data should be pulling from supabase and using the background syncs and refreshes 
+- always use grep for search

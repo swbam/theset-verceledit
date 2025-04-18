@@ -23,12 +23,32 @@ function getBestImage(images?: Image[]): string | null {
 
 export { popularMusicGenres };
 
-// Artist related functions
+// Directly import the artist-related functions except for fetchFeaturedArtists
 export { 
-  searchArtistsWithEvents, 
-  fetchFeaturedArtists,
+  searchArtistsWithEvents,
   fetchArtistById
 } from './api/artist';
+
+// Updated: Use the serverless API endpoint for featured artists
+export async function fetchFeaturedArtists() {
+  try {
+    console.log('[fetchFeaturedArtists] Fetching featured artists from API...');
+    const response = await fetch('/api/featured-artists');
+    
+    if (!response.ok) {
+      const error = await response.text();
+      console.error('[fetchFeaturedArtists] API error:', error);
+      return [];
+    }
+    
+    const artists = await response.json();
+    console.log(`[fetchFeaturedArtists] Successfully fetched ${artists.length} featured artists`);
+    return artists;
+  } catch (error) {
+    console.error('[fetchFeaturedArtists] Error:', error);
+    return [];
+  }
+}
 
 // Show related functions (Client-side safe subset)
 export async function fetchShowDetails(showId: string) {

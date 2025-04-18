@@ -75,8 +75,14 @@ export default {
 					ring: 'hsl(var(--sidebar-ring))'
 				},
 				teal: {
-					DEFAULT: 'hsl(175, 84%, 36%)',
-					light: 'hsl(170, 84%, 45%)'
+					DEFAULT: '#40e6bf',
+					light: '#01ec8d'
+				},
+				darkblue: {
+					DEFAULT: '#000224'
+				},
+				blackishblue: {
+					DEFAULT: '#00011c'
 				}
 			},
 			borderRadius: {
@@ -168,18 +174,27 @@ export default {
 		function({ addUtilities }) {
 			const newUtilities = {
 				'.text-gradient': {
-					background: 'linear-gradient(to right, hsl(175, 84%, 36%), hsl(170, 84%, 45%))',
+					background: 'linear-gradient(to right, #40e6bf, #01ec8d)',
 					'-webkit-background-clip': 'text',
 					'background-clip': 'text',
 					'color': 'transparent',
 				},
 				'.btn-gradient': {
-					background: 'linear-gradient(to right, hsl(175, 84%, 36%), hsl(170, 84%, 45%))',
+					background: 'linear-gradient(to right, #40e6bf, #01ec8d)',
 					'color': '#000',
 					'transition': 'all 0.2s ease',
 				},
 				'.btn-gradient:hover': {
-					'box-shadow': '0 4px 12px rgba(0, 184, 169, 0.3)',
+					'box-shadow': '0 4px 12px rgba(1, 236, 141, 0.3)',
+					'transform': 'translateY(-2px)',
+				},
+				'.btn-white': {
+					'background-color': '#fff',
+					'color': '#000224',
+					'transition': 'all 0.2s ease',
+				},
+				'.btn-white:hover': {
+					'box-shadow': '0 4px 12px rgba(255, 255, 255, 0.3)',
 					'transform': 'translateY(-2px)',
 				},
 			}

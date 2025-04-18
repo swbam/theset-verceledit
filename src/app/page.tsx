@@ -22,14 +22,12 @@ export default async function Home() {
       <section className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12">
         <div className="flex flex-col justify-center">
           <h1 className="text-4xl md:text-5xl font-bold mb-2">
-            Shape the Concert<br />
-            <span className="text-gradient">Experience</span> You<br />
+          <span className="text-gradient">Crowdsourced</span> Concert Setlists, <span className="text-gradient"><i>at scale</i></span> <br />
+            Experience</span> You<br />
             Want
           </h1>
           <p className="text-lg text-muted-foreground mb-6">
-            Discover upcoming shows and vote on setlists for your favorite
-            artists. Join a community of fans influencing what songs get
-            played live.
+          Discover upcoming shows and vote on setlists for your favorite artists. Let them know what you want to hear, while they keep creative control.
           </p>
           <div className="flex flex-wrap gap-4">
             <Button asChild size="lg" className="btn-primary">
