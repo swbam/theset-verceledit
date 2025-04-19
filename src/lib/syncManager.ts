@@ -135,6 +135,10 @@ export class SyncManager {
         .rpc('get_sync_tasks', {
           p_status: 'pending',
           p_limit: limit
+        })
+        .catch(error => {
+          console.error(`[SyncManager] Error fetching tasks:`, error);
+          return { error, data: null };
         });
       
       if (error) {

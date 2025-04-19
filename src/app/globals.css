@@ -66,9 +66,30 @@
     color: transparent;
     display: inline-block;
   }
+  
+  /* Apply gradient to all links */
+  a:not(.btn):not([role="tab"]) {
+    color: #40e6bf;
+    transition: color 0.2s ease;
+  }
+  
+  a:not(.btn):not([role="tab"]):hover {
+    color: #01ec8d;
+  }
+  
+  /* Apply gradient color to all SVG icons */
+  svg path {
+    stroke: #40e6bf;
+  }
+  
+  /* Button icon exceptions */
+  button svg path, 
+  .btn svg path,
+  [role="button"] svg path {
+    stroke: currentColor;
+  }
 }
 
-/* Custom button variants */
 @layer components {
   .btn {
     @apply inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50;
@@ -128,5 +149,16 @@
     background-clip: text;
     color: transparent;
     font-weight: bold;
+  }
+  
+  /* Popular search buttons */
+  .flex-wrap button {
+    color: #40e6bf !important;
+  }
+  
+  .flex-wrap button:hover {
+    color: #01ec8d !important;
+    background: rgba(64, 230, 191, 0.1) !important;
+    border-color: #40e6bf !important;
   }
 } 

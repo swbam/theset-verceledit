@@ -1,6 +1,6 @@
 // Import shared Supabase client and types
 import { supabaseAdmin } from './supabaseClient.ts';
-import type { Artist, Venue, Show, SetlistSong, Song } from './types.ts'; // Use shared types
+import type { Artist, Venue, Show, SetlistSong, Song, Setlist } from './types.ts'; // Use shared types
 // Import song utilities from the shared location
 import { fetchAndStoreArtistTracks, saveSongToDatabase } from './songDbUtils.ts';
 
@@ -74,15 +74,15 @@ export async function saveArtistToDatabase(artistInput: Partial<Artist>): Promis
     const artistDataForUpsert: Partial<Artist> = {
       ...(existingArtist || {}), // Start with existing data or empty object
       ...artistInput, // Overwrite with new input data
-      ticketmaster_id: artistInput.ticketmaster_id || existingArtist?.ticketmaster_id || null,
-      spotify_id: artistInput.spotify_id || existingArtist?.spotify_id || null,
+      ticketmaster_id: artistInput.ticketmaster_id || existingArtist?.ticketmaster_id,
+      spotify_id: artistInput.spotify_id || existingArtist?.spotify_id,
+      setlist_fm_id: artistInput.setlist_fm_id || existingArtist?.setlist_fm_id,
       name: artistInput.name, // Always update name from input
-      image_url: artistInput.image_url || existingArtist?.image_url || null,
-      spotify_url: artistInput.spotify_url || existingArtist?.spotify_url || null,
-      popularity: artistInput.popularity ?? existingArtist?.popularity ?? null,
-      followers: artistInput.followers ?? existingArtist?.followers ?? null,
+      image_url: artistInput.image_url || existingArtist?.image_url,
+      url: artistInput.url || existingArtist?.url,
+      popularity: artistInput.popularity ?? existingArtist?.popularity,
+      followers: artistInput.followers ?? existingArtist?.followers,
       genres: artistInput.genres || existingArtist?.genres || [],
-      setlist_fm_mbid: artistInput.setlist_fm_mbid || existingArtist?.setlist_fm_mbid || null,
       updated_at: new Date().toISOString(),
     };
     // Remove the UUID 'id' field if it came from existingArtist, as upsert uses conflict target
@@ -109,7 +109,7 @@ export async function saveArtistToDatabase(artistInput: Partial<Artist>): Promis
           const { data: conflictedArtist, error: fetchError } = await supabaseAdmin
             .from('artists')
             .select('*')
-            .or(orConditions.join(',')) // Use the same conditions
+            .or(`ticketmaster_id.eq.${artistInput.ticketmaster_id || ''},spotify_id.eq.${artistInput.spotify_id || ''}`)
             .maybeSingle();
           if (fetchError) {
             console.error(`[EF saveArtist] Error fetching conflicted artist:`, fetchError);
@@ -195,12 +195,15 @@ export async function saveVenueToDatabase(venueInput: Partial<Venue>): Promise<V
       ...venueInput,
       ticketmaster_id: venueInput.ticketmaster_id, // Ensure TM ID is present
       name: venueInput.name,
-      city: venueInput.city || existingVenue?.city || null,
-      state: venueInput.state || existingVenue?.state || null,
-      country: venueInput.country || existingVenue?.country || null,
-      address: venueInput.address || existingVenue?.address || null,
-      postal_code: venueInput.postal_code || existingVenue?.postal_code || null,
-      image_url: venueInput.image_url || existingVenue?.image_url || null,
+      city: venueInput.city || existingVenue?.city,
+      state: venueInput.state || existingVenue?.state,
+      country: venueInput.country || existingVenue?.country,
+      address: venueInput.address || existingVenue?.address,
+      postal_code: venueInput.postal_code || existingVenue?.postal_code,
+      latitude: venueInput.latitude || existingVenue?.latitude,
+      longitude: venueInput.longitude || existingVenue?.longitude,
+      image_url: venueInput.image_url || existingVenue?.image_url,
+      url: venueInput.url || existingVenue?.url,
       updated_at: new Date().toISOString()
     };
     delete venueDataForUpsert.id; // Remove UUID id before upsert
@@ -372,11 +375,11 @@ export async function saveShowToDatabase(showInput: Partial<Show> & { artist?: P
       // ...showInput, // Be careful not to overwrite resolved artist/venue IDs
       ticketmaster_id: showInput.ticketmaster_id, // Ensure TM ID is present
       name: showInput.name,
-      artist_id: dbArtistId || existingShow?.artist_id || null, // Use resolved DB UUID
-      venue_id: dbVenueId || existingShow?.venue_id || null,   // Use resolved DB UUID
-      date: showInput.date ? new Date(showInput.date).toISOString() : existingShow?.date || null,
-      image_url: showInput.image_url || existingShow?.image_url || null,
-      ticket_url: showInput.ticket_url || existingShow?.ticket_url || null,
+      artist_id: dbArtistId || existingShow?.artist_id || undefined, // Use resolved DB UUID
+      venue_id: dbVenueId || existingShow?.venue_id || undefined,   // Use resolved DB UUID
+      date: showInput.date ? new Date(showInput.date).toISOString() : existingShow?.date || undefined,
+      image_url: showInput.image_url || existingShow?.image_url || undefined,
+      ticket_url: showInput.ticket_url || existingShow?.ticket_url || undefined,
       popularity: showInput.popularity ?? existingShow?.popularity ?? 0,
       updated_at: new Date().toISOString(),
     };

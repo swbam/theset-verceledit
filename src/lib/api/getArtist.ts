@@ -44,49 +44,39 @@ export async function getArtist(artistId: string): Promise<ArtistWithTracks | nu
     if (tracksError) {
       console.warn(`Error fetching top tracks from DB for artist ${artistId}: ${tracksError.message}`);
       // Return artist data even if tracks fail, but with empty tracks array
-      // Explicitly map fields to handle null -> undefined conversion for Artist type
       return {
-        id: dbArtist.id, // Required
-        name: dbArtist.name, // Required
-        external_id: dbArtist.external_id ?? undefined,
-        spotify_id: dbArtist.spotify_id ?? undefined,
-        spotify_url: dbArtist.spotify_url ?? undefined,
-        image_url: dbArtist.image_url ?? undefined,
-        followers: dbArtist.followers ?? undefined,
-        popularity: dbArtist.popularity ?? undefined,
-        genres: dbArtist.genres ?? undefined, // Assuming array or null/undefined
-        setlist_fm_mbid: dbArtist.setlist_fm_mbid ?? undefined,
-        // setlist_fm_id: dbArtist.setlist_fm_id ?? undefined, // Removed - Field not in Artist type
-        ticketmaster_id: dbArtist.ticketmaster_id ?? undefined,
-        // tm_id: dbArtist.tm_id ?? undefined, // Removed - Field not in Artist type (uses ticketmaster_id)
-        url: dbArtist.url ?? undefined,
-        created_at: dbArtist.created_at ?? undefined,
-        updated_at: dbArtist.updated_at ?? undefined,
+        id: dbArtist.id,
+        name: dbArtist.name,
+        image_url: dbArtist.image_url || undefined,
+        url: dbArtist.url || undefined,
+        spotify_id: dbArtist.spotify_id || undefined,
+        ticketmaster_id: dbArtist.ticketmaster_id || undefined,
+        setlist_fm_id: dbArtist.setlist_fm_id || undefined,
+        genres: dbArtist.genres || undefined,
+        popularity: dbArtist.popularity || undefined,
+        followers: dbArtist.followers || undefined,
+        created_at: dbArtist.created_at || undefined,
+        updated_at: dbArtist.updated_at || undefined,
         top_tracks: []
       };
     }
 
     // 3. Combine artist and tracks
     console.log(`Successfully fetched artist ${dbArtist.name} and ${topTracks?.length || 0} top tracks from DB.`);
-    // Explicitly map fields to handle null -> undefined conversion for Artist type
     const finalArtistData: ArtistWithTracks = {
-        id: dbArtist.id, // Required
-        name: dbArtist.name, // Required
-        external_id: dbArtist.external_id ?? undefined,
-        spotify_id: dbArtist.spotify_id ?? undefined,
-        spotify_url: dbArtist.spotify_url ?? undefined,
-        image_url: dbArtist.image_url ?? undefined,
-        followers: dbArtist.followers ?? undefined,
-        popularity: dbArtist.popularity ?? undefined,
-        genres: dbArtist.genres ?? undefined,
-        setlist_fm_mbid: dbArtist.setlist_fm_mbid ?? undefined,
-        // setlist_fm_id: dbArtist.setlist_fm_id ?? undefined, // Removed - Field not in Artist type
-        ticketmaster_id: dbArtist.ticketmaster_id ?? undefined,
-        // tm_id: dbArtist.tm_id ?? undefined, // Removed - Field not in Artist type (uses ticketmaster_id)
-        url: dbArtist.url ?? undefined,
-        created_at: dbArtist.created_at ?? undefined,
-        updated_at: dbArtist.updated_at ?? undefined,
-        top_tracks: topTracks || []
+      id: dbArtist.id,
+      name: dbArtist.name,
+      image_url: dbArtist.image_url || undefined,
+      url: dbArtist.url || undefined,
+      spotify_id: dbArtist.spotify_id || undefined,
+      ticketmaster_id: dbArtist.ticketmaster_id || undefined,
+      setlist_fm_id: dbArtist.setlist_fm_id || undefined,
+      genres: dbArtist.genres || undefined,
+      popularity: dbArtist.popularity || undefined,
+      followers: dbArtist.followers || undefined,
+      created_at: dbArtist.created_at || undefined,
+      updated_at: dbArtist.updated_at || undefined,
+      top_tracks: topTracks || []
     };
 
     return finalArtistData;

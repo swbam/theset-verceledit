@@ -88,31 +88,34 @@ export interface Song {
 export interface Artist {
   id: string;
   name: string;
-  external_id?: string;
+  ticketmaster_id?: string;
+  spotify_id?: string;
+  setlist_fm_id?: string;
   image_url?: string;
   url?: string;
-  spotify_id?: string;
-  spotify_url?: string;
   genres?: string[];
   popularity?: number;
-  created_at?: string;
-  updated_at: string;
-  setlist_fm_mbid?: string;
-  setlist_fm_id?: string;
-  ticketmaster_id?: string;
   followers?: number;
-  tm_id?: string;
-  stored_tracks?: any[];
+  stored_tracks?: any;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface Venue {
   id: string;
   name: string;
-  city?: string;
+  city: string;
   state?: string;
   country?: string;
-  latitude?: number;
-  longitude?: number;
+  address?: string;
+  postal_code?: string;
+  latitude?: string;
+  longitude?: string;
+  image_url?: string;
+  url?: string;
+  ticketmaster_id?: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface Show {
@@ -120,26 +123,33 @@ export interface Show {
   name: string;
   artist_id: string;
   venue_id: string;
-  date: string;
   ticketmaster_id?: string;
+  date: string;
+  status?: string;
+  url?: string;
+  image_url?: string;
+  ticket_url?: string;
+  popularity?: number;
+  venue?: Partial<Venue>;
+  artist?: Partial<Artist>;
   created_at?: string;
   updated_at?: string;
+  last_updated?: string;
 }
 
 export interface Setlist {
   id: string;
-  show_id: string;
   artist_id: string;
-  date?: string;
-  venue?: string;
-  venue_city?: string;
+  show_id?: string;
+  venue_id?: string;
+  setlist_fm_id: string;
   tour_name?: string;
-  setlist_fm_id?: string;
+  date?: string;
+  songs: any[];
   created_at?: string;
   updated_at?: string;
 }
 
-// Represents an entry in the junction table
 export interface SetlistSong {
   id?: string;
   setlist_id: string;
@@ -179,15 +189,14 @@ export interface SpotifyTracksResponse {
 export interface SpotifyArtist {
   id: string;
   name: string;
-  external_urls: {
+  external_urls?: {
     spotify?: string;
   };
-  popularity?: number;
-  followers: {
-    total?: number;
+  followers?: {
+    total: number;
   };
-  images?: Array<{ url: string; height?: number; width?: number }>;
   genres?: string[];
+  popularity?: number;
 }
 
 // Type for Ticketmaster Image object

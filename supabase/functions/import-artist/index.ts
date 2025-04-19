@@ -2,11 +2,57 @@ import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { corsHeaders } from '../_shared/cors.ts'; // Assuming standard CORS headers file
 import { supabaseAdmin } from '../_shared/supabaseClient.ts';
 import { saveArtistToDatabase, saveShowToDatabase } from '../_shared/databaseUtils.ts';
-import { fetchArtistEvents } from '../_shared/ticketmasterUtils.ts';
 import { getArtistByName } from '../_shared/spotifyUtils.ts';
-import type { Artist, Show, SpotifyArtist } from '../_shared/types.ts';
+import type { Artist, Show, SpotifyArtist, Venue } from '../_shared/types.ts';
+
+// Define Ticketmaster API types to match their response structure
+interface TicketmasterVenue {
+  id: string;
+  name: string;
+  url?: string;
+  city?: { name: string };
+  state?: { name: string };
+  country?: { name: string };
+  address?: { line1: string };
+  postalCode?: string;
+  location?: { latitude?: number; longitude?: number };
+  images?: Array<{ url: string; width?: number; height?: number }>;
+}
+
+interface TicketmasterShow {
+  id: string;
+  name: string;
+  url?: string;
+  dates?: any;
+  venue?: TicketmasterVenue;
+  images?: Array<{ url: string; width?: number; height?: number }>;
+}
 
 console.log('Import Artist function initializing...');
+
+// Add utility functions at the top
+const fetchWithRetry = async (url: string, options: RequestInit, retries = 3): Promise<any> => {
+  let lastError;
+  for (let i = 0; i < retries; i++) {
+    try {
+      const response = await fetch(url, options);
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`API request failed: ${response.status} ${response.statusText} - ${errorText}`);
+      }
+      const data = await response.json();
+      if (!data) throw new Error('Empty response received');
+      return data;
+    } catch (error) {
+      lastError = error;
+      if (i < retries - 1) {
+        console.log(`Retry attempt ${i + 1}/${retries} failed, retrying...`);
+        await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)));
+      }
+    }
+  }
+  throw lastError;
+};
 
 serve(async (req: Request) => {
   // Handle CORS preflight requests
@@ -50,17 +96,14 @@ serve(async (req: Request) => {
     // Prepare artist data with proper ticketmaster_id
     const artistData: Partial<Artist> = {
       name: inputData.name,
-      ticketmaster_id: inputData.id, // Use the incoming ID as ticketmaster_id
-      external_id: inputData.id, // Also set external_id for backward compatibility
-      // Copy other fields from input if present
-      image_url: inputData.image_url || inputData.image,
+      ticketmaster_id: inputData.id,
+      spotify_id: inputData.spotify_id,
+      image_url: inputData.image_url,
       url: inputData.url,
-      // Only add these if provided in input
-      ...(inputData.spotify_id && { spotify_id: inputData.spotify_id }),
-      ...(inputData.spotify_url && { spotify_url: inputData.spotify_url }),
-      ...(inputData.genres && { genres: inputData.genres }),
-      ...(inputData.popularity && { popularity: inputData.popularity }),
-      ...(inputData.followers && { followers: inputData.followers }),
+      genres: inputData.genres,
+      popularity: inputData.popularity,
+      followers: inputData.followers,
+      updated_at: new Date().toISOString()
     };
 
     console.log(`[import-artist] Prepared artist data:`, JSON.stringify(artistData));
@@ -110,9 +153,19 @@ serve(async (req: Request) => {
     // fetchArtistEvents expects the Ticketmaster ID
     const ticketmasterId = dbArtist.ticketmaster_id || inputData.id;
     console.log(`[import-artist] Fetching Ticketmaster events for artist TM ID: ${ticketmasterId}`);
-    const shows: Show[] = await fetchArtistEvents(ticketmasterId);
 
-    if (!shows || shows.length === 0) {
+    // Fetch artist events with retry
+    console.log(`[import-artist] Fetching Ticketmaster events for artist TM ID: ${ticketmasterId}`);
+    const apiKey = Deno.env.get('TICKETMASTER_API_KEY');
+    const shows = await fetchWithRetry(
+      `https://app.ticketmaster.com/discovery/v2/events.json?attractionId=${ticketmasterId}&segmentName=Music&sort=date,asc&size=100&apikey=${apiKey}`,
+      {}
+    );
+
+    // Process the response to extract the events array
+    const events = shows?._embedded?.events || [];
+
+    if (!events || events.length === 0) {
       console.log(`[import-artist] Artist ${dbArtist.name} saved, no upcoming shows found via Ticketmaster.`);
       return new Response(JSON.stringify({
         success: true,
@@ -123,23 +176,29 @@ serve(async (req: Request) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
-    console.log(`[import-artist] Found ${shows.length} shows for artist ${dbArtist.name}.`);
+    console.log(`[import-artist] Found ${events.length} shows for artist ${dbArtist.name}.`);
 
     // 4. Process and Save Shows (and their venues, setlists)
     let savedCount = 0;
     let failedCount = 0;
     const errorMessages: string[] = []; // Collect error messages for debugging
     
-    const showProcessingPromises = shows.map(async (show) => {
+    const showProcessingPromises = events.map(async (show: TicketmasterShow) => {
       try {
         // DETAILED DEBUG: Log the specific show being processed
         console.log(`[import-artist] Processing show: ${show.name} (ID: ${show.id})`);
         
-        // Add the ticketmaster_id to each show from the show.id field
-        const showWithTicketmasterId = {
-          ...show,
-          ticketmaster_id: show.id, // Set the fetched ID as ticketmaster_id
-          external_id: show.id, // Also set external_id for backward compatibility
+        // Create a properly typed show object with ticketmaster_id
+        const showWithTicketmasterId: Partial<Show> = {
+          id: crypto.randomUUID(),
+          name: show.name,
+          artist_id: dbArtist.id,
+          venue_id: '', // Will be set after venue is saved
+          ticketmaster_id: show.id,
+          date: show.dates?.start?.localDate || new Date().toISOString().split('T')[0],
+          image_url: show.images?.[0]?.url,
+          url: show.url,
+          updated_at: new Date().toISOString(),
           // Add the database artist to each show to establish connection
           artist: { 
             id: dbArtist.id, // DB ID
@@ -151,11 +210,23 @@ serve(async (req: Request) => {
         // Process venues as well
         if (show.venue && typeof show.venue === 'object' && show.venue.id) {
           console.log(`[import-artist] Show has venue: ${show.venue.name} (ID: ${show.venue.id})`);
-          showWithTicketmasterId.venue = {
-            ...show.venue,
-            ticketmaster_id: show.venue.id, // Set venue TM ID properly
-            external_id: show.venue.id // Also set external_id for backward compatibility
+          const venueData: Partial<Venue> = {
+            id: crypto.randomUUID(),
+            name: show.venue.name,
+            city: show.venue.city?.name || '',
+            state: show.venue.state?.name,
+            country: show.venue.country?.name,
+            address: show.venue.address?.line1,
+            postal_code: show.venue.postalCode,
+            latitude: show.venue.location?.latitude?.toString(),
+            longitude: show.venue.location?.longitude?.toString(),
+            image_url: show.venue.images?.[0]?.url,
+            url: show.venue.url,
+            ticketmaster_id: show.venue.id,
+            updated_at: new Date().toISOString()
           };
+          // Assign venue to the show as a Partial<Venue> which is compatible with the Show type
+          showWithTicketmasterId.venue = venueData;
           
           // DETAILED DEBUG: Check venue structure
           console.log(`[import-artist] Prepared venue data:`, JSON.stringify(showWithTicketmasterId.venue));
@@ -203,7 +274,7 @@ serve(async (req: Request) => {
     // 5. Return Success Response
     return new Response(JSON.stringify({
       success: true,
-      message: `Artist import process finished. Shows processed: ${shows.length}, Saved/Updated: ${savedCount}, Failed: ${failedCount}.`,
+      message: `Artist import process finished. Shows processed: ${events.length}, Saved/Updated: ${savedCount}, Failed: ${failedCount}.`,
       artist: dbArtist, // Return the final DB artist record
       savedShows: savedCount,
       failedShows: failedCount,
@@ -222,12 +293,3 @@ serve(async (req: Request) => {
     });
   }
 });
-
-// Helper for CORS - create this file if it doesn't exist
-// File: supabase/functions/_shared/cors.ts
-/*
-export const corsHeaders = {
-  'Access-Control-Allow-Origin': '*', // Or specific origin
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
-*/

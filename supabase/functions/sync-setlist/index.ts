@@ -6,214 +6,190 @@ import { corsHeaders } from '../_shared/cors.ts'
 
 // Define expected request body structure
 interface SyncSetlistPayload {
-  setlistId: string; // The setlist.fm ID
-  // Add other options if needed, e.g., force sync
-  // force?: boolean;
+  setlist_fm_id: string; // The setlist.fm ID
 }
 
 // Define the structure for a song within the setlist
-// Align with how you store songs in the 'songs' JSONB column of 'setlists' table
 interface SetlistSong {
-  id?: string; // Consider if you need a unique ID per song instance
+  id?: string;
   name: string;
-  artist_mbid?: string | null; // MusicBrainz ID from setlist.fm artist
-  encore?: number; // 0 or 1
+  artist_id?: string | null;
+  encore?: number;
   position?: number;
-  // Add other fields like 'cover', 'tape', 'info' if needed
 }
 
 // Define the structure returned by the fetch function
 interface FetchedSetlistData {
-  setlistId: string;
-  artistMbid?: string | null;
-  showId?: string | null; // UUID of the show in your DB
+  setlist_fm_id: string;
+  artist_id?: string | null;
+  show_id?: string | null;
   songs: SetlistSong[];
-  // Add venue, tour etc. if needed from setlist.fm data
+  venue_id?: string | null;
+  tour_name?: string | null;
+  date?: string | null;
 }
 
 // Define the structure for the 'setlists' table row
 interface SetlistTableRow {
-  id: string; // setlist.fm ID is the primary key
-  artist_id?: string | null; // UUID of the artist in your DB (might need lookup)
-  artist_mbid?: string | null; // Store MBID for reference
-  show_id?: string | null; // UUID of the show in your DB
+  id: string;
+  artist_id?: string | null;
+  show_id?: string | null;
   songs: SetlistSong[];
+  venue_id?: string | null;
+  tour_name?: string | null;
+  date?: string | null;
+  setlist_fm_id: string;
   created_at?: string;
   updated_at?: string;
 }
 
+// Utility functions for robust error handling and response validation
+const fetchWithRetry = async (url: string, options: RequestInit, retries = 3): Promise<any> => {
+  let lastError;
+  for (let i = 0; i < retries; i++) {
+    try {
+      const response = await fetch(url, options);
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`API request failed: ${response.status} ${response.statusText} - ${errorText}`);
+      }
+      const data = await response.json();
+      if (!data) throw new Error('Empty response received');
+      return data;
+    } catch (error) {
+      lastError = error;
+      if (i < retries - 1) {
+        console.log(`Retry attempt ${i + 1}/${retries} failed, retrying...`);
+        await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)));
+      }
+    }
+  }
+  throw lastError;
+};
+
+const parseRequest = async (req: Request): Promise<SyncSetlistPayload> => {
+  try {
+    const text = await req.text();
+    if (!text) throw new Error('Empty request body');
+    const data = JSON.parse(text);
+    if (!data.setlist_fm_id) throw new Error('Missing setlist_fm_id in request body');
+    return data;
+  } catch (e) {
+    throw new Error(`Invalid request: ${e instanceof Error ? e.message : String(e)}`);
+  }
+};
 
 /**
  * Fetch setlist data from setlist.fm and find related show
  */
-async function fetchAndTransformSetlistData(supabaseAdmin: any, setlistId: string): Promise<FetchedSetlistData | null> {
-  console.log(`Fetching data for setlist ${setlistId}`);
-
+async function fetchAndTransformSetlistData(supabaseClient: any, setlist_fm_id: string): Promise<FetchedSetlistData | null> {
   const apiKey = Deno.env.get('SETLIST_FM_API_KEY');
   if (!apiKey) {
-    console.error('SETLIST_FM_API_KEY not set.');
-    return null;
+    throw new Error('Missing SETLIST_FM_API_KEY in environment variables');
   }
 
   try {
-    const apiUrl = `https://api.setlist.fm/rest/1.0/setlist/${setlistId}`;
+    const apiUrl = `https://api.setlist.fm/rest/1.0/setlist/${setlist_fm_id}`;
     console.log(`Fetching from setlist.fm: ${apiUrl}`);
-    const response = await fetch(apiUrl, {
+    
+    const sfmData = await fetchWithRetry(apiUrl, {
       headers: {
         'Accept': 'application/json',
         'x-api-key': apiKey,
-      },
+      }
     });
 
-    if (!response.ok) {
-      console.error(`Setlist.fm API error for ${setlistId}: ${response.status} ${await response.text()}`);
-      return null;
+    // Transform setlist data
+    const songs: SetlistSong[] = sfmData.sets.set
+      .flatMap((set: any) => set.song || [])
+      .map((song: any, idx: number) => ({
+        name: song.name,
+        position: idx + 1,
+        encore: song.encore || 0,
+        artist_id: song.cover?.mbid
+      }));
+
+    // Try to find the artist in our database
+    let artistId = null;
+    if (sfmData.artist?.mbid) {
+      const { data: artistData } = await supabaseClient
+        .from('artists')
+        .select('id')
+        .eq('setlist_fm_id', sfmData.artist.mbid)
+        .single();
+      artistId = artistData?.id;
     }
 
-    const sfmData = await response.json(); // sfmData = setlist.fm data
-    console.log(`Received setlist.fm data for ${setlistId}`);
-
-    // --- Parse Songs ---
-    const songs: SetlistSong[] = [];
-    let songPositionCounter = 0;
-    if (sfmData.sets?.set) {
-      sfmData.sets.set.forEach((set: any) => {
-        const isEncore = set.encore ? 1 : 0;
-        if (set.song) {
-          set.song.forEach((song: any) => {
-            if (song.name) {
-              songPositionCounter++;
-              songs.push({
-                // Generate a simple position-based ID or use song MBID if available
-                // id: `${setlistId}-${songPositionCounter}`,
-                name: song.name,
-                artist_mbid: sfmData.artist?.mbid || null, // Artist MBID for context
-                encore: isEncore,
-                position: songPositionCounter,
-                // Add other fields like cover status, tape status, info if needed
-                // info: song.info,
-                // tape: song.tape,
-                // cover: song.cover ? { mbid: song.cover.mbid, name: song.cover.name, url: song.cover.url } : undefined
-              });
-            }
-          });
-        }
-      });
-    }
-
-    // --- Find Matching Show in DB ---
-    let showId: string | null = null;
-    const artistMbid = sfmData.artist?.mbid;
-    const eventDateStr = sfmData.eventDate; // Format: DD-MM-YYYY
-
-    if (artistMbid && eventDateStr) {
-      // Parse date carefully
-      const dateParts = eventDateStr.split('-');
-      if (dateParts.length === 3) {
-        const day = parseInt(dateParts[0]);
-        const month = parseInt(dateParts[1]) - 1; // JS months are 0-indexed
-        const year = parseInt(dateParts[2]);
-
-        if (!isNaN(day) && !isNaN(month) && !isNaN(year)) {
-          const eventDate = new Date(Date.UTC(year, month, day)); // Use UTC to avoid timezone issues
-
-          // Find artist UUID using MBID
-          const { data: artistData, error: artistError } = await supabaseAdmin
-            .from('artists')
-            .select('id') // Select the UUID primary key
-            .eq('mbid', artistMbid) // Assuming you have an 'mbid' column on artists table
-            .maybeSingle();
-
-          if (artistError) {
-             console.warn(`Error fetching artist by MBID ${artistMbid}: ${artistError.message}`);
-          }
-
-          if (artistData?.id) {
-            const artistUUID = artistData.id;
-            console.log(`Found artist UUID ${artistUUID} for MBID ${artistMbid}`);
-
-            // Search for shows matching artist UUID and date range
-            const startDate = new Date(eventDate);
-            startDate.setUTCHours(0, 0, 0, 0);
-            const endDate = new Date(eventDate);
-            endDate.setUTCHours(23, 59, 59, 999);
-
-            console.log(`Searching for show with artist_id ${artistUUID} between ${startDate.toISOString()} and ${endDate.toISOString()}`);
-
-            const { data: shows, error: showsError } = await supabaseAdmin
-              .from('shows')
-              .select('id') // Select the show UUID
-              .eq('artist_id', artistUUID)
-              .gte('date', startDate.toISOString())
-              .lte('date', endDate.toISOString()) // Use lte for end of day
-              .limit(1); // Assume only one show per artist per day
-
-            if (showsError) {
-              console.warn(`Error searching for show for artist ${artistUUID} on ${eventDateStr}: ${showsError.message}`);
-            }
-
-            if (shows && shows.length > 0) {
-              showId = shows[0].id;
-              console.log(`Found matching show ID: ${showId}`);
-            } else {
-              console.log(`No matching show found for artist ${artistUUID} on ${eventDateStr}`);
-            }
-          } else {
-             console.log(`Artist with MBID ${artistMbid} not found in DB.`);
-          }
-        } else {
-           console.warn(`Invalid date format from setlist.fm: ${eventDateStr}`);
-        }
+    // Try to find or create the venue
+    let venueId = null;
+    if (sfmData.venue) {
+      const { data: venueData } = await supabaseClient
+        .from('venues')
+        .select('id')
+        .eq('name', sfmData.venue.name)
+        .eq('city', sfmData.venue.city.name)
+        .single();
+      
+      if (venueData) {
+        venueId = venueData.id;
       } else {
-         console.log(`Missing artist MBID (${artistMbid}) or event date (${eventDateStr}) in setlist.fm data.`);
+        const { data: newVenue } = await supabaseClient
+          .from('venues')
+          .insert({
+            name: sfmData.venue.name,
+            city: sfmData.venue.city.name,
+            state: sfmData.venue.city.state,
+            country: sfmData.venue.city.country.name,
+          })
+          .select()
+          .single();
+        venueId = newVenue?.id;
       }
     }
 
     return {
-      setlistId: setlistId,
-      artistMbid: artistMbid || null,
-      showId: showId,
-      songs: songs,
+      setlist_fm_id: setlist_fm_id,
+      artist_id: artistId,
+      songs,
+      venue_id: venueId,
+      tour_name: sfmData.tour?.name,
+      date: sfmData.eventDate ? new Date(sfmData.eventDate).toISOString() : null
     };
-
   } catch (error) {
-    const errorMsg = error instanceof Error ? error.message : String(error);
-    console.error(`Error fetching or processing setlist ${setlistId}:`, errorMsg);
-    return null;
+    console.error(`Error fetching setlist ${setlist_fm_id}:`, error);
+    throw error;
   }
 }
-
 
 serve(async (req: Request) => {
   // Handle CORS preflight request
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response('ok', { headers: corsHeaders });
   }
 
   try {
-    const payload: SyncSetlistPayload = await req.json();
-    const { setlistId } = payload;
+    const { setlist_fm_id } = await req.json() as SyncSetlistPayload;
 
-    if (!setlistId) {
-      return new Response(JSON.stringify({ error: 'Missing setlistId in request body' }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    if (!setlist_fm_id) {
+      return new Response(JSON.stringify({ error: 'Invalid request: Missing setlist_fm_id in request body' }), {
         status: 400,
-      })
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
     }
 
-    console.log(`Sync request received for setlist: ${setlistId}`);
+    console.log(`[sync-setlist] Processing setlist with ID: ${setlist_fm_id}`);
 
-    // Initialize Supabase client with SERVICE_ROLE key
-    const supabaseAdmin = createClient(
+    // Initialize Supabase client
+    const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
     // Fetch and transform data
-    const fetchedData = await fetchAndTransformSetlistData(supabaseAdmin, setlistId);
+    const fetchedData = await fetchAndTransformSetlistData(supabaseClient, setlist_fm_id);
 
     if (!fetchedData) {
-      console.error(`Failed to fetch or transform data for setlist ${setlistId}`);
+      console.error(`Failed to fetch or transform data for setlist ${setlist_fm_id}`);
       return new Response(JSON.stringify({ error: 'Failed to fetch setlist data from external API or process it' }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 500,
@@ -221,72 +197,48 @@ serve(async (req: Request) => {
     }
 
     // Prepare data for setlists table upsert
-    // Need to look up artist UUID again if not already done or passed back
-    let artistUUID: string | null = null;
-    if (fetchedData.artistMbid) {
-       const { data: artistLookup } = await supabaseAdmin
-         .from('artists')
-         .select('id')
-         .eq('mbid', fetchedData.artistMbid)
-         .maybeSingle();
-       artistUUID = artistLookup?.id || null;
-    }
-
     const setlistRow: SetlistTableRow = {
-      id: fetchedData.setlistId, // Use setlist.fm ID as PK
-      artist_id: artistUUID,
-      artist_mbid: fetchedData.artistMbid,
-      show_id: fetchedData.showId,
+      id: crypto.randomUUID(), // Generate a new UUID for our primary key
+      setlist_fm_id: fetchedData.setlist_fm_id,
+      artist_id: fetchedData.artist_id,
+      show_id: fetchedData.show_id,
+      venue_id: fetchedData.venue_id,
+      tour_name: fetchedData.tour_name,
+      date: fetchedData.date,
       songs: fetchedData.songs,
-      // created_at handled by DB default or trigger? Assuming update below is sufficient
       updated_at: new Date().toISOString(),
     };
 
     // Upsert data into setlists table
-    console.log(`Upserting setlist ${setlistId} into database...`);
-    const { data: upsertedSetlist, error: upsertError } = await supabaseAdmin
+    console.log(`Upserting setlist ${setlist_fm_id} into database...`);
+    const { data: upsertedSetlist, error: upsertError } = await supabaseClient
       .from('setlists')
-      .upsert(setlistRow, { onConflict: 'id' })
+      .upsert(setlistRow)
       .select()
       .single();
 
     if (upsertError) {
-      console.error(`Supabase setlist upsert error for ${setlistId}:`, upsertError);
+      console.error(`Database error during setlist upsert:`, upsertError);
       return new Response(JSON.stringify({ error: 'Database error during setlist upsert', details: upsertError.message }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 500,
       })
     }
-    console.log(`Successfully upserted setlist ${setlistId}`);
 
-    // Update the corresponding show record if a showId was found
-    if (fetchedData.showId) {
-      console.log(`Updating show ${fetchedData.showId} to link setlist ${setlistId}`);
-      const { error: updateShowError } = await supabaseAdmin
-        .from('shows')
-        .update({ setlist_id: fetchedData.setlistId })
-        .eq('id', fetchedData.showId);
-
-      if (updateShowError) {
-        // Log error but don't fail the whole function, setlist was saved
-        console.error(`Error updating show ${fetchedData.showId} with setlist_id ${setlistId}:`, updateShowError.message);
-      } else {
-         console.log(`Successfully linked setlist ${setlistId} to show ${fetchedData.showId}`);
-      }
-    }
-
-    // TODO: Optionally trigger sync for related songs if needed
-
-    return new Response(JSON.stringify({ success: true, data: upsertedSetlist }), {
+    return new Response(JSON.stringify({
+      success: true,
+      message: 'Setlist synced successfully',
+      data: upsertedSetlist
+    }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 200,
     })
+
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-    console.error('Unhandled error:', errorMessage, error);
-    return new Response(JSON.stringify({ error: errorMessage }), {
+    console.error('Error in sync-setlist function:', error);
+    return new Response(JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error occurred' }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 500,
     })
   }
-})
+});

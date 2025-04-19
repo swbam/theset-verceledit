@@ -4,16 +4,16 @@ import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-
 
 // Fetch Supabase URL and Service Role Key from environment variables
 // These must be set in your Supabase project's Edge Function settings
-const supabaseUrl = Deno.env.get('SUPABASE_URL');
-const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+const supabaseUrl = Deno.env.get('API_URL');
+const serviceKey = Deno.env.get('SERVICE_ROLE_KEY');
 
 if (!supabaseUrl) {
-  console.error('--- FATAL: Missing environment variable SUPABASE_URL in Edge Function settings. ---');
-  throw new Error('Missing environment variable: SUPABASE_URL');
+  console.error('--- FATAL: Missing environment variable API_URL in Edge Function settings. ---');
+  throw new Error('Missing environment variable: API_URL');
 }
 if (!serviceKey) {
-  console.error('--- FATAL: Missing environment variable SUPABASE_SERVICE_ROLE_KEY in Edge Function settings. ---');
-  throw new Error('Missing environment variable: SUPABASE_SERVICE_ROLE_KEY');
+  console.error('--- FATAL: Missing environment variable SERVICE_ROLE_KEY in Edge Function settings. ---');
+  throw new Error('Missing environment variable: SERVICE_ROLE_KEY');
 }
 
 // Create a single Supabase client instance configured for admin operations

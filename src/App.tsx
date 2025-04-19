@@ -40,10 +40,52 @@ const RouteChangeTracker = () => {
   return null;
 };
 
+// SVG Gradient definitions component
+const GradientDefinitions = () => {
+  return (
+    <svg width="0" height="0" className="hidden">
+      <defs>
+        <linearGradient id="app-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stopColor="#40e6bf" />
+          <stop offset="100%" stopColor="#01ec8d" />
+        </linearGradient>
+      </defs>
+    </svg>
+  );
+};
+
 function App() {
   useEffect(() => {
     // Initialize Google Analytics
     initGA(GA_TRACKING_ID);
+    
+    // Apply gradient to all SVG icons
+    const applyGradientToIcons = () => {
+      document.querySelectorAll('svg:not(.ignore-gradient) path').forEach(path => {
+        if (path.getAttribute('stroke') && path.getAttribute('stroke') !== 'none') {
+          path.setAttribute('stroke', 'url(#app-gradient)');
+        }
+        if (path.getAttribute('fill') && path.getAttribute('fill') !== 'none') {
+          path.setAttribute('fill', 'url(#app-gradient)');
+        }
+      });
+    };
+    
+    // Initial application
+    applyGradientToIcons();
+    
+    // Set up a mutation observer to handle dynamically added SVGs
+    const observer = new MutationObserver(mutations => {
+      mutations.forEach(mutation => {
+        if (mutation.addedNodes.length) {
+          applyGradientToIcons();
+        }
+      });
+    });
+    
+    observer.observe(document.body, { childList: true, subtree: true });
+    
+    return () => observer.disconnect();
   }, []);
 
   return (
@@ -54,6 +96,8 @@ function App() {
             <AuthProvider>
               {/* Add the route tracker component */}
               <RouteChangeTracker />
+              {/* Add SVG gradient definitions */}
+              <GradientDefinitions />
               <Routes>
                 <Route path="/" element={<Index />} />
                 <Route path="/artists/:id" element={<ArtistDetail />} />

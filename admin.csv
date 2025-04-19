@@ -1,0 +1,12 @@
+method name,message
+debug,"[""[vite]"",""hot updated: /src/index.css""]"
+debug,"[""[vite]"",""hot updated: /src/index.css""]"
+error,"[""Error running artist test:"",{""message"":""Failed to execute 'json' on 'Response': Unexpected end of JSON input""}]"
+error,"[""Error searching artists:"",{}]"
+log,"[""No user in auth change""]"
+error,"[""Error searching artists:"",{}]"
+error,"[""Error running artist test:"",{""message"":""Failed to execute 'json' on 'Response': Unexpected end of JSON input""}]"
+error,"[""Error running show test:"",{""message"":""Failed to execute 'json' on 'Response': Unexpected end of JSON input""}]"
+error,"[""Error running process test:"",{""message"":""Failed to execute 'json' on 'Response': Unexpected end of JSON input""}]"
+error,"[""Error running spotify test:"",{""message"":""Failed to execute 'json' on 'Response': Unexpected end of JSON input""}]"
+error,"[""Error searching venues:"",{}]"

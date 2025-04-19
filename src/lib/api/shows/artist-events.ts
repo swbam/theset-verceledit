@@ -16,7 +16,6 @@ type Show = {
   artist_id: string;
   venue_external_id?: string | null;
   ticketmaster_id?: string | null;
-  external_id?: string | null;
 };
 
 interface SupabaseShow {
@@ -35,6 +34,22 @@ interface SupabaseShow {
     state: string | null;
     country: string | null;
   } | null;
+}
+
+export interface ArtistEvent {
+  id: string;
+  name: string;
+  date: string;
+  url?: string | null;
+  venue_id?: string | null;
+  venue_name?: string | null;
+  venue_city?: string | null;
+  venue_state?: string | null;
+  venue_country?: string | null;
+  venue_ticketmaster_id?: string | null;
+  image_url?: string | null;
+  ticket_url?: string | null;
+  ticketmaster_id?: string | null;
 }
 
 import { supabase } from "@/integrations/supabase/client";
@@ -84,7 +99,6 @@ export async function fetchArtistEvents(artistIdentifier: string): Promise<Show[
         image_url: show.image_url,
         artist_id: show.artist_id || artistIdentifier,
         ticketmaster_id: show.ticketmaster_id,
-        external_id: show.ticketmaster_id
       }));
       
       // Trigger a background sync to refresh the data
@@ -185,7 +199,6 @@ export async function fetchArtistEvents(artistIdentifier: string): Promise<Show[
         image_url: event.images?.find((img: any) => img.ratio === "16_9" && img.width > 500)?.url,
         artist_id: artistId,
         ticketmaster_id: event.id,
-        external_id: event.id
       };
     });
 
