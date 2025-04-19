@@ -153,7 +153,10 @@ async function fetchAndTransformSetlistData(supabaseClient: any, setlist_fm_id: 
       songs,
       venue_id: venueId,
       tour_name: sfmData.tour?.name,
-      date: sfmData.eventDate ? new Date(sfmData.eventDate).toISOString() : null
+      date: sfmData.eventDate ? (() => {
+        console.log("sfmData.eventDate:", sfmData.eventDate);
+        return new Date(sfmData.eventDate).toISOString();
+      })() : null
     };
   } catch (error) {
     console.error(`Error fetching setlist ${setlist_fm_id}:`, error);

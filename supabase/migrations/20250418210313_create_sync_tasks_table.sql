@@ -1,5 +1,5 @@
 -- Create the sync_tasks table
-CREATE TABLE public.sync_tasks (
+CREATE TABLE IF NOT EXISTS public.sync_tasks (
     id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
     entity_type text NOT NULL,
     entity_id uuid NOT NULL,
@@ -15,8 +15,10 @@ CREATE TABLE public.sync_tasks (
 );
 
 -- Add indexes for efficient querying
-CREATE INDEX idx_sync_tasks_status_priority ON public.sync_tasks (status, priority DESC);
-CREATE INDEX idx_sync_tasks_entity ON public.sync_tasks (entity_type, entity_id);
+DO $$ BEGIN
+  CREATE INDEX IF NOT EXISTS idx_sync_tasks_status_priority ON public.sync_tasks (status, priority DESC);
+  CREATE INDEX IF NOT EXISTS idx_sync_tasks_entity ON public.sync_tasks (entity_type, entity_id);
+EXCEPTION WHEN duplicate_table THEN NULL; END $$;
 
 -- Enable Row Level Security (RLS)
 ALTER TABLE public.sync_tasks ENABLE ROW LEVEL SECURITY;

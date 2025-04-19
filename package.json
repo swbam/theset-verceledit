@@ -10,7 +10,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "start": "NODE_ENV=production vite preview --port 8080",
-    "db:migration:apply": "node ./scripts/apply-migrations.js",
+    "db:migration:apply": "node ./scripts/apply-migrations.cjs",
     "reset:cache": "node ./scripts/clear-cache.js",
     "db:repair": "for migration in 20250418165622 20250418165747 20250418165802 20250418165826 20250418165834 20250418165945 20250418165952 20250418170021 20250418173220; do supabase migration repair --status reverted $migration; done",
     "db:pull": "supabase db pull",

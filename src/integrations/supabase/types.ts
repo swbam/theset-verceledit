@@ -29,19 +29,28 @@ export type Database = {
           cache_key: string
           created_at: string | null
           data: Json
+          entity_id: string | null
+          entity_type: string | null
           expires_at: string
+          provider: string | null
         }
         Insert: {
           cache_key: string
           created_at?: string | null
           data: Json
+          entity_id?: string | null
+          entity_type?: string | null
           expires_at: string
+          provider?: string | null
         }
         Update: {
           cache_key?: string
           created_at?: string | null
           data?: Json
+          entity_id?: string | null
+          entity_type?: string | null
           expires_at?: string
+          provider?: string | null
         }
         Relationships: []
       }
@@ -182,31 +191,31 @@ export type Database = {
       }
       played_setlist_songs: {
         Row: {
-          created_at: string
+          created_at: string | null
           id: string
           info: string | null
-          is_encore: boolean
-          position: number
-          setlist_id: string
-          song_id: string
+          is_encore: boolean | null
+          position: number | null
+          setlist_id: string | null
+          song_id: string | null
         }
         Insert: {
-          created_at?: string
+          created_at?: string | null
           id?: string
           info?: string | null
-          is_encore?: boolean
-          position: number
-          setlist_id: string
-          song_id: string
+          is_encore?: boolean | null
+          position?: number | null
+          setlist_id?: string | null
+          song_id?: string | null
         }
         Update: {
-          created_at?: string
+          created_at?: string | null
           id?: string
           info?: string | null
-          is_encore?: boolean
-          position?: number
-          setlist_id?: string
-          song_id?: string
+          is_encore?: boolean | null
+          position?: number | null
+          setlist_id?: string | null
+          song_id?: string | null
         }
         Relationships: [
           {
@@ -220,7 +229,7 @@ export type Database = {
             foreignKeyName: "played_setlist_songs_song_id_fkey"
             columns: ["song_id"]
             isOneToOne: false
-            referencedRelation: "songs"
+            referencedRelation: "tracks"
             referencedColumns: ["id"]
           },
         ]
@@ -249,44 +258,109 @@ export type Database = {
         }
         Relationships: []
       }
+      setlist_raw_data: {
+        Row: {
+          artist_id: string | null
+          created_at: string | null
+          id: string
+          raw_data: Json | null
+          setlist_id: string | null
+          show_id: string | null
+        }
+        Insert: {
+          artist_id?: string | null
+          created_at?: string | null
+          id?: string
+          raw_data?: Json | null
+          setlist_id?: string | null
+          show_id?: string | null
+        }
+        Update: {
+          artist_id?: string | null
+          created_at?: string | null
+          id?: string
+          raw_data?: Json | null
+          setlist_id?: string | null
+          show_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "setlist_raw_data_artist_id_fkey"
+            columns: ["artist_id"]
+            isOneToOne: false
+            referencedRelation: "artists"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "setlist_raw_data_setlist_id_fkey"
+            columns: ["setlist_id"]
+            isOneToOne: false
+            referencedRelation: "setlists"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "setlist_raw_data_show_id_fkey"
+            columns: ["show_id"]
+            isOneToOne: true
+            referencedRelation: "shows"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       setlist_songs: {
         Row: {
+          artist_id: string | null
           created_at: string
           id: string
+          is_encore: boolean | null
+          last_updated: string | null
           name: string | null
-          order_index: number | null
           position: number
           setlist_id: string
           song_id: string
-          spotify_id: string | null
+          track_id: string | null
           updated_at: string
+          vote_count: number | null
           votes: number | null
         }
         Insert: {
+          artist_id?: string | null
           created_at?: string
           id?: string
+          is_encore?: boolean | null
+          last_updated?: string | null
           name?: string | null
-          order_index?: number | null
           position: number
           setlist_id: string
           song_id: string
-          spotify_id?: string | null
+          track_id?: string | null
           updated_at?: string
+          vote_count?: number | null
           votes?: number | null
         }
         Update: {
+          artist_id?: string | null
           created_at?: string
           id?: string
+          is_encore?: boolean | null
+          last_updated?: string | null
           name?: string | null
-          order_index?: number | null
           position?: number
           setlist_id?: string
           song_id?: string
-          spotify_id?: string | null
+          track_id?: string | null
           updated_at?: string
+          vote_count?: number | null
           votes?: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "setlist_songs_artist_id_fkey"
+            columns: ["artist_id"]
+            isOneToOne: false
+            referencedRelation: "artists"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "setlist_songs_setlist_id_fkey"
             columns: ["setlist_id"]
@@ -312,10 +386,10 @@ export type Database = {
           setlist_fm_id: string | null
           setlist_id: string | null
           show_id: string | null
+          songs: Json | null
           tour_name: string | null
           updated_at: string | null
-          venue: string | null
-          venue_city: string | null
+          venue_id: string | null
         }
         Insert: {
           artist_id?: string | null
@@ -325,10 +399,10 @@ export type Database = {
           setlist_fm_id?: string | null
           setlist_id?: string | null
           show_id?: string | null
+          songs?: Json | null
           tour_name?: string | null
           updated_at?: string | null
-          venue?: string | null
-          venue_city?: string | null
+          venue_id?: string | null
         }
         Update: {
           artist_id?: string | null
@@ -338,10 +412,10 @@ export type Database = {
           setlist_fm_id?: string | null
           setlist_id?: string | null
           show_id?: string | null
+          songs?: Json | null
           tour_name?: string | null
           updated_at?: string | null
-          venue?: string | null
-          venue_city?: string | null
+          venue_id?: string | null
         }
         Relationships: [
           {
@@ -356,6 +430,13 @@ export type Database = {
             columns: ["show_id"]
             isOneToOne: false
             referencedRelation: "shows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "setlists_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
             referencedColumns: ["id"]
           },
         ]
@@ -374,7 +455,6 @@ export type Database = {
           status: string | null
           ticket_url: string | null
           ticketmaster_id: string | null
-          tm_id: string | null
           updated_at: string | null
           url: string | null
           venue_id: string | null
@@ -392,7 +472,6 @@ export type Database = {
           status?: string | null
           ticket_url?: string | null
           ticketmaster_id?: string | null
-          tm_id?: string | null
           updated_at?: string | null
           url?: string | null
           venue_id?: string | null
@@ -410,7 +489,6 @@ export type Database = {
           status?: string | null
           ticket_url?: string | null
           ticketmaster_id?: string | null
-          tm_id?: string | null
           updated_at?: string | null
           url?: string | null
           venue_id?: string | null
@@ -485,27 +563,69 @@ export type Database = {
           },
         ]
       }
+      sync_logs: {
+        Row: {
+          completed_at: string | null
+          created_at: string | null
+          entity_id: string
+          entity_type: string
+          error: string | null
+          id: string
+          metadata: Json | null
+          provider: string
+          status: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string | null
+          entity_id: string
+          entity_type: string
+          error?: string | null
+          id?: string
+          metadata?: Json | null
+          provider: string
+          status: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string | null
+          entity_id?: string
+          entity_type?: string
+          error?: string | null
+          id?: string
+          metadata?: Json | null
+          provider?: string
+          status?: string
+        }
+        Relationships: []
+      }
       sync_states: {
         Row: {
           entity_id: string
           entity_type: string
           external_id: string | null
-          last_synced: string
-          sync_version: number
+          last_synced: string | null
+          service_id: string | null
+          service_name: string | null
+          sync_version: number | null
         }
         Insert: {
           entity_id: string
           entity_type: string
           external_id?: string | null
-          last_synced?: string
-          sync_version?: number
+          last_synced?: string | null
+          service_id?: string | null
+          service_name?: string | null
+          sync_version?: number | null
         }
         Update: {
           entity_id?: string
           entity_type?: string
           external_id?: string | null
-          last_synced?: string
-          sync_version?: number
+          last_synced?: string | null
+          service_id?: string | null
+          service_name?: string | null
+          sync_version?: number | null
         }
         Relationships: []
       }
@@ -513,43 +633,146 @@ export type Database = {
         Row: {
           completed_at: string | null
           created_at: string | null
+          data: Json | null
           dependencies: string[] | null
           entity_id: string
+          entity_name: string | null
           entity_type: string
           error: string | null
           id: string
           priority: number | null
-          result: Json | null
           status: string
           updated_at: string | null
         }
         Insert: {
           completed_at?: string | null
           created_at?: string | null
+          data?: Json | null
           dependencies?: string[] | null
           entity_id: string
+          entity_name?: string | null
           entity_type: string
           error?: string | null
           id?: string
           priority?: number | null
-          result?: Json | null
-          status: string
+          status?: string
           updated_at?: string | null
         }
         Update: {
           completed_at?: string | null
           created_at?: string | null
+          data?: Json | null
           dependencies?: string[] | null
           entity_id?: string
+          entity_name?: string | null
           entity_type?: string
           error?: string | null
           id?: string
           priority?: number | null
-          result?: Json | null
           status?: string
           updated_at?: string | null
         }
         Relationships: []
+      }
+      top_tracks: {
+        Row: {
+          album: string | null
+          album_id: string | null
+          album_image_url: string | null
+          artist_id: string
+          created_at: string | null
+          duration_ms: number | null
+          id: string
+          name: string
+          popularity: number | null
+          preview_url: string | null
+          spotify_id: string | null
+          spotify_url: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          album?: string | null
+          album_id?: string | null
+          album_image_url?: string | null
+          artist_id: string
+          created_at?: string | null
+          duration_ms?: number | null
+          id?: string
+          name: string
+          popularity?: number | null
+          preview_url?: string | null
+          spotify_id?: string | null
+          spotify_url?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          album?: string | null
+          album_id?: string | null
+          album_image_url?: string | null
+          artist_id?: string
+          created_at?: string | null
+          duration_ms?: number | null
+          id?: string
+          name?: string
+          popularity?: number | null
+          preview_url?: string | null
+          spotify_id?: string | null
+          spotify_url?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "top_tracks_artist_id_fkey"
+            columns: ["artist_id"]
+            isOneToOne: false
+            referencedRelation: "artists"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tracks: {
+        Row: {
+          artist_id: string | null
+          created_at: string | null
+          duration_ms: number | null
+          id: string
+          name: string
+          popularity: number | null
+          preview_url: string | null
+          spotify_id: string | null
+          spotify_url: string | null
+        }
+        Insert: {
+          artist_id?: string | null
+          created_at?: string | null
+          duration_ms?: number | null
+          id?: string
+          name: string
+          popularity?: number | null
+          preview_url?: string | null
+          spotify_id?: string | null
+          spotify_url?: string | null
+        }
+        Update: {
+          artist_id?: string | null
+          created_at?: string | null
+          duration_ms?: number | null
+          id?: string
+          name?: string
+          popularity?: number | null
+          preview_url?: string | null
+          spotify_id?: string | null
+          spotify_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tracks_artist_id_fkey"
+            columns: ["artist_id"]
+            isOneToOne: false
+            referencedRelation: "artists"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       trending_shows_cache: {
         Row: {
@@ -692,8 +915,7 @@ export type Database = {
           count: number | null
           created_at: string | null
           id: string
-          show_id: string
-          song_id: string
+          setlist_song_id: string | null
           updated_at: string | null
           user_id: string | null
         }
@@ -701,8 +923,7 @@ export type Database = {
           count?: number | null
           created_at?: string | null
           id?: string
-          show_id: string
-          song_id: string
+          setlist_song_id?: string | null
           updated_at?: string | null
           user_id?: string | null
         }
@@ -710,24 +931,16 @@ export type Database = {
           count?: number | null
           created_at?: string | null
           id?: string
-          show_id?: string
-          song_id?: string
+          setlist_song_id?: string | null
           updated_at?: string | null
           user_id?: string | null
         }
         Relationships: [
           {
-            foreignKeyName: "votes_show_id_fkey"
-            columns: ["show_id"]
+            foreignKeyName: "votes_setlist_song_id_fkey"
+            columns: ["setlist_song_id"]
             isOneToOne: false
-            referencedRelation: "shows"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "votes_song_id_fkey"
-            columns: ["song_id"]
-            isOneToOne: false
-            referencedRelation: "songs"
+            referencedRelation: "setlist_songs"
             referencedColumns: ["id"]
           },
         ]
@@ -753,6 +966,10 @@ export type Database = {
         Args: { p_key: string; p_limit: number; p_window: unknown }
         Returns: boolean
       }
+      cleanup_expired_cache: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
       commit_transaction: {
         Args: Record<PropertyKey, never>
         Returns: undefined
@@ -770,13 +987,22 @@ export type Database = {
         Returns: undefined
       }
       enqueue_sync: {
-        Args: {
-          entity_type: string
-          external_id: string
-          reference_data?: Json
-          priority?: number
-          max_attempts?: number
-        }
+        Args:
+          | {
+              entity_type: string
+              external_id: string
+              reference_data?: Json
+              priority?: number
+              max_attempts?: number
+            }
+          | {
+              entity_type: string
+              service_name: string
+              service_id: string
+              reference_data?: Json
+              priority?: number
+              max_attempts?: number
+            }
         Returns: number
       }
       exec_sql: {
@@ -834,13 +1060,14 @@ export type Database = {
         Returns: {
           completed_at: string | null
           created_at: string | null
+          data: Json | null
           dependencies: string[] | null
           entity_id: string
+          entity_name: string | null
           entity_type: string
           error: string | null
           id: string
           priority: number | null
-          result: Json | null
           status: string
           updated_at: string | null
         }[]
@@ -877,6 +1104,10 @@ export type Database = {
       }
       increment_vote: {
         Args: { p_song_id: string; p_user_id: string }
+        Returns: undefined
+      }
+      process_sync_queue: {
+        Args: Record<PropertyKey, never>
         Returns: undefined
       }
       process_sync_tasks: {

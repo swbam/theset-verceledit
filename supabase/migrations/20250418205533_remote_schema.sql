@@ -58,7 +58,6 @@ drop function if exists "storage"."delete_prefix"(_bucket_id text, _name text);
 
 drop function if exists "storage"."delete_prefix_hierarchy_trigger"();
 
-drop function if exists "storage"."get_level"(name text);
 
 drop function if exists "storage"."get_prefix"(name text);
 

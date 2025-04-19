@@ -21,90 +21,36 @@ export async function searchArtistsWithEvents(
       return [];
     }
 
-    // Use import.meta.env for client-side access in Vite
-    const apiKey = import.meta.env.VITE_TICKETMASTER_API_KEY;
-    if (!apiKey) {
-      console.error("VITE_TICKETMASTER_API_KEY not configured in environment variables");
-      // Optionally throw an error or return a specific error state
-      return [];
+    // Call our Supabase Edge Function `search-attractions` to avoid CORS and hide API key
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    if (!supabaseUrl) {
+      throw new Error('VITE_SUPABASE_URL is not configured');
     }
 
     const response = await retryableFetch(async () => {
-      const url = `https://app.ticketmaster.com/discovery/v2/attractions.json?apikey=${apiKey}&keyword=${encodeURIComponent(keyword)}&size=${size}`;
-      
-      const result = await fetch(url, {
+      const result = await fetch(`${supabaseUrl}/functions/v1/search-attractions`, {
+        method: 'POST',
         headers: {
-          'Accept': 'application/json'
-        }
+          'Content-Type': 'application/json',
+          // No auth header required – function deployed with --no-verify-jwt
+        },
+        body: JSON.stringify({ keyword, size })
       });
-      
+
       if (!result.ok) {
-        throw new Error(`Ticketmaster API error: ${result.status} ${result.statusText}`);
+        const text = await result.text();
+        throw new Error(`search-attractions error (${result.status}): ${text}`);
       }
-      
+
       return result.json();
     }, { retries: 3 });
 
-    if (!response._embedded?.attractions) {
+    // The Edge Function already returns normalized list
+    if (!response.artists) {
       return [];
     }
 
-    const artists = response._embedded.attractions
-      .filter((attraction: any) => {
-        // Filter out tribute/cover bands by checking name and segment
-        const name = attraction.name.toLowerCase();
-        const isTribute = name.includes('tribute') ||
-                         name.includes('cover') ||
-                         name.includes('experience') ||
-                         name.includes('celebrating');
-        
-        // Check if it's a cover/tribute in the classification
-        const segment = attraction.classifications?.[0]?.segment?.name?.toLowerCase();
-        const isAttractionSegment = segment === 'attraction' || segment === 'miscellaneous';
-        
-        return !isTribute && !isAttractionSegment;
-      })
-      .map((attraction: any) => {
-        // Get the best image
-        let image;
-        if (attraction.images && attraction.images.length > 0) {
-          // Try to get a high quality image
-          const sortedImages = [...attraction.images].sort((a, b) =>
-            (b.width || 0) - (a.width || 0)
-          );
-          
-          image = sortedImages[0]?.url;
-        }
-
-      // Extract upcoming shows count
-      let upcomingShows = 0;
-      if (attraction.upcomingEvents && typeof attraction.upcomingEvents._total === 'number') {
-        upcomingShows = attraction.upcomingEvents._total;
-      }
-
-      // Extract genres
-      let genres: string[] = [];
-      if (attraction.classifications && attraction.classifications.length > 0) {
-        const classification = attraction.classifications[0];
-        const genreSegments = [
-          classification.genre?.name,
-          classification.subGenre?.name,
-        ].filter(Boolean);
-        
-        genres = genreSegments;
-      }
-
-      return {
-        id: attraction.id,
-        name: attraction.name,
-        image,
-        upcomingShows,
-        genres,
-        url: attraction.url,
-      };
-    });
-
-    return artists;
+    return response.artists;
   } catch (error) {
     console.error("Error searching artists:", error);
     // Rethrow or return error state for UI

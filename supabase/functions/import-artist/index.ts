@@ -177,6 +177,7 @@ serve(async (req: Request) => {
       });
     }
     console.log(`[import-artist] Found ${events.length} shows for artist ${dbArtist.name}.`);
+    console.log(`[import-artist] Ticketmaster events data:`, JSON.stringify(events));
 
     // 4. Process and Save Shows (and their venues, setlists)
     let savedCount = 0;

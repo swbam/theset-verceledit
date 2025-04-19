@@ -7,18 +7,6 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { corsHeaders } from '../_shared/cors.ts'
 
-declare global {
-  interface Window {
-    Deno: {
-      env: {
-        get(key: string): string | undefined;
-      };
-    };
-  }
-}
-
-const deno = (globalThis as any).Deno;
-
 interface SyncShowPayload {
   showId: string;
   force?: boolean;
@@ -94,7 +82,7 @@ async function fetchAndTransformShowData(supabaseAdmin: any, showId: string): Pr
     }
 
     // --- Ticketmaster API ---
-    const tmApiKey = deno.env.get('TICKETMASTER_API_KEY');
+    const tmApiKey = Deno.env.get('TICKETMASTER_API_KEY');
     if (!tmApiKey) {
       throw new Error('TICKETMASTER_API_KEY not set in environment variables.');
     }
@@ -131,11 +119,11 @@ async function fetchAndTransformShowData(supabaseAdmin: any, showId: string): Pr
 
     // Sync artist
     console.log(`Syncing artist ${artistName} (${tmArtistId})...`);
-    const artistResponse = await fetch(`${deno.env.get('SUPABASE_URL')}/functions/v1/sync-artist`, {
+    const artistResponse = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/sync-artist`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+        'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
       },
       body: JSON.stringify({ artistId: tmArtistId })
     });
@@ -155,11 +143,11 @@ async function fetchAndTransformShowData(supabaseAdmin: any, showId: string): Pr
 
     // Sync venue
     console.log(`Syncing venue ${venueName} (${tmVenueId})...`);
-    const venueResponse = await fetch(`${deno.env.get('SUPABASE_URL')}/functions/v1/sync-venue`, {
+    const venueResponse = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/sync-venue`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+        'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
       },
       body: JSON.stringify({ venueId: tmVenueId })
     });
@@ -251,8 +239,8 @@ serve(async (req: Request) => {
 
   try {
     const supabaseClient = createClient(
-      deno.env.get('SUPABASE_URL') ?? '',
-      deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
     const { showId, force = false } = await req.json() as SyncShowPayload;
