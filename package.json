@@ -22,7 +22,10 @@
     "updateall": "git pull && npm run db:sync && npm run deploy:functions && npm run build && npm run verify && git add . && git commit -m \"Automated update\" && git push",
     "deploy:functions": "for func in fetch-past-setlists import-artist sync-artist sync-setlist sync-show sync-song sync-venue; do supabase functions deploy $func --no-verify-jwt; done",
     "verify": "curl https://theset-verceledit.vercel.app/api/test-db-connection",
-    "updateschema": "bash scripts/update-schema.sh"
+    "updateschema": "bash scripts/update-schema.sh",
+    "deploy:migrations": "supabase db push",
+    "deploy:function:unified-sync": "supabase functions deploy unified-sync",
+    "deploy:all": "npm run deploy:migrations && npm run deploy:function:unified-sync"
   },
   "dependencies": {
     "@hello-pangea/dnd": "^18.0.1",

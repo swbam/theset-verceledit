@@ -63,37 +63,15 @@ export async function GET(request: Request) {
         id: attraction.id,
         name: attraction.name,
         image_url: attraction.images?.find((img: any) => img.ratio === "16_9" && img.width > 500)?.url,
-        genres: attraction.classifications?.[0]?.genre?.name ? [attraction.classifications[0].genre.name] : [],
-        url: attraction.url
+        url: attraction.url,
+        external_id: attraction.id,
+        exists_in_db: false,
+        db_id: null
       }));
 
-    // Process each artist through sync function
-    const processedArtists = await Promise.all(artists.map(async (artist) => {
-      try {
-        const result = await supabase.functions.invoke('sync-artist', {
-          body: {
-            artistId: artist.id,
-            payload: artist
-          }
-        });
-
-        if (!result.data?.success) {
-          console.error(`Error syncing artist ${artist.name}:`, result.error);
-          return null;
-        }
-
-        return result.data.data as Artist;
-      } catch (error) {
-        console.error(`Error processing artist ${artist.name}:`, error);
-        return null;
-      }
-    }));
-
-    // Filter out failed syncs and return results
-    const results = processedArtists.filter(artist => artist !== null);
     return new Response(JSON.stringify({
       success: true,
-      results
+      results: artists
     }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' }

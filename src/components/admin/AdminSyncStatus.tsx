@@ -101,7 +101,7 @@ const AdminSyncStatus = () => {
         // Update last sync time for each entity type
         const lastSyncMap = new Map<string, string>();
         lastSyncData.forEach(task => {
-          if (!lastSyncMap.has(task.entity_type)) {
+          if (task.updated_at && !lastSyncMap.has(task.entity_type)) {
             lastSyncMap.set(task.entity_type, task.updated_at);
           }
         });
@@ -164,41 +164,28 @@ const AdminSyncStatus = () => {
       
       switch(testType) {
         case 'artist':
-          // Test artist sync
-          response = await fetch('/api/sync', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              operation: 'sync',
-              entityType: 'artist',
-              entityId: '1f9e8a14-7bca-4f1e-b2d3-431fe1e31595', // Example artist ID
-              options: {
-                priority: 'high',
-                entityName: 'Test Artist'
-              }
-            })
+          console.log('[AdminSyncStatus] Invoking sync-artist with artistId:', '1f9e8a14-7bca-4f1e-b2d3-431fe1e31595');
+          response = await supabase.functions.invoke('sync-artist', {
+            body: { artistId: '1f9e8a14-7bca-4f1e-b2d3-431fe1e31595' }
           });
+          if (response.error) {
+            throw new Error(response.error.message);
+          }
           break;
           
         case 'show':
-          // Test show sync
-          response = await fetch('/api/sync', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              operation: 'sync',
-              entityType: 'show',
-              entityId: 'vvG1iZ9aVt5jDk', // Example show ID
-              options: {
-                priority: 'high',
-                entityName: 'Test Show'
-              }
-            })
+          console.log('[AdminSyncStatus] Invoking sync-show with showId:', 'vvG1iZ9aVt5jDk');
+          response = await supabase.functions.invoke('sync-show', {
+            body: { showId: 'vvG1iZ9aVt5jDk' }
           });
+          if (response.error) {
+            throw new Error(response.error.message);
+          }
           break;
           
         case 'process':
           // Process pending tasks
+            console.log('[AdminSyncStatus] Process test payload:', { operation: 'process', limit: 5 });
           response = await fetch('/api/background-sync', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },

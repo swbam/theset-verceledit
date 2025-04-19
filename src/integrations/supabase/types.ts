@@ -601,6 +601,7 @@ export type Database = {
       }
       sync_states: {
         Row: {
+          created_at: string | null
           entity_id: string
           entity_type: string
           external_id: string | null
@@ -608,8 +609,10 @@ export type Database = {
           service_id: string | null
           service_name: string | null
           sync_version: number | null
+          updated_at: string | null
         }
         Insert: {
+          created_at?: string | null
           entity_id: string
           entity_type: string
           external_id?: string | null
@@ -617,8 +620,10 @@ export type Database = {
           service_id?: string | null
           service_name?: string | null
           sync_version?: number | null
+          updated_at?: string | null
         }
         Update: {
+          created_at?: string | null
           entity_id?: string
           entity_type?: string
           external_id?: string | null
@@ -626,6 +631,7 @@ export type Database = {
           service_id?: string | null
           service_name?: string | null
           sync_version?: number | null
+          updated_at?: string | null
         }
         Relationships: []
       }

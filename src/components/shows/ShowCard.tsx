@@ -27,6 +27,7 @@ interface ShowCardProps {
 }
 
 export default function ShowCard({ show }: ShowCardProps) {
+  console.log('ShowCard props:', show);
   // Format date if it exists
   const formattedDate = show.date ? format(parseISO(show.date), 'EEE, MMM d, yyyy • h:mm a') : 'Date TBA';
   

@@ -55,7 +55,7 @@ const AuthCallback = () => {
               
               try {
                 // Trigger background sync for Spotify top artists
-                await syncSpotifyData(data.session.user.id);
+                await syncSpotifyData(data.session.user.id, data.session);
               } catch (syncError: AuthCallbackErrorType) {
                 console.error('Error syncing Spotify data:', syncError);
                 // Continue with redirection even if sync fails
@@ -88,41 +88,35 @@ const AuthCallback = () => {
   }, [navigate, location]);
 
   // Function to sync Spotify data
-  const syncSpotifyData = async (userId: string) => {
+  const syncSpotifyData = async (userId: string, session: any) => {
     console.log(`Starting Spotify data sync for user ${userId}`);
     
     try {
-      // Fetch top artists from Spotify
-      const response = await fetch('/api/sync', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
+      // Use Supabase Edge Function to sync Spotify data
+      const { data, error } = await supabase.functions.invoke('spotify-sync', {
+        body: {
+          userId,
+          providerToken: session.provider_token,
         },
-        body: JSON.stringify({
-          operation: 'spotify_sync',
-          userId
-        })
       });
-      
-      if (!response.ok) {
-        const error = await response.json();
+
+      if (error) {
+        console.error('[AuthCallback] spotify-sync error', error);
         throw new Error(error.message || 'Failed to sync Spotify data');
       }
-      
-      const result = await response.json();
-      console.log('Spotify sync result:', result);
-      
-      // Queue background processing of artists
-      if (result.data?.artists) {
-        for (const artist of result.data.artists) {
-          if (artist.id) {
-            console.log(`Queueing background sync for artist ${artist.name}`);
-            await SyncManager.queueBackgroundSync('artist', artist.id);
-          }
-        }
+
+      console.log('spotify-sync data:', data);
+
+      // The function returns an array of artist IDs that were followed
+      const artistIds: string[] = (data as any)?.artistIds || [];
+
+      // Queue background sync tasks for each artist
+      for (const artistId of artistIds) {
+        console.log(`Queueing background sync for artist ${artistId}`);
+        await SyncManager.queueBackgroundSync('artist', artistId);
       }
-      
-      return result;
+
+      return data;
     } catch (error: AuthCallbackErrorType) {
       console.error('Error in syncSpotifyData:', error);
       throw error;
