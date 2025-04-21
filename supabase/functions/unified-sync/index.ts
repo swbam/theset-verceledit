@@ -17,105 +17,99 @@ interface SyncRequest {
   options?: {
     forceRefresh?: boolean;
     skipDependencies?: boolean;
-    includeSetlists?: boolean; // Optional: include historical setlists from setlist.fm
+    includeSetlists?: boolean;
   };
 }
 
 serve(async (req) => {
-  // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
 
   try {
-  // Parse request body
-  const input: SyncRequest = await req.json();
-  console.log('[unified-sync] Received sync request:', input);
+    const input: SyncRequest = await req.json();
+    console.log('[unified-sync] Received sync request:', input);
 
-  // If no input is provided or explicitly requesting trending shows
-  if (!input || Object.keys(input).length === 0 || input.entityType === 'trending') {
-    console.log('[unified-sync] Fetching trending shows');
-    const result = await syncTrendingShows();
+    let result;
 
-    // For each show's artist, trigger a background sync to get their songs
-    if (result.success && result.stats.saved > 0) {
-      const supabaseClient = createClient(
-        Deno.env.get('SUPABASE_URL')!,
-        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-      );
+    if (!input || Object.keys(input).length === 0 || input.entityType === 'trending') {
+      console.log('[unified-sync] Fetching trending shows');
+      result = await syncTrendingShows();
 
-      // Get unique artist IDs from recently synced shows
-      const { data: shows } = await supabaseClient
-        .from('shows')
-        .select('artist_id')
-        .order('created_at', { ascending: false })
-        .limit(result.stats.saved);
+      if (result?.success && result?.stats.saved > 0) {
+        const supabaseClient = createClient(
+          Deno.env.get('SUPABASE_URL')!,
+          Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+        );
 
-      if (shows) {
-        const uniqueArtistIds = [...new Set(shows.map(show => show.artist_id))];
-        console.log(`[unified-sync] Found ${uniqueArtistIds.length} unique artists to sync`);
+        const { data: shows } = await supabaseClient
+          .from('shows')
+          .select('artist_id')
+          .order('created_at', { ascending: false })
+          .limit(result.stats.saved);
 
-        // Sync each artist's songs in parallel
-        await Promise.all(uniqueArtistIds.map(async (artistId) => {
-          if (!artistId) return;
-          
-          try {
-            const { data: artist } = await supabaseClient
-              .from('artists')
-              .select('name, spotify_id')
-              .eq('id', artistId)
-              .single();
+        if (shows) {
+          const uniqueArtistIds = [...new Set(shows.map(show => show.artist_id))];
+          console.log(`[unified-sync] Found ${uniqueArtistIds.length} unique artists to sync`);
 
-            if (artist?.spotify_id) {
-              console.log(`[unified-sync] Syncing songs for artist ${artist.name}`);
-              await syncSong({
-                entityType: 'song',
-                entityId: artistId,
-                spotifyId: artist.spotify_id,
-                options: { skipDependencies: true }
-              });
+          await Promise.all(uniqueArtistIds.map(async (artistId) => {
+            if (!artistId) return;
+            
+            try {
+              const { data: artist } = await supabaseClient
+                .from('artists')
+                .select('name, spotify_id')
+                .eq('id', artistId)
+                .single();
+
+              if (artist?.spotify_id) {
+                console.log(`[unified-sync] Syncing songs for artist ${artist.name}`);
+                await syncSong({
+                  entityType: 'song',
+                  entityId: artistId,
+                  spotifyId: artist.spotify_id,
+                  options: { skipDependencies: true }
+                });
+              }
+            } catch (error) {
+              console.error(`[unified-sync] Error syncing songs for artist ${artistId}:`, error);
             }
-          } catch (error) {
-            console.error(`[unified-sync] Error syncing songs for artist ${artistId}:`, error);
-          }
-        }));
+          }));
+        }
       }
+
+      return new Response(JSON.stringify(result || { success: false }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200,
+      });
     }
 
-    return new Response(JSON.stringify(result), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 200,
-    });
-  }
+    if (!input.entityType) {
+      throw new Error('Entity type is required');
+    }
 
-  // Validate input for specific entity sync
-  if (!input.entityType) {
-    throw new Error('Entity type is required');
-  }
+    if (!input.entityId && !input.entityName && !input.ticketmasterId && !input.spotifyId) {
+      throw new Error('At least one identifier (ID, name, or external ID) is required');
+    }
 
-  if (!input.entityId && !input.entityName && !input.ticketmasterId && !input.spotifyId) {
-    throw new Error('At least one identifier (ID, name, or external ID) is required');
-  }
+    switch (input.entityType) {
+      case 'artist':
+        result = await syncArtist(input);
+        break;
+      case 'venue':
+        result = await syncVenue(input);
+        break;
+      case 'show':
+        result = await syncShow(input);
+        break;
+      case 'song':
+        result = await syncSong(input);
+        break;
+      default:
+        throw new Error(`Unsupported entity type: ${input.entityType}`);
+    }
 
-  let result;
-  switch (input.entityType) {
-    case 'artist':
-      result = await syncArtist(input);
-      break;
-    case 'venue':
-      result = await syncVenue(input);
-      break;
-    case 'show':
-      result = await syncShow(input);
-      break;
-    case 'song':
-      result = await syncSong(input);
-      break;
-    default:
-      throw new Error(`Unsupported entity type: ${input.entityType}`);
-  }
-
-    return new Response(JSON.stringify(result), {
+    return new Response(JSON.stringify(result || { success: false }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 200,
     });
@@ -134,7 +128,6 @@ serve(async (req) => {
 async function syncArtist(input: SyncRequest) {
   console.log('[unified-sync] Syncing artist:', input);
 
-  // 1. If we have a name but no IDs, search Spotify first
   if (input.entityName && !input.spotifyId) {
     console.log(`[unified-sync] Searching Spotify for artist: ${input.entityName}`);
     const spotifyArtist = await getArtistByName(input.entityName);
@@ -144,7 +137,6 @@ async function syncArtist(input: SyncRequest) {
     }
   }
 
-  // 2. Save artist to database
   const artistData = {
     id: input.entityId,
     name: input.entityName,
@@ -157,14 +149,12 @@ async function syncArtist(input: SyncRequest) {
     throw new Error('Failed to save artist to database');
   }
 
-  // 3. If we have Spotify ID, fetch and save tracks
   if (savedArtist.spotify_id && (!input.options?.skipDependencies)) {
     console.log(`[unified-sync] Fetching tracks for artist: ${savedArtist.name}`);
     try {
       const tracks = await getArtistAllTracks(savedArtist.spotify_id);
       console.log(`[unified-sync] Found ${tracks.tracks.length} tracks`);
       
-      // Store tracks in database
       const supabaseClient = createClient(
         Deno.env.get('SUPABASE_URL')!,
         Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -194,14 +184,12 @@ async function syncArtist(input: SyncRequest) {
     }
   }
 
-  // 4. Optionally fetch past setlists from setlist.fm (low priority)
   if (!input.options?.skipDependencies && input.options?.includeSetlists) {
     console.log(`[unified-sync] Fetching past setlists for artist: ${savedArtist.name} (optional)`);
     try {
       const setlists = await fetchArtistSetlists(savedArtist.name, savedArtist.setlist_fm_id);
       if (setlists.setlist && setlists.setlist.length > 0) {
         console.log(`[unified-sync] Found ${setlists.setlist.length} past setlists, processing in background`);
-        // Process setlists in background
         queueMicrotask(async () => {
           try {
             const supabaseClient = createClient(
@@ -254,7 +242,6 @@ async function syncArtist(input: SyncRequest) {
     }
   }
 
-  // 5. If we have Ticketmaster ID, fetch and save shows
   if (input.ticketmasterId && (!input.options?.skipDependencies)) {
     console.log(`[unified-sync] Fetching shows for artist: ${savedArtist.name}`);
     
@@ -264,7 +251,6 @@ async function syncArtist(input: SyncRequest) {
         Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
       );
 
-      // Update artist's Ticketmaster ID if it's not set
       if (!savedArtist.ticketmaster_id) {
         const { error: updateError } = await supabaseClient
           .from('artists')
@@ -283,15 +269,12 @@ async function syncArtist(input: SyncRequest) {
         savedArtist.ticketmaster_id = input.ticketmasterId;
       }
 
-      // Fetch and save shows
       const shows = await fetchArtistEvents(input.ticketmasterId);
       console.log(`[unified-sync] Found ${shows.length} shows`);
 
-      // Track successful saves
       let savedCount = 0;
       let errorCount = 0;
 
-      // Save each show with the correct artist UUID and create initial setlist
       for (const show of shows) {
         try {
           const savedShow = await saveShowToDatabase({
@@ -304,7 +287,6 @@ async function syncArtist(input: SyncRequest) {
           });
 
           if (savedShow) {
-            // Check if setlist already exists
             const { data: existingSetlist, error: checkError } = await supabaseClient
               .from('setlists')
               .select('id')
@@ -316,10 +298,8 @@ async function syncArtist(input: SyncRequest) {
               continue;
             }
 
-            // Only create setlist if it doesn't exist
             if (!existingSetlist) {
               try {
-                // Get all songs
                 const { data: artistSongs, error: songsError } = await supabaseClient
                   .from('songs')
                   .select('id, name')
@@ -335,7 +315,6 @@ async function syncArtist(input: SyncRequest) {
                   continue;
                 }
 
-                // Create setlist
                 const { data: savedSetlist, error: setlistError } = await supabaseClient
                   .from('setlists')
                   .insert({
@@ -357,12 +336,10 @@ async function syncArtist(input: SyncRequest) {
                   continue;
                 }
 
-                // Randomly select 5 songs from the entire catalog
                 const selectedSongs = [...artistSongs]
-                  .sort(() => Math.random() - 0.5) // Shuffle array
-                  .slice(0, 5); // Take first 5
+                  .sort(() => Math.random() - 0.5)
+                  .slice(0, 5);
 
-                // Add songs to setlist
                 const { error: songsInsertError } = await supabaseClient
                   .from('setlist_songs')
                   .insert(
@@ -381,7 +358,6 @@ async function syncArtist(input: SyncRequest) {
 
                 if (songsInsertError) {
                   console.error(`[unified-sync] Error adding songs to setlist ${savedSetlist.id}:`, songsInsertError);
-                  // Delete the setlist if we couldn't add songs
                   await supabaseClient
                     .from('setlists')
                     .delete()
@@ -403,13 +379,11 @@ async function syncArtist(input: SyncRequest) {
         } catch (showError) {
           errorCount++;
           console.error(`[unified-sync] Error saving show ${show.name}:`, showError);
-          // Continue with next show
         }
       }
 
       console.log(`[unified-sync] Shows sync complete. Saved: ${savedCount}, Errors: ${errorCount}`);
 
-      // Update artist's last sync timestamp
       const { error: syncUpdateError } = await supabaseClient
         .from('artists')
         .update({ 
@@ -424,7 +398,6 @@ async function syncArtist(input: SyncRequest) {
 
     } catch (showsError) {
       console.error('[unified-sync] Error in shows sync process:', showsError);
-      // Continue with the rest of the sync process
     }
   }
 
@@ -437,7 +410,6 @@ async function syncArtist(input: SyncRequest) {
 async function syncVenue(input: SyncRequest) {
   console.log('[unified-sync] Syncing venue:', input);
 
-  // Save venue to database
   const venueData = {
     id: input.entityId,
     name: input.entityName,
@@ -458,7 +430,6 @@ async function syncVenue(input: SyncRequest) {
 async function syncShow(input: SyncRequest) {
   console.log('[unified-sync] Syncing show:', input);
 
-  // Save show to database
   const showData = {
     id: input.entityId,
     name: input.entityName,
@@ -479,16 +450,14 @@ async function syncShow(input: SyncRequest) {
 async function syncSong(input: SyncRequest) {
   console.log('[unified-sync] Syncing song:', input);
   
-  // Validate required fields
   if (!input.entityName || !input.spotifyId) {
     throw new Error('Song name and Spotify ID are required');
   }
 
-  // Save song to database
   const songData = {
     name: input.entityName,
     spotify_id: input.spotifyId,
-    artist_id: input.entityId // This should be the artist's DB UUID
+    artist_id: input.entityId
   };
 
   const savedSong = await saveSongToDatabase(songData);
@@ -511,63 +480,84 @@ async function syncTrendingShows() {
   );
 
   try {
-    // Fetch trending shows from Ticketmaster
     const shows = await fetchTrendingShows();
     console.log(`[unified-sync] Found ${shows.length} trending shows`);
 
     let savedCount = 0;
     let errorCount = 0;
 
-    // Process each show
     for (const show of shows) {
       try {
-      // Save artist if it exists
-      let artistId = null;
-      if (show.artist) {
-        console.log(`[unified-sync] Processing artist for show: ${show.name}`, show.artist);
-        
-        // First check if artist already exists by ticketmaster_id
-        const { data: existingArtist } = await supabaseClient
-          .from('artists')
-          .select('id')
-          .eq('ticketmaster_id', show.artist.ticketmaster_id)
-          .maybeSingle();
+        let artistId = null;
+        if (show.artist) {
+          console.log(`[unified-sync] Processing artist for show: ${show.name}`, show.artist);
+          
+          const { data: existingArtist } = await supabaseClient
+            .from('artists')
+            .select('id')
+            .eq('ticketmaster_id', show.artist.ticketmaster_id)
+            .maybeSingle();
 
-        if (existingArtist) {
-          artistId = existingArtist.id;
-          console.log(`[unified-sync] Found existing artist with ID ${artistId}`);
+          if (existingArtist) {
+            artistId = existingArtist.id;
+            console.log(`[unified-sync] Found existing artist with ID ${artistId}`);
+          } else {
+            console.log(`[unified-sync] Creating new artist: ${show.artist.name}`);
+            const savedArtist = await saveArtistToDatabase({
+              name: show.artist.name,
+              ticketmaster_id: show.artist.ticketmaster_id,
+              image_url: show.artist.image_url || undefined,
+              spotify_id: show.artist.spotify_id,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            });
+
+            if (savedArtist) {
+              artistId = savedArtist.id;
+              console.log(`[unified-sync] Created new artist with ID ${artistId}`);
+              
+              try {
+                await supabaseClient.functions.invoke('sync-artist', {
+                  body: { 
+                    artistId: savedArtist.id,
+                    ticketmasterId: savedArtist.ticketmaster_id
+                  }
+                });
+              } catch (error) {
+                console.error(`[unified-sync] Error triggering artist sync for ${savedArtist.name}:`, error);
+              }
+            }
+          }
         } else {
-          console.log(`[unified-sync] Creating new artist: ${show.artist.name}`);
-          const savedArtist = await saveArtistToDatabase({
-            name: show.artist.name,
-            ticketmaster_id: show.artist.ticketmaster_id,
-            image_url: show.artist.image_url || undefined,
-            spotify_id: show.artist.spotify_id,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          });
-          if (savedArtist) {
-            artistId = savedArtist.id;
-            console.log(`[unified-sync] Created new artist with ID ${artistId}`);
+          const showNameParts = show.name.split(' - ');
+          if (showNameParts.length > 1) {
+            const artistName = showNameParts[0].trim();
+            console.log(`[unified-sync] Attempting to create artist from show name: ${artistName}`);
             
-            // Trigger a background sync to get artist's songs
-            try {
-              await supabaseClient.functions.invoke('sync-artist', {
-                body: { 
-                  artistId: savedArtist.id,
-                  ticketmasterId: savedArtist.ticketmaster_id
-                }
+            const { data: existingArtist } = await supabaseClient
+              .from('artists')
+              .select('id')
+              .ilike('name', artistName)
+              .maybeSingle();
+
+            if (existingArtist) {
+              artistId = existingArtist.id;
+              console.log(`[unified-sync] Found existing artist by name with ID ${artistId}`);
+            } else {
+              const savedArtist = await saveArtistToDatabase({
+                name: artistName,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
               });
-            } catch (error) {
-              console.error(`[unified-sync] Error triggering artist sync for ${savedArtist.name}:`, error);
+
+              if (savedArtist) {
+                artistId = savedArtist.id;
+                console.log(`[unified-sync] Created new artist from show name with ID ${artistId}`);
+              }
             }
           }
         }
-      } else {
-        console.log(`[unified-sync] No artist data for show: ${show.name}`);
-      }
 
-        // Save venue if it exists
         let venueId = null;
         if (show.venue) {
           const savedVenue = await saveVenueToDatabase(show.venue);
@@ -576,19 +566,20 @@ async function syncTrendingShows() {
           }
         }
 
-        // Save show with correct references
         const savedShow = await saveShowToDatabase({
           ...show,
           artist_id: artistId,
           venue_id: venueId,
-          artist: artistId ? {
-            id: artistId,
-            ticketmaster_id: show.artist?.ticketmaster_id
-          } : undefined
+          // Define artist object separately for clarity
+          artist: artistId 
+            ? { 
+                id: artistId, 
+                ticketmaster_id: show.artist?.ticketmaster_id ?? undefined 
+              } 
+            : undefined
         });
 
         if (savedShow) {
-          // Create initial setlist if artist has songs
           if (artistId) {
             const { data: artistSongs } = await supabaseClient
               .from('songs')
@@ -596,7 +587,6 @@ async function syncTrendingShows() {
               .eq('artist_id', artistId);
 
             if (artistSongs && artistSongs.length > 0) {
-              // Create setlist
               const { data: savedSetlist, error: setlistError } = await supabaseClient
                 .from('setlists')
                 .insert({
@@ -609,12 +599,10 @@ async function syncTrendingShows() {
                 .single();
 
               if (!setlistError && savedSetlist) {
-                // Randomly select 5 songs
                 const selectedSongs = [...artistSongs]
                   .sort(() => Math.random() - 0.5)
                   .slice(0, 5);
 
-                // Add songs to setlist
                 await supabaseClient
                   .from('setlist_songs')
                   .insert(

@@ -31,3 +31,8 @@ export interface SyncState {
   sync_version: number;
   error?: string;
 }
+
+export interface Show {
+  id: string; // Was UUID previously
+  ticketmaster_id: string;
+}

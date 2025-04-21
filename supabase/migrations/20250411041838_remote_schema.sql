@@ -86,7 +86,18 @@ alter table "public"."top_tracks" drop constraint "top_tracks_artist_id_fkey";
 
 alter table "public"."top_tracks" drop constraint "top_tracks_spotify_id_key";
 
-alter table "public"."venues" drop constraint "venues_external_id_unique";
+-- Safely drop venues_external_id_unique constraint if it exists
+DO $$ BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.table_constraints
+    WHERE constraint_name = 'venues_external_id_unique'
+    AND table_schema = 'public'
+    AND table_name = 'venues'
+  ) THEN
+    alter table "public"."venues" drop constraint "venues_external_id_unique";
+  END IF;
+END $$;
 
 alter table "public"."votes" drop constraint "votes_song_id_fkey";
 

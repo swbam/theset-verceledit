@@ -5,7 +5,7 @@
 echo "Running SQL migration to add external_id columns to database tables..."
 
 # Check for environment variables
-if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_SERVICE_KEY" ]; then
+if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
   echo "Loading environment variables from .env file..."
   if [ -f ".env" ]; then
     export $(grep -v '^#' .env | xargs)
@@ -18,8 +18,8 @@ if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_SERVICE_KEY" ]; then
 fi
 
 # Check again after loading from file
-if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_SERVICE_KEY" ]; then
-  echo "Error: SUPABASE_URL or SUPABASE_SERVICE_KEY not found in environment variables or .env file."
+if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+  echo "Error: SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY not found in environment variables or .env file."
   exit 1
 fi
 
@@ -32,8 +32,8 @@ SQL_CONTENT=$(cat add_external_ids.sql)
 # Make API request to run SQL
 RESPONSE=$(curl -s -X POST \
   "${SUPABASE_URL}/rest/v1/sql" \
-  -H "apikey: ${SUPABASE_SERVICE_KEY}" \
-  -H "Authorization: Bearer ${SUPABASE_SERVICE_KEY}" \
+  -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+  -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
   -H "Content-Type: application/json" \
   -d "{\"query\": \"${SQL_CONTENT}\"}")
 

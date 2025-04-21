@@ -43,8 +43,9 @@ function mapTicketmasterEventToShow(event: TicketmasterEvent): Show {
         country: venueData.country?.name,
         address: venueData.address?.line1,
         postal_code: venueData.postalCode,
-        latitude: venueData.location?.latitude,
-        longitude: venueData.location?.longitude,
+        // Parse latitude/longitude strings to numbers
+        latitude: venueData.location?.latitude ? parseFloat(venueData.location.latitude) : undefined,
+        longitude: venueData.location?.longitude ? parseFloat(venueData.location.longitude) : undefined,
         image_url: venueData.images?.[0]?.url,
         url: venueData.url,
         created_at: new Date().toISOString(),

@@ -67,6 +67,7 @@ type ShowForHero = {
   date: string;
   name?: string | undefined; // Optional string
   image_url?: string | undefined; // Optional string
+  ticketmaster_id?: string | undefined; // Ticketmaster ID
   artist: {
     id: string;
     name: string;
@@ -79,7 +80,7 @@ type ShowForHero = {
     state?: string | undefined; // Optional string
     country?: string | undefined; // Optional string
   };
-  external_url?: string | undefined; // Optional string (maps to show.url or show.ticket_url?)
+  url?: string | undefined; // Show URL
 };
 
 // Type matching ShowInfoProps['show'] (assuming similar requirements)

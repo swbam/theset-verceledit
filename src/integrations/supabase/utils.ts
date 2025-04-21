@@ -93,14 +93,14 @@ export function createRouteHandlerClient(req: any, res: any) { // Use appropriat
 // This client bypasses RLS and should only be used in trusted server environments.
 // Ensure the service key is NEVER exposed to the client.
 export function createServiceRoleClient() {
-  const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
-  if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
+  const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
     console.error('Supabase URL or Service Key is missing for Service Role Client.');
     throw new Error('Supabase URL or Service Key is missing.');
   }
   // Note: createServerClient is used here. Even though the service role key bypasses cookie auth,
   // the function signature requires the third argument (cookie options). We provide a minimal one.
-  return createServerClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
+  return createServerClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
     cookies: {
       // No-op cookie handlers as they are not used for service role
       get() { return undefined; },

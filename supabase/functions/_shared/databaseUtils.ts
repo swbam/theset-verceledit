@@ -257,7 +257,8 @@ export async function saveVenueToDatabase(venueInput: Partial<Venue>): Promise<V
  * Ensures artist and venue exist first, using their DB UUIDs for foreign keys.
  * Also triggers setlist creation.
  */
-export async function saveShowToDatabase(showInput: Partial<Show> & { artist?: Partial<Artist>, venue?: Partial<Venue> }): Promise<Show | null> {
+// Simplified signature to accept just Partial<Show>
+export async function saveShowToDatabase(showInput: Partial<Show>): Promise<Show | null> {
   try {
     if (!showInput || !showInput.ticketmaster_id || !showInput.name) {
       console.error("[EF saveShow] Invalid input: Missing name or Ticketmaster ID", showInput);
@@ -548,10 +549,10 @@ async function populateSetlistSongs(setlistId: string, dbArtistId: string): Prom
   try {
     console.log(`[EF populateSetlist] Populating setlist ${setlistId} for artist ${dbArtistId}`);
 
-    // 1. Check if setlist already has songs
-    const { data: existingSongs, error: checkError } = await supabaseAdmin
+    // 1. Check if setlist already has songs using count
+    const { count: existingSongCount, error: checkError } = await supabaseAdmin
         .from('setlist_songs')
-        .select('id', { count: 'exact', head: true })
+        .select('*', { count: 'exact', head: true }) // Use '*' or 'id' for select, count is separate
         .eq('setlist_id', setlistId);
 
     if (checkError) {
@@ -559,8 +560,8 @@ async function populateSetlistSongs(setlistId: string, dbArtistId: string): Prom
       return false; // Abort population
     }
 
-    if (existingSongs && existingSongs.length > 0) {
-       console.log(`[EF populateSetlist] Setlist ${setlistId} already has ${existingSongs.length} songs. Skipping population (for now).`);
+    if (existingSongCount && existingSongCount > 0) {
+       console.log(`[EF populateSetlist] Setlist ${setlistId} already has ${existingSongCount} songs. Skipping population (for now).`);
        // TODO: Implement logic to update/refresh setlist songs if needed, e.g., based on source update time
        return true; // Consider it success as songs exist
     }
@@ -591,7 +592,8 @@ async function populateSetlistSongs(setlistId: string, dbArtistId: string): Prom
      console.log(`[EF populateSetlist] Found ${songs.length} songs for artist ${dbArtistId}. Adding to setlist ${setlistId}.`);
 
     // 3. Add songs to the setlist_songs table
-    await addSongsToSetlistInternal(setlistId, dbArtistId, songs);
+    // Ensure 'songs' is passed, not 'true' or other incorrect value
+    await addSongsToSetlistInternal(setlistId, dbArtistId, songs); 
 
     console.log(`[EF populateSetlist] Finished populating setlist ${setlistId}.`);
     return true;
@@ -753,11 +755,12 @@ export async function saveVoteToDatabase(
       
       const { data: upsertedData, error: upsertError } = await supabaseAdmin
         .from('votes')
+        // Correct upsert syntax for Supabase v2 - 'returning' is deprecated in upsert options
         .upsert(voteDataForUpsert, {
           onConflict: 'song_id,user_id', // Composite unique constraint
-          returning: 'representation' // Get full representation back
+          // ignoreDuplicates: false // Default behavior is to update
         })
-        .select()
+        .select() // Select after upsert to get the result
         .single();
 
       if (upsertError) {

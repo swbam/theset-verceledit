@@ -26,33 +26,14 @@ export async function GET(request: Request) {
     // Fetch trending shows from the database
     const { data: shows, error } = await supabase
       .from('shows')
-      // Corrected select statement for related data
       .select(`
         id,
-        name,
         date,
-        image_url,
-        ticket_url,
-        popularity,
-        artist_id,
-        venue_id,
-        updated_at,
-        artists (
-          id,
-          name,
-          image_url,
-          genres
-        ),
-        venues (
-          id,
-          name,
-          city,
-          state,
-          country
-        )
+        venue,
+        artists!shows_artists( name, spotify_id )
       `)
-      .order('popularity', { ascending: false })
-      .limit(limit);
+      .order('votes_count', { ascending: false }) // Was filtering by artist_id
+      .limit(50);
     
     console.log('[API /trending] Supabase query error:', error);
     console.log('[API /trending] Supabase query data:', shows);

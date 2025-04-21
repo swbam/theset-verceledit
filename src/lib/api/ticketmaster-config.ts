@@ -1,7 +1,7 @@
 import { ErrorSource, handleError } from '@/lib/error-handling';
 
 // API base URL - use proxy in both development and production
-const API_BASE_URL = '/api/ticketmaster';
+const API_BASE_URL = typeof window !== 'undefined' ? `${window.location.origin}/api/ticketmaster` : '/api/ticketmaster';
 
 // API request configuration
 const API_CONFIG = {

@@ -197,7 +197,7 @@ export async function fetchArtistEvents(artistIdentifier: string): Promise<Show[
         artist_id: artistId,
         venue_id: venueId || '', // Required by type
         ticketmaster_id: event.id,
-        venue_external_id: venueId,
+        venue_ticketmaster_id: venueId,
         ticket_url: event.url || null,
         image_url: event.images?.find((img: any) => img.ratio === "16_9" && img.width > 500)?.url,
         status: event.dates?.status?.code,

@@ -97,6 +97,8 @@ export interface Artist {
   popularity?: number;
   followers?: number;
   stored_tracks?: any;
+  setlist_fm_mbid?: string;
+  spotify_url?: string;
   created_at?: string;
   updated_at?: string;
 }
@@ -104,16 +106,17 @@ export interface Artist {
 export interface Venue {
   id: string;
   name: string;
-  city: string;
+  city?: string; // Changed to optional
   state?: string;
   country?: string;
   address?: string;
   postal_code?: string;
-  latitude?: string;
-  longitude?: string;
+  latitude?: number; // Changed to number?
+  longitude?: number; // Changed to number?
   image_url?: string;
   url?: string;
   ticketmaster_id?: string;
+  timezone?: string;
   created_at?: string;
   updated_at?: string;
 }

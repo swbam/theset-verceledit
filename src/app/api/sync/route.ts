@@ -1,10 +1,50 @@
 import { supabase } from "@/integrations/supabase/client";
 import { EntityType } from '@/lib/sync-types';
+import { ErrorSource, handleError } from '@/lib/error-handling';
+import { NextResponse } from 'next/server';
+
+export async function GET() {
+  try {
+    // Initialize unified sync process
+    const result = await supabase.functions.invoke('unified-sync', {
+      body: {}
+    });
+
+    if (!result.data?.success) {
+      handleError({
+        message: 'Error during unified sync process',
+        source: ErrorSource.API,
+        originalError: result.error
+      });
+      return NextResponse.json({ error: result.error?.message || 'Sync failed' }, { status: 500 });
+    }
+
+    return NextResponse.json(result.data);
+  } catch (error) {
+    handleError({
+      message: 'Unexpected error during unified sync',
+      source: ErrorSource.API,
+      originalError: error
+    });
+    return NextResponse.json(
+      { error: 'An unexpected error occurred' },
+      { status: 500 }
+    );
+  }
+}
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { operation, entityType, entityId, options } = body;
+    const { entityType, entityId, options } = body;
+
+    // Add validation
+    if (!Object.values(EntityType).includes(entityType)) {
+      return new Response(JSON.stringify({
+        success: false,
+        error: `Invalid entityType: ${entityType}`
+      }), { status: 400 });
+    }
 
     if (!entityType || !entityId) {
       return new Response(JSON.stringify({
@@ -16,64 +56,14 @@ export async function POST(request: Request) {
       });
     }
 
-    let result;
-
-    // Call appropriate Edge Function based on entity type
-    switch (entityType.toLowerCase()) {
-      case 'artist':
-        result = await supabase.functions.invoke('sync-artist', {
-          body: { 
-            artistId: entityId,
-            options: options || {}
-          }
-        });
-        break;
-
-      case 'venue':
-        result = await supabase.functions.invoke('sync-venue', {
-          body: { 
-            venueId: entityId,
-            options: options || {}
-          }
-        });
-        break;
-
-      case 'show':
-        result = await supabase.functions.invoke('sync-show', {
-          body: { 
-            showId: entityId,
-            options: options || {}
-          }
-        });
-        break;
-
-      case 'song':
-        result = await supabase.functions.invoke('sync-song', {
-          body: { 
-            songId: entityId,
-            options: options || {}
-          }
-        });
-        break;
-
-      case 'setlist':
-        result = await supabase.functions.invoke('sync-setlist', {
-          body: { 
-            setlistId: entityId,
-            options: options || {}
-          }
-        });
-        break;
-
-      default:
-        return new Response(JSON.stringify({
-          success: false,
-          error: `Unsupported entity type: ${entityType}`
-        }), {
-          status: 400,
-          headers: { 'Content-Type': 'application/json' }
-        });
-    }
+    // Call the unified sync orchestrator
+    const result = await supabase.functions.invoke('orchestrate-sync', {
+      body: { 
+        entityType,
+        entityId,
+        options: options || {}
+      }
+    });
 
     if (!result.data?.success) {
       throw new Error(result.error?.message || `Failed to sync ${entityType} ${entityId}`);

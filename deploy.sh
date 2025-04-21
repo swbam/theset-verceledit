@@ -13,7 +13,7 @@ if [ ! -z "$2" ]; then
 fi
 
 if [ ! -z "$3" ]; then
-  export SUPABASE_SERVICE_KEY=$3
+  export SUPABASE_SERVICE_ROLE_KEY=$3
 fi
 
 # Install dependencies
