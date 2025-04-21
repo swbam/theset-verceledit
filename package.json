@@ -19,7 +19,7 @@
     "db:types": "supabase gen types typescript --project-id kzjnkqeosrycfpxjwhil --schema public > src/integrations/supabase/types.ts",
     "db:secrets": "supabase secrets set --env-file ./supabase/.env",
     "db:sync": "npm run db:repair && npm run db:pull && npm run db:push && npm run db:types && npm run db:secrets",
-    "updateall": "git pull && npm run db:sync && npm run deploy:functions && npm run build && npm run verify && git add . && git commit -m \"Automated update\" && git push",
+    "updateall": "git pull && pnpm install --force && pnpm run db:sync && pnpm run deploy:functions && pnpm run build && pnpm run verify && git add . && git commit -m \"Automated update\" && git push && NODE_ENV=production pnpm start",
     "deploy:functions": "supabase functions deploy unified-sync",
     "verify": "curl https://theset-verceledit.vercel.app/api/test-db-connection",
     "updateschema": "bash scripts/update-schema.sh",

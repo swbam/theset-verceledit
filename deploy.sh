@@ -18,7 +18,7 @@ fi
 
 # Install dependencies
 echo "Installing dependencies..."
-npm install
+pnpm install --force
 
 # Run database migrations if they exist
 if [ -d "src/db-migrations" ]; then
@@ -35,10 +35,10 @@ fi
 
 # Build the app
 echo "Building the app..."
-npm run build:all
+pnpm run build
 
 # Start the app
 echo "Starting the app..."
-NODE_ENV=production npm start
+NODE_ENV=production pnpm start
 
 echo "Deployment complete!" 

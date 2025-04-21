@@ -1466,9 +1466,6 @@ ALTER TABLE ONLY "public"."api_cache"
 
 
 
-ALTER TABLE ONLY "public"."artists"
-    ADD CONSTRAINT "artists_external_id_key" UNIQUE ("external_id");
-
 
 
 ALTER TABLE ONLY "public"."artists"
