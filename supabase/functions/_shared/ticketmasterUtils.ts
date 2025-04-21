@@ -13,11 +13,22 @@ function mapTicketmasterEventToShow(event: TicketmasterEvent): Show {
     let artist = null;
     if (event._embedded?.attractions && event._embedded.attractions.length > 0) {
       const attraction = event._embedded.attractions[0];
+      const artistImages = attraction.images || [];
+      const sortedImages = [...artistImages].sort((a: TicketmasterImage, b: TicketmasterImage) => (b.width || 0) - (a.width || 0));
+      
+      const spotifyId = (attraction as any).externalLinks?.spotify?.[0]?.url?.split('/').pop();
       artist = {
         name: attraction.name,
         ticketmaster_id: attraction.id,
-        image_url: attraction.images?.[0]?.url
+        image_url: sortedImages[0]?.url || undefined,
+        spotify_id: spotifyId || undefined,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
       };
+      
+      console.log(`[EF mapTicketmasterEventToShow] Mapped artist: ${JSON.stringify(artist, null, 2)}`);
+    } else {
+      console.log(`[EF mapTicketmasterEventToShow] No attractions found for event: ${event.name}`);
     }
 
     let venue = null;
@@ -268,7 +279,7 @@ export async function fetchTrendingShows(): Promise<Show[]> {
     const response = await retryableFetch(async () => {
       // Get upcoming shows, sorted by relevance (Ticketmaster's popularity algorithm)
       const startDate = new Date().toISOString().split('T')[0]; // Just the date part
-      const url = `https://app.ticketmaster.com/discovery/v2/events.json?apikey=${apiKey}&classificationName=music&size=50&sort=date,asc&startDateTime=${startDate}T00:00:00Z&countryCode=US&includeTBA=yes&includeTBD=yes&includeTest=no&includeFamily=no&includeAttractions=true&expand=attractions`;
+      const url = `https://app.ticketmaster.com/discovery/v2/events.json?apikey=${apiKey}&classificationName=music&size=50&sort=date,asc&startDateTime=${startDate}T00:00:00Z&countryCode=US&includeTBA=yes&includeTBD=yes&includeTest=no&includeFamily=no&includeAttractions=true&expand=attractions.id,attractions.name,attractions.images`;
       console.log(`[EF fetchTrendingShows] Requesting URL: ${url}`);
 
       const result = await fetch(url, {

@@ -521,48 +521,51 @@ async function syncTrendingShows() {
     // Process each show
     for (const show of shows) {
       try {
-        // Save artist if it exists
-        let artistId = null;
-        if (show.artist?.ticketmaster_id) {
-          // First check if artist already exists by ticketmaster_id
-          const { data: existingArtist } = await supabaseClient
-            .from('artists')
-            .select('id')
-            .eq('ticketmaster_id', show.artist.ticketmaster_id)
-            .maybeSingle();
+      // Save artist if it exists
+      let artistId = null;
+      if (show.artist) {
+        console.log(`[unified-sync] Processing artist for show: ${show.name}`, show.artist);
+        
+        // First check if artist already exists by ticketmaster_id
+        const { data: existingArtist } = await supabaseClient
+          .from('artists')
+          .select('id')
+          .eq('ticketmaster_id', show.artist.ticketmaster_id)
+          .maybeSingle();
 
-          if (existingArtist) {
-            artistId = existingArtist.id;
-            console.log(`[unified-sync] Found existing artist with ID ${artistId}`);
-          } else {
-            console.log(`[unified-sync] Creating new artist: ${show.artist.name}`);
-            const savedArtist = await saveArtistToDatabase({
-              name: show.artist.name,
-              ticketmaster_id: show.artist.ticketmaster_id,
-              image_url: show.artist.image_url || undefined,
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString()
-            });
-            if (savedArtist) {
-              artistId = savedArtist.id;
-              console.log(`[unified-sync] Created new artist with ID ${artistId}`);
-              
-              // Trigger a background sync to get artist's songs
-              try {
-                await supabaseClient.functions.invoke('sync-artist', {
-                  body: { 
-                    artistId: savedArtist.id,
-                    ticketmasterId: savedArtist.ticketmaster_id
-                  }
-                });
-              } catch (error) {
-                console.error(`[unified-sync] Error triggering artist sync for ${savedArtist.name}:`, error);
-              }
+        if (existingArtist) {
+          artistId = existingArtist.id;
+          console.log(`[unified-sync] Found existing artist with ID ${artistId}`);
+        } else {
+          console.log(`[unified-sync] Creating new artist: ${show.artist.name}`);
+          const savedArtist = await saveArtistToDatabase({
+            name: show.artist.name,
+            ticketmaster_id: show.artist.ticketmaster_id,
+            image_url: show.artist.image_url || undefined,
+            spotify_id: show.artist.spotify_id,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          });
+          if (savedArtist) {
+            artistId = savedArtist.id;
+            console.log(`[unified-sync] Created new artist with ID ${artistId}`);
+            
+            // Trigger a background sync to get artist's songs
+            try {
+              await supabaseClient.functions.invoke('sync-artist', {
+                body: { 
+                  artistId: savedArtist.id,
+                  ticketmasterId: savedArtist.ticketmaster_id
+                }
+              });
+            } catch (error) {
+              console.error(`[unified-sync] Error triggering artist sync for ${savedArtist.name}:`, error);
             }
           }
-        } else {
-          console.log(`[unified-sync] No artist data for show: ${show.name}`);
         }
+      } else {
+        console.log(`[unified-sync] No artist data for show: ${show.name}`);
+      }
 
         // Save venue if it exists
         let venueId = null;
@@ -577,7 +580,11 @@ async function syncTrendingShows() {
         const savedShow = await saveShowToDatabase({
           ...show,
           artist_id: artistId,
-          venue_id: venueId
+          venue_id: venueId,
+          artist: artistId ? {
+            id: artistId,
+            ticketmaster_id: show.artist?.ticketmaster_id
+          } : undefined
         });
 
         if (savedShow) {
