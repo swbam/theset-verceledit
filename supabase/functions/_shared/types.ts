@@ -159,6 +159,8 @@ export interface SetlistSong {
   artist_id: string;
   vote_count?: number;
   track_id?: string;
+  is_encore?: boolean;
+  info?: string | null;
   created_at?: string;
   updated_at?: string;
   last_updated?: string;
@@ -259,5 +261,40 @@ declare global {
 
 // Make Deno available in the global scope
 declare const Deno: Window['Deno'];
+
+// Setlist.fm Types
+export interface SetlistFmResponse {
+  setlist: SetlistFmSetlist[];
+  total?: number;
+  page?: number;
+  itemsPerPage?: number;
+}
+
+export interface SetlistFmSetlist {
+  id: string;
+  eventDate: string;
+  artist: {
+    mbid?: string;
+    name: string;
+  };
+  venue: {
+    name: string;
+    city: {
+      name: string;
+      country: {
+        name: string;
+      };
+    };
+  };
+  sets: {
+    set: Array<{
+      encore?: boolean;
+      song: Array<{
+        name: string;
+        info?: string;
+      }>;
+    }>;
+  };
+}
 
 export { Deno };

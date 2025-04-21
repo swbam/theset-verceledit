@@ -67,13 +67,20 @@ export function useArtistDetail(id: string | undefined): UseArtistDetailReturn {
     artist?.name ? `View upcoming concerts and vote on setlists for ${artist.name}` : undefined
   );
   
-  // Effect to sync artist data
+  // Effect to sync artist and shows data
   useEffect(() => {
     if (artist && artist.id) {
       console.log(`[useArtistDetail] Artist loaded, syncing: ${artist.name} (${artist.id})`);
       
-      supabase.functions.invoke('sync-artist', {
-        body: { artistId: artist.id }
+      supabase.functions.invoke('unified-sync', {
+        body: {
+          entityType: 'artist',
+          ticketmasterId: artist.id,
+          options: {
+            skipDependencies: false,
+            forceRefresh: true
+          }
+        }
       }).then(({ data, error }) => {
         if (error) {
           console.error(`[useArtistDetail] Error syncing artist ${artist.name}:`, error);
@@ -87,49 +94,6 @@ export function useArtistDetail(id: string | undefined): UseArtistDetailReturn {
       });
     }
   }, [artist]);
-
-  // Effect to sync shows and venues
-  useEffect(() => {
-    if (shows && shows.length > 0) {
-      console.log(`[useArtistDetail] Syncing ${shows.length} shows for artist ${artist?.name}`);
-      
-      shows.forEach(show => {
-        const showId = show.ticketmaster_id || show.external_id || show.id;
-        const venueId = show.venue_external_id;
-        
-        if (!showId) {
-          console.warn(`[useArtistDetail] Skipping show sync - no ID: ${show.name}`);
-          return;
-        }
-
-        // 1. Sync venue first if available
-        if (venueId) {
-          console.log(`[useArtistDetail] Syncing venue for show ${show.name}`);
-          supabase.functions.invoke('sync-venue', {
-            body: { venueId }
-          }).catch(error => {
-            console.error(`[useArtistDetail] Venue sync failed for ${venueId}:`, error);
-          });
-        }
-
-        // 2. Then sync show
-        console.log(`[useArtistDetail] Syncing show ${show.name}`);
-        supabase.functions.invoke('sync-show', {
-          body: { showId }
-        }).then(({ data, error }) => {
-          if (error) {
-            console.error(`[useArtistDetail] Show sync failed for ${show.name}:`, error);
-          } else if (!data?.success) {
-            console.warn(`[useArtistDetail] Show sync failed for ${show.name}:`, data?.error || data?.message);
-          } else {
-            console.log(`[useArtistDetail] Successfully synced show ${show.name}`);
-          }
-        }).catch(error => {
-          console.error(`[useArtistDetail] Network error syncing show ${show.name}:`, error);
-        });
-      });
-    }
-  }, [shows, artist?.name]);
 
   return {
     artist,

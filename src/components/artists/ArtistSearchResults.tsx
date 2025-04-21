@@ -68,27 +68,31 @@ const ArtistSearchResults = ({
   }
 
   const handleSelect = (artist: Artist) => {
-    // Save this artist to the database via the API
-    console.log(`Artist selected: ${artist.name} (ID: ${artist.id})`);
+    // Sync artist data using unified-sync
+    console.log(`[ArtistSearchResults] Syncing artist: ${artist.name} (ID: ${artist.id})`);
     
-    // Invoke the sync-artist Edge Function
-    console.log(`[ArtistSearchResults] Invoking sync-artist for ${artist.name} (ID: ${artist.id})`);
-    supabase.functions.invoke('sync-artist', {
-      body: { artistId: artist.id } // Pass only the ID
+    supabase.functions.invoke('unified-sync', {
+      body: {
+        entityType: 'artist',
+        ticketmasterId: artist.id,
+        entityName: artist.name,
+        options: {
+          skipDependencies: false,
+          forceRefresh: true
+        }
+      }
     }).then(({ data, error }) => {
       if (error) {
-        console.error(`[ArtistSearchResults] Error invoking sync-artist for ${artist.name}:`, error);
+        console.error(`[ArtistSearchResults] Error syncing artist ${artist.name}:`, error);
         toast.error(`Failed to sync artist ${artist.name}: ${error.message}`);
       } else if (!data?.success) {
-        console.warn(`[ArtistSearchResults] sync-artist function failed for ${artist.name}:`, data?.error || data?.message);
+        console.warn(`[ArtistSearchResults] Artist sync failed for ${artist.name}:`, data?.error || data?.message);
         toast.warning(`Sync issue for artist ${artist.name}: ${data?.error || data?.message}`);
       } else {
-        console.log(`[ArtistSearchResults] Successfully invoked sync-artist for ${artist.name}.`);
-        // Optionally show success, but maybe redundant if user is navigating away
-        // toast.success(`Synced ${artist.name}!`);
+        console.log(`[ArtistSearchResults] Successfully synced artist ${artist.name}`);
       }
     }).catch(invokeError => {
-      console.error(`[ArtistSearchResults] Network exception invoking sync-artist for ${artist.name}:`, invokeError);
+      console.error(`[ArtistSearchResults] Network error syncing artist ${artist.name}:`, invokeError);
       toast.error(`Network error syncing artist ${artist.name}`);
     });
     

@@ -56,16 +56,16 @@ const Hero = () => {
         <div className="grid md:grid-cols-2 gap-12 items-center">
           <div className="text-left">
             <div className="inline-block px-3 py-1 mb-6 bg-white/10 text-white/90 rounded-full text-sm font-medium backdrop-blur-sm">
-              ✨ TheSet - Where Music Meets Community
+              
             </div>
             
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-6 leading-tight">
-              Shape the Concert <span className="text-gradient">Experience</span> You Want
+              Crowdsourced concert setlists <span className="text-gradient">at scale.</span>
             </h1>
             
             <p className="text-lg text-white/80 mb-8 max-w-lg">
               Discover upcoming shows and vote on setlists for your favorite artists. 
-              Join a community of fans influencing what songs get played live.
+          
             </p>
             
             <div className="flex flex-col sm:flex-row gap-4 mb-8">

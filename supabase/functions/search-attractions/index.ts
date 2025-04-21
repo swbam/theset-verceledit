@@ -1,93 +1,104 @@
-/// <reference types="https://esm.sh/@supabase/functions-js/src/edge-runtime.d.ts" />
-/// <reference lib="deno.ns" />
-
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { corsHeaders } from '../_shared/cors.ts';
+import { retryableFetch } from '../_shared/retry.ts';
 
-interface Payload {
+interface SearchRequest {
   keyword: string;
   size?: number;
 }
 
-serve(async (req: Request) => {
-  // CORS pre‑flight
+serve(async (req) => {
+  // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
 
   try {
-    const { keyword, size = 10 } = (await req.json()) as Payload;
+    const input: SearchRequest = await req.json();
+    console.log('[search-attractions] Received request:', input);
 
-    if (!keyword) {
-      return new Response(
-        JSON.stringify({ error: 'keyword is required' }),
-        {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          status: 400,
-        },
-      );
+    if (!input.keyword) {
+      throw new Error('Search keyword is required');
     }
 
     const apiKey = Deno.env.get('TICKETMASTER_API_KEY');
     if (!apiKey) {
-      throw new Error('Missing TICKETMASTER_API_KEY');
+      throw new Error('TICKETMASTER_API_KEY not configured');
     }
 
-    const url =
-      `https://app.ticketmaster.com/discovery/v2/attractions.json?apikey=${apiKey}&keyword=${encodeURIComponent(keyword)}&size=${size}`;
+    const response = await retryableFetch(async () => {
+      // Search for music attractions with upcoming events
+      const url = `https://app.ticketmaster.com/discovery/v2/attractions.json?apikey=${apiKey}&keyword=${encodeURIComponent(input.keyword)}&classificationName=music&size=${input.size || 10}&hasUpcomingEvents=yes`;
+      console.log(`[search-attractions] Requesting URL: ${url}`);
 
-    const upstreamResp = await fetch(url, { headers: { Accept: 'application/json' } });
+      const result = await fetch(url, {
+        headers: { 'Accept': 'application/json' }
+      });
 
-    if (!upstreamResp.ok) {
-      const text = await upstreamResp.text();
-      return new Response(
-        JSON.stringify({
-          error: `Ticketmaster API error ${upstreamResp.status}`,
-          details: text,
-        }),
-        {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          status: upstreamResp.status,
-        },
-      );
+      if (!result.ok) {
+        const errorBody = await result.text();
+        console.error(`[search-attractions] Ticketmaster API error response: ${errorBody}`);
+        throw new Error(`Ticketmaster API error: ${result.status} ${result.statusText}`);
+      }
+
+      return result.json();
+    }, { retries: 3 });
+
+    if (!response._embedded?.attractions) {
+      console.log('[search-attractions] No attractions found');
+      return new Response(JSON.stringify({
+        artists: []
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200
+      });
     }
 
-    const data = await upstreamResp.json();
+    // Map response to expected format
+    const artists = response._embedded.attractions.map((attraction: any) => {
+      // Get best image
+      let image;
+      if (attraction.images && attraction.images.length > 0) {
+        const sortedImages = [...attraction.images].sort((a: any, b: any) => (b.width || 0) - (a.width || 0));
+        image = sortedImages[0]?.url;
+      }
 
-    const artists = (data._embedded?.attractions ?? []).map((attr: any) => {
-      const image = Array.isArray(attr.images) && attr.images.length
-        ? [...attr.images].sort((a: any, b: any) => (b.width || 0) - (a.width || 0))[0].url
-        : null;
+      // Get upcoming shows count
+      const upcomingShows = attraction.upcomingEvents?._total || 0;
 
-      const upcomingShows = attr.upcomingEvents?._total ?? 0;
-
-      const genres = (() => {
-        if (attr.classifications && attr.classifications.length > 0) {
-          const c = attr.classifications[0];
-          return [c.genre?.name, c.subGenre?.name].filter(Boolean);
-        }
-        return [];
-      })();
+      // Get genres
+      let genres: string[] = [];
+      if (attraction.classifications?.[0]) {
+        const classification = attraction.classifications[0];
+        genres = [classification.genre?.name, classification.subGenre?.name].filter(Boolean) as string[];
+      }
 
       return {
-        id: attr.id,
-        name: attr.name,
+        id: attraction.id,
+        name: attraction.name,
         image,
         upcomingShows,
         genres,
-        url: attr.url,
+        url: attraction.url
       };
     });
 
-    return new Response(
-      JSON.stringify({ artists }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-    );
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    return new Response(
-      JSON.stringify({ error: message }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 },
-    );
+    console.log(`[search-attractions] Found ${artists.length} artists`);
+
+    return new Response(JSON.stringify({
+      artists
+    }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      status: 200
+    });
+
+  } catch (error) {
+    console.error('[search-attractions] Error:', error);
+    return new Response(JSON.stringify({
+      error: error instanceof Error ? error.message : 'An unknown error occurred'
+    }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      status: 400
+    });
   }
 });

@@ -24,12 +24,11 @@ import Admin from './pages/Admin';
 import Dashboard from './pages/Dashboard';
 import AdminSetup from './pages/AdminSetup';
 import Import from './pages/Import';
+import SyncTest from './pages/admin/SyncTest';
 import { ThemeProvider } from 'next-themes';
 
-// Google Analytics tracking ID
 const GA_TRACKING_ID = "G-CNM6621HGW"; 
 
-// RouteChangeTracker component to track page views
 const RouteChangeTracker = () => {
   const location = useLocation();
   
@@ -40,7 +39,6 @@ const RouteChangeTracker = () => {
   return null;
 };
 
-// SVG Gradient definitions component
 const GradientDefinitions = () => {
   return (
     <svg width="0" height="0" className="hidden">
@@ -56,10 +54,8 @@ const GradientDefinitions = () => {
 
 function App() {
   useEffect(() => {
-    // Initialize Google Analytics
     initGA(GA_TRACKING_ID);
     
-    // Apply gradient to all SVG icons
     const applyGradientToIcons = () => {
       document.querySelectorAll('svg:not(.ignore-gradient) path').forEach(path => {
         if (path.getAttribute('stroke') && path.getAttribute('stroke') !== 'none') {
@@ -71,10 +67,8 @@ function App() {
       });
     };
     
-    // Initial application
     applyGradientToIcons();
     
-    // Set up a mutation observer to handle dynamically added SVGs
     const observer = new MutationObserver(mutations => {
       mutations.forEach(mutation => {
         if (mutation.addedNodes.length) {
@@ -94,9 +88,7 @@ function App() {
         <BrowserRouter>
           <TooltipProvider>
             <AuthProvider>
-              {/* Add the route tracker component */}
               <RouteChangeTracker />
-              {/* Add SVG gradient definitions */}
               <GradientDefinitions />
               <Routes>
                 <Route path="/" element={<Index />} />
@@ -116,6 +108,7 @@ function App() {
                 <Route path="/import" element={<Import />} />
                 <Route path="/admin" element={<Admin />} />
                 <Route path="/admin/setup" element={<AdminSetup />} />
+                <Route path="/admin/sync-test" element={<SyncTest />} />
                 <Route path="/test-journey" element={<TestJourney />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>

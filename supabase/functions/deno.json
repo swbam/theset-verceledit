@@ -1,41 +1,16 @@
 {
+  "imports": {
+    "@supabase/functions-js": "https://esm.sh/@supabase/functions-js@2.1.1",
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.38.4",
+    "std/": "https://deno.land/std@0.168.0/"
+  },
+  "tasks": {
+    "start": "deno run --allow-net --allow-env --allow-read index.ts",
+    "deploy": "supabase functions deploy"
+  },
   "compilerOptions": {
     "allowJs": true,
-    "strict": true,
-    "noImplicitAny": true,
-    "strictNullChecks": true,
-    "strictFunctionTypes": true,
-    "strictBindCallApply": true,
-    "strictPropertyInitialization": true,
-    "noImplicitThis": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
-    "noImplicitReturns": true,
-    "noFallthroughCasesInSwitch": true
-  },
-  "lint": {
-    "files": {
-      "include": ["**/*.ts"]
-    },
-    "rules": {
-      "tags": ["recommended"]
-    }
-  },
-  "fmt": {
-    "files": {
-      "include": ["**/*.ts"]
-    },
-    "options": {
-      "useTabs": false,
-      "lineWidth": 100,
-      "indentWidth": 2,
-      "singleQuote": true,
-      "proseWrap": "preserve"
-    }
-  },
-  "importMap": "./import_map.json",
-  "tasks": {
-    "serve": "deno run --allow-net --allow-env --allow-read --watch ./serve.ts",
-    "deploy": "supabase functions deploy"
+    "lib": ["deno.window"],
+    "strict": true
   }
 }

@@ -1,101 +1,156 @@
-# Unified Sync Function
+# Unified Sync System
 
-This function provides a simplified approach to synchronizing data between external sources (Ticketmaster, Spotify) and our Supabase database. It replaces the previous multi-function orchestration system with a single, more reliable endpoint.
+This Edge Function provides a unified sync system for The Set, handling data synchronization with multiple external APIs (Ticketmaster, Spotify, and Setlist.fm) and maintaining consistency across the application's database.
 
 ## Features
 
-- Single function handling all entity types (artist, venue, show, song)
-- Automatic dependency tracking (e.g. artist → shows → venues)
-- More reliable error handling
-- Simplified logging and status tracking
+- **Artist Sync**
+  - Fetches artist details from Spotify
+  - Retrieves artist's track catalog
+  - Gets upcoming shows from Ticketmaster
+  - Imports historical setlists from Setlist.fm
+
+- **Show Sync**
+  - Creates show records with venue details
+  - Automatically generates setlists
+  - Links to artists and venues
+
+- **Venue Sync**
+  - Stores venue information
+  - Handles location data
+  - Links to Ticketmaster venues
+
+- **Song Sync**
+  - Manages song database
+  - Links to Spotify tracks
+  - Handles setlist song entries
 
 ## Usage
 
-Call this function with a JSON payload containing:
+### Endpoint
 
-```json
-{
-  "entityType": "artist", // required - one of "artist", "venue", "show", "song"
-  "entityId": "uuid", // optional - database UUID if updating existing entity
-  "entityName": "string", // optional - name of entity (required for new entities)
-  "ticketmasterId": "string", // optional - Ticketmaster ID
-  "spotifyId": "string", // optional - Spotify ID
-  "options": {
-    "forceRefresh": false, // optional - force external API calls even if entity exists
-    "skipDependencies": false // optional - don't fetch related entities
-  }
+```
+POST /functions/v1/unified-sync
+```
+
+### Request Format
+
+```typescript
+interface SyncRequest {
+  entityType: 'artist' | 'venue' | 'show' | 'song';
+  entityId?: string;
+  entityName?: string;
+  ticketmasterId?: string;
+  spotifyId?: string;
+  options?: {
+    forceRefresh?: boolean;
+    skipDependencies?: boolean;
+  };
 }
 ```
 
-### Example: Sync Artist by Name
+### Examples
 
-```typescript
-const { data, error } = await supabase.functions.invoke('unified-sync', {
-  body: {
-    entityType: 'artist',
-    entityName: 'Taylor Swift'
-  }
-});
-```
-
-### Example: Sync Venue by Ticketmaster ID
-
-```typescript
-const { data, error } = await supabase.functions.invoke('unified-sync', {
-  body: {
-    entityType: 'venue',
-    ticketmasterId: 'KovZpZAFaJeA' // Example Ticketmaster venue ID
-  }
-});
-```
-
-## Response Format
-
-The function returns a JSON response with this structure:
-
+1. Sync Artist by Name:
 ```json
 {
-  "success": true,
-  "data": {
-    // For artists:
-    "artist": { /* artist object */ },
-    "shows": [ /* array of shows */ ],
-    "syncedAt": "ISO date string"
-    
-    // For venues:
-    "venue": { /* venue object */ },
-    "syncedAt": "ISO date string"
-    
-    // For shows:
-    "show": { /* show object */ },
-    "syncedAt": "ISO date string"
-    
-    // For songs:
-    "song": { /* song object */ },
-    "syncedAt": "ISO date string"
-  }
+  "entityType": "artist",
+  "entityName": "The Beatles"
 }
 ```
+
+2. Sync Show with Ticketmaster ID:
+```json
+{
+  "entityType": "show",
+  "ticketmasterId": "G5diZ9N0O0x_A"
+}
+```
+
+3. Sync Venue:
+```json
+{
+  "entityType": "venue",
+  "entityName": "Madison Square Garden",
+  "ticketmasterId": "KovZpZA7AAEA"
+}
+```
+
+4. Sync Song with Spotify ID:
+```json
+{
+  "entityType": "song",
+  "entityName": "Yesterday",
+  "spotifyId": "3BQHpFgAp4l80e1XslIjNI"
+}
+```
+
+## Environment Variables
+
+Required environment variables (see .env.example):
+- SUPABASE_URL
+- SUPABASE_ANON_KEY
+- SUPABASE_SERVICE_ROLE_KEY
+- TICKETMASTER_API_KEY
+- SPOTIFY_CLIENT_ID
+- SPOTIFY_CLIENT_SECRET
+- SETLISTFM_API_KEY
+
+## Database Tables
+
+The sync system interacts with these main tables:
+- artists
+- shows
+- venues
+- songs
+- setlists
+- setlist_songs
 
 ## Error Handling
 
-If an error occurs, the function returns:
+- All API calls include retry logic
+- Detailed error logging
+- Graceful fallbacks when services are unavailable
+- Transaction support for data consistency
 
-```json
-{
-  "success": false,
-  "error": "Error message"
-}
-```
+## Rate Limiting
 
-## Migration from Previous System
+The system respects rate limits for all external APIs:
+- Ticketmaster: 5000 requests per day
+- Spotify: 3600 requests per hour
+- Setlist.fm: 2 requests per second
 
-This function replaces the previous orchestration system that used multiple functions. To migrate:
+## Caching
 
-1. Replace calls to `orchestrate-sync` with calls to `unified-sync`
-2. Update any direct calls to entity-specific functions (e.g. `sync-artist`) to use `unified-sync` instead
-3. The new function handles dependencies automatically, so no need for separate dependency management
+- API responses are cached to minimize external calls
+- Cache invalidation on force refresh
+- Configurable TTL for different entity types
 
-## Admin Interface
+## Dependencies
 
-An admin testing interface is available at `/admin/sync-test` for testing the sync process with different parameters. 
+The sync system uses these shared utilities:
+- ticketmasterUtils.ts
+- spotifyUtils.ts
+- setlistFmUtils.ts
+- setlistSongUtils.ts
+- databaseUtils.ts
+- songDbUtils.ts
+
+## Development
+
+To run locally:
+1. Copy .env.example to .env
+2. Fill in your API keys
+3. Deploy to Supabase Edge Functions:
+   ```bash
+   supabase functions deploy unified-sync
+   ```
+
+## Testing
+
+Test the endpoint with curl:
+```bash
+curl -X POST https://[PROJECT_REF].supabase.co/functions/v1/unified-sync \
+  -H "Authorization: Bearer [ANON_KEY]" \
+  -H "Content-Type: application/json" \
+  -d '{"entityType": "artist", "entityName": "The Beatles"}'

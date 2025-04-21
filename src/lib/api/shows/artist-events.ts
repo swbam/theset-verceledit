@@ -6,17 +6,7 @@ type Venue = {
   country: string | null;
 };
 
-type Show = {
-  id: string;
-  name: string;
-  date: string;
-  venue: Venue | null;
-  ticket_url: string;
-  image_url?: string | null;
-  artist_id: string;
-  venue_external_id?: string | null;
-  ticketmaster_id?: string | null;
-};
+import { Show } from '@/lib/types';
 
 interface SupabaseShow {
   id: string;
@@ -87,24 +77,35 @@ export async function fetchArtistEvents(artistIdentifier: string): Promise<Show[
       const shows: Show[] = supabaseShows.map((show: SupabaseShow) => ({
         id: show.id,
         name: show.name,
-        date: show.date || new Date().toISOString(), // Ensure date is not null
+        date: show.date || new Date().toISOString(),
+        artist_id: show.artist_id || artistIdentifier,
+        venue_id: show.venue_id || '', // Required by type
+        ticketmaster_id: show.ticketmaster_id,
+        ticket_url: show.ticket_url || null,
+        image_url: show.image_url,
+        status: undefined,
+        url: undefined,
         venue: show.venues ? {
           id: show.venues.id,
           name: show.venues.name,
           city: show.venues.city,
-          state: show.venues.state,
-          country: show.venues.country
+          state: show.venues.state
         } : null,
-        ticket_url: show.ticket_url || '',
-        image_url: show.image_url,
-        artist_id: show.artist_id || artistIdentifier,
-        ticketmaster_id: show.ticketmaster_id,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
       }));
       
       // Trigger a background sync to refresh the data
       try {
-        await supabase.functions.invoke('sync-artist-shows', {
-          body: { artistId: artistIdentifier }
+        await supabase.functions.invoke('unified-sync', {
+          body: {
+            entityType: 'artist',
+            entityId: artistIdentifier,
+            options: {
+              skipDependencies: false,
+              forceRefresh: true
+            }
+          }
         });
       } catch (syncError) {
         console.error(`Background sync failed for artist ${artistIdentifier}:`, syncError);
@@ -192,29 +193,44 @@ export async function fetchArtistEvents(artistIdentifier: string): Promise<Show[
       return {
         id: event.id,
         name: event.name,
-        date: event.dates.start.dateTime || new Date().toISOString(), // Ensure date is not null
-        venue: venue,
-        venue_external_id: venueId,
-        ticket_url: event.url || '',
-        image_url: event.images?.find((img: any) => img.ratio === "16_9" && img.width > 500)?.url,
+        date: event.dates.start.dateTime || new Date().toISOString(),
         artist_id: artistId,
+        venue_id: venueId || '', // Required by type
         ticketmaster_id: event.id,
+        venue_external_id: venueId,
+        ticket_url: event.url || null,
+        image_url: event.images?.find((img: any) => img.ratio === "16_9" && img.width > 500)?.url,
+        status: event.dates?.status?.code,
+        url: event.url || null,
+        venue: venue ? {
+          id: venue.id,
+          name: venue.name,
+          city: venue.city,
+          state: venue.state
+        } : null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
       };
     });
 
-    // Queue a background sync to save these shows to the database
-    if (shows.length > 0) {
-      try {
-        await supabase.functions.invoke('sync-artist-shows', {
-          body: { 
-            artistId: artistIdentifier,
-            ticketmasterId: ticketmasterId
-          }
-        });
-      } catch (syncError) {
-        console.error(`Background sync failed for artist ${artistIdentifier}:`, syncError);
+      // Queue a background sync to save these shows to the database
+      if (shows.length > 0) {
+        try {
+          await supabase.functions.invoke('unified-sync', {
+            body: {
+              entityType: 'artist',
+              entityId: artistIdentifier,
+              ticketmasterId: ticketmasterId,
+              options: {
+                skipDependencies: false,
+                forceRefresh: true
+              }
+            }
+          });
+        } catch (syncError) {
+          console.error(`Background sync failed for artist ${artistIdentifier}:`, syncError);
+        }
       }
-    }
 
     return shows;
   } catch (error) {

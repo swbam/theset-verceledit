@@ -32,9 +32,61 @@ export function useRealtimeVotes({ showId }: UseRealtimeVotesProps) {
     import.meta.env.VITE_SUPABASE_ANON_KEY
   );
 
-  // Subscribe to realtime changes
+  // Fetch initial setlist songs
   useEffect(() => {
-    setLoading(true);
+    const fetchInitialSetlist = async () => {
+      setLoading(true);
+      try {
+        // First get the setlist ID for this show
+        const { data: setlist, error: setlistError } = await supabaseClient
+          .from('setlists')
+          .select('id')
+          .eq('show_id', showId)
+          .single();
+
+        if (setlistError) throw setlistError;
+
+        if (setlist?.id) {
+          // Then get all songs in this setlist
+          const { data: setlistSongs, error: songsError } = await supabaseClient
+            .from('setlist_songs')
+            .select(`
+              id,
+              position,
+              votes,
+              songs!inner (
+                id,
+                name,
+                spotify_id
+              )
+            `)
+            .eq('setlist_id', setlist.id)
+            .order('position', { ascending: true });
+
+          if (songsError) throw songsError;
+
+          if (setlistSongs) {
+            setSongs(setlistSongs.map(song => ({
+              id: song.songs.id,
+              name: song.songs.name,
+              spotify_id: song.songs.spotify_id,
+              votes: song.votes || 0,
+              order_index: song.position,
+              userVoted: false
+            })));
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching initial setlist:', err);
+        setError(err instanceof Error ? err.message : 'Failed to fetch setlist');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchInitialSetlist();
+
+    // Subscribe to realtime changes
     const channel = supabaseClient
       .channel(`setlist-${showId}`)
       .on('postgres_changes', {
@@ -42,29 +94,39 @@ export function useRealtimeVotes({ showId }: UseRealtimeVotesProps) {
         schema: 'public',
         table: 'setlist_songs',
         filter: `setlist_id=eq.${showId}`
-      }, (payload: PostgresChanges) => {
+      }, async (payload: PostgresChanges) => {
         if (!payload.new || typeof payload.new !== 'object') return;
         
         const newSong = payload.new as SetlistSongRow;
+        
+        // Fetch the song details
+        const { data: songDetails } = await supabaseClient
+          .from('songs')
+          .select('id, name, spotify_id')
+          .eq('id', newSong.song_id)
+          .single();
+
+        if (!songDetails) return;
+
         setSongs((currentSongs) => {
-          const songIndex = currentSongs.findIndex(s => s.id === newSong.id);
+          const songIndex = currentSongs.findIndex(s => s.id === songDetails.id);
           if (songIndex === -1) {
             return [...currentSongs, {
-              id: newSong.id,
-              name: newSong.name || '',
-              spotify_id: newSong.spotify_id,
+              id: songDetails.id,
+              name: songDetails.name,
+              spotify_id: songDetails.spotify_id,
               votes: newSong.votes || 0,
-              order_index: newSong.order_index,
+              order_index: newSong.position,
               userVoted: false
             }];
           }
           const newSongs = [...currentSongs];
           newSongs[songIndex] = {
             ...newSongs[songIndex],
-            name: newSong.name || '',
-            spotify_id: newSong.spotify_id,
+            name: songDetails.name,
+            spotify_id: songDetails.spotify_id,
             votes: newSong.votes || 0,
-            order_index: newSong.order_index,
+            order_index: newSong.position,
             userVoted: newSongs[songIndex].userVoted
           };
           return newSongs.sort((a, b) => (b.votes || 0) - (a.votes || 0));

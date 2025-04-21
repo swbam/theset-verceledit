@@ -162,7 +162,7 @@ export async function syncSetlistFromSetlistFm(artistId: string, setlistFmId: st
     // const response = await fetch(`https://api.setlist.fm/rest/1.0/setlist/${setlistFmId}`, {
     //   headers: {
     //     'Accept': 'application/json',
-    //     'x-api-key': process.env.SETLIST_FM_API_KEY || ''
+    'x-api-key': process.env.SETLIST_FM_API_KEY || ''
     //   }
     // });
     // if (!response.ok) throw new Error(`Failed to fetch setlist: ${response.status}`);
