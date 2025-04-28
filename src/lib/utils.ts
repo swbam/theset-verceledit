@@ -1,4 +1,4 @@
-import { clsx, type ClassValue } from "clsx";
+import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { format } from "date-fns";
 
@@ -78,4 +78,50 @@ export function parseShowUrl(url: string): {
     showId,
     setlistId
   };
+}
+
+/**
+ * Format a date for display
+ */
+export function formatDate(dateString: string, includeDay: boolean = false): string {
+  try {
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) {
+      return dateString; // Return original if invalid
+    }
+    
+    return includeDay 
+      ? format(date, 'EEEE, MMMM d, yyyy')
+      : format(date, 'MMMM d, yyyy');
+  } catch (error) {
+    return dateString;
+  }
+}
+
+/**
+ * Format a date into an object with day, month and year
+ */
+export function formatDateObject(dateString: string) {
+  try {
+    const date = new Date(dateString);
+    return {
+      day: date.getDate(),
+      month: date.toLocaleDateString('en-US', { month: 'short' }),
+      year: date.getFullYear()
+    };
+  } catch (error) {
+    return { day: "TBA", month: "", year: "" };
+  }
+}
+
+export function formatVenue(name: string, city: string, state: string): string {
+  if (!name && !city && !state) return 'No venue information';
+  
+  const location = city && state ? `${city}, ${state}` : city || state || '';
+  return name ? `${name}${location ? ` - ${location}` : ''}` : location;
+}
+
+export function truncateText(text: string, maxLength: number = 150): string {
+  if (!text || text.length <= maxLength) return text;
+  return `${text.substring(0, maxLength).trim()}...`;
 }

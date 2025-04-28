@@ -4,7 +4,7 @@ import { callTicketmasterApi } from './ticketmaster-config';
 
 export async function fetchShowDetails(showId: string): Promise<Show | null> {
   try {
-    // Try to find show by id or external_id
+    // Try to find show by id or ticketmaster_id
     const { data: show, error } = await supabase
       .from('shows')
       .select(`

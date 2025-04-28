@@ -179,14 +179,13 @@ export async function getPopularArtists(limit = 10) {
 } 
 
 /**
- * Fetch trending shows directly from the database (ordered by popularity)
+ * Fetch trending shows directly from the database (ordered by popularity and votes)
  */
-export async function getTrendingShows(limit = 10): Promise<Show[]> { // Added return type
+export async function getTrendingShows(limit = 10): Promise<Show[]> {
   try {
     console.log(`Fetching top ${limit} trending shows from database...`);
     
-    // Query the 'shows' table directly
-    // Select necessary fields and join with artists and venues
+    // Query the shows table with vote counts and popularity
     const { data, error } = await supabase
       .from('shows')
       .select(`
@@ -196,33 +195,49 @@ export async function getTrendingShows(limit = 10): Promise<Show[]> { // Added r
         image_url,
         ticket_url,
         popularity,
-        artist:artists ( id, name ),
-        venue:venues ( id, name, city, state )
+        ticketmaster_id,
+        artist:artists ( id, name, ticketmaster_id ),
+        venue:venues ( id, name, city, state, ticketmaster_id ),
+        votes:votes ( count )
       `)
-      .order('popularity', { ascending: false, nullsFirst: false }) // Order by popularity descending
-      .limit(limit);
+      .gt('date', new Date().toISOString()) // Only future shows
+      .order('popularity', { ascending: false, nullsFirst: false }) // Primary sort by popularity
+      .limit(limit * 2); // Fetch more to account for vote sorting
       
-    
-  if (error) {
-    console.error('Error fetching trending shows from database:', error);
-    // Removed error_logs insertion
-    return [];
-  }
+    if (error) {
+      console.error('Error fetching trending shows from database:', error);
+      return [];
+    }
+
     console.log(`Successfully fetched ${data?.length || 0} trending shows from database.`);
     
-    // Map the data to ensure artist and venue are single objects, not arrays
-    const mappedData = data?.map(show => ({
-      ...show,
-      // Supabase might return joins as arrays, take the first element
-      artist: Array.isArray(show.artist) ? show.artist[0] : show.artist,
-      venue: Array.isArray(show.venue) ? show.venue[0] : show.venue,
-    })) || [];
+    // Calculate total votes for each show and sort by combined score
+    const showsWithScores = (data || []).map(show => {
+      const totalVotes = show.votes?.reduce((sum: number, vote: any) => sum + (vote.count || 0), 0) || 0;
+      const popularity = show.popularity || 0;
+      
+      // Combined score weighs both votes and popularity
+      const score = (totalVotes * 2) + popularity;
+      
+      return {
+        ...show,
+        artist: Array.isArray(show.artist) ? show.artist[0] : show.artist,
+        venue: Array.isArray(show.venue) ? show.venue[0] : show.venue,
+        totalVotes,
+        score
+      };
+    });
     
-    return mappedData;
+    // Sort by combined score and take top results
+    const sortedShows = showsWithScores
+      .sort((a, b) => b.score - a.score)
+      .slice(0, limit);
+    
+    // Remove scoring fields before returning
+    return sortedShows.map(({ totalVotes, score, ...show }) => show);
     
   } catch (error) {
     console.error('Unexpected error in getTrendingShows:', error);
-    // Removed error_logs insertion
     return [];
   }
 }

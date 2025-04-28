@@ -13,6 +13,12 @@ import * as z from "zod";
 import { Checkbox } from "@/components/ui/checkbox";
 
 // Form schema with validations
+interface ArtistSearchResult {
+  name: string;
+  ticketmasterId: string;
+  imageUrl?: string;
+}
+
 const syncFormSchema = z.object({
   entityType: z.enum(["artist", "venue", "show", "song"], {
     required_error: "Entity type is required",
@@ -21,11 +27,58 @@ const syncFormSchema = z.object({
   entityName: z.string().optional(),
   ticketmasterId: z.string().optional(),
   spotifyId: z.string().optional(),
+  setlistFmId: z.string().optional(),
   forceRefresh: z.boolean().default(false),
   skipDependencies: z.boolean().default(false),
+}).superRefine((data, ctx) => {
+  // Validate required fields based on entity type
+  switch (data.entityType) {
+    case 'artist':
+      if (!data.entityName && !data.ticketmasterId && !data.spotifyId) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "At least one identifier (name, Ticketmaster ID, or Spotify ID) is required",
+          path: ['entityName']
+        });
+      }
+      break;
+    case 'venue':
+      if (!data.entityName && !data.ticketmasterId) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Venue name or Ticketmaster ID is required",
+          path: ['entityName']
+        });
+      }
+      break;
+    case 'show':
+      if (!data.ticketmasterId) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Ticketmaster ID is required for shows",
+          path: ['ticketmasterId']
+        });
+      }
+      break;
+    case 'song':
+      if (!data.spotifyId) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Spotify ID is required for songs",
+          path: ['spotifyId']
+        });
+      }
+      break;
+  }
 });
 
 type SyncFormValues = z.infer<typeof syncFormSchema>;
+
+interface ArtistSearchResult {
+  name: string;
+  ticketmasterId: string;
+  imageUrl?: string;
+}
 
 export default function UnifiedSyncTest() {
   const supabase = createBrowserClient(
@@ -35,6 +88,27 @@ export default function UnifiedSyncTest() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
+  const [searchResults, setSearchResults] = useState<ArtistSearchResult[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+
+  const handleSearch = async (query: string) => {
+    if (query.length < 3) {
+      setSearchResults([]);
+      return;
+    }
+
+    setIsSearching(true);
+    try {
+      const response = await fetch(`/api/search/artists?query=${encodeURIComponent(query)}`);
+      const data = await response.json();
+      setSearchResults(data.results || []);
+    } catch (err) {
+      console.error('Search error:', err);
+      setSearchResults([]);
+    } finally {
+      setIsSearching(false);
+    }
+  };
   
   // Set up form with default values
   const form = useForm<SyncFormValues>({
@@ -75,7 +149,24 @@ export default function UnifiedSyncTest() {
       });
       
       if (error) {
-        throw new Error(error.message || 'Unknown error occurred');
+        // Try to parse the error details if available
+        let errorMessage = error.message || 'Unknown error occurred';
+        try {
+          const errorDetails = JSON.parse(error.message);
+          if (errorDetails.error) {
+            errorMessage = errorDetails.error;
+          }
+          if (errorDetails.details) {
+            errorMessage += `: ${errorDetails.details}`;
+          }
+        } catch (e) {
+          // Not JSON, use original message
+        }
+        throw new Error(errorMessage);
+      }
+      
+      if (!data?.success) {
+        throw new Error(data?.error || 'Sync failed without error details');
       }
       
       setResult(data);
@@ -166,12 +257,45 @@ export default function UnifiedSyncTest() {
               name="entityName"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Name</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Name" {...field} />
-                  </FormControl>
+                  <FormLabel>Artist Name</FormLabel>
+                  <div className="relative">
+                    <FormControl>
+                      <Input
+                        placeholder="Search artists..."
+                        {...field}
+                        onChange={(e) => {
+                          field.onChange(e);
+                          handleSearch(e.target.value);
+                        }}
+                      />
+                    </FormControl>
+                    {searchResults.length > 0 && (
+                      <div className="absolute z-10 mt-1 w-full bg-background shadow-lg rounded-md border">
+                        {searchResults.map((artist) => (
+                          <div
+                            key={artist.ticketmasterId}
+                            className="p-2 hover:bg-accent cursor-pointer flex items-center gap-2"
+                            onClick={() => {
+                              form.setValue('entityName', artist.name);
+                              form.setValue('ticketmasterId', artist.ticketmasterId);
+                              setSearchResults([]);
+                            }}
+                          >
+                            {artist.imageUrl && (
+                              <img
+                                src={artist.imageUrl}
+                                alt={artist.name}
+                                className="w-8 h-8 rounded-full"
+                              />
+                            )}
+                            <span>{artist.name}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                   <FormDescription>
-                    Required for new entities
+                    Start typing to search Ticketmaster artists
                   </FormDescription>
                 </FormItem>
               )}
@@ -275,7 +399,7 @@ export default function UnifiedSyncTest() {
               <CardTitle>Sync Result</CardTitle>
             </CardHeader>
             <CardContent>
-              <pre className="overflow-auto max-h-[500px] bg-muted p-4 rounded-md text-sm">
+              <pre className="overflow-auto max-h-[500px] bg-muted p-4 rounded-md text-sm text-foreground">
                 {JSON.stringify(result, null, 2)}
               </pre>
             </CardContent>

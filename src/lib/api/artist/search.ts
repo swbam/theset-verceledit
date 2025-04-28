@@ -29,7 +29,6 @@ export async function searchArtists(query: string): Promise<{ artists: Artist[];
       const artists = existingArtists.map(artist => ({
         id: artist.id,
         name: artist.name,
-        external_id: artist.external_id || undefined,
         image_url: artist.image_url,
         url: artist.url,
         spotify_id: artist.spotify_id,
@@ -47,7 +46,10 @@ export async function searchArtists(query: string): Promise<{ artists: Artist[];
       artists.forEach(artist => {
         if (artist.id) {
           supabase.functions.invoke('sync-artist', {
-            body: { artistId: artist.id }
+            body: { 
+              artistId: artist.id,
+              ticketmasterId: artist.ticketmaster_id
+            }
           }).catch(err => {
             console.error(`Error queuing background refresh for artist ${artist.id}:`, err);
           });
@@ -72,6 +74,7 @@ export async function searchArtists(query: string): Promise<{ artists: Artist[];
         const syncResult = await supabase.functions.invoke('sync-artist', {
           body: { 
             artistId: artist.id,
+            ticketmasterId: artist.id,
             payload: artist
           }
         });

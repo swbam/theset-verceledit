@@ -6,38 +6,44 @@ import { supabase } from '../../../../lib/db';
 
 /**
  * GET /api/shows/trending
- * Fetches trending shows from the database, with an option to sync with Ticketmaster
+ * Fetches trending shows from the database, ordered by popularity and vote count
  */
 export async function GET(request: Request) {
   try {
     // Parse query parameters
     const url = new URL(request.url);
     const limit = parseInt(url.searchParams.get('limit') || '10', 10);
-    const sync = url.searchParams.get('sync') === 'true';
-    
-    // If sync is requested, update trending shows in the background
-    // Removed call to non-existent syncTrendingShows
-    // if (sync) {
-    //   syncTrendingShows().catch(err => {
-    //     console.error('Background trending shows sync error:', err);
-    //   });
-    // }
     
     // Fetch trending shows from the database
     const { data: shows, error } = await supabase
       .from('shows')
       .select(`
         id,
+        name,
         date,
-        venue,
-        artists!shows_artists( name, spotify_id )
+        image_url,
+        ticket_url,
+        popularity,
+        ticketmaster_id,
+        artist:artists!shows_artist_id_fkey(
+          id,
+          name,
+          image_url,
+          ticketmaster_id
+        ),
+        venue:venues!shows_venue_id_fkey(
+          id,
+          name,
+          city,
+          state,
+          ticketmaster_id
+        ),
+        votes(count)
       `)
-      .order('votes_count', { ascending: false }) // Was filtering by artist_id
-      .limit(50);
+      .gt('date', new Date().toISOString()) // Only future shows
+      .order('popularity', { ascending: false })
+      .limit(limit * 2); // Fetch extra to account for vote sorting
     
-    console.log('[API /trending] Supabase query error:', error);
-    console.log('[API /trending] Supabase query data:', shows);
-
     if (error) {
       console.error('Error fetching trending shows:', error);
       return NextResponse.json(
@@ -46,26 +52,32 @@ export async function GET(request: Request) {
       );
     }
     
-    // If no shows found, try to sync and fetch again
-    // Removed logic attempting to sync after empty result
     if (!shows || shows.length === 0) {
-      console.log('[API /trending] No shows found, returning empty array.');
       return NextResponse.json([]);
     }
 
-    // Rename related data for clarity before returning
-    // Moved this block after the check for empty shows
-    const formattedShows = shows.map(show => ({
-      ...show,
-      artist: show.artists, // Rename 'artists' to 'artist'
-      venue: show.venues,   // Rename 'venues' to 'venue'
-      artists: undefined, // Remove original 'artists'
-      venues: undefined   // Remove original 'venues'
-    }));
-    console.log(`[API /trending] Returning ${formattedShows.length} shows from DB.`);
-    
-    return NextResponse.json(formattedShows);
-    // Removed duplicate formattedShows block
+    // Calculate combined score based on votes and popularity
+    const showsWithScores = shows.map(show => {
+      const totalVotes = show.votes?.reduce((sum, vote) => sum + (vote.count || 0), 0) || 0;
+      const popularity = show.popularity || 0;
+      const score = (totalVotes * 2) + popularity;
+
+      return {
+        ...show,
+        artist: Array.isArray(show.artist) ? show.artist[0] : show.artist,
+        venue: Array.isArray(show.venue) ? show.venue[0] : show.venue,
+        votes: undefined, // Remove raw votes data
+        score
+      };
+    });
+
+    // Sort by score and take top results
+    const sortedShows = showsWithScores
+      .sort((a, b) => b.score - a.score)
+      .slice(0, limit)
+      .map(({ score, ...show }) => show); // Remove score before returning
+
+    return NextResponse.json(sortedShows);
 
   } catch (err: unknown) {
     let errorMessage = "Unknown error";

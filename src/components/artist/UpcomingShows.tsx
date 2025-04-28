@@ -1,6 +1,5 @@
-
 import React from 'react';
-import { Link } from 'react-router-dom';
+import Link from 'next/link';
 import { CalendarDays, MapPin } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -100,7 +99,7 @@ const UpcomingShows = ({ shows, artistName, isLoading = false }: UpcomingShowsPr
                         </div>
                       )}
                     </div>
-                    <Link to={`/shows/${show.id}`}>
+                    <Link href={`/show/${show.id}`}>
                       <Button className="w-full">Vote On Setlist</Button>
                     </Link>
                   </CardContent>

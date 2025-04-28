@@ -20,7 +20,7 @@ interface SearchResultArtist {
   name: string;
   image_url?: string | null;
   url?: string | null;
-  external_id?: string;
+  ticketmaster_id?: string;
   exists_in_db?: boolean;
   db_id?: string | null;
 }

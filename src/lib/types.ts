@@ -29,73 +29,75 @@ export type SyncStatus = {
 };
 
 export interface Artist {
-  id: string; 
+  id: string;
   name: string;
-  ticketmaster_id?: string;
-  spotify_id?: string;
-  setlist_fm_id?: string;
   image_url?: string | null;
   url?: string | null;
+  spotify_id?: string | null;
+  spotify_url?: string | null;
+  setlist_fm_mbid?: string | null;
   genres?: string[] | null;
   popularity?: number | null;
-  followers?: number | null; 
+  followers?: number | null;
+  ticketmaster_id: string;
   created_at?: string;
   updated_at?: string;
 }
 
 export interface Venue {
-  id: string; 
+  id: string;
   name: string;
-  city: string | null;
+  city?: string | null;
   state?: string | null;
   country?: string | null;
   address?: string | null;
-  latitude?: number | null;
-  longitude?: number | null;
   image_url?: string | null;
   url?: string | null;
-  ticketmaster_id?: string | null; 
+  latitude?: string | null;
+  longitude?: string | null;
+  postal_code?: string | null;
+  ticketmaster_id: string;
   created_at?: string;
   updated_at?: string;
 }
 
 export interface Show {
-  id: string; 
+  id: string;
   name: string;
-  artist_id: string;
-  venue_id: string;
-  ticketmaster_id?: string | null; 
   date?: string | null;
-  artist_external_id?: string | null;
-  venue_external_id?: string | null;
-  setlist_id?: string | null; 
-  setlist_external_id?: string | null; 
-  status?: string;
-  url?: string | null;
   image_url?: string | null;
+  ticket_url?: string | null;
+  url?: string | null;
+  status?: string | null;
+  popularity?: number | null;
+  artist_id?: string | null;
+  venue_id?: string | null;
+  ticketmaster_id: string;
+  artist?: Artist | null;
+  venue?: Venue | null;
   created_at?: string;
   updated_at?: string;
-  ticket_url?: string | null; 
-  popularity?: number | null; 
-  last_updated?: string | null; 
-  artist?: { id: string; name: string } | null;
-  venue?: { id: string; name: string; city: string | null; state: string | null } | null;
+}
+
+export interface SetlistSong {
+  id: string;
+  setlist_id: string;
+  song_id: string;
+  name: string;
+  position: number;
+  artist_id?: string | null;
+  votes?: number;
+  vote_count?: number;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface Setlist {
-  id?: string; 
+  id: string;
+  show_id: string;
   artist_id: string;
-  show_id?: string | null; 
-  venue_id?: string | null; 
-  setlist_fm_id: string | null; 
-  artist_external_id?: string | null; 
-  show_external_id?: string | null; 
-  songs?: Partial<Song>[] | null; 
-  tour_name?: string | null;
-  venue_name?: string | null;
-  city?: string | null;
-  country?: string | null;
   date?: string | null;
+  songs?: SetlistSong[];
   created_at?: string;
   updated_at?: string;
 }

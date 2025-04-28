@@ -1,14 +1,16 @@
-// Import the createServerClient from @supabase/ssr
-import { createServerClient, type CookieOptions } from '@supabase/ssr'; 
+import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
 import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 
 import ArtistHeader from '@/components/artist/ArtistHeader';
 import UpcomingShows from '@/components/artist/UpcomingShows';
-import ArtistStats from '@/app/components/ArtistStats';
 import { Separator } from '@/components/ui/separator';
 import PastSetlists from '@/components/artist/PastSetlists';
+import ArtistStats from '@/app/components/ArtistStats';
+
+// Import sync functions
+import { syncArtist } from '@/app/actions/sync-actions';
 
 interface ArtistPageProps {
   params: {
@@ -19,20 +21,8 @@ interface ArtistPageProps {
 export async function generateMetadata(
   { params }: ArtistPageProps
 ): Promise<Metadata> {
-  // Use the createServerClient from @supabase/ssr
-  const cookieStore = cookies(); // Get the cookie store
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!, // Ensure these are defined in your env
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get(name: string) {
-          return cookieStore.get(name)?.value;
-        },
-        // No need for set/remove in read-only server component context usually
-      },
-    }
-  );
+  const cookieStore = cookies();
+  const supabase = createServerComponentClient({ cookies: () => cookieStore });
   
   const { data: artist } = await supabase
     .from('artists')
@@ -49,31 +39,20 @@ export async function generateMetadata(
   
   return {
     title: `${artist.name} | TheSet`,
-    description: `View upcoming shows, past setlists, and statistics for ${artist.name}.`,
+    description: `Vote on songs you want to hear at upcoming shows for ${artist.name}.`,
     openGraph: {
       title: `${artist.name} | TheSet`,
-      description: `View upcoming shows, past setlists, and statistics for ${artist.name}.`,
+      description: `Vote on songs you want to hear at upcoming shows for ${artist.name}.`,
       type: 'website',
     },
   };
 }
 
 export default async function ArtistPage({ params }: ArtistPageProps) {
-  // Use the createServerClient from @supabase/ssr
-  const cookieStore = cookies(); // Get the cookie store
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!, // Ensure these are defined in your env
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get(name: string) {
-          return cookieStore.get(name)?.value;
-        },
-        // No need for set/remove in read-only server component context usually
-      },
-    }
-  );
+  const cookieStore = cookies();
+  const supabase = createServerComponentClient({ cookies: () => cookieStore });
   
+  // Fetch artist data
   const { data: artist } = await supabase
     .from('artists')
     .select('*')
@@ -84,7 +63,15 @@ export default async function ArtistPage({ params }: ArtistPageProps) {
     notFound();
   }
   
-  // Fetch upcoming shows from database instead of directly from Ticketmaster API
+  // Sync the artist data (this will update shows and other information)
+  try {
+    await syncArtist(artist.id);
+  } catch (error) {
+    console.error('Error syncing artist:', error);
+    // Continue with whatever data we have
+  }
+  
+  // Fetch upcoming shows from the database
   const { data: upcomingShowsData } = await supabase
     .from('shows')
     .select(`
@@ -93,7 +80,7 @@ export default async function ArtistPage({ params }: ArtistPageProps) {
       date, 
       ticket_url, 
       image_url,
-      venue:venue_id (
+      venue:venues(
         id,
         name,
         city,
@@ -105,7 +92,7 @@ export default async function ArtistPage({ params }: ArtistPageProps) {
     .order('date', { ascending: true })
     .limit(10);
   
-  // Transform the data to match the expected format
+  // Transform the data to match the expected format for the UpcomingShows component
   const upcomingShows = upcomingShowsData ? upcomingShowsData.map(show => ({
     id: show.id,
     name: show.name,
@@ -118,34 +105,6 @@ export default async function ArtistPage({ params }: ArtistPageProps) {
     ticket_url: show.ticket_url,
     image_url: show.image_url
   })) : [];
-
-  // If no shows in database, fetch from Ticketmaster as a fallback
-  if (upcomingShows.length === 0) {
-    try {
-      const ticketmasterResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/ticketmaster?endpoint=events.json&keyword=${encodeURIComponent(artist.name)}&sort=date,asc&size=5`);
-      if (ticketmasterResponse.ok) {
-        const ticketmasterData = await ticketmasterResponse.json();
-        
-        const ticketmasterShows = ticketmasterData._embedded?.events?.map((event: any) => ({
-          id: event.id,
-          name: event.name,
-          date: event.dates.start.dateTime,
-          venue: event._embedded?.venues?.[0] ? {
-            name: event._embedded.venues[0].name,
-            city: event._embedded.venues[0].city?.name,
-            state: event._embedded.venues[0].state?.stateCode
-          } : null,
-          ticket_url: event.url,
-          image_url: event.images?.[0]?.url
-        })) || [];
-        
-        upcomingShows.push(...ticketmasterShows);
-      }
-    } catch (error) {
-      console.error('Error fetching from Ticketmaster:', error);
-      // Continue with empty shows array
-    }
-  }
 
   // Fetch past setlists
   const { data: pastSetlists } = await supabase
@@ -166,12 +125,12 @@ export default async function ArtistPage({ params }: ArtistPageProps) {
     <div className="container mx-auto py-6 px-4 md:px-6">
       <ArtistHeader
         artistName={artist.name}
-        artistImage={artist.image_url} // Assuming image_url is the correct property
+        artistImage={artist.image_url}
         upcomingShowsCount={upcomingShows?.length || 0}
       />
       
       <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6 mt-8">
-        {/* Left sidebar */}
+        {/* Left content area */}
         <div className="md:col-span-2 lg:col-span-3 space-y-8">
           <section>
             <h2 className="text-2xl font-bold mb-4">Upcoming Shows</h2>
@@ -198,7 +157,6 @@ export default async function ArtistPage({ params }: ArtistPageProps) {
         <div className="md:col-span-1 space-y-6">
           <ArtistStats artistId={artist.id} />
           
-          {/* Additional sidebar components can be added here */}
           <div className="bg-muted/50 rounded-lg p-4">
             <h3 className="font-medium mb-2">About TheSet</h3>
             <p className="text-sm text-muted-foreground">
@@ -209,4 +167,4 @@ export default async function ArtistPage({ params }: ArtistPageProps) {
       </div>
     </div>
   );
-}
+} 

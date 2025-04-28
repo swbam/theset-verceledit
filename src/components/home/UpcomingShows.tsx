@@ -1,216 +1,151 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { Calendar, MapPin } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { supabase } from '@/integrations/supabase/client';
 import { popularMusicGenres } from '@/lib/ticketmaster';
+import { formatDate, formatVenue } from "@/lib/utils";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Card, CardContent } from "@/components/ui/card";
+import { CalendarIcon, MapPinIcon } from "lucide-react";
+
+interface Show {
+  id: string;
+  title: string;
+  start_date: string;
+  end_date: string;
+  venue_name: string;
+  venue_city: string;
+  venue_state: string;
+  genre: string;
+  image_url?: string;
+}
+
+async function getUpcomingShows() {
+  const { data, error } = await supabase
+    .from("shows")
+    .select("*")
+    .gte("start_date", new Date().toISOString())
+    .order("start_date", { ascending: true });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data as Show[];
+}
 
 const UpcomingShows = () => {
-  const [activeGenre, setActiveGenre] = useState("all");
+  const [selectedGenre, setSelectedGenre] = useState<string>("all");
   
-  const { data: showsData = [], isLoading, error: fetchError } = useQuery({
-    queryKey: ['upcomingShows', activeGenre],
-    queryFn: async () => {
-      try {
-        // Query from Supabase rather than directly from API
-        const { data: shows, error: showError } = await supabase
-          .from('shows')
-          .select(`
-            *,
-            artist:artists(id, name, image_url, genres),
-            venue:venues(id, name, city, state, country)
-          `)
-          .gt('date', new Date().toISOString()) // Only future shows
-          .order('date', { ascending: true });
-
-        if (showError) {
-          console.error('Error fetching shows from Supabase:', showError);
-          return [];
-        }
-
-        if (!shows) return [];
-        
-        // Filter by genre if not "all"
-        let filteredShows = shows;
-        if (activeGenre !== "all") {
-          filteredShows = shows.filter(show => {
-            // Filter based on artist genres
-            if (!show.artist || !show.artist.genres) return false;
-            
-            // Check if any genre includes our filter (case insensitive)
-            return show.artist.genres.some(genre => 
-              genre.toLowerCase().includes(activeGenre.toLowerCase())
-            );
-          });
-        }
-        
-        // Trigger background sync for each show to ensure data freshness
-        shows.forEach(show => {
-          if (show.ticketmaster_id) {
-            // Use the sync API for background processing
-            fetch('/api/sync', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ 
-                entityType: 'show', 
-                entityId: show.id 
-              })
-            }).catch(err => console.error('Background sync error:', err));
-          }
-        });
-
-        return filteredShows.slice(0, 6); // Limit to 6 shows
-      } catch (error) {
-        console.error('Error in upcoming shows query:', error);
-        return [];
-      }
-    },
+  const { data: shows, isLoading, error } = useQuery({
+    queryKey: ["upcoming-shows"],
+    queryFn: getUpcomingShows,
     staleTime: 5 * 60 * 1000, // 5 minutes
-    retry: 2,
+    refetchInterval: 5 * 60 * 1000, // 5 minutes
   });
 
-  // Ensure unique shows by ID
-  const shows = React.useMemo(() => {
-    const uniqueMap = new Map();
-    
-    showsData.forEach(show => {
-      if (!uniqueMap.has(show.id)) {
-        uniqueMap.set(show.id, show);
-      }
-    });
+  const genres = shows ? Array.from(new Set(shows.map(show => show.genre))) : [];
+  const filteredShows = shows ? 
+    (selectedGenre === "all" ? shows : shows.filter(show => show.genre === selectedGenre)) : 
+    [];
 
-    return Array.from(uniqueMap.values());
-  }, [showsData]);
-
-  // Format date helper function
-  const formatDate = (dateString: string) => {
-    try {
-      const date = new Date(dateString);
-      return {
-        day: date.getDate(),
-        month: date.toLocaleDateString('en-US', { month: 'short' }),
-        year: date.getFullYear()
-      };
-    } catch (error) {
-      return { day: "TBA", month: "", year: "" };
-    }
-  };
+  if (error) {
+    return (
+      <div className="py-8">
+        <h2 className="text-2xl font-bold mb-6">Upcoming Shows</h2>
+        <div className="text-red-500 p-4 rounded-md bg-red-50">
+          Error loading shows: {(error as Error).message}
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <section className="py-16 px-4">
-      <div className="container mx-auto max-w-5xl">
-        <div className="section-header">
-          <div>
-            <h2 className="section-title">Upcoming Shows</h2>
-            <p className="section-subtitle">Browse and vote on setlists for upcoming concerts</p>
-          </div>
-          <Link to="/shows" className="view-all-button">
-            View all →
-          </Link>
-        </div>
-        
-        <div className="flex flex-wrap gap-2 mb-6">
-          <button
-            onClick={() => setActiveGenre("all")}
-            className={`genre-pill ${activeGenre === "all" ? "bg-white/20 border-white/30" : ""}`}
-          >
-            All Genres
-          </button>
-          {popularMusicGenres.slice(0, 6).map(genre => (
-            <button
-              key={genre.id}
-              onClick={() => setActiveGenre(genre.id)}
-              className={`genre-pill ${activeGenre === genre.id ? "bg-white/20 border-white/30" : ""}`}
-            >
-              {genre.name}
-            </button>
-          ))}
-        </div>
-        
-        {isLoading ? (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {[...Array(3)].map((_, index) => (
-              <div key={index} className="bg-black/20 border border-white/10 rounded-lg overflow-hidden">
-                <Skeleton className="aspect-[16/9] w-full" />
-                <div className="p-4">
-                  <Skeleton className="h-5 w-3/4 mb-2" />
-                  <Skeleton className="h-4 w-1/2 mb-3" />
-                  <div className="flex items-center mb-2">
-                    <Skeleton className="h-4 w-4 rounded-full mr-2" />
-                    <Skeleton className="h-4 w-24" />
-                  </div>
-                  <div className="flex items-center">
-                    <Skeleton className="h-4 w-4 rounded-full mr-2" />
-                    <Skeleton className="h-4 w-full" />
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : fetchError ? (
-          <div className="text-center py-10">
-            <p className="text-white/60">Unable to load upcoming shows</p>
-          </div>
-        ) : shows.length === 0 ? (
-          <div className="text-center py-10">
-            <p className="text-white/60">No upcoming shows found</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {shows.map(show => {
-              const formattedDate = formatDate(show.date);
-              
-              return (
-                <Link 
-                  key={show.id} 
-                  to={`/shows/${show.id}`}
-                  className="bg-black/20 border border-white/10 rounded-lg overflow-hidden hover:border-white/30 transition-all hover:scale-[1.01]"
-                >
-                  <div className="relative aspect-[16/9] overflow-hidden">
-                    {show.image_url ? (
-                      <img 
-                        src={show.image_url} 
-                        alt={show.name} 
-                        className="object-cover w-full h-full"
-                      />
-                    ) : (
-                      <div className="bg-secondary/20 w-full h-full flex items-center justify-center">
-                        <span className="text-white/40">No image</span>
-                      </div>
-                    )}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />
-                    <div className="absolute bottom-0 inset-x-0 p-4">
-                      <h3 className="text-white font-bold text-lg line-clamp-1">{show.name}</h3>
-                      <p className="text-white/90 text-sm">{show.artist?.name || 'Unknown Artist'}</p>
-                    </div>
-                  </div>
-                  
-                  <div className="p-4">
-                    <div className="flex items-center text-sm text-white/80 mb-2">
-                      <Calendar className="h-4 w-4 mr-2" />
-                      <span>
-                        {typeof formattedDate === 'object' 
-                          ? `${formattedDate.month} ${formattedDate.day}, ${formattedDate.year}` 
-                          : formattedDate}
-                      </span>
-                    </div>
-                    <div className="flex items-center text-sm text-white/80">
-                      <MapPin className="h-4 w-4 mr-2" />
-                      <span className="line-clamp-1">
-                        {show.venue 
-                          ? `${show.venue.name}, ${show.venue.city || ''}${show.venue.state ? `, ${show.venue.state}` : ''}` 
-                          : 'Venue TBA'}
-                      </span>
-                    </div>
-                  </div>
-                </Link>
-              );
-            })}
+    <div className="py-8">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
+        <h2 className="text-2xl font-bold">Upcoming Shows</h2>
+        {!isLoading && genres.length > 0 && (
+          <div className="mt-2 md:mt-0">
+            <Select value={selectedGenre} onValueChange={setSelectedGenre}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Filter by genre" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Genres</SelectItem>
+                {genres.map(genre => (
+                  <SelectItem key={genre} value={genre}>{genre}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         )}
       </div>
-    </section>
+
+      {isLoading ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {[...Array(6)].map((_, i) => (
+            <Card key={i} className="overflow-hidden">
+              <Skeleton className="h-48 w-full" />
+              <CardContent className="p-4">
+                <Skeleton className="h-6 w-3/4 mb-2" />
+                <Skeleton className="h-4 w-1/2 mb-2" />
+                <Skeleton className="h-4 w-2/3" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : filteredShows.length > 0 ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filteredShows.map((show) => (
+            <Link key={show.id} href={`/show/${show.id}`} className="group">
+              <Card className="h-full overflow-hidden transition-transform hover:scale-[1.02]">
+                <div className="h-48 relative">
+                  {show.image_url ? (
+                    <img 
+                      src={show.image_url} 
+                      alt={show.title} 
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <div className="h-full w-full bg-gray-200 flex items-center justify-center">
+                      <span className="text-gray-500">No image</span>
+                    </div>
+                  )}
+                  <div className="absolute top-0 right-0 bg-black/70 text-white px-3 py-1 m-2 text-sm rounded">
+                    {show.genre}
+                  </div>
+                </div>
+                <CardContent className="p-4">
+                  <h3 className="text-lg font-semibold mb-2 group-hover:text-primary transition-colors">
+                    {show.title}
+                  </h3>
+                  <div className="flex items-center text-sm text-gray-600 mb-1">
+                    <CalendarIcon className="h-4 w-4 mr-1" />
+                    <span>{formatDate(show.start_date)}</span>
+                  </div>
+                  <div className="flex items-center text-sm text-gray-600">
+                    <MapPinIcon className="h-4 w-4 mr-1" />
+                    <span>{formatVenue(show.venue_name, show.venue_city, show.venue_state)}</span>
+                  </div>
+                </CardContent>
+              </Card>
+            </Link>
+          ))}
+        </div>
+      ) : (
+        <div className="text-center py-10">
+          <p className="text-gray-500">No shows found for the selected genre.</p>
+        </div>
+      )}
+
+      <div className="mt-6 text-center">
+        <Link href="/shows" className="text-primary hover:underline">
+          View all shows →
+        </Link>
+      </div>
+    </div>
   );
 };
 

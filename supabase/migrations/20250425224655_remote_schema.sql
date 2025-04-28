@@ -1,3 +1,5 @@
+
+
 SET statement_timeout = 0;
 SET lock_timeout = 0;
 SET idle_in_transaction_session_timeout = 0;
@@ -10,10 +12,79 @@ SET client_min_messages = warning;
 SET row_security = off;
 
 
-CREATE SCHEMA IF NOT EXISTS "public";
+CREATE EXTENSION IF NOT EXISTS "pg_cron" WITH SCHEMA "pg_catalog";
+
+
+
+
+
+
 
 
 ALTER SCHEMA "public" OWNER TO "postgres";
+
+
+CREATE EXTENSION IF NOT EXISTS "pg_net" WITH SCHEMA "public";
+
+
+
+
+
+
+CREATE EXTENSION IF NOT EXISTS "pgsodium";
+
+
+
+
+
+
+CREATE EXTENSION IF NOT EXISTS "pg_graphql" WITH SCHEMA "graphql";
+
+
+
+
+
+
+CREATE EXTENSION IF NOT EXISTS "pg_stat_statements" WITH SCHEMA "extensions";
+
+
+
+
+
+
+CREATE EXTENSION IF NOT EXISTS "pg_trgm" WITH SCHEMA "public";
+
+
+
+
+
+
+CREATE EXTENSION IF NOT EXISTS "pgcrypto" WITH SCHEMA "extensions";
+
+
+
+
+
+
+CREATE EXTENSION IF NOT EXISTS "pgjwt" WITH SCHEMA "extensions";
+
+
+
+
+
+
+CREATE EXTENSION IF NOT EXISTS "supabase_vault" WITH SCHEMA "vault";
+
+
+
+
+
+
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA "extensions";
+
+
+
+
 
 
 CREATE OR REPLACE FUNCTION "public"."add_vote"("p_song_id" "uuid", "p_show_id" "uuid") RETURNS boolean
@@ -211,6 +282,25 @@ $$;
 ALTER FUNCTION "public"."cleanup_old_sync_operations"() OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."cleanup_sync_data"() RETURNS "void"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    AS $$
+BEGIN
+  -- Delete completed sync tasks older than 7 days
+  DELETE FROM sync_tasks
+  WHERE status IN ('completed', 'failed')
+  AND created_at < NOW() - INTERVAL '7 days';
+  
+  -- Delete sync logs older than 30 days
+  DELETE FROM sync_logs
+  WHERE created_at < NOW() - INTERVAL '30 days';
+END;
+$$;
+
+
+ALTER FUNCTION "public"."cleanup_sync_data"() OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."commit_transaction"() RETURNS "void"
     LANGUAGE "plpgsql"
     AS $$
@@ -359,17 +449,17 @@ $$;
 ALTER FUNCTION "public"."decrement_vote"("p_song_id" "uuid", "p_user_id" "uuid") OWNER TO "postgres";
 
 
-CREATE OR REPLACE FUNCTION "public"."enqueue_sync"("entity_type" "text", "ticketmaster_id" "text", "reference_data" "jsonb" DEFAULT NULL::"jsonb", "priority" integer DEFAULT 5, "max_attempts" integer DEFAULT 3) RETURNS integer
+CREATE OR REPLACE FUNCTION "public"."enqueue_sync"("entity_type" "text", "external_id" "text", "reference_data" "jsonb" DEFAULT NULL::"jsonb", "priority" integer DEFAULT 5, "max_attempts" integer DEFAULT 3) RETURNS integer
     LANGUAGE "plpgsql"
     AS $$
 BEGIN
   -- Call the new function with a default service name
-  RETURN public.enqueue_sync(entity_type, 'ticketmaster', ticketmaster_id, reference_data, priority, max_attempts);
+  RETURN public.enqueue_sync(entity_type, 'ticketmaster', external_id, reference_data, priority, max_attempts);
 END;
 $$;
 
 
-ALTER FUNCTION "public"."enqueue_sync"("entity_type" "text", "ticketmaster_id" "text", "reference_data" "jsonb", "priority" integer, "max_attempts" integer) OWNER TO "postgres";
+ALTER FUNCTION "public"."enqueue_sync"("entity_type" "text", "external_id" "text", "reference_data" "jsonb", "priority" integer, "max_attempts" integer) OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."enqueue_sync"("entity_type" "text", "service_name" "text", "service_id" "text", "reference_data" "jsonb" DEFAULT NULL::"jsonb", "priority" integer DEFAULT 5, "max_attempts" integer DEFAULT 3) RETURNS integer
@@ -510,6 +600,7 @@ CREATE TABLE IF NOT EXISTS "public"."songs" (
     "album_name" "text",
     "album_image_url" "text",
     "spotify_id" "text",
+    "setlist_fm_id" "text",
     CONSTRAINT "vote_count_non_negative" CHECK (("vote_count" >= 0))
 );
 
@@ -834,6 +925,59 @@ $$;
 ALTER FUNCTION "public"."rollback_transaction"() OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."sync_pending_entities"() RETURNS "void"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    AS $$
+DECLARE
+  entity_record RECORD;
+BEGIN
+  -- Get entities that are due for syncing
+  FOR entity_record IN
+    SELECT * FROM sync_states
+    WHERE next_sync_at <= NOW()
+    AND status != 'in_progress'
+    ORDER BY next_sync_at
+    LIMIT 10
+  LOOP
+    -- Mark entity as in progress
+    UPDATE sync_states
+    SET status = 'in_progress'
+    WHERE id = entity_record.id;
+    
+    -- Insert a task to sync this entity
+    INSERT INTO sync_tasks (
+      entity_type,
+      entity_id,
+      status,
+      priority,
+      entity_name,
+      data
+    ) VALUES (
+      entity_record.entity_type,
+      entity_record.entity_id,
+      'pending',
+      5,
+      (
+        CASE 
+          WHEN entity_record.entity_type = 'artist' THEN 
+            (SELECT name FROM artists WHERE id = entity_record.entity_id)
+          WHEN entity_record.entity_type = 'show' THEN 
+            (SELECT name FROM shows WHERE id = entity_record.entity_id)
+          WHEN entity_record.entity_type = 'venue' THEN 
+            (SELECT name FROM venues WHERE id = entity_record.entity_id)
+          ELSE NULL
+        END
+      ),
+      jsonb_build_object('automatic', true, 'scheduled', true)
+    );
+  END LOOP;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."sync_pending_entities"() OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."sync_upcoming_shows"() RETURNS integer
     LANGUAGE "plpgsql" SECURITY DEFINER
     AS $$
@@ -1036,6 +1180,19 @@ $_$;
 ALTER FUNCTION "public"."test_sync_system"("target_id" "text", "entity_type" "text") OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."update_shows_updated_at"() RETURNS "trigger"
+    LANGUAGE "plpgsql"
+    AS $$
+BEGIN
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."update_shows_updated_at"() OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."update_song_vote_count"() RETURNS "trigger"
     LANGUAGE "plpgsql"
     AS $$
@@ -1055,6 +1212,19 @@ $$;
 
 
 ALTER FUNCTION "public"."update_song_vote_count"() OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."update_sync_states_updated_at"() RETURNS "trigger"
+    LANGUAGE "plpgsql"
+    AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."update_sync_states_updated_at"() OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."update_updated_at"() RETURNS "trigger"
@@ -1125,9 +1295,7 @@ CREATE TABLE IF NOT EXISTS "public"."artists" (
     "setlist_fm_id" "text",
     "ticketmaster_id" "text",
     "setlist_fm_mbid" "text",
-    "external_id" "text",
-    "spotify_url" "text",
-    "tm_id" "text"
+    "spotify_url" "text"
 );
 
 
@@ -1187,6 +1355,21 @@ ALTER SEQUENCE "public"."migrations_id_seq" OWNED BY "public"."migrations"."id";
 
 
 
+CREATE TABLE IF NOT EXISTS "public"."offers" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "listing_id" "uuid" NOT NULL,
+    "buyer_id" "uuid" NOT NULL,
+    "amount" numeric(10,2) NOT NULL,
+    "status" "text" DEFAULT 'pending'::"text" NOT NULL,
+    "expires_at" timestamp with time zone NOT NULL,
+    "created_at" timestamp with time zone DEFAULT "now"(),
+    "updated_at" timestamp with time zone DEFAULT "now"()
+);
+
+
+ALTER TABLE "public"."offers" OWNER TO "postgres";
+
+
 CREATE TABLE IF NOT EXISTS "public"."played_setlist_songs" (
     "id" "uuid" DEFAULT "extensions"."uuid_generate_v4"() NOT NULL,
     "setlist_id" "uuid",
@@ -1199,6 +1382,23 @@ CREATE TABLE IF NOT EXISTS "public"."played_setlist_songs" (
 
 
 ALTER TABLE "public"."played_setlist_songs" OWNER TO "postgres";
+
+
+CREATE TABLE IF NOT EXISTS "public"."promo_codes" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "code" "text" NOT NULL,
+    "discount_percentage" numeric(5,2),
+    "discount_amount" numeric(10,2),
+    "max_uses" integer,
+    "current_uses" integer DEFAULT 0,
+    "valid_from" timestamp with time zone DEFAULT "now"(),
+    "valid_until" timestamp with time zone,
+    "created_at" timestamp with time zone DEFAULT "now"(),
+    "updated_at" timestamp with time zone DEFAULT "now"()
+);
+
+
+ALTER TABLE "public"."promo_codes" OWNER TO "postgres";
 
 
 CREATE TABLE IF NOT EXISTS "public"."rate_limits" (
@@ -1237,9 +1437,9 @@ CREATE TABLE IF NOT EXISTS "public"."setlist_songs" (
     "is_encore" boolean DEFAULT false,
     "last_updated" timestamp with time zone DEFAULT "now"(),
     "name" "text",
-    "track_id" "uuid",
     "vote_count" integer DEFAULT 0,
-    "artist_id" "uuid"
+    "artist_id" "uuid",
+    "played" boolean DEFAULT false
 );
 
 
@@ -1257,7 +1457,7 @@ CREATE TABLE IF NOT EXISTS "public"."setlists" (
     "songs" "jsonb",
     "venue_id" "uuid",
     "setlist_fm_id" "text",
-    "setlist_id" "text"
+    "status" "text" DEFAULT 'draft'::"text"
 );
 
 
@@ -1279,7 +1479,12 @@ CREATE TABLE IF NOT EXISTS "public"."shows" (
     "artist_id" "uuid",
     "venue_id" "uuid",
     "ticketmaster_id" "text",
-    "external_id" "text"
+    "description" "text",
+    "duration_minutes" integer,
+    "min_price" numeric,
+    "max_price" numeric,
+    "total_votes" integer DEFAULT 0,
+    CONSTRAINT "shows_status_check" CHECK (("status" = ANY (ARRAY['upcoming'::"text", 'in-progress'::"text", 'completed'::"text", 'cancelled'::"text"])))
 );
 
 
@@ -1287,41 +1492,53 @@ ALTER TABLE "public"."shows" OWNER TO "postgres";
 
 
 CREATE TABLE IF NOT EXISTS "public"."sync_logs" (
-    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
-    "entity_id" "uuid" NOT NULL,
+    "id" integer NOT NULL,
     "entity_type" "text" NOT NULL,
-    "provider" "text" NOT NULL,
-    "status" "text" NOT NULL,
-    "error" "text",
-    "metadata" "jsonb",
+    "entity_id" "text",
+    "external_service" "text",
+    "status" "text" DEFAULT 'pending'::"text" NOT NULL,
+    "error_message" "text",
     "created_at" timestamp with time zone DEFAULT "now"(),
-    "completed_at" timestamp with time zone,
-    CONSTRAINT "sync_logs_entity_check" CHECK (("entity_type" = ANY (ARRAY['artist'::"text", 'show'::"text", 'setlist'::"text", 'venue'::"text", 'song'::"text"])))
+    "updated_at" timestamp with time zone DEFAULT "now"()
 );
 
 
 ALTER TABLE "public"."sync_logs" OWNER TO "postgres";
 
 
+CREATE SEQUENCE IF NOT EXISTS "public"."sync_logs_id_seq"
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE "public"."sync_logs_id_seq" OWNER TO "postgres";
+
+
+ALTER SEQUENCE "public"."sync_logs_id_seq" OWNED BY "public"."sync_logs"."id";
+
+
+
 CREATE TABLE IF NOT EXISTS "public"."sync_states" (
-    "entity_id" "text" NOT NULL,
+    "id" "uuid" DEFAULT "extensions"."uuid_generate_v4"() NOT NULL,
     "entity_type" "text" NOT NULL,
-    "external_id" "text",
-    "service_name" "text",
-    "service_id" "text",
-    "last_synced" timestamp with time zone DEFAULT "now"(),
-    "sync_version" integer DEFAULT 1,
+    "entity_id" "uuid",
+    "last_sync_at" timestamp with time zone DEFAULT "now"(),
+    "next_sync_at" timestamp with time zone,
+    "status" "text" DEFAULT 'pending'::"text",
+    "error_message" "text",
+    "metadata" "jsonb",
     "created_at" timestamp with time zone DEFAULT "now"(),
     "updated_at" timestamp with time zone DEFAULT "now"(),
-    CONSTRAINT "sync_states_entity_type_check" CHECK (("entity_type" = ANY (ARRAY['artist'::"text", 'venue'::"text", 'show'::"text", 'song'::"text", 'setlist'::"text"])))
+    CONSTRAINT "sync_states_entity_type_check" CHECK (("entity_type" = ANY (ARRAY['artist'::"text", 'show'::"text", 'venue'::"text", 'song'::"text"]))),
+    CONSTRAINT "sync_states_status_check" CHECK (("status" = ANY (ARRAY['pending'::"text", 'in_progress'::"text", 'completed'::"text", 'failed'::"text"])))
 );
 
 
 ALTER TABLE "public"."sync_states" OWNER TO "postgres";
-
-
-COMMENT ON TABLE "public"."sync_states" IS 'Tracks sync state of entities across Edge Functions';
-
 
 
 CREATE TABLE IF NOT EXISTS "public"."top_tracks" (
@@ -1419,14 +1636,14 @@ CREATE TABLE IF NOT EXISTS "public"."venues" (
     "address" "text",
     "image_url" "text",
     "url" "text",
-    "latitude" "text",
-    "longitude" "text",
+    "latitude" numeric,
+    "longitude" numeric,
     "created_at" timestamp with time zone DEFAULT "now"(),
     "updated_at" timestamp with time zone DEFAULT "now"(),
     "id" "uuid" DEFAULT "extensions"."uuid_generate_v4"() NOT NULL,
     "postal_code" "text",
     "ticketmaster_id" "text",
-    "external_id" "text"
+    "timezone" "text"
 );
 
 
@@ -1450,6 +1667,10 @@ ALTER TABLE ONLY "public"."migrations" ALTER COLUMN "id" SET DEFAULT "nextval"('
 
 
 
+ALTER TABLE ONLY "public"."sync_logs" ALTER COLUMN "id" SET DEFAULT "nextval"('"public"."sync_logs_id_seq"'::"regclass");
+
+
+
 ALTER TABLE ONLY "public"."trending_shows_cache" ALTER COLUMN "rank" SET DEFAULT "nextval"('"public"."trending_shows_cache_rank_seq"'::"regclass");
 
 
@@ -1464,10 +1685,13 @@ ALTER TABLE ONLY "public"."api_cache"
 
 
 
+ALTER TABLE ONLY "public"."artists"
+    ADD CONSTRAINT "artists_pkey" PRIMARY KEY ("id");
+
 
 
 ALTER TABLE ONLY "public"."artists"
-    ADD CONSTRAINT "artists_pkey" PRIMARY KEY ("id");
+    ADD CONSTRAINT "artists_setlist_fm_id_key" UNIQUE ("setlist_fm_id");
 
 
 
@@ -1496,6 +1720,11 @@ ALTER TABLE ONLY "public"."migrations"
 
 
 
+ALTER TABLE ONLY "public"."offers"
+    ADD CONSTRAINT "offers_pkey" PRIMARY KEY ("id");
+
+
+
 ALTER TABLE ONLY "public"."played_setlist_songs"
     ADD CONSTRAINT "played_setlist_songs_pkey" PRIMARY KEY ("id");
 
@@ -1503,6 +1732,16 @@ ALTER TABLE ONLY "public"."played_setlist_songs"
 
 ALTER TABLE ONLY "public"."played_setlist_songs"
     ADD CONSTRAINT "played_setlist_songs_setlist_id_position_key" UNIQUE ("setlist_id", "position");
+
+
+
+ALTER TABLE ONLY "public"."promo_codes"
+    ADD CONSTRAINT "promo_codes_code_key" UNIQUE ("code");
+
+
+
+ALTER TABLE ONLY "public"."promo_codes"
+    ADD CONSTRAINT "promo_codes_pkey" PRIMARY KEY ("id");
 
 
 
@@ -1546,16 +1785,6 @@ ALTER TABLE ONLY "public"."setlists"
 
 
 
-ALTER TABLE ONLY "public"."setlists"
-    ADD CONSTRAINT "setlists_setlist_id_key" UNIQUE ("setlist_id");
-
-
-
-ALTER TABLE ONLY "public"."shows"
-    ADD CONSTRAINT "shows_external_id_key" UNIQUE ("external_id");
-
-
-
 ALTER TABLE ONLY "public"."shows"
     ADD CONSTRAINT "shows_pkey" PRIMARY KEY ("id");
 
@@ -1582,7 +1811,12 @@ ALTER TABLE ONLY "public"."sync_logs"
 
 
 ALTER TABLE ONLY "public"."sync_states"
-    ADD CONSTRAINT "sync_states_pkey" PRIMARY KEY ("entity_id", "entity_type");
+    ADD CONSTRAINT "sync_states_entity_unique" UNIQUE ("entity_type", "entity_id");
+
+
+
+ALTER TABLE ONLY "public"."sync_states"
+    ADD CONSTRAINT "sync_states_pkey" PRIMARY KEY ("id");
 
 
 
@@ -1637,11 +1871,6 @@ ALTER TABLE ONLY "public"."user_votes"
 
 
 ALTER TABLE ONLY "public"."venues"
-    ADD CONSTRAINT "venues_external_id_unique" UNIQUE ("external_id");
-
-
-
-ALTER TABLE ONLY "public"."venues"
     ADD CONSTRAINT "venues_pkey" PRIMARY KEY ("id");
 
 
@@ -1657,10 +1886,6 @@ ALTER TABLE ONLY "public"."votes"
 
 
 CREATE INDEX "idx_api_cache_lookup" ON "public"."api_cache" USING "btree" ("provider", "entity_type", "entity_id");
-
-
-
-CREATE INDEX "idx_artists_external_id" ON "public"."artists" USING "btree" ("external_id");
 
 
 
@@ -1728,7 +1953,7 @@ CREATE INDEX "idx_shows_artist_id" ON "public"."shows" USING "btree" ("artist_id
 
 
 
-CREATE INDEX "idx_shows_external_id" ON "public"."shows" USING "btree" ("external_id");
+CREATE INDEX "idx_shows_date" ON "public"."shows" USING "btree" ("date");
 
 
 
@@ -1736,19 +1961,31 @@ CREATE INDEX "idx_shows_ticketmaster_id" ON "public"."shows" USING "btree" ("tic
 
 
 
+CREATE INDEX "idx_shows_venue_id" ON "public"."shows" USING "btree" ("venue_id") WHERE ("venue_id" IS NOT NULL);
+
+
+
 CREATE INDEX "idx_songs_spotify_id" ON "public"."songs" USING "btree" ("spotify_id");
 
 
 
-CREATE INDEX "idx_sync_logs_lookup" ON "public"."sync_logs" USING "btree" ("entity_type", "entity_id", "provider");
+CREATE INDEX "idx_sync_logs_entity" ON "public"."sync_logs" USING "btree" ("entity_type", "entity_id");
 
 
 
-CREATE INDEX "idx_sync_logs_status" ON "public"."sync_logs" USING "btree" ("status", "created_at");
+CREATE INDEX "idx_sync_logs_status" ON "public"."sync_logs" USING "btree" ("status");
 
 
 
-CREATE INDEX "idx_sync_states_entity" ON "public"."sync_states" USING "btree" ("entity_id", "entity_type");
+CREATE INDEX "idx_sync_states_entity" ON "public"."sync_states" USING "btree" ("entity_type", "entity_id");
+
+
+
+CREATE INDEX "idx_sync_states_next_sync" ON "public"."sync_states" USING "btree" ("next_sync_at") WHERE ("next_sync_at" IS NOT NULL);
+
+
+
+CREATE INDEX "idx_sync_states_status" ON "public"."sync_states" USING "btree" ("status");
 
 
 
@@ -1808,10 +2045,6 @@ CREATE INDEX "idx_user_votes_user_id" ON "public"."user_votes" USING "btree" ("u
 
 
 
-CREATE INDEX "idx_venues_external_id" ON "public"."venues" USING "btree" ("external_id");
-
-
-
 CREATE INDEX "idx_venues_ticketmaster_id" ON "public"."venues" USING "btree" ("ticketmaster_id");
 
 
@@ -1868,7 +2101,15 @@ CREATE OR REPLACE TRIGGER "set_updated_at" BEFORE UPDATE ON "public"."votes" FOR
 
 
 
+CREATE OR REPLACE TRIGGER "shows_updated_at" BEFORE UPDATE ON "public"."shows" FOR EACH ROW EXECUTE FUNCTION "public"."update_shows_updated_at"();
+
+
+
 CREATE OR REPLACE TRIGGER "shows_updated_at_trigger" BEFORE UPDATE ON "public"."shows" FOR EACH ROW EXECUTE FUNCTION "public"."update_updated_at"();
+
+
+
+CREATE OR REPLACE TRIGGER "sync_states_updated_at" BEFORE UPDATE ON "public"."sync_states" FOR EACH ROW EXECUTE FUNCTION "public"."update_sync_states_updated_at"();
 
 
 
@@ -1907,6 +2148,11 @@ ALTER TABLE ONLY "public"."admins"
 
 ALTER TABLE ONLY "public"."audit_logs"
     ADD CONSTRAINT "audit_logs_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "auth"."users"("id");
+
+
+
+ALTER TABLE ONLY "public"."offers"
+    ADD CONSTRAINT "offers_buyer_id_fkey" FOREIGN KEY ("buyer_id") REFERENCES "auth"."users"("id");
 
 
 
@@ -2278,6 +2524,26 @@ CREATE POLICY "api_cache_select" ON "public"."api_cache" FOR SELECT TO "authenti
 ALTER TABLE "public"."artists" ENABLE ROW LEVEL SECURITY;
 
 
+CREATE POLICY "enable_read_access_for_all" ON "public"."shows" FOR SELECT USING (true);
+
+
+
+CREATE POLICY "enable_read_access_for_all" ON "public"."sync_logs" FOR SELECT USING (true);
+
+
+
+CREATE POLICY "enable_read_access_for_all" ON "public"."sync_states" FOR SELECT USING (true);
+
+
+
+CREATE POLICY "enable_read_access_for_all" ON "public"."sync_tasks" FOR SELECT USING (true);
+
+
+
+CREATE POLICY "enable_read_access_for_all" ON "public"."venues" FOR SELECT USING (true);
+
+
+
 ALTER TABLE "public"."error_logs" ENABLE ROW LEVEL SECURITY;
 
 
@@ -2304,6 +2570,12 @@ ALTER TABLE "public"."setlists" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "public"."shows" ENABLE ROW LEVEL SECURITY;
 
 
+ALTER TABLE "public"."sync_logs" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "public"."sync_states" ENABLE ROW LEVEL SECURITY;
+
+
 ALTER TABLE "public"."sync_tasks" ENABLE ROW LEVEL SECURITY;
 
 
@@ -2322,10 +2594,223 @@ ALTER TABLE "public"."venues" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "public"."votes" ENABLE ROW LEVEL SECURITY;
 
 
+
+
+ALTER PUBLICATION "supabase_realtime" OWNER TO "postgres";
+
+
+
+
+
+
+
+
+
 REVOKE USAGE ON SCHEMA "public" FROM PUBLIC;
 GRANT ALL ON SCHEMA "public" TO "service_role";
 GRANT USAGE ON SCHEMA "public" TO "anon";
 GRANT USAGE ON SCHEMA "public" TO "authenticated";
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -2352,6 +2837,27 @@ GRANT ALL ON TABLE "public"."songs" TO "anon";
 GRANT ALL ON TABLE "public"."sync_tasks" TO "anon";
 GRANT ALL ON TABLE "public"."sync_tasks" TO "authenticated";
 GRANT ALL ON TABLE "public"."sync_tasks" TO "service_role";
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -2390,9 +2896,21 @@ GRANT USAGE ON SEQUENCE "public"."migrations_id_seq" TO "authenticated";
 
 
 
+GRANT ALL ON TABLE "public"."offers" TO "anon";
+GRANT ALL ON TABLE "public"."offers" TO "authenticated";
+GRANT ALL ON TABLE "public"."offers" TO "service_role";
+
+
+
 GRANT ALL ON TABLE "public"."played_setlist_songs" TO "anon";
 GRANT ALL ON TABLE "public"."played_setlist_songs" TO "authenticated";
 GRANT ALL ON TABLE "public"."played_setlist_songs" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."promo_codes" TO "anon";
+GRANT ALL ON TABLE "public"."promo_codes" TO "authenticated";
+GRANT ALL ON TABLE "public"."promo_codes" TO "service_role";
 
 
 
@@ -2429,6 +2947,12 @@ GRANT ALL ON TABLE "public"."shows" TO "authenticated";
 GRANT ALL ON TABLE "public"."sync_logs" TO "anon";
 GRANT ALL ON TABLE "public"."sync_logs" TO "authenticated";
 GRANT ALL ON TABLE "public"."sync_logs" TO "service_role";
+
+
+
+GRANT ALL ON SEQUENCE "public"."sync_logs_id_seq" TO "anon";
+GRANT ALL ON SEQUENCE "public"."sync_logs_id_seq" TO "authenticated";
+GRANT ALL ON SEQUENCE "public"."sync_logs_id_seq" TO "service_role";
 
 
 
@@ -2496,25 +3020,28 @@ ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON TAB
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 RESET ALL;
-
--- Drop external_id constraints and indexes
-DROP INDEX IF EXISTS idx_artists_external_id;
-DROP INDEX IF EXISTS idx_shows_external_id;
-DROP INDEX IF EXISTS idx_venues_external_id;
-ALTER TABLE IF EXISTS public.shows DROP CONSTRAINT IF EXISTS shows_external_id_key;
-ALTER TABLE IF EXISTS public.venues DROP CONSTRAINT IF EXISTS venues_external_id_unique;
-
--- Drop external_id columns
-ALTER TABLE IF EXISTS public.shows DROP COLUMN IF EXISTS external_id;
-ALTER TABLE IF EXISTS public.venues DROP COLUMN IF EXISTS external_id;
-ALTER TABLE IF EXISTS public.artists DROP COLUMN IF EXISTS external_id;
-
--- Add ticketmaster_id constraints and indexes
-ALTER TABLE IF EXISTS public.shows ADD CONSTRAINT shows_ticketmaster_id_key UNIQUE (ticketmaster_id);
-ALTER TABLE IF EXISTS public.venues ADD CONSTRAINT venues_ticketmaster_id_unique UNIQUE (ticketmaster_id);
-ALTER TABLE IF EXISTS public.artists ADD CONSTRAINT artists_ticketmaster_id_unique UNIQUE (ticketmaster_id);
-
-CREATE INDEX IF NOT EXISTS idx_artists_ticketmaster_id ON public.artists (ticketmaster_id);
-CREATE INDEX IF NOT EXISTS idx_shows_ticketmaster_id ON public.shows (ticketmaster_id);
-CREATE INDEX IF NOT EXISTS idx_venues_ticketmaster_id ON public.venues (ticketmaster_id);

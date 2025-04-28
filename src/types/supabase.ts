@@ -498,7 +498,7 @@ export type Database = {
           attempts?: number | null
           created_at?: string | null
           entity_type?: string
-          external_id?: string | null
+          ticketmaster_id?: string | null
           id?: number
           max_attempts?: number | null
           priority?: number | null
@@ -514,7 +514,7 @@ export type Database = {
         Row: {
           entity_id: string
           entity_type: string
-          external_id: string | null
+          ticketmaster_id: string | null
           last_synced: string | null
           service_id: string | null
           service_name: string | null
@@ -753,7 +753,7 @@ export type Database = {
         Args:
           | {
               entity_type: string
-              external_id: string
+              ticketmaster_id: string
               reference_data?: Json
               priority?: number
               max_attempts?: number

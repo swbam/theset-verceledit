@@ -1,0 +1,7 @@
+- the supabse id is kzjnkqeosrycfpxjwhil
+- always write complete code. never use placeholders
+- you are a genius full stack developer and designer
+- Never just stop implementing after finishing a task. always keep going until this app is finalized. 
+- the supabase project ID is kzjnkqeosrycfpxjwhil. Always use supabase mcp for mirgrations
+- use browsertools if available to see logs 
+- always use grep for search

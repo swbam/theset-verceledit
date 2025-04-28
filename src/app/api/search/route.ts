@@ -64,7 +64,7 @@ export async function GET(request: Request) {
         name: attraction.name,
         image_url: attraction.images?.find((img: any) => img.ratio === "16_9" && img.width > 500)?.url,
         url: attraction.url,
-        external_id: attraction.id,
+        ticketmaster_id: attraction.id,
         exists_in_db: false,
         db_id: null
       }));

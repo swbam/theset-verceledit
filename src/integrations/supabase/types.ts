@@ -57,7 +57,6 @@ export type Database = {
       artists: {
         Row: {
           created_at: string | null
-          external_id: string | null
           followers: number | null
           genres: string[] | null
           id: string
@@ -70,13 +69,11 @@ export type Database = {
           spotify_url: string | null
           stored_tracks: Json | null
           ticketmaster_id: string | null
-          tm_id: string | null
           updated_at: string | null
           url: string | null
         }
         Insert: {
           created_at?: string | null
-          external_id?: string | null
           followers?: number | null
           genres?: string[] | null
           id?: string
@@ -89,13 +86,11 @@ export type Database = {
           spotify_url?: string | null
           stored_tracks?: Json | null
           ticketmaster_id?: string | null
-          tm_id?: string | null
           updated_at?: string | null
           url?: string | null
         }
         Update: {
           created_at?: string | null
-          external_id?: string | null
           followers?: number | null
           genres?: string[] | null
           id?: string
@@ -108,7 +103,6 @@ export type Database = {
           spotify_url?: string | null
           stored_tracks?: Json | null
           ticketmaster_id?: string | null
-          tm_id?: string | null
           updated_at?: string | null
           url?: string | null
         }
@@ -189,6 +183,39 @@ export type Database = {
         }
         Relationships: []
       }
+      offers: {
+        Row: {
+          amount: number
+          buyer_id: string
+          created_at: string | null
+          expires_at: string
+          id: string
+          listing_id: string
+          status: string
+          updated_at: string | null
+        }
+        Insert: {
+          amount: number
+          buyer_id: string
+          created_at?: string | null
+          expires_at: string
+          id?: string
+          listing_id: string
+          status?: string
+          updated_at?: string | null
+        }
+        Update: {
+          amount?: number
+          buyer_id?: string
+          created_at?: string | null
+          expires_at?: string
+          id?: string
+          listing_id?: string
+          status?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       played_setlist_songs: {
         Row: {
           created_at: string | null
@@ -233,6 +260,45 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      promo_codes: {
+        Row: {
+          code: string
+          created_at: string | null
+          current_uses: number | null
+          discount_amount: number | null
+          discount_percentage: number | null
+          id: string
+          max_uses: number | null
+          updated_at: string | null
+          valid_from: string | null
+          valid_until: string | null
+        }
+        Insert: {
+          code: string
+          created_at?: string | null
+          current_uses?: number | null
+          discount_amount?: number | null
+          discount_percentage?: number | null
+          id?: string
+          max_uses?: number | null
+          updated_at?: string | null
+          valid_from?: string | null
+          valid_until?: string | null
+        }
+        Update: {
+          code?: string
+          created_at?: string | null
+          current_uses?: number | null
+          discount_amount?: number | null
+          discount_percentage?: number | null
+          id?: string
+          max_uses?: number | null
+          updated_at?: string | null
+          valid_from?: string | null
+          valid_until?: string | null
+        }
+        Relationships: []
       }
       rate_limits: {
         Row: {
@@ -315,10 +381,10 @@ export type Database = {
           is_encore: boolean | null
           last_updated: string | null
           name: string | null
+          played: boolean | null
           position: number
           setlist_id: string
           song_id: string
-          track_id: string | null
           updated_at: string
           vote_count: number | null
           votes: number | null
@@ -330,10 +396,10 @@ export type Database = {
           is_encore?: boolean | null
           last_updated?: string | null
           name?: string | null
+          played?: boolean | null
           position: number
           setlist_id: string
           song_id: string
-          track_id?: string | null
           updated_at?: string
           vote_count?: number | null
           votes?: number | null
@@ -345,10 +411,10 @@ export type Database = {
           is_encore?: boolean | null
           last_updated?: string | null
           name?: string | null
+          played?: boolean | null
           position?: number
           setlist_id?: string
           song_id?: string
-          track_id?: string | null
           updated_at?: string
           vote_count?: number | null
           votes?: number | null
@@ -384,9 +450,9 @@ export type Database = {
           date: string | null
           id: string
           setlist_fm_id: string | null
-          setlist_id: string | null
           show_id: string | null
           songs: Json | null
+          status: string | null
           tour_name: string | null
           updated_at: string | null
           venue_id: string | null
@@ -397,9 +463,9 @@ export type Database = {
           date?: string | null
           id?: string
           setlist_fm_id?: string | null
-          setlist_id?: string | null
           show_id?: string | null
           songs?: Json | null
+          status?: string | null
           tour_name?: string | null
           updated_at?: string | null
           venue_id?: string | null
@@ -410,9 +476,9 @@ export type Database = {
           date?: string | null
           id?: string
           setlist_fm_id?: string | null
-          setlist_id?: string | null
           show_id?: string | null
           songs?: Json | null
+          status?: string | null
           tour_name?: string | null
           updated_at?: string | null
           venue_id?: string | null
@@ -446,15 +512,19 @@ export type Database = {
           artist_id: string | null
           created_at: string | null
           date: string | null
-          external_id: string | null
+          description: string | null
+          duration_minutes: number | null
           id: string
           image_url: string | null
           last_updated: string | null
+          max_price: number | null
+          min_price: number | null
           name: string
           popularity: number | null
           status: string | null
           ticket_url: string | null
           ticketmaster_id: string | null
+          total_votes: number | null
           updated_at: string | null
           url: string | null
           venue_id: string | null
@@ -463,15 +533,19 @@ export type Database = {
           artist_id?: string | null
           created_at?: string | null
           date?: string | null
-          external_id?: string | null
+          description?: string | null
+          duration_minutes?: number | null
           id?: string
           image_url?: string | null
           last_updated?: string | null
+          max_price?: number | null
+          min_price?: number | null
           name: string
           popularity?: number | null
           status?: string | null
           ticket_url?: string | null
           ticketmaster_id?: string | null
+          total_votes?: number | null
           updated_at?: string | null
           url?: string | null
           venue_id?: string | null
@@ -480,15 +554,19 @@ export type Database = {
           artist_id?: string | null
           created_at?: string | null
           date?: string | null
-          external_id?: string | null
+          description?: string | null
+          duration_minutes?: number | null
           id?: string
           image_url?: string | null
           last_updated?: string | null
+          max_price?: number | null
+          min_price?: number | null
           name?: string
           popularity?: number | null
           status?: string | null
           ticket_url?: string | null
           ticketmaster_id?: string | null
+          total_votes?: number | null
           updated_at?: string | null
           url?: string | null
           venue_id?: string | null
@@ -521,6 +599,7 @@ export type Database = {
           name: string
           popularity: number | null
           preview_url: string | null
+          setlist_fm_id: string | null
           spotify_id: string | null
           updated_at: string | null
           vote_count: number | null
@@ -535,6 +614,7 @@ export type Database = {
           name: string
           popularity?: number | null
           preview_url?: string | null
+          setlist_fm_id?: string | null
           spotify_id?: string | null
           updated_at?: string | null
           vote_count?: number | null
@@ -549,6 +629,7 @@ export type Database = {
           name?: string
           popularity?: number | null
           preview_url?: string | null
+          setlist_fm_id?: string | null
           spotify_id?: string | null
           updated_at?: string | null
           vote_count?: number | null
@@ -565,72 +646,72 @@ export type Database = {
       }
       sync_logs: {
         Row: {
-          completed_at: string | null
           created_at: string | null
-          entity_id: string
+          entity_id: string | null
           entity_type: string
-          error: string | null
-          id: string
-          metadata: Json | null
-          provider: string
+          error_message: string | null
+          external_service: string | null
+          id: number
           status: string
+          updated_at: string | null
         }
         Insert: {
-          completed_at?: string | null
           created_at?: string | null
-          entity_id: string
+          entity_id?: string | null
           entity_type: string
-          error?: string | null
-          id?: string
-          metadata?: Json | null
-          provider: string
-          status: string
+          error_message?: string | null
+          external_service?: string | null
+          id?: number
+          status?: string
+          updated_at?: string | null
         }
         Update: {
-          completed_at?: string | null
           created_at?: string | null
-          entity_id?: string
+          entity_id?: string | null
           entity_type?: string
-          error?: string | null
-          id?: string
-          metadata?: Json | null
-          provider?: string
+          error_message?: string | null
+          external_service?: string | null
+          id?: number
           status?: string
+          updated_at?: string | null
         }
         Relationships: []
       }
       sync_states: {
         Row: {
           created_at: string | null
-          entity_id: string
+          entity_id: string | null
           entity_type: string
-          external_id: string | null
-          last_synced: string | null
-          service_id: string | null
-          service_name: string | null
-          sync_version: number | null
+          error_message: string | null
+          id: string
+          last_sync_at: string | null
+          metadata: Json | null
+          next_sync_at: string | null
+          status: string | null
           updated_at: string | null
         }
         Insert: {
           created_at?: string | null
-          entity_id: string
+          entity_id?: string | null
           entity_type: string
-          external_id?: string | null
-          last_synced?: string | null
-          service_id?: string | null
-          service_name?: string | null
-          sync_version?: number | null
+          error_message?: string | null
+          id?: string
+          last_sync_at?: string | null
+          metadata?: Json | null
+          next_sync_at?: string | null
+          status?: string | null
           updated_at?: string | null
         }
         Update: {
           created_at?: string | null
-          entity_id?: string
+          entity_id?: string | null
           entity_type?: string
-          external_id?: string | null
-          last_synced?: string | null
-          service_id?: string | null
-          service_name?: string | null
-          sync_version?: number | null
+          error_message?: string | null
+          id?: string
+          last_sync_at?: string | null
+          metadata?: Json | null
+          next_sync_at?: string | null
+          status?: string | null
           updated_at?: string | null
         }
         Relationships: []
@@ -868,15 +949,15 @@ export type Database = {
           city: string | null
           country: string | null
           created_at: string | null
-          external_id: string | null
           id: string
           image_url: string | null
-          latitude: string | null
-          longitude: string | null
+          latitude: number | null
+          longitude: number | null
           name: string
           postal_code: string | null
           state: string | null
           ticketmaster_id: string | null
+          timezone: string | null
           updated_at: string | null
           url: string | null
         }
@@ -885,15 +966,15 @@ export type Database = {
           city?: string | null
           country?: string | null
           created_at?: string | null
-          external_id?: string | null
           id?: string
           image_url?: string | null
-          latitude?: string | null
-          longitude?: string | null
+          latitude?: number | null
+          longitude?: number | null
           name: string
           postal_code?: string | null
           state?: string | null
           ticketmaster_id?: string | null
+          timezone?: string | null
           updated_at?: string | null
           url?: string | null
         }
@@ -902,15 +983,15 @@ export type Database = {
           city?: string | null
           country?: string | null
           created_at?: string | null
-          external_id?: string | null
           id?: string
           image_url?: string | null
-          latitude?: string | null
-          longitude?: string | null
+          latitude?: number | null
+          longitude?: number | null
           name?: string
           postal_code?: string | null
           state?: string | null
           ticketmaster_id?: string | null
+          timezone?: string | null
           updated_at?: string | null
           url?: string | null
         }
@@ -976,6 +1057,10 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: undefined
       }
+      cleanup_sync_data: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
       commit_transaction: {
         Args: Record<PropertyKey, never>
         Returns: undefined
@@ -1035,6 +1120,7 @@ export type Database = {
           name: string
           popularity: number | null
           preview_url: string | null
+          setlist_fm_id: string | null
           spotify_id: string | null
           updated_at: string | null
           vote_count: number | null
@@ -1135,6 +1221,10 @@ export type Database = {
       show_trgm: {
         Args: { "": string }
         Returns: string[]
+      }
+      sync_pending_entities: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
       }
       sync_upcoming_shows: {
         Args: Record<PropertyKey, never>

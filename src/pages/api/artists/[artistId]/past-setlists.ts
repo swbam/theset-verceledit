@@ -25,7 +25,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         venue_id,
         artist_id,
         show_id,
-        external_id,
+        ticketmaster_id: external_id,
         created_at,
         updated_at,
         shows(id, name, date, venue_id, venues(id, name, city, state, country)),
