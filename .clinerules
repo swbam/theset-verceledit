@@ -5,3 +5,4 @@
 - the supabase project ID is kzjnkqeosrycfpxjwhil. Always use supabase mcp for mirgrations
 - use browsertools if available to see logs 
 - always use grep for search
+- do not reply to yourself and always keep replies to a minimum so you can focus on the acutal code creation
