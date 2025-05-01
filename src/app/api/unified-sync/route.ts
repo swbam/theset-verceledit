@@ -1,33 +1,63 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { clientConfig, serverConfig, validateServerConfig } from '@/integrations/config'; // Use the refactored config
+import { clientConfig, serverConfig, validateServerConfig } from '@/integrations/config';
+import { headers } from 'next/headers';
 
 // Validate server config on module load
 validateServerConfig();
 
 // Initialize Supabase client with service role for server-side operations
 const supabase = createClient(
-  clientConfig.supabase.url, // Public URL is fine here
-  serverConfig.supabase.serviceKey // Use the service key for admin operations
+  clientConfig.supabase.url,
+  serverConfig.supabase.serviceKey
 );
+
+// Add CORS headers
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+};
 
 /**
  * Unified API endpoint for syncing data between Spotify, Ticketmaster, and Setlist.fm
  */
 export async function POST(request: NextRequest) {
   try {
+    // Handle OPTIONS request for CORS preflight
+    if (request.method === 'OPTIONS') {
+      return new NextResponse(null, {
+        headers: corsHeaders
+      });
+    }
+
+    // Check authorization header
+    const authHeader = headers().get('authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return NextResponse.json(
+        { error: 'Unauthorized - Missing or invalid authorization token' },
+        { 
+          status: 401,
+          headers: corsHeaders 
+        }
+      );
+    }
+
     const { entityType, entityId, options = {} } = await request.json();
     
     // Validate request body structure
-if (!request.body) {
-  return NextResponse.json(
-    { 
-      error: 'Invalid request format',
-      details: 'Request body must be JSON with entityType and entityId'
-    },
-    { status: 400 }
-  );
-}
+    if (!request.body) {
+      return NextResponse.json(
+        { 
+          error: 'Invalid request format',
+          details: 'Request body must be JSON with entityType and entityId'
+        },
+        { 
+          status: 400,
+          headers: corsHeaders 
+        }
+      );
+    }
 
 // Validate required parameters
 const requiredParams = [
@@ -126,6 +156,8 @@ if (!/^[a-zA-Z0-9-_]+$/.test(entityId)) {
         success: true,
         entity: { type: entityType, id: entityId },
         result: syncResult,
+      }, {
+        headers: corsHeaders
       });
       
     } catch (error) {
@@ -145,7 +177,10 @@ if (!/^[a-zA-Z0-9-_]+$/.test(entityId)) {
         { 
           error: `Failed to sync ${entityType}: ${error instanceof Error ? error.message : 'Unknown error'}` 
         },
-        { status: 500 }
+        { 
+          status: 500,
+          headers: corsHeaders
+        }
       );
     }
     
@@ -171,6 +206,11 @@ async function syncArtist(artistId: string) {
 
   if (error) throw new Error(`Artist not found: ${error.message}`);
 
+  // Validate Ticketmaster API key
+  if (!process.env.TICKETMASTER_API_KEY) {
+    throw new Error('Ticketmaster API key is not configured');
+  }
+
   // Determine base URL for internal API calls
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_URL || 'http://localhost:3000';
 
@@ -190,9 +230,9 @@ async function syncArtist(artistId: string) {
     // Sync artist's top tracks
     const tracksResponse = await fetch(
       `${appUrl}/api/spotify/artist-top-tracks?id=${artist.spotify_id}`, {
-        // headers: {
-        //   'Authorization': `Bearer ${serverConfig.spotify.clientSecret}` // Use serverConfig
-        // }
+        headers: {
+          'Authorization': `Bearer ${serverConfig.spotify.clientSecret}`
+        }
       }
     );
     const tracksData = await tracksResponse.json();
