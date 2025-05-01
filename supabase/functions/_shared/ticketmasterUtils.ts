@@ -18,10 +18,11 @@ function mapTicketmasterEventToShow(event: TicketmasterEvent): Show {
       
       const spotifyId = (attraction as any).externalLinks?.spotify?.[0]?.url?.split('/').pop();
       artist = {
-        name: attraction.name,
-        ticketmaster_id: attraction.id,
-        image_url: sortedImages[0]?.url || undefined,
-        spotify_id: spotifyId || undefined,
+        id: crypto.randomUUID(),
+        name: attraction.name || 'Unknown Artist',
+        ticketmaster_id: attraction.id || crypto.randomUUID(),
+        image_url: sortedImages[0]?.url,
+        spotify_id: spotifyId,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       };
@@ -35,15 +36,14 @@ function mapTicketmasterEventToShow(event: TicketmasterEvent): Show {
     if (event._embedded?.venues && event._embedded.venues.length > 0) {
       const venueData = event._embedded.venues[0];
       venue = {
-        id: venueData.id,
-        ticketmaster_id: venueData.id,
+        id: venueData.id || crypto.randomUUID(),
+        ticketmaster_id: venueData.id || crypto.randomUUID(),
         name: venueData.name || 'Unknown Venue',
         city: venueData.city?.name,
         state: venueData.state?.name,
         country: venueData.country?.name,
         address: venueData.address?.line1,
         postal_code: venueData.postalCode,
-        // Parse latitude/longitude strings to numbers
         latitude: venueData.location?.latitude ? parseFloat(venueData.location.latitude) : undefined,
         longitude: venueData.location?.longitude ? parseFloat(venueData.location.longitude) : undefined,
         image_url: venueData.images?.[0]?.url,
@@ -53,25 +53,22 @@ function mapTicketmasterEventToShow(event: TicketmasterEvent): Show {
       };
     }
 
-    // Generate temporary UUIDs
     const showId = crypto.randomUUID();
-    const artistId = artist ? crypto.randomUUID() : showId;
-    const venueId = venue ? crypto.randomUUID() : showId;
+    const artistId = artist?.id || crypto.randomUUID();
+    const venueId = venue?.id || crypto.randomUUID();
     
     return {
       id: showId,
-      name: event.name,
-      ticketmaster_id: event.id,
+      name: event.name || 'Unnamed Event',
+      ticketmaster_id: event.id || showId,
       date: event.dates?.start?.dateTime || new Date().toISOString(),
       status: event.dates?.status?.code,
       url: event.url,
       image_url: imageUrl,
       ticket_url: event.url,
       popularity: 0,
-      // Pass artist/venue objects for database saving
       artist: artist ? { ...artist, id: artistId } : undefined,
       venue: venue ? { ...venue, id: venueId } : undefined,
-      // Use temporary IDs that will be replaced after saving artist/venue
       artist_id: artistId,
       venue_id: venueId,
       created_at: new Date().toISOString(),
@@ -85,25 +82,24 @@ function mapTicketmasterEventToShow(event: TicketmasterEvent): Show {
  * Fetch upcoming events for an artist by their Ticketmaster ID
  */
 export async function fetchArtistEvents(artistTmId: string): Promise<Show[]> {
+  if (!artistTmId) {
+    console.warn("[EF fetchArtistEvents] No artist Ticketmaster ID provided.");
+    return [];
+  }
+
+  const apiKey = Deno.env.get('TICKETMASTER_API_KEY');
+  if (!apiKey) {
+    console.error("[EF fetchArtistEvents] TICKETMASTER_API_KEY not configured in Edge Function environment variables.");
+    throw new Error("Server configuration error: Missing Ticketmaster API Key.");
+  }
+
   try {
-    if (!artistTmId) {
-      console.warn("[EF fetchArtistEvents] No artist Ticketmaster ID provided.");
-      return [];
-    }
-
-    // Use Deno.env for server-side API key access in Edge Functions
-    const apiKey = Deno.env.get('TICKETMASTER_API_KEY');
-    if (!apiKey) {
-      console.error("[EF fetchArtistEvents] TICKETMASTER_API_KEY not configured in Edge Function environment variables.");
-      throw new Error("Server configuration error: Missing Ticketmaster API Key.");
-    }
-
     const response = await retryableFetch(async () => {
       const url = `https://app.ticketmaster.com/discovery/v2/events.json?apikey=${apiKey}&attractionId=${artistTmId}&size=50&sort=date,asc&includeTBA=yes&includeTBD=yes`;
       console.log(`[EF fetchArtistEvents] Requesting URL: ${url}`);
 
       const result = await fetch(url, {
-        headers: { 
+        headers: {
           'Accept': 'application/json',
           'Cache-Control': 'no-cache'
         }
@@ -113,14 +109,12 @@ export async function fetchArtistEvents(artistTmId: string): Promise<Show[]> {
         const errorBody = await result.text();
         console.error(`[EF fetchArtistEvents] Ticketmaster API error response: ${errorBody}`);
         
-        // Handle rate limiting
         if (result.status === 429) {
           console.log('[EF fetchArtistEvents] Rate limited, waiting before retry...');
-          await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
+          await new Promise(resolve => setTimeout(resolve, 1000));
           throw new Error('Rate limited');
         }
         
-        // Handle other common errors
         if (result.status === 404) {
           console.log(`[EF fetchArtistEvents] No events found for artist TM ID: ${artistTmId}`);
           return { _embedded: { events: [] } };
@@ -131,18 +125,20 @@ export async function fetchArtistEvents(artistTmId: string): Promise<Show[]> {
 
       const data = await result.json();
       
-      // Validate response structure
       if (!data || typeof data !== 'object') {
         throw new Error('Invalid response format from Ticketmaster API');
       }
 
       return data;
-    }, { 
+    }, {
       retries: 5,
-      delay: 1000 // 1 second delay between retries
+      delay: 1000,
+      onRetry: (error: Error, attempt: number) => {
+        console.log(`[EF fetchArtistEvents] Retry attempt ${attempt} due to error:`, error);
+      }
     });
 
-    console.log('[EF fetchArtistEvents] Raw API Response:', JSON.stringify(response, null, 2)); // Enable debugging
+    console.log('[EF fetchArtistEvents] Raw API Response:', JSON.stringify(response, null, 2));
 
     if (!response._embedded?.events) {
       console.log(`[EF fetchArtistEvents] No _embedded.events found for artist TM ID: ${artistTmId}`);
@@ -155,9 +151,14 @@ export async function fetchArtistEvents(artistTmId: string): Promise<Show[]> {
 
   } catch (error) {
     console.error(`[EF fetchArtistEvents] Error fetching events for artist TM ID ${artistTmId}:`, error);
-    // Re-throw or return empty array depending on desired handling
-    // Throwing makes the calling function aware of the failure.
-    throw error;
+    if (error instanceof Error) {
+      console.error('Error details:', {
+        name: error.name,
+        message: error.message,
+        stack: error.stack
+      });
+    }
+    throw new Error(`Failed to fetch artist events: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
 
@@ -166,20 +167,19 @@ export async function fetchArtistEvents(artistTmId: string): Promise<Show[]> {
  * Returns the first match or null.
  */
 export async function searchTicketmasterArtistByName(artistName: string): Promise<{ id: string; name: string; url?: string } | null> {
+  if (!artistName) {
+    console.warn("[EF searchTmArtist] No artist name provided.");
+    return null;
+  }
+
+  const apiKey = Deno.env.get('TICKETMASTER_API_KEY');
+  if (!apiKey) {
+    console.error("[EF searchTmArtist] TICKETMASTER_API_KEY not configured.");
+    throw new Error("Server configuration error: Missing Ticketmaster API Key.");
+  }
+
   try {
-    if (!artistName) {
-      console.warn("[EF searchTmArtist] No artist name provided.");
-      return null;
-    }
-
-    const apiKey = Deno.env.get('TICKETMASTER_API_KEY');
-    if (!apiKey) {
-      console.error("[EF searchTmArtist] TICKETMASTER_API_KEY not configured.");
-      throw new Error("Server configuration error: Missing Ticketmaster API Key.");
-    }
-
     const response = await retryableFetch(async () => {
-      // Use keyword search for attractions
       const url = `https://app.ticketmaster.com/discovery/v2/attractions.json?apikey=${apiKey}&keyword=${encodeURIComponent(artistName)}&classificationName=music&size=1`;
       console.log(`[EF searchTmArtist] Requesting URL: ${url}`);
 
@@ -188,12 +188,25 @@ export async function searchTicketmasterArtistByName(artistName: string): Promis
       });
 
       if (!result.ok) {
-         const errorBody = await result.text();
-         console.error(`[EF searchTmArtist] Ticketmaster API error response: ${errorBody}`);
-         throw new Error(`Ticketmaster API error: ${result.status} ${result.statusText}`);
+        const errorBody = await result.text();
+        console.error(`[EF searchTmArtist] Ticketmaster API error response: ${errorBody}`);
+        if (result.status === 429) {
+          throw new Error('Rate limited');
+        }
+        throw new Error(`Ticketmaster API error: ${result.status} ${result.statusText}`);
       }
-      return result.json();
-    }, { retries: 2 }); // Fewer retries for search
+      const data = await result.json();
+      if (!data || typeof data !== 'object') {
+        throw new Error('Invalid response format from Ticketmaster API');
+      }
+      return data;
+    }, {
+      retries: 3,
+      delay: 1000,
+      onRetry: (error: Error, attempt: number) => {
+        console.log(`[EF searchTmArtist] Retry attempt ${attempt} due to error:`, error);
+      }
+    });
 
     if (!response._embedded?.attractions || response._embedded.attractions.length === 0) {
       console.log(`[EF searchTmArtist] No attractions found for name: ${artistName}`);
@@ -210,28 +223,30 @@ export async function searchTicketmasterArtistByName(artistName: string): Promis
 
   } catch (error) {
     console.error(`[EF searchTmArtist] Error searching for artist '${artistName}':`, error);
-    // Don't re-throw for search, just return null
+    if (error instanceof Error) {
+      console.error('Error details:', {
+        name: error.name,
+        message: error.message,
+        stack: error.stack
+      });
+    }
     return null;
   }
 }
 
-
-/**
- * Fetch upcoming events for a venue by their Ticketmaster ID
- */
 export async function fetchVenueEvents(venueTmId: string): Promise<Show[]> {
+  if (!venueTmId) {
+    console.warn('[EF fetchVenueEvents] No venue Ticketmaster ID provided.');
+    return [];
+  }
+
+  const apiKey = Deno.env.get('TICKETMASTER_API_KEY');
+  if (!apiKey) {
+    console.error("[EF fetchVenueEvents] TICKETMASTER_API_KEY not configured in Edge Function environment variables.");
+    throw new Error("Server configuration error: Missing Ticketmaster API Key.");
+  }
+
   try {
-    if (!venueTmId) {
-      console.warn('[EF fetchVenueEvents] No venue Ticketmaster ID provided.');
-      return [];
-    }
-
-    const apiKey = Deno.env.get('TICKETMASTER_API_KEY');
-    if (!apiKey) {
-      console.error("[EF fetchVenueEvents] TICKETMASTER_API_KEY not configured in Edge Function environment variables.");
-      throw new Error("Server configuration error: Missing Ticketmaster API Key.");
-    }
-
     const response = await retryableFetch(async () => {
       const url = `https://app.ticketmaster.com/discovery/v2/events.json?apikey=${apiKey}&venueId=${venueTmId}&size=100&sort=date,asc`;
       console.log(`[EF fetchVenueEvents] Requesting URL: ${url}`);
@@ -246,9 +261,12 @@ export async function fetchVenueEvents(venueTmId: string): Promise<Show[]> {
         throw new Error(`Ticketmaster API error: ${result.status} ${result.statusText}`);
       }
       return result.json();
-    }, { retries: 3 });
-
-    // console.log(`[EF fetchVenueEvents] Raw API Response for venue ${venueTmId}:`, response); // Optional: for debugging
+    }, {
+      retries: 3,
+      onRetry: (error: Error, attempt: number) => {
+        console.log(`[EF fetchVenueEvents] Retry attempt ${attempt} due to error:`, error);
+      }
+    });
 
     if (!response._embedded?.events) {
       console.log(`[EF fetchVenueEvents] No upcoming events found for venue TM ID: ${venueTmId}`);
@@ -261,7 +279,14 @@ export async function fetchVenueEvents(venueTmId: string): Promise<Show[]> {
 
   } catch (error) {
     console.error(`[EF fetchVenueEvents] Error fetching events for venue TM ID ${venueTmId}:`, error);
-    throw error; // Re-throw
+    if (error instanceof Error) {
+      console.error('Error details:', {
+        name: error.name,
+        message: error.message,
+        stack: error.stack
+      });
+    }
+    throw new Error(`Failed to fetch venue events: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
 
@@ -278,8 +303,7 @@ export async function fetchTrendingShows(): Promise<Show[]> {
     }
 
     const response = await retryableFetch(async () => {
-      // Get upcoming shows, sorted by relevance (Ticketmaster's popularity algorithm)
-      const startDate = new Date().toISOString().split('T')[0]; // Just the date part
+      const startDate = new Date().toISOString().split('T')[0];
       const url = `https://app.ticketmaster.com/discovery/v2/events.json?apikey=${apiKey}&classificationName=music&size=50&sort=date,asc&startDateTime=${startDate}T00:00:00Z&countryCode=US&includeTBA=yes&includeTBD=yes&includeTest=no&includeFamily=no&includeAttractions=true&expand=attractions.id,attractions.name,attractions.images`;
       console.log(`[EF fetchTrendingShows] Requesting URL: ${url}`);
 
@@ -290,54 +314,30 @@ export async function fetchTrendingShows(): Promise<Show[]> {
       if (!result.ok) {
         const errorBody = await result.text();
         console.error(`[EF fetchTrendingShows] Ticketmaster API error response: ${errorBody}`);
+        if (result.status === 429) {
+          throw new Error('Rate limited');
+        }
         throw new Error(`Ticketmaster API error: ${result.status} ${result.statusText}`);
       }
 
       const data = await result.json();
-      console.log('[EF fetchTrendingShows] Raw API Response:', JSON.stringify(data, null, 2));
+      if (!data || typeof data !== 'object') {
+        throw new Error('Invalid response format from Ticketmaster API');
+      }
       
-      // Log the first event's attractions for debugging
-      if (data._embedded?.events?.[0]?._embedded?.attractions) {
-        console.log('[EF fetchTrendingShows] First event attractions:', 
-          JSON.stringify(data._embedded.events[0]._embedded.attractions, null, 2));
-      } else {
-        console.log('[EF fetchTrendingShows] No attractions found in first event');
-        // Add attractions parameter to URL and include embedded data
-        const startDate = new Date().toISOString().split('T')[0];
-        const url = `https://app.ticketmaster.com/discovery/v2/events.json?apikey=${apiKey}&classificationName=music&size=50&sort=date,asc&startDateTime=${startDate}T00:00:00Z&countryCode=US&includeAttractions=true&includeTBA=yes&includeTBD=yes&expand=attractions`;
-        console.log(`[EF fetchTrendingShows] Retrying with attractions: ${url}`);
-        
-        const retryResult = await fetch(url, {
-          headers: { 'Accept': 'application/json' }
-        });
-
-        if (!retryResult.ok) {
-          const errorBody = await retryResult.text();
-          console.error(`[EF fetchTrendingShows] Retry error response: ${errorBody}`);
-          throw new Error(`Ticketmaster API error: ${retryResult.status} ${retryResult.statusText}`);
-        }
-
-        const retryData = await retryResult.json();
-        console.log('[EF fetchTrendingShows] Retry API Response:', JSON.stringify(retryData, null, 2));
-        
-        // Log attractions from retry response
-        if (retryData._embedded?.events?.[0]?._embedded?.attractions) {
-          console.log('[EF fetchTrendingShows] First event attractions from retry:', 
-            JSON.stringify(retryData._embedded.events[0]._embedded.attractions, null, 2));
-        } else {
-          console.log('[EF fetchTrendingShows] Still no attractions found in retry response');
-        }
-        
-        return retryData;
+      if (!data._embedded?.events) {
+        console.log('[EF fetchTrendingShows] No events found in response');
+        return { _embedded: { events: [] } };
       }
       
       return data;
-    }, { retries: 3 });
-
-    if (!response._embedded?.events) {
-      console.log('[EF fetchTrendingShows] No trending events found');
-      return [];
-    }
+    }, {
+      retries: 3,
+      delay: 1000,
+      onRetry: (error: Error, attempt: number) => {
+        console.log(`[EF fetchTrendingShows] Retry attempt ${attempt} due to error:`, error);
+      }
+    });
 
     const events = response._embedded.events.map(mapTicketmasterEventToShow);
     console.log(`[EF fetchTrendingShows] Mapped ${events.length} trending events`);
@@ -345,6 +345,13 @@ export async function fetchTrendingShows(): Promise<Show[]> {
 
   } catch (error) {
     console.error('[EF fetchTrendingShows] Error fetching trending events:', error);
-    throw error;
+    if (error instanceof Error) {
+      console.error('Error details:', {
+        name: error.name,
+        message: error.message,
+        stack: error.stack
+      });
+    }
+    throw new Error(`Failed to fetch trending shows: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }

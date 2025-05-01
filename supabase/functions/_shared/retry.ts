@@ -4,24 +4,34 @@
  */
 export async function retryableFetch<T>(
   fn: () => Promise<T>,
-  options: { retries?: number; delay?: number } = {}
+  options: {
+    retries?: number;
+    delay?: number;
+    onRetry?: (error: Error, attempt: number) => void;
+  } = {}
 ): Promise<T> {
-  const { retries = 3, delay = 1000 } = options;
+  const { retries = 3, delay = 1000, onRetry } = options;
 
-  try {
-    return await fn();
-  } catch (error) {
-    if (retries > 0) {
-      console.log(`Retrying failed request... ${retries} attempts left`);
-      // Use Deno's setTimeout equivalent if needed, but standard Promise/setTimeout works
-      await new Promise(resolve => setTimeout(resolve, delay));
-      // Recurse with decremented retries and increased delay
-      return retryableFetch(fn, { retries: retries - 1, delay: delay * 2 });
+  for (let attempt = 1; attempt <= retries + 1; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      if (attempt > retries) {
+        console.error("Request failed after multiple retries:", error);
+        throw error;
+      }
+
+      console.log(`Retrying failed request... ${retries - attempt + 1} attempts left`);
+      
+      if (onRetry && error instanceof Error) {
+        onRetry(error, attempt);
+      }
+
+      await new Promise(resolve => setTimeout(resolve, delay * attempt));
     }
-    // If no retries left, throw the last encountered error
-    console.error("Request failed after multiple retries:", error);
-    throw error;
   }
+
+  throw new Error("Unexpected end of retryableFetch");
 }
 
 // Note: In-memory cache (`withCache`) is not suitable for stateless Edge Functions

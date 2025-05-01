@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { clientConfig, serverConfig, validateServerConfig } from '@/integrations/config'; // Use the refactored config
 
-// Initialize Supabase client
+// Validate server config on module load
+validateServerConfig();
+
+// Initialize Supabase client with service role for server-side operations
 const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
+  clientConfig.supabase.url, // Public URL is fine here
+  serverConfig.supabase.serviceKey // Use the service key for admin operations
 );
 
 /**
@@ -14,20 +18,57 @@ export async function POST(request: NextRequest) {
   try {
     const { entityType, entityId, options = {} } = await request.json();
     
-    if (!entityType || !entityId) {
-      return NextResponse.json(
-        { error: 'Missing required parameters: entityType and entityId' },
-        { status: 400 }
-      );
-    }
-    
-    // Validate entity type
-    if (!['artist', 'show', 'venue', 'setlist'].includes(entityType)) {
-      return NextResponse.json(
-        { error: `Invalid entityType: ${entityType}` },
-        { status: 400 }
-      );
-    }
+    // Validate request body structure
+if (!request.body) {
+  return NextResponse.json(
+    { 
+      error: 'Invalid request format',
+      details: 'Request body must be JSON with entityType and entityId'
+    },
+    { status: 400 }
+  );
+}
+
+// Validate required parameters
+const requiredParams = [
+  { name: 'entityType', value: entityType },
+  { name: 'entityId', value: entityId }
+];
+
+for (const param of requiredParams) {
+  if (!param.value) {
+    return NextResponse.json(
+      { 
+        error: 'Missing required parameter',
+        details: `'${param.name}' is required`
+      },
+      { status: 400 }
+    );
+  }
+}
+
+// Validate entity type
+const validEntityTypes = ['artist', 'show', 'venue', 'setlist'];
+if (!validEntityTypes.includes(entityType)) {
+  return NextResponse.json(
+    { 
+      error: 'Invalid entity type',
+      details: `'${entityType}' is not supported. Valid types: ${validEntityTypes.join(', ')}`
+    },
+    { status: 400 }
+  );
+}
+
+// Validate entity ID format
+if (!/^[a-zA-Z0-9-_]+$/.test(entityId)) {
+  return NextResponse.json(
+    { 
+      error: 'Invalid entity ID format',
+      details: 'ID must contain only alphanumeric characters, hyphens and underscores'
+    },
+    { status: 400 }
+  );
+
     
     // Create a sync task in our database
     const { data: syncTask, error: syncTaskError } = await supabase
@@ -127,25 +168,31 @@ async function syncArtist(artistId: string) {
     .select('*')
     .eq('id', artistId)
     .single();
-    
+
   if (error) throw new Error(`Artist not found: ${error.message}`);
-  
+
+  // Determine base URL for internal API calls
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_URL || 'http://localhost:3000';
+
   // 2. Sync with Spotify if we have a Spotify ID
   if (artist.spotify_id) {
+    // NOTE: Calling internal API routes like this might be inefficient.
+    // Consider moving Spotify logic into shared server-side utilities.
     const spotifyResponse = await fetch(
-      `${process.env.NEXT_PUBLIC_APP_URL}/api/spotify/artist?id=${artist.spotify_id}`, {
-        headers: {
-          'Authorization': `Bearer ${process.env.VITE_SPOTIFY_CLIENT_SECRET}`
-        }
+      `${appUrl}/api/spotify/artist?id=${artist.spotify_id}`, {
+        // Internal calls might not need auth if protected otherwise, or use a dedicated internal secret
+        // headers: {
+        //   'Authorization': `Bearer ${serverConfig.spotify.clientSecret}` // Use serverConfig
+        // }
       }
     );
 
     // Sync artist's top tracks
     const tracksResponse = await fetch(
-      `${process.env.NEXT_PUBLIC_APP_URL}/api/spotify/artist-top-tracks?id=${artist.spotify_id}`, {
-        headers: {
-          'Authorization': `Bearer ${process.env.VITE_SPOTIFY_CLIENT_SECRET}`
-        }
+      `${appUrl}/api/spotify/artist-top-tracks?id=${artist.spotify_id}`, {
+        // headers: {
+        //   'Authorization': `Bearer ${serverConfig.spotify.clientSecret}` // Use serverConfig
+        // }
       }
     );
     const tracksData = await tracksResponse.json();
@@ -184,14 +231,27 @@ async function syncArtist(artistId: string) {
     }
   }
   
+  // Determine base URL for internal API calls
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_URL || 'http://localhost:3000';
+
   // 3. Sync upcoming shows with Ticketmaster
+  // NOTE: Calling internal API routes like this might be inefficient.
+  // Consider moving Ticketmaster logic into shared server-side utilities.
   const ticketmasterResponse = await fetch(
-    `${process.env.NEXT_PUBLIC_APP_URL}/api/ticketmaster?endpoint=events.json&keyword=${encodeURIComponent(artist.name)}&size=10&classificationName=Music`, {
-      headers: {
-        'x-api-key': process.env.VITE_TICKETMASTER_API_KEY || process.env.NEXT_PUBLIC_TICKETMASTER_API_KEY
-      }
+    `${appUrl}/api/ticketmaster?endpoint=events.json&keyword=${encodeURIComponent(artist.name)}&size=10&classificationName=Music`, {
+      // Internal calls might not need auth if protected otherwise, or use a dedicated internal secret
+      // headers: {
+      //   'x-api-key': serverConfig.ticketmaster.apiKey // Use serverConfig
+      // }
     }
   );
+
+  // Alternative: Direct Ticketmaster API call (if preferred over internal route)
+  /*
+  const ticketmasterResponse = await fetch(
+    `${serverConfig.ticketmaster.baseUrl}/events.json?keyword=${encodeURIComponent(artist.name)}&size=10&classificationName=Music&apikey=${serverConfig.ticketmaster.apiKey}`
+  );
+  */
   
   if (ticketmasterResponse.ok) {
     const ticketmasterData = await ticketmasterResponse.json();
@@ -286,12 +346,19 @@ async function syncShow(showId: string) {
     
   if (error) throw new Error(`Show not found: ${error.message}`);
   
+  // Determine base URL for internal API calls
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_URL || 'http://localhost:3000';
+
   // 2. If we have a Ticketmaster ID, get fresh data
   if (show.ticketmaster_id) {
+    // NOTE: Calling internal API routes like this might be inefficient.
     const ticketmasterResponse = await fetch(
-      `${process.env.NEXT_PUBLIC_APP_URL}/api/ticketmaster?endpoint=events/${show.ticketmaster_id}`
+      `${appUrl}/api/ticketmaster?endpoint=events/${show.ticketmaster_id}`
+      // No headers needed if calling internal route without auth
+      // Or use direct API call:
+      // `${serverConfig.ticketmaster.baseUrl}/events/${show.ticketmaster_id}.json?apikey=${serverConfig.ticketmaster.apiKey}`
     );
-    
+
     if (ticketmasterResponse.ok) {
       const eventData = await ticketmasterResponse.json();
       
@@ -344,12 +411,19 @@ async function syncVenue(venueId: string) {
     
   if (error) throw new Error(`Venue not found: ${error.message}`);
   
+  // Determine base URL for internal API calls
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_URL || 'http://localhost:3000';
+
   // 2. If we have a Ticketmaster ID, get fresh data
   if (venue.ticketmaster_id) {
+    // NOTE: Calling internal API routes like this might be inefficient.
     const ticketmasterResponse = await fetch(
-      `${process.env.NEXT_PUBLIC_APP_URL}/api/ticketmaster?endpoint=venues/${venue.ticketmaster_id}`
+      `${appUrl}/api/ticketmaster?endpoint=venues/${venue.ticketmaster_id}`
+      // No headers needed if calling internal route without auth
+      // Or use direct API call:
+      // `${serverConfig.ticketmaster.baseUrl}/venues/${venue.ticketmaster_id}.json?apikey=${serverConfig.ticketmaster.apiKey}`
     );
-    
+
     if (ticketmasterResponse.ok) {
       const venueData = await ticketmasterResponse.json();
       

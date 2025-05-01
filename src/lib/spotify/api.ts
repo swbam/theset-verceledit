@@ -1,8 +1,15 @@
-import { supabase } from '../db';
+import { supabase } from '../db'; // Assuming '../db' correctly exports a Supabase client instance
+import { serverConfig, validateServerConfig } from '@/integrations/config';
 
-// Needed environment variables
-const SPOTIFY_CLIENT_ID = process.env.VITE_SPOTIFY_CLIENT_ID || '';
-const SPOTIFY_CLIENT_SECRET = process.env.VITE_SPOTIFY_CLIENT_SECRET || '';
+// Validate server config on module load
+// Ensure this runs only server-side if there's any chance it's imported client-side elsewhere
+if (typeof window === 'undefined') {
+  validateServerConfig();
+}
+
+// Use serverConfig for secrets
+const SPOTIFY_CLIENT_ID = serverConfig.spotify.clientId;
+const SPOTIFY_CLIENT_SECRET = serverConfig.spotify.clientSecret;
 
 // Token cache
 let accessToken: string | null = null;

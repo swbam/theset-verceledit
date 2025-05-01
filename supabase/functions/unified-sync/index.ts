@@ -1,11 +1,18 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { corsHeaders } from '../_shared/cors.ts';
-import { fetchArtistEvents, fetchTrendingShows } from '../_shared/ticketmasterUtils.ts';
+import { fetchArtistEvents, fetchTrendingShows, searchTicketmasterArtistByName } from '../_shared/ticketmasterUtils.ts';
 import { getArtistByName, getArtistAllTracks } from '../_shared/spotifyUtils.ts';
 import { fetchArtistSetlists, processSetlistData } from '../_shared/setlistFmUtils.ts';
 import { saveSetlistSongs } from '../_shared/setlistSongUtils.ts';
 import { createClient } from '@supabase/supabase-js';
 import { retry } from '../_shared/retryUtils.ts';
+
+// --- DEBUG LOGS FOR ENVIRONMENT ---
+const supabaseUrl = Deno.env.get('SUPABASE_URL');
+const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+console.log('[unified-sync][DEBUG] SUPABASE_URL present:', !!supabaseUrl);
+console.log('[unified-sync][DEBUG] SUPABASE_SERVICE_ROLE_KEY present:', !!supabaseServiceKey);
+// -----------------------------------
 
 type Database = any; // Replace with your actual database type if available
 
@@ -96,6 +103,18 @@ interface SyncResult {
   song?: Song;
   error?: string;
   message?: string;
+  details?: {
+    name?: string;
+    message?: string;
+    stack?: string;
+  };
+}
+
+interface SpotifyArtist {
+  id: string;
+  name: string;
+  images?: { url: string }[];
+  genres?: string[];
 }
 
 serve(async (req) => {
@@ -111,11 +130,21 @@ serve(async (req) => {
 
     if (!input || Object.keys(input).length === 0 || input.entityType === 'trending') {
       console.log('[unified-sync] Fetching trending shows');
-      result = await retry(() => syncTrendingShows(), RETRY_OPTIONS);
+      result = await retry(() => syncTrendingShows(), {
+        ...RETRY_OPTIONS,
+        onRetry: (error: Error, attempt: number) => {
+          console.log(`[unified-sync] Retry attempt ${attempt} for syncTrendingShows due to error:`, error);
+        }
+      });
 
       if (result.success && result.stats?.saved && result.stats.saved > 0) {
         console.log(`[unified-sync] Syncing artists for ${result.stats.saved} trending shows`);
-        await retry(() => syncArtistsForTrendingShows(result.stats!.saved), RETRY_OPTIONS);
+        await retry(() => syncArtistsForTrendingShows(result.stats!.saved), {
+          ...RETRY_OPTIONS,
+          onRetry: (error: Error, attempt: number) => {
+            console.log(`[unified-sync] Retry attempt ${attempt} for syncArtistsForTrendingShows due to error:`, error);
+          }
+        });
       }
     } else {
       if (!input.entityType) {
@@ -127,7 +156,12 @@ serve(async (req) => {
       }
 
       console.log(`[unified-sync] Syncing entity of type: ${input.entityType}`);
-      result = await retry(() => syncEntity(input), RETRY_OPTIONS);
+      result = await retry(() => syncEntity(input), {
+        ...RETRY_OPTIONS,
+        onRetry: (error: Error, attempt: number) => {
+          console.log(`[unified-sync] Retry attempt ${attempt} for syncEntity due to error:`, error);
+        }
+      });
     }
 
     console.log('[unified-sync] Sync completed successfully');
@@ -138,10 +172,32 @@ serve(async (req) => {
 
   } catch (error: unknown) {
     console.error('[unified-sync] Error:', error);
-    const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
-    console.error(`[unified-sync] Error details: ${errorMessage}`);
+    let errorMessage = 'An unknown error occurred';
+    let errorDetails: Record<string, unknown> = {};
+    
+    if (error instanceof Error) {
+      errorMessage = error.message;
+      errorDetails = {
+        name: error.name,
+        message: error.message,
+        stack: error.stack
+      };
+    }
+    
+    console.error(`[unified-sync] Error details:`, JSON.stringify(errorDetails, null, 2));
+    
+    // Log additional context
+    console.error('[unified-sync] Environment:', {
+      SUPABASE_URL: !!Deno.env.get('SUPABASE_URL'),
+      SUPABASE_SERVICE_ROLE_KEY: !!Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'),
+      TICKETMASTER_API_KEY: !!Deno.env.get('TICKETMASTER_API_KEY'),
+      SPOTIFY_CLIENT_ID: !!Deno.env.get('SPOTIFY_CLIENT_ID'),
+      SPOTIFY_CLIENT_SECRET: !!Deno.env.get('SPOTIFY_CLIENT_SECRET'),
+    });
+    
     return new Response(JSON.stringify({
       error: errorMessage,
+      details: errorDetails,
       success: false
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -174,9 +230,17 @@ async function syncEntity(input: SyncRequest): Promise<SyncResult> {
     return result;
   } catch (error) {
     console.error(`[unified-sync] Error syncing ${input.entityType}:`, error);
+    if (error instanceof Error) {
+      console.error('Error details:', {
+        name: error.name,
+        message: error.message,
+        stack: error.stack
+      });
+    }
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'An unknown error occurred during sync'
+      error: error instanceof Error ? error.message : 'An unknown error occurred during sync',
+      details: error instanceof Error ? { name: error.name, stack: error.stack } : {}
     };
   }
 }
@@ -232,27 +296,145 @@ async function syncArtistsForTrendingShows(savedShowsCount: number): Promise<voi
     throw error;
   }
 }
-
 async function syncArtist(input: SyncRequest): Promise<SyncResult> {
   console.log('[unified-sync] Syncing artist:', JSON.stringify(input, null, 2));
 
   try {
     const resolvedArtistData = await resolveArtistData(input);
-    const artistDataToSave = prepareArtistDataForSaving(input, resolvedArtistData);
+    let artistDataToSave = prepareArtistDataForSaving(input, resolvedArtistData);
+    
+    // Fetch Spotify data
+    if (!artistDataToSave.spotify_id && input.entityName) {
+      try {
+        const spotifyArtist = await getArtistByName(input.entityName) as SpotifyArtist;
+        if (spotifyArtist?.id) {
+          artistDataToSave = {
+            ...artistDataToSave,
+            spotify_id: spotifyArtist.id,
+            image_url: spotifyArtist.images?.[0]?.url || artistDataToSave.image_url,
+            genres: spotifyArtist.genres || artistDataToSave.genres,
+          };
+          console.log(`[unified-sync] Spotify data fetched for ${input.entityName}`);
+        } else {
+          console.log(`[unified-sync] No Spotify data found for ${input.entityName}`);
+        }
+      } catch (spotifyError) {
+        console.error(`[unified-sync] Error fetching Spotify data for ${input.entityName}:`, spotifyError);
+        if (spotifyError instanceof Error) {
+          console.error('Spotify error details:', {
+            name: spotifyError.name,
+            message: spotifyError.message,
+            stack: spotifyError.stack
+          });
+        }
+      }
+    }
+    
+    // Fetch Ticketmaster data
+    if (!artistDataToSave.ticketmaster_id && input.entityName) {
+      try {
+        const ticketmasterArtist = await fetchArtistByName(input.entityName);
+        if (ticketmasterArtist?.id) {
+          artistDataToSave.ticketmaster_id = ticketmasterArtist.id;
+          console.log(`[unified-sync] Ticketmaster data fetched for ${input.entityName}`);
+        } else {
+          console.log(`[unified-sync] No Ticketmaster data found for ${input.entityName}`);
+        }
+      } catch (ticketmasterError) {
+        console.error(`[unified-sync] Error fetching Ticketmaster data for ${input.entityName}:`, ticketmasterError);
+        if (ticketmasterError instanceof Error) {
+          console.error('Ticketmaster error details:', {
+            name: ticketmasterError.name,
+            message: ticketmasterError.message,
+            stack: ticketmasterError.stack
+          });
+        }
+      }
+    }
+    
     const savedArtist = await saveArtistToDatabase(artistDataToSave);
+    console.log(`[unified-sync] Artist saved to database: ${savedArtist.name} (ID: ${savedArtist.id})`);
+    
+    // Sync dependencies (shows, tracks, setlists)
     await syncArtistDependencies(savedArtist, input.options);
+
+    // Fetch and save latest shows
+    if (savedArtist.ticketmaster_id) {
+      try {
+        const latestShows = await fetchArtistEvents(savedArtist.ticketmaster_id);
+        console.log(`[unified-sync] Fetched ${latestShows.length} shows for ${savedArtist.name}`);
+        for (const show of latestShows) {
+          await saveShow(show, savedArtist.id);
+        }
+      } catch (showsError) {
+        console.error(`[unified-sync] Error fetching/saving shows for ${savedArtist.name}:`, showsError);
+        if (showsError instanceof Error) {
+          console.error('Shows error details:', {
+            name: showsError.name,
+            message: showsError.message,
+            stack: showsError.stack
+          });
+        }
+      }
+    } else {
+      console.log(`[unified-sync] Skipping show fetch for ${savedArtist.name} (no Ticketmaster ID)`);
+    }
+
+    // Fetch and save Spotify tracks
+    if (savedArtist.spotify_id) {
+      try {
+        await syncSpotifyTracks(savedArtist, input.options);
+      } catch (tracksError) {
+        console.error(`[unified-sync] Error syncing Spotify tracks for ${savedArtist.name}:`, tracksError);
+        if (tracksError instanceof Error) {
+          console.error('Tracks error details:', {
+            name: tracksError.name,
+            message: tracksError.message,
+            stack: tracksError.stack
+          });
+        }
+      }
+    } else {
+      console.log(`[unified-sync] Skipping Spotify track sync for ${savedArtist.name} (no Spotify ID)`);
+    }
 
     return {
       success: true,
       message: `Successfully synced artist ${savedArtist.name} (ID: ${savedArtist.id})`,
       artist: savedArtist,
     };
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('[unified-sync/syncArtist] Error:', error);
     return {
       success: false,
       error: error instanceof Error ? error.message : 'An unknown error occurred during artist sync',
+      details: error instanceof Error ? {
+        name: error.name,
+        message: error.message,
+        stack: error.stack
+      } : undefined,
     };
+  }
+}
+
+async function fetchArtistByName(name: string): Promise<{ id: string } | null> {
+  try {
+    const artist = await searchTicketmasterArtistByName(name);
+    return artist ? { id: artist.id } : null;
+  } catch (error) {
+    console.error('[unified-sync/fetchArtistByName] Error:', error);
+    return null;
+  }
+}
+
+async function updateArtistInDatabase(artist: Artist): Promise<void> {
+  const { error } = await supabaseClientInternal
+    .from('artists')
+    .update(artist)
+    .eq('id', artist.id);
+  
+  if (error) {
+    throw new Error(`Failed to update artist in database: ${error.message}`);
   }
 }
 
@@ -322,7 +504,7 @@ function prepareArtistDataForSaving(input: SyncRequest, resolvedArtistData: Part
 }
 
 async function saveArtistToDatabase(artistData: Partial<Artist>): Promise<Artist> {
-  console.log('[unified-sync/syncArtist] Saving artist to database:', JSON.stringify(artistData, null, 2));
+  console.log('[unified-sync/syncArtist][DEBUG] Upserting artist:', JSON.stringify(artistData, null, 2));
   const { data: savedArtist, error: saveError } = await supabaseClientInternal
     .from('artists')
     .upsert(artistData)
@@ -330,6 +512,7 @@ async function saveArtistToDatabase(artistData: Partial<Artist>): Promise<Artist
     .single();
 
   if (saveError || !savedArtist) {
+    console.error('[unified-sync/syncArtist][DEBUG] Error returned from artist upsert:', saveError);
     throw new Error(`Failed to save artist to database: ${saveError?.message || 'Unknown error'}`);
   }
   console.log(`[unified-sync/syncArtist] Artist saved/updated: ${savedArtist.id}, Name: ${savedArtist.name}`);
@@ -350,28 +533,62 @@ async function syncSpotifyTracks(artist: Artist, options?: SyncOptions): Promise
   console.log(`[unified-sync/syncArtist] Fetching tracks for artist: ${artist.name} (Spotify ID: ${artist.spotify_id})`);
   try {
     const tracksResult = await getArtistAllTracks(artist.spotify_id);
+    console.log(`[unified-sync/syncArtist][DEBUG] Raw Spotify API response:`, JSON.stringify(tracksResult, null, 2));
     console.log(`[unified-sync/syncArtist] Found ${tracksResult.tracks.length} tracks from Spotify.`);
-    
-    const savePromises = tracksResult.tracks.map(track =>
-      supabaseClientInternal
+
+    // Prepare data for artists.stored_tracks
+    const storedTracksData = tracksResult.tracks.map(track => ({
+      id: track.id,
+      name: track.name,
+      preview_url: track.preview_url,
+      duration_ms: track.duration_ms,
+      popularity: track.popularity,
+      album_name: track.album?.name,
+      album_image_url: track.album?.images?.[0]?.url
+    }));
+
+    // Update artist record with stored_tracks
+    const { error: artistUpdateError } = await supabaseClientInternal
+      .from('artists')
+      .update({ 
+        stored_tracks: storedTracksData,
+        last_spotify_sync: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+       })
+      .eq('id', artist.id);
+
+    if (artistUpdateError) {
+      console.error(`[unified-sync/syncArtist] Error updating artist ${artist.id} with stored_tracks:`, artistUpdateError);
+      // Decide if we should proceed with individual song saving or throw
+    } else {
+      console.log(`[unified-sync/syncArtist] Updated artist ${artist.id} with ${storedTracksData.length} stored tracks.`);
+    }
+
+    // Save individual songs to the 'songs' table (optional, could be removed if stored_tracks is sufficient)
+    const savePromises = tracksResult.tracks.map(track => {
+      const songData = {
+        spotify_id: track.id,
+        name: track.name,
+        artist_id: artist.id,
+        // spotify_url: track.external_urls?.spotify, // Removed, not in schema
+        preview_url: track.preview_url,
+        duration_ms: track.duration_ms,
+        popularity: track.popularity,
+        album_name: track.album?.name,
+        album_image_url: track.album?.images?.[0]?.url, // Corrected field name
+        updated_at: new Date().toISOString()
+      };
+      console.log('[unified-sync/syncArtist][DEBUG] Upserting song:', JSON.stringify(songData, null, 2));
+      return supabaseClientInternal
         .from('songs')
-        .upsert({
-          spotify_id: track.id,
-          name: track.name,
-          artist_id: artist.id,
-          spotify_url: track.external_urls?.spotify,
-          preview_url: track.preview_url,
-          duration_ms: track.duration_ms,
-          popularity: track.popularity,
-          album_name: track.album?.name,
-          album_image: track.album?.images?.[0]?.url,
-          updated_at: new Date().toISOString()
-        }, { onConflict: 'spotify_id' })
-    );
+        .upsert(songData, { onConflict: 'spotify_id' });
+    });
     await Promise.all(savePromises);
-    console.log(`[unified-sync/syncArtist] Saved/Updated ${tracksResult.tracks.length} tracks to database.`);
+    console.log(`[unified-sync/syncArtist] Saved/Updated ${tracksResult.tracks.length} songs in 'songs' table.`);
+
   } catch (error) {
     console.error('[unified-sync/syncArtist] Error syncing Spotify tracks:', error);
+    // Consider re-throwing or handling more gracefully
   }
 }
 
@@ -382,13 +599,89 @@ async function syncSetlistFmSetlists(artist: Artist, options?: SyncOptions): Pro
   try {
     const setlistsResponse = await fetchArtistSetlists(artist.name, artist.setlist_fm_id);
     if (setlistsResponse.setlist && setlistsResponse.setlist.length > 0) {
-      console.log(`[unified-sync/syncArtist] Found ${setlistsResponse.setlist.length} past setlists, processing up to 5 in background...`);
-      queueMicrotask(() => processSetlists(setlistsResponse.setlist.slice(0, 5), artist));
+      console.log(`[unified-sync/syncArtist] Found ${setlistsResponse.setlist.length} past setlists, processing up to 10...`);
+      const setlistsToProcess = setlistsResponse.setlist.slice(0, 10);
+      for (const setlist of setlistsToProcess) {
+        try {
+          await processSetlist(setlist, artist);
+        } catch (setlistError) {
+          console.error(`[unified-sync/syncArtist] Error processing setlist:`, setlistError);
+        }
+      }
+      console.log(`[unified-sync/syncArtist] Finished processing setlists for ${artist.name}`);
     } else {
       console.log(`[unified-sync/syncArtist] No past setlists found on Setlist.fm for ${artist.name}`);
     }
   } catch (error) {
-    console.error('[unified-sync/syncArtist] Error fetching/processing Setlist.fm data:', error);
+    console.error('[unified-sync/syncArtist] Error fetching Setlist.fm data:', error);
+  }
+}
+
+async function processSetlist(setlist: any, artist: Artist | string): Promise<void> {
+  const artistId = typeof artist === 'string' ? artist : artist.id;
+  const artistName = typeof artist === 'string' ? '' : artist.name;
+
+  const processedData = processSetlistData(setlist);
+  const showData = {
+    name: `${artistName} at ${processedData.venue.name}`,
+    date: processedData.eventDate || new Date().toISOString(),
+    artist_id: artistId,
+    ticketmaster_id: `setlist_${processedData.setlist_id}`,
+    venue: {
+      name: processedData.venue.name,
+      city: processedData.venue.city,
+      country: processedData.venue.country
+    }
+  };
+  
+  const savedShow = await saveShow(showData, artistId);
+  if (savedShow?.id) {
+    await saveSetlistAndSongs(processedData, savedShow.id, artistId);
+    console.log(`[unified-sync/syncArtist] Processed and saved setlist for show: ${savedShow.name}`);
+  } else {
+    console.warn(`[unified-sync/syncArtist] Failed to save show for setlist ${processedData.setlist_id}`);
+  }
+
+  if (typeof artist === 'string') {
+    const { data: artistSongs } = await supabaseClientInternal
+      .from('songs')
+      .select('id, name')
+      .eq('artist_id', artistId);
+
+    if (artistSongs && artistSongs.length > 0) {
+      const { data: savedSetlist, error: setlistError } = await supabaseClientInternal
+        .from('setlists')
+        .insert({
+          show_id: savedShow!.id,
+          artist_id: artistId,
+          date: showData.date,
+          updated_at: new Date().toISOString()
+        })
+        .select()
+        .single();
+
+      if (!setlistError && savedSetlist) {
+        const selectedSongs = [...artistSongs]
+          .sort(() => Math.random() - 0.5)
+          .slice(0, 5);
+
+        await supabaseClientInternal
+          .from('setlist_songs')
+          .insert(
+            selectedSongs.map((song, index) => ({
+              setlist_id: savedSetlist.id,
+              song_id: song.id,
+              name: song.name,
+              position: index + 1,
+              artist_id: artistId,
+              votes: 0,
+              vote_count: 0,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            }))
+          );
+      }
+    }
   }
 }
 
@@ -458,15 +751,82 @@ async function syncTicketmasterShows(artist: Artist, options?: SyncOptions): Pro
     const shows = await fetchArtistEvents(artist.ticketmaster_id);
     console.log(`[unified-sync/syncArtist] Found ${shows.length} shows from Ticketmaster.`);
 
-    const results = await Promise.all(shows.map(show => saveShow(show, artist.id, undefined)));
-    const savedShowCount = results.filter(Boolean).length;
-    const errorShowCount = results.length - savedShowCount;
+    const results = await Promise.allSettled(shows.map(async (show) => {
+      let venueId: string | undefined = undefined;
+      try {
+        // 1. Process Venue first
+        if (show.venue) {
+          console.log(`[unified-sync/syncArtist] Processing venue for show ${show.name}: ${show.venue.name}`);
+          const venueResult = await syncVenue({
+            entityType: 'venue',
+            entityName: show.venue.name,
+            ticketmasterId: show.venue.ticketmaster_id,
+            venue: show.venue
+          });
+          if (venueResult.success && venueResult.venue) {
+            venueId = venueResult.venue.id;
+            console.log(`[unified-sync/syncArtist] Venue processed for show ${show.name}. Venue ID: ${venueId}`);
+          } else {
+            console.warn(`[unified-sync/syncArtist] Failed to process venue for show ${show.name}. Error: ${venueResult.error}`);
+            // Decide if we should proceed without venueId or mark as error
+          }
+        } else {
+          console.log(`[unified-sync/syncArtist] No venue data provided for show ${show.name}`);
+        }
 
-    console.log(`[unified-sync/syncArtist] Ticketmaster shows sync complete. Saved: ${savedShowCount}, Errors: ${errorShowCount}`);
+        // 2. Save Show with artistId and potentially venueId
+        console.log(`[unified-sync/syncArtist] Processing show: ${show.name} with Artist ID: ${artist.id}, Venue ID: ${venueId}`);
+        const savedShow = await saveShow(show, artist.id, venueId);
+        if (!savedShow) {
+          // Throw an error if saveShow explicitly returned null or failed
+          throw new Error(`saveShow returned null for show ${show.name}`);
+        }
+        return { success: true as const, show: savedShow };
+
+      } catch (error) {
+        console.error(`[unified-sync/syncArtist] Error processing show ${show.name}:`, error);
+        return { success: false as const, error, show: show as Partial<Show> };
+      }
+    }));
+
+    const savedShows = results.filter((r): r is PromiseFulfilledResult<{ success: true; show: Show }> =>
+      r.status === 'fulfilled' && r.value.success === true
+    );
+    const failedShows = results.filter((r): r is PromiseRejectedResult | PromiseFulfilledResult<{ success: false; error: unknown; show: Partial<Show> }> =>
+      r.status === 'rejected' || (r.status === 'fulfilled' && r.value.success === false)
+    );
+
+    console.log(`[unified-sync/syncArtist] Ticketmaster shows sync complete. Saved: ${savedShows.length}, Errors: ${failedShows.length}`);
+
+    if (failedShows.length > 0) {
+      console.error(`[unified-sync/syncArtist] ${failedShows.length} shows failed to save. Details:`);
+      failedShows.forEach((result, index) => {
+        if (result.status === 'rejected') {
+          console.error(`  ${index + 1}. Rejected: ${result.reason}`);
+        } else {
+          console.error(`  ${index + 1}. Failed: ${result.value.show.name || 'Unknown'}, Error:`, result.value.error);
+          if (result.value.error instanceof Error) {
+            console.error('    Error details:', {
+              name: result.value.error.name,
+              message: result.value.error.message,
+              stack: result.value.error.stack
+            });
+          }
+        }
+      });
+    }
 
     await updateArtistLastSync(artist.id);
   } catch (showsError) {
     console.error('[unified-sync/syncArtist] Error in Ticketmaster shows sync process:', showsError);
+    if (showsError instanceof Error) {
+      console.error('Error details:', {
+        name: showsError.name,
+        message: showsError.message,
+        stack: showsError.stack
+      });
+    }
+    throw showsError; // Re-throw to allow caller to handle the error
   }
 }
 
@@ -475,6 +835,19 @@ async function saveShow(show: Partial<Show>, artistId?: string, venueId?: string
     console.error('[unified-sync] Error saving show: name and ticketmaster_id are required');
     return null;
   }
+
+  // Check if show already exists
+  const { data: existingShow, error: checkError } = await supabaseClientInternal
+    .from('shows')
+    .select('id')
+    .eq('ticketmaster_id', show.ticketmaster_id)
+    .maybeSingle();
+
+  if (checkError) {
+    console.error(`[unified-sync] Error checking for existing show ${show.ticketmaster_id}:`, checkError);
+    // Decide if we should proceed or return null
+  }
+  const isNewShow = !existingShow;
 
   const showData: Partial<Show> = {
     name: show.name,
@@ -488,6 +861,7 @@ async function saveShow(show: Partial<Show>, artistId?: string, venueId?: string
     updated_at: new Date().toISOString()
   };
 
+  console.log(`[unified-sync][DEBUG] Upserting show (isNew: ${isNewShow}):`, JSON.stringify(showData, null, 2));
   const { data: savedShow, error } = await supabaseClientInternal
     .from('shows')
     .upsert(showData, { onConflict: 'ticketmaster_id' })
@@ -495,12 +869,100 @@ async function saveShow(show: Partial<Show>, artistId?: string, venueId?: string
     .single();
 
   if (error) {
+    console.error('[unified-sync][DEBUG] Error returned from show upsert:', error);
     console.error(`[unified-sync] Error saving show ${show.name}:`, error);
     return null;
   }
 
   console.log(`[unified-sync] Show saved/updated: ${savedShow.id}, Name: ${savedShow.name}`);
+
+  // --- Create Default Setlist for NEW shows ---
+  if (isNewShow && savedShow && artistId) {
+    console.log(`[unified-sync] Creating default setlist for new show: ${savedShow.id}`);
+    try {
+      await createDefaultSetlist(savedShow.id, artistId);
+    } catch (setlistError) {
+      console.error(`[unified-sync] Failed to create default setlist for show ${savedShow.id}:`, setlistError);
+      // Log error but don't fail the entire show save
+    }
+  }
+  // --------------------------------------------
+
   return savedShow;
+}
+
+async function createDefaultSetlist(showId: string, artistId: string): Promise<void> {
+  // 1. Fetch artist's stored tracks
+  const { data: artistData, error: artistFetchError } = await supabaseClientInternal
+    .from('artists')
+    .select('stored_tracks')
+    .eq('id', artistId)
+    .single();
+
+  if (artistFetchError || !artistData) {
+    console.error(`[unified-sync/createDefaultSetlist] Error fetching artist ${artistId} data:`, artistFetchError);
+    return; // Cannot proceed without artist tracks
+  }
+
+  const storedTracks = artistData.stored_tracks as Array<{ id: string; name: string; [key: string]: any }> | null;
+
+  if (!storedTracks || storedTracks.length === 0) {
+    console.log(`[unified-sync/createDefaultSetlist] Artist ${artistId} has no stored tracks. Skipping default setlist.`);
+    return;
+  }
+
+  // 2. Select 5 random unique songs
+  const selectedSongs = [...storedTracks]
+    .sort(() => 0.5 - Math.random()) // Shuffle
+    .slice(0, 5);
+
+  if (selectedSongs.length === 0) {
+    console.log(`[unified-sync/createDefaultSetlist] No songs selected for default setlist for show ${showId}.`);
+    return;
+  }
+
+  console.log(`[unified-sync/createDefaultSetlist] Selected ${selectedSongs.length} random songs for show ${showId}.`);
+
+  // 3. Create Setlist record
+  const { data: newSetlist, error: setlistInsertError } = await supabaseClientInternal
+    .from('setlists')
+    .insert({
+      show_id: showId,
+      artist_id: artistId,
+      status: 'draft', // Default status
+      updated_at: new Date().toISOString()
+    })
+    .select('id')
+    .single();
+
+  if (setlistInsertError || !newSetlist) {
+    console.error(`[unified-sync/createDefaultSetlist] Error creating setlist record for show ${showId}:`, setlistInsertError);
+    return; // Cannot proceed without setlist record
+  }
+
+  console.log(`[unified-sync/createDefaultSetlist] Created setlist record ${newSetlist.id} for show ${showId}.`);
+
+  // 4. Create Setlist_Songs records
+  const setlistSongsData = selectedSongs.map((song, index) => ({
+    setlist_id: newSetlist.id,
+    song_id: song.id, // Assuming stored_tracks has the song's UUID from the 'songs' table
+    name: song.name,
+    position: index + 1,
+    artist_id: artistId,
+    vote_count: 0,
+    updated_at: new Date().toISOString()
+  }));
+
+  const { error: songsInsertError } = await supabaseClientInternal
+    .from('setlist_songs')
+    .insert(setlistSongsData);
+
+  if (songsInsertError) {
+    console.error(`[unified-sync/createDefaultSetlist] Error inserting songs for setlist ${newSetlist.id}:`, songsInsertError);
+    // Consider cleanup or logging
+  } else {
+    console.log(`[unified-sync/createDefaultSetlist] Successfully inserted ${setlistSongsData.length} songs for default setlist ${newSetlist.id}.`);
+  }
 }
 
 interface Show {
@@ -509,8 +971,8 @@ interface Show {
   date: string;
   image_url?: string;
   ticket_url?: string;
-  artist_id?: string | null;
-  venue_id?: string | null;
+  artist_id?: string;
+  venue_id?: string;
   ticketmaster_id: string;
   popularity: number;
   updated_at: string;
@@ -574,13 +1036,15 @@ async function syncShow(input: SyncRequest): Promise<SyncResult> {
     // Fetch or create venue
     let venueId: string | null = null;
     if (input.venue) {
-      const { data: savedVenue } = await syncVenue({
+      const { venue: savedVenue } = await syncVenue({
         entityType: 'venue',
         entityName: input.venue.name,
         ticketmasterId: input.venue.ticketmaster_id,
         venue: input.venue
       });
-      venueId = savedVenue.id;
+      if (savedVenue) {
+        venueId = savedVenue.id;
+      }
     }
 
     if (!input.artistId) {
@@ -594,7 +1058,7 @@ async function syncShow(input: SyncRequest): Promise<SyncResult> {
       date: input.date,
       image_url: input.imageUrl,
       ticket_url: input.ticketUrl,
-    }, input.artistId || undefined, venueId);
+    }, input.artistId || undefined, venueId || undefined);
 
     if (!savedShow) {
       throw new Error(`Failed to save show: ${input.entityName}`);
@@ -622,6 +1086,7 @@ async function syncSong(input: SyncRequest): Promise<SyncResult> {
       updated_at: new Date().toISOString()
     };
 
+    console.log('[unified-sync][DEBUG] Upserting song:', JSON.stringify(songData, null, 2));
     const { data: savedSong, error } = await supabaseClientInternal
       .from('songs')
       .upsert(songData, { onConflict: 'spotify_id' })
@@ -629,6 +1094,7 @@ async function syncSong(input: SyncRequest): Promise<SyncResult> {
       .single();
 
     if (error) {
+      console.error('[unified-sync][DEBUG] Error returned from song upsert:', error);
       throw new Error(`Failed to save song to database: ${error.message}`);
     }
 
@@ -780,46 +1246,4 @@ async function processVenue(venue: any) {
 
 // This function has been moved and updated earlier in the file
 
-async function processSetlist(show: any, artistId: string | null) {
-  if (!artistId) return;
-
-  const { data: artistSongs } = await supabaseClientInternal
-    .from('songs')
-    .select('id, name')
-    .eq('artist_id', artistId);
-
-  if (artistSongs && artistSongs.length > 0) {
-    const { data: savedSetlist, error: setlistError } = await supabaseClientInternal
-      .from('setlists')
-      .insert({
-        show_id: show.id,
-        artist_id: artistId,
-        date: show.date,
-        updated_at: new Date().toISOString()
-      })
-      .select()
-      .single();
-
-    if (!setlistError && savedSetlist) {
-      const selectedSongs = [...artistSongs]
-        .sort(() => Math.random() - 0.5)
-        .slice(0, 5);
-
-      await supabaseClientInternal
-        .from('setlist_songs')
-        .insert(
-          selectedSongs.map((song, index) => ({
-            setlist_id: savedSetlist.id,
-            song_id: song.id,
-            name: song.name,
-            position: index + 1,
-            artist_id: artistId,
-            votes: 0,
-            vote_count: 0,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          }))
-        );
-    }
-  }
-}
+// This function has been merged with the one above

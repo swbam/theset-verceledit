@@ -1,14 +1,20 @@
 "use server";
 
 import { createClient } from '@supabase/supabase-js';
+import { clientConfig, serverConfig, validateServerConfig } from '@/integrations/config';
 
-// Initialize Supabase client
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+// Validate server config on module load
+validateServerConfig();
 
-const adminClient = createClient(supabaseUrl, supabaseServiceKey);
-const publicClient = createClient(supabaseUrl, supabaseAnonKey);
+// Initialize Supabase clients using configurations
+const adminClient = createClient(
+  clientConfig.supabase.url, 
+  serverConfig.supabase.serviceKey
+);
+const publicClient = createClient(
+  clientConfig.supabase.url, 
+  clientConfig.supabase.anonKey
+);
 
 // Interfaces
 interface SetlistFmSetlist {
@@ -159,10 +165,10 @@ export async function syncSetlistFromSetlistFm(artistId: string, setlistFmId: st
   try {
     // Simulate fetching from Setlist.fm API
     // In a real scenario, you would make an actual API call to Setlist.fm
-    // const response = await fetch(`https://api.setlist.fm/rest/1.0/setlist/${setlistFmId}`, {
+    // const response = await fetch(`${serverConfig.setlistFm.baseUrl}/setlist/${setlistFmId}`, {
     //   headers: {
     //     'Accept': 'application/json',
-    'x-api-key': process.env.SETLIST_FM_API_KEY || ''
+    //     'x-api-key': serverConfig.setlistFm.apiKey // Use serverConfig
     //   }
     // });
     // if (!response.ok) throw new Error(`Failed to fetch setlist: ${response.status}`);
@@ -251,4 +257,4 @@ export async function syncSetlistFromSetlistFm(artistId: string, setlistFmId: st
     console.error('Error syncing setlist:', error);
     return null;
   }
-} 
+}

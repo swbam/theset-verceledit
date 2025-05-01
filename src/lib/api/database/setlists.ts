@@ -1,13 +1,16 @@
 import { createClient } from '@supabase/supabase-js';
+import { clientConfig, serverConfig, validateServerConfig } from '@/integrations/config';
 
-// Initialize Supabase client
-// TODO: Refactor to use central client initialization (e.g., from @/integrations/supabase/client or utils)
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
-// const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''; // Anon key not used here
+// Validate server config on module load (assuming this is server-side only)
+if (typeof window === 'undefined') {
+  validateServerConfig();
+}
 
-// Create Supabase client with admin access
-const supabase = createClient(supabaseUrl, supabaseKey);
+// Create Supabase client with admin access using service key
+const supabase = createClient(
+  clientConfig.supabase.url, // Public URL
+  serverConfig.supabase.serviceKey // Service Role Key for admin operations
+);
 
 // NOTE: Initial setlist creation logic moved to src/lib/sync/show-service.ts
 /*
