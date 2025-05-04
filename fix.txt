@@ -1,0 +1,151 @@
+
+-------- INSTRUCTIONS START
+
+Review and debug the codebase for a setlist voting web application utilizing Ticketmaster, Spotify, and Setlist.fm APIs for data import (artists, songs, shows, setlists) into Supabase. The primary issue is faulty data synchronization: when viewing an artist page, which should display associated shows and past setlists (from Setlist.fm API), the data is missing or incorrect despite the artist record being created in Supabase. This results in multiple errors on the artist page. The "unified-sync" system responsible for coordinating API data fetching, mapping, and storage in Supabase is suspected to be the root cause, with incorrect field mapping being a key symptom. DO NOT FOCUS ON THE SETLIST.FM SYNC AND MORE FOCUS ON THE ARTIST, SHOW, SONG SYNC USING TICKETMASTER AND SPOTIFY APIS.
+
+**Key Areas for Heavy Review and Correction:**
+
+1.  **Data Sync & Mapping:** Thoroughly investigate the entire data synchronization pipeline. Analyze the code responsible for fetching data from Ticketmaster, Spotify, and Setlist.fm APIs. Debug the logic that maps API response fields to the corresponding Supabase table columns for artists, shows, setlists, and songs. Identify and correct discrepancies causing missing or incorrect data, particularly for artist shows and past setlists linked from Setlist.fm.
+2.  **Supabase Integration:** Examine the Supabase configuration in detail:
+    *   **Tables & Fields:** Verify schemas, data types, relationships (foreign keys), and constraints for all relevant tables (artists, shows, setlists, songs, etc.). Ensure they correctly model the data structure required by the application and sourced from the APIs.
+    *   **Functions & Triggers:** Review any Supabase database functions or triggers involved in the data import, processing, or synchronization logic. Debug and optimize as needed.
+    *   **RLS Policies:** Check Row Level Security policies to ensure they are not inadvertently blocking data insertion, updates, or reads required by the sync process or the artist page display.
+3.  **Song Catalog Import & Usage:** Implement or fix the functionality to import and sync an artist's song catalog (from Spotify/Setlist.fm) into a dedicated Supabase table upon artist creation/update. Ensure this catalog is correctly utilized on the show page: when a new show/setlist is created, verify that the system automatically selects and populates the initial setlist with 5 unique, randomly chosen songs from that artist's catalog stored in Supabase.
+4.  **Environment Variables & Secrets:** Audit the usage of environment variables, paying close attention to the distinct prefixes used for client-side vs. server-side variables. Confirm that all API keys, Supabase URL/keys, and other necessary configurations (including those stored as Supabase secrets) are correctly defined, accessed, and utilized in both server-side (functions, sync logic) and client-side contexts where appropriate. Fix any misconfigurations.
+5.  **`pnpm updateall` Script:** Analyze the main `pnpm updateall` script. Understand its sequence of operations (database operations, migrations, builds, updates) and ensure it correctly manages the application state and does not contribute to the data synchronization issues.
+6.  **Error Resolution:** Identify the specific errors occurring on the artist page due to the faulty data sync and implement fixes to resolve them, ensuring the page correctly displays artist details, associated shows, and past setlists.
+7.  **Codebase Integrity:** Perform a general review of the relevant codebase sections (API clients, data transformation logic, Supabase client usage, sync orchestration) for logic errors, inefficiencies, or potential bugs contributing to the synchronization failures. Utilize available MCP tools (Postgres access, GitHub repo access, Puppeteer if needed for testing) to aid debugging.
+
+**Goal:** Achieve a fully functional and reliable data synchronization system, so all data loads on artist, show, and all other pages like the homepage and without errors like 404 or api errors.  Ensure artists, their shows, past setlists, and song catalogs are correctly imported, mapped, and stored in Supabase, resolving all related errors on the artist page and enabling the correct initial population of setlists with random songs. Provide corrected code, schema adjustments, and configuration updates as necessary.
+
+
+PROPOSED PLAN:
+
+# Setlist Voting App Sync System Revamp Plan
+
+## Problem Statement
+
+The current sync system for importing artist and show data from Ticketmaster and Spotify into the Supabase database has mapping issues. This results in incorrect data display on artist and show pages, particularly concerning upcoming shows and setlists. The core `unified-sync` function and associated database mappings require a thorough review and potential overhaul.
+
+## Objectives
+
+1.  Correctly map data from Ticketmaster and Spotify APIs to Supabase tables (`artists`, `shows`, `setlists`, etc.).
+2.  Ensure accurate population of artist's upcoming shows.
+3.  Implement reliable sync for Spotify track data into `artists.stored_tracks`.
+4.  Establish correct relationships between `shows` and `setlists`.
+5.  Verify and fix client-side data fetching and display for artists and shows.
+6.  Ensure correct usage of environment variables (client vs. server prefixes).
+
+## Diagnostic & Implementation Steps
+
+1.  **Analyze Core Sync Logic (`unified-sync/index.ts`):**
+    *   Review how data from Ticketmaster (events) and Spotify (tracks) is processed.
+    *   Verify the mapping logic between API response fields and Supabase table columns. Pay close attention to `artists`, `shows`, and related tables.
+    *   Check error handling and logging within the sync function.
+
+2.  **Inspect Database Schemas:**
+    *   Use MCP tools (`get_table_schema`) to review the structure of `artists`, `shows`, `venues`, and `setlists` tables.
+    *   Verify foreign key relationships (e.g., `shows.artist_id`, `setlists.show_id`).
+    *   Ensure data types are appropriate for the incoming API data.
+    *   Specifically check the `artists.stored_tracks` JSONB structure and population logic.
+
+3.  **Review Client-Side Data Fetching:**
+    *   Examine components responsible for displaying artist and show details (e.g., `src/pages/ArtistDetail.tsx`, `src/pages/ShowDetail.tsx`, `src/hooks/use-artist-detail.ts`, `src/hooks/use-show-detail.ts`).
+    *   Verify how data is fetched from Supabase (queries, function calls).
+    *   Ensure correct fields are being requested and displayed.
+
+4.  **Validate Supabase RLS Policies:**
+    *   Check Row Level Security policies on relevant tables (`artists`, `shows`, `setlists`, `votes`).
+    *   Ensure policies allow necessary read/write access for both server-side functions and client-side operations.
+
+5.  **Verify Environment Variables & Secrets:**
+    *   Confirm correct usage of client-side (`NEXT_PUBLIC_`) and server-side prefixes for Supabase URL, anon key, and service role key.
+    *   Check Supabase secret management for API keys (Ticketmaster, Spotify, Setlist.fm).
+
+6.  **Test `pnpm updateall` Script:**
+    *   Review the script's steps (DB migrations, building, etc.).
+    *   Ensure it correctly applies migrations and updates functions.
+
+7.  **Implement & Test Fixes:**
+    *   Modify `unified-sync/index.ts` and potentially other sync-related functions (`sync-artist`, `sync-show`, `spotify-sync`) based on findings.
+    *   Update database schemas via migrations if necessary (using Supabase MCP `execute_postgresql`).
+    *   Adjust client-side code as needed.
+    *   Test the sync process thoroughly by importing new artists/shows.
+    *   Verify data accuracy on the frontend.
+
+## Data Flow Overview
+
+```mermaid
+graph TD
+    A[Ticketmaster API] -->|Event Data| B(Sync Service - unified-sync)
+    F[Spotify API] -->|Track/Artist Data| B
+    B -->|Processed Artist/Show Data| C[(Supabase DB - artists, shows)]
+    B -->|Processed Track Data| C[(Supabase DB - artists.stored_tracks)]
+    C --> D[Client App - Artist/Show Pages]
+    B -.-> E[Error Logs]
+    D -->|User Interactions (Votes)| C[(Supabase DB - votes)]
+```
+
+## Key Files/Areas for Review
+
+*   **Sync Functions:** `supabase/functions/unified-sync/index.ts`, `supabase/functions/sync-artist/index.ts`, `supabase/functions/sync-show/index.ts`, `supabase/functions/spotify-sync/index.ts`
+*   **Database Schema:** `artists`, `shows`, `venues`, `setlists` tables (Inspect via MCP)
+*   **Client Components/Hooks:** `src/pages/ArtistDetail.tsx`, `src/pages/ShowDetail.tsx`, `src/hooks/use-artist-detail.ts`, `src/hooks/use-show-detail.ts`
+*   **Supabase Config:** RLS Policies, Environment Variables, Secrets
+*   **Utility Script:** `pnpm updateall` (Review its definition in `package.json`)
+
+
+
+------ SUPBASE SECRETS (ENCRYPTED) START
+
+              NAME            │                              DIGEST
+  ────────────────────────────┼───────────────────────────────────────────────────────────────────
+    API_ANON_KEY              │ e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+    API_SERVICE_KEY           │ e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+    API_URL                   │ e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+    EDGE_DB_ANON_KEY          │ dcfad73ff6867733791f170538c5df394fb69eb951e49f2d34272418383489c2
+    EDGE_DB_SERVICE_KEY       │ e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+    EDGE_DB_URL               │ e38d9eb27c530040df3f05df4aaeaf69e54a04a7a955f2bbb834daf9c7ca72f3
+    PROJECT_URL               │ e38d9eb27c530040df3f05df4aaeaf69e54a04a7a955f2bbb834daf9c7ca72f3
+    SERVICE_ROLE_KEY          │ e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+    SETLISTFM_API_KEY         │ e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+    SETLIST_FM_API_KEY        │ 94a795a6590ae2d7b6d39d2ebdf23944f2537518e7a1aa8feb26eae7dc47c13c
+    SPOTIFY_CLIENT_ID         │ 328359c1dc976a7bc81244ee4303ba5e5a16f9509b4286d87da7f449a796ce4b
+    SPOTIFY_CLIENT_SECRET     │ 3f74cf948023ac23fdfcea59947cb87e9060db34912db98348e01cbe1cab913b
+    SUPABASE_ANON_KEY         │ dcfad73ff6867733791f170538c5df394fb69eb951e49f2d34272418383489c2
+    SUPABASE_DB_URL           │ 0c1869db284980e26124ece90aa81f99e43982eb852a7e41b7d7af472e08f1ff
+    SUPABASE_SERVICE_ROLE_KEY │ cd554e46a2afc0744867051586b20b3ca8f3b345fc7c80dc1a37c569b1736c93
+    SUPABASE_URL              │ e38d9eb27c530040df3f05df4aaeaf69e54a04a7a955f2bbb834daf9c7ca72f3
+    TICKETMASTER_API_KEY      │ 0227079bbaa674b14d7e4dbb8f002b8ece44762f9bccd4ee854992273cb92ee9
+    
+
+
+------ SUPABASE FUNCTIONS START 
+
+
+
+  
+                     ID                  │         NAME          │         SLUG          │ STATUS │ VERSION │  UPDATED AT (UTC)
+  ───────────────────────────────────────┼───────────────────────┼───────────────────────┼────────┼─────────┼──────────────────────
+    e8a0a6c0-b875-4b78-838d-979d5970717c │ update-trending-shows │ update-trending-shows │ ACTIVE │     167 │ 2025-04-07 04:00:46
+    19e49508-0603-45db-b365-ee8eeff7f4e6 │ orchestrate-sync      │ orchestrate-sync      │ ACTIVE │     169 │ 2025-04-21 05:10:34
+    ba8116c4-ad9c-42c3-ad8b-b6ce786859f9 │ search-shows          │ search-shows          │ ACTIVE │     150 │ 2025-04-07 20:33:49
+    4f2d4744-ac01-4646-8ef3-5ded1762b3e2 │ search-artists        │ search-artists        │ ACTIVE │     150 │ 2025-04-07 20:33:49
+    398b4d8e-d7e5-4d2d-8495-57d05f513928 │ vote-song             │ vote-song             │ ACTIVE │      50 │ 2025-04-21 05:10:46
+    39dd9ee0-b8d5-4a61-9694-f4b16a0ee7ad │ search-attractions    │ search-attractions    │ ACTIVE │       6 │ 2025-04-21 05:10:36
+    e39ffe4c-1b96-4632-9b3a-a348aed08960 │ spotify-sync          │ spotify-sync          │ ACTIVE │       4 │ 2025-04-21 05:10:37
+    70ee6ade-fcf0-482f-8bc8-1bb67f347408 │ unified-sync          │ unified-sync          │ ACTIVE │      37 │ 2025-04-28 19:47:14
+    48914653-a233-441a-904e-083a70b5e0bf │ sync-artist           │ sync-artist           │ ACTIVE │       4 │ 2025-04-21 05:10:38
+    38f13669-07cc-426f-8ecd-9c1736fdac0e │ sync-venue            │ sync-venue            │ ACTIVE │       4 │ 2025-04-21 05:10:43
+    c964cbb1-d39d-4cd9-8d90-c59fc4b10e11 │ sync-show             │ sync-show             │ ACTIVE │       4 │ 2025-04-21 05:10:40
+    a72ac94b-1f26-4b4b-8e6f-54e259f45334 │ fetch-past-setlists   │ fetch-past-setlists   │ ACTIVE │       2 │ 2025-04-21 05:10:29
+    bc2502c0-9ab1-44f1-b896-c94df7f2a0d1 │ import-artist         │ import-artist         │ ACTIVE │       2 │ 2025-04-21 05:10:30
+    19374f5b-af67-4d80-9b13-f65fec5e81bc │ sync-setlist          │ sync-setlist          │ ACTIVE │       2 │ 2025-04-21 05:10:39
+    593a4065-7532-40bf-812a-ad99cacb0ff7 │ sync-song             │ sync-song             │ ACTIVE │       2 │ 2025-04-21 05:10:42
+    1d225e65-05d3-4405-bb83-54217d6d82dd │ sync-artist-shows     │ sync-artist-shows     │ ACTIVE │       1 │ 2025-04-28 23:07:40
+    2d44749a-9c9d-4fb3-8804-9cf55d1c7ca6 │ unified-sync-helper   │ unified-sync-helper   │ ACTIVE │       1 │ 2025-04-28 23:08:47
+    d9f61040-ed60-4220-a61c-ddff37cbc44e │ sync-artist-v2        │ sync-artist-v2        │ ACTIVE │       1 │ 2025-04-28 23:09:32
+    9be4a535-3d81-4007-acfe-57a3d45db5f5 │ process-sync-task     │ process-sync-task     │ ACTIVE │       1 │ 2025-04-28 23:12:55
+
+
+------ SUPABASE FUNCTIONS END 

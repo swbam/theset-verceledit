@@ -1,4 +1,6 @@
-ALTER TABLE artists
-ADD CONSTRAINT fk_artist_metadata
-FOREIGN KEY (spotify_id, setlistfm_id)
-REFERENCES artist_metadata(spotify_id, setlistfm_id);
+-- Removed invalid FK to artist_metadata (table does not exist)
+-- Add index for spotify_id for faster lookups
+CREATE INDEX IF NOT EXISTS idx_artists_spotify_id ON artists(spotify_id);
+
+-- Add index for setlist_fm_id for completeness
+CREATE INDEX IF NOT EXISTS idx_artists_setlist_fm_id ON artists(setlist_fm_id);

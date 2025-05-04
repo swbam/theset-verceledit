@@ -5,3 +5,7 @@
 - the supabase project ID is kzjnkqeosrycfpxjwhil. Always use supabase mcp for mirgrations
 - use browsertools if available to see logs 
 - always use grep for search
+- do not reply to yourself ever. keep replies at a minimum and just code. THIS IS IMPORTANT
+- when you need to examine a file, never reply with "I need to example these 10 files" etc. Just examine them and get the task completed. 
+- Conserve tokens in the most efficient way possible.
+- never ask me a question or you are fired

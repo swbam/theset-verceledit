@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { clientConfig, serverConfig, validateServerConfig } from '@/integrations/config';
 import { headers } from 'next/headers';
+import { getArtistByIdServer, getArtistTopTracksServer } from '@/lib/spotify/server-api'; // Import server-side Spotify functions
+import { callTicketmasterApi } from '@/lib/api/ticketmaster-config'; // Import Ticketmaster function
 
 // Validate server config on module load
 validateServerConfig();
@@ -211,91 +213,61 @@ async function syncArtist(artistId: string) {
     throw new Error('Ticketmaster API key is not configured');
   }
 
-  // Determine base URL for internal API calls
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_URL || 'http://localhost:3000';
-
   // 2. Sync with Spotify if we have a Spotify ID
   if (artist.spotify_id) {
-    // NOTE: Calling internal API routes like this might be inefficient.
-    // Consider moving Spotify logic into shared server-side utilities.
-    const spotifyResponse = await fetch(
-      `${appUrl}/api/spotify/artist?id=${artist.spotify_id}`, {
-        // Internal calls might not need auth if protected otherwise, or use a dedicated internal secret
-        // headers: {
-        //   'Authorization': `Bearer ${serverConfig.spotify.clientSecret}` // Use serverConfig
-        // }
-      }
-    );
+    // Use direct server-side Spotify API calls
+    const spotifyData = await getArtistByIdServer(artist.spotify_id);
 
-    // Sync artist's top tracks
-    const tracksResponse = await fetch(
-      `${appUrl}/api/spotify/artist-top-tracks?id=${artist.spotify_id}`, {
-        headers: {
-          'Authorization': `Bearer ${serverConfig.spotify.clientSecret}`
-        }
-      }
-    );
-    const tracksData = await tracksResponse.json();
-    await supabase.from('songs').upsert(
-      tracksData.tracks.map((track: any) => ({
-        name: track.name,
-        duration_ms: track.duration_ms,
-        popularity: track.popularity,
-        preview_url: track.preview_url,
-        artist_id: artist.id,
-        spotify_id: track.id,
-        album_name: track.album?.name,
-        album_image_url: track.album?.images?.[0]?.url
-      })),
-      { onConflict: 'spotify_id' }
-    );
-    
-    if (!spotifyResponse.ok) {
-      console.warn('Failed to sync with Spotify:', await spotifyResponse.text());
-    } else {
-      const spotifyData = await spotifyResponse.json();
-      
+    if (spotifyData) {
       // Update artist with Spotify data
       await supabase
         .from('artists')
         .update({
           name: spotifyData.name,
           spotify_id: spotifyData.id,
-          setlist_fm_id: artist.setlist_fm_id || spotifyData.external_ids?.upc || '',
-          followers: spotifyData.followers?.total || artist.followers,
-          popularity: spotifyData.popularity || artist.popularity,
-          genres: spotifyData.genres || artist.genres,
-          spotify_url: spotifyData.external_urls?.spotify || artist.spotify_url,
+          // Assuming setlist_fm_id might come from other sources or needs separate handling
+          // setlist_fm_id: artist.setlist_fm_id || spotifyData.external_ids?.upc || '',
+          followers: spotifyData.followers?.total ?? artist.followers,
+          popularity: spotifyData.popularity ?? artist.popularity,
+          genres: spotifyData.genres ?? artist.genres,
+          spotify_url: spotifyData.external_urls?.spotify ?? artist.spotify_url,
         })
         .eq('id', artistId);
+    } else {
+      console.warn(`Failed to fetch Spotify data for artist ID: ${artist.spotify_id}`);
+    }
+
+    // Sync artist's top tracks using server-side function
+    const topTracks = await getArtistTopTracksServer(artist.spotify_id);
+    if (topTracks.length > 0) {
+      await supabase.from('songs').upsert(
+        topTracks.map((track: any) => ({
+          name: track.name,
+          duration_ms: track.duration_ms,
+          popularity: track.popularity,
+          preview_url: track.preview_url,
+          artist_id: artist.id,
+          spotify_id: track.id,
+          album_name: track.album?.name,
+          album_image_url: track.album?.images?.[0]?.url
+        })),
+        { onConflict: 'spotify_id', ignoreDuplicates: false } // Ensure updates happen
+      );
+    } else {
+       console.warn(`Failed to fetch or no top tracks found for artist ID: ${artist.spotify_id}`);
     }
   }
   
-  // Determine base URL for internal API calls
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_URL || 'http://localhost:3000';
+  // 3. Sync upcoming shows with Ticketmaster using direct library call
+  const ticketmasterData = await callTicketmasterApi('events.json', {
+    keyword: artist.name,
+    size: '10', // Ensure size is a string as per callTicketmasterApi params
+    classificationName: 'Music'
+  });
 
-  // 3. Sync upcoming shows with Ticketmaster
-  // NOTE: Calling internal API routes like this might be inefficient.
-  // Consider moving Ticketmaster logic into shared server-side utilities.
-  const ticketmasterResponse = await fetch(
-    `${appUrl}/api/ticketmaster?endpoint=events.json&keyword=${encodeURIComponent(artist.name)}&size=10&classificationName=Music`, {
-      // Internal calls might not need auth if protected otherwise, or use a dedicated internal secret
-      // headers: {
-      //   'x-api-key': serverConfig.ticketmaster.apiKey // Use serverConfig
-      // }
-    }
-  );
-
-  // Alternative: Direct Ticketmaster API call (if preferred over internal route)
-  /*
-  const ticketmasterResponse = await fetch(
-    `${serverConfig.ticketmaster.baseUrl}/events.json?keyword=${encodeURIComponent(artist.name)}&size=10&classificationName=Music&apikey=${serverConfig.ticketmaster.apiKey}`
-  );
-  */
+  const events = ticketmasterData?._embedded?.events || [];
   
-  if (ticketmasterResponse.ok) {
-    const ticketmasterData = await ticketmasterResponse.json();
-    const events = ticketmasterData._embedded?.events || [];
+  if (events.length > 0) {
     
     // Process and store each event
     for (const event of events) {
@@ -386,22 +358,11 @@ async function syncShow(showId: string) {
     
   if (error) throw new Error(`Show not found: ${error.message}`);
   
-  // Determine base URL for internal API calls
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_URL || 'http://localhost:3000';
-
-  // 2. If we have a Ticketmaster ID, get fresh data
+  // 2. If we have a Ticketmaster ID, get fresh data using direct library call
   if (show.ticketmaster_id) {
-    // NOTE: Calling internal API routes like this might be inefficient.
-    const ticketmasterResponse = await fetch(
-      `${appUrl}/api/ticketmaster?endpoint=events/${show.ticketmaster_id}`
-      // No headers needed if calling internal route without auth
-      // Or use direct API call:
-      // `${serverConfig.ticketmaster.baseUrl}/events/${show.ticketmaster_id}.json?apikey=${serverConfig.ticketmaster.apiKey}`
-    );
+    const eventData = await callTicketmasterApi(`events/${show.ticketmaster_id}.json`); // Append .json for specific event endpoint
 
-    if (ticketmasterResponse.ok) {
-      const eventData = await ticketmasterResponse.json();
-      
+    if (eventData && !eventData.errors) { // Check if data is valid
       // Update show with fresh data
       await supabase
         .from('shows')
@@ -451,22 +412,11 @@ async function syncVenue(venueId: string) {
     
   if (error) throw new Error(`Venue not found: ${error.message}`);
   
-  // Determine base URL for internal API calls
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_URL || 'http://localhost:3000';
-
-  // 2. If we have a Ticketmaster ID, get fresh data
+  // 2. If we have a Ticketmaster ID, get fresh data using direct library call
   if (venue.ticketmaster_id) {
-    // NOTE: Calling internal API routes like this might be inefficient.
-    const ticketmasterResponse = await fetch(
-      `${appUrl}/api/ticketmaster?endpoint=venues/${venue.ticketmaster_id}`
-      // No headers needed if calling internal route without auth
-      // Or use direct API call:
-      // `${serverConfig.ticketmaster.baseUrl}/venues/${venue.ticketmaster_id}.json?apikey=${serverConfig.ticketmaster.apiKey}`
-    );
+    const venueData = await callTicketmasterApi(`venues/${venue.ticketmaster_id}.json`); // Append .json for specific venue endpoint
 
-    if (ticketmasterResponse.ok) {
-      const venueData = await ticketmasterResponse.json();
-      
+    if (venueData && !venueData.errors) { // Check if data is valid
       // Update venue with fresh data
       await supabase
         .from('venues')
