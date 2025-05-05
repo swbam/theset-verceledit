@@ -1,247 +1,284 @@
-/**
- * Unified Sync Function v2
- * Responsible for importing and syncing artists, shows, and songs from Ticketmaster and Spotify APIs into Supabase
- */
+import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { corsHeaders } from '../_shared/cors.ts';
+import { fetchSpotifyArtist, fetchSpotifyArtistSongs, fetchTicketmasterShows, extractVenueFromShow } from './api.ts';
 
-// deno-lint-ignore-file no-explicit-any
-import { serve } from "https://deno.land/std@0.181.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
-import {
-  fetchSpotifyArtist,
-  fetchSpotifyArtistTracks,
-  fetchTicketmasterShows,
-  fetchSetlists,
-  extractVenueFromShow,
-  extractSetlistSongs
-} from "./api.ts";
-
-const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
-const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_KEY");
-
-if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
-  throw new Error("Missing Supabase environment variables");
+interface SyncOptions {
+  skipDependencies?: boolean;
+  forceRefresh?: boolean;
 }
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
-
-// Helper: Fetch secret from Supabase vault
-async function getSecret(secretName: string): Promise<string> {
-  const { data, error } = await supabase.rpc("get_secret", { name: secretName });
-  if (error || !data) throw new Error(`Secret fetch failed: ${secretName}`);
-  return data;
+interface SyncRequest {
+  entityType: 'artist' | 'show' | 'venue';
+  entityId?: string;
+  ticketmasterId?: string;
+  spotifyId?: string;
+  options?: SyncOptions;
 }
 
-// Helper: Logging
-function log(msg: string, meta: any = {}) {
-  console.log(`[SYNC] ${msg}`, meta);
+// Initialize Supabase client
+const supabaseUrl = Deno.env.get('SUPABASE_URL');
+const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+const ticketmasterApiKey = Deno.env.get('TICKETMASTER_API_KEY');
+const spotifyClientId = Deno.env.get('SPOTIFY_CLIENT_ID');
+const spotifyClientSecret = Deno.env.get('SPOTIFY_CLIENT_SECRET');
+
+console.log(`[unified-sync-v2] Env Vars Check:`);
+console.log(`  SUPABASE_URL: ${supabaseUrl ? 'Present' : 'MISSING!'}`);
+console.log(`  SUPABASE_SERVICE_ROLE_KEY: ${supabaseServiceKey ? 'Present' : 'MISSING!'}`);
+console.log(`  TICKETMASTER_API_KEY: ${ticketmasterApiKey ? 'Present' : 'MISSING!'}`);
+console.log(`  SPOTIFY_CLIENT_ID: ${spotifyClientId ? 'Present' : 'MISSING!'}`);
+console.log(`  SPOTIFY_CLIENT_SECRET: ${spotifyClientSecret ? 'Present' : 'MISSING!'}`);
+
+if (!supabaseUrl || !supabaseServiceKey) {
+  console.error('[unified-sync-v2] CRITICAL: Supabase URL or Service Role Key is missing. Function cannot proceed.');
+  // Early exit or throw might be appropriate here depending on desired behavior
+  // For now, let it proceed to potentially fail later, but log the critical issue.
 }
 
-// Helper: Retry logic
-async function retry<T>(fn: () => Promise<T>, retries = 3, delayMs = 500): Promise<T> {
-  let lastErr;
-  for (let i = 0; i < retries; i++) {
-    try {
-      return await fn();
-    } catch (err) {
-      lastErr = err;
-      await new Promise(res => setTimeout(res, delayMs));
-    }
-  }
-  throw lastErr;
-}
+const supabase = createClient(supabaseUrl!, supabaseServiceKey!);
 
-// Zod schemas for validation
-const ArtistSchema = z.object({
-  name: z.string(),
-  spotify_id: z.string().optional(),
-  setlist_fm_id: z.string().optional(),
-  ticketmaster_id: z.string().optional(),
-  image_url: z.string().optional(),
-  genres: z.array(z.string()).optional(),
-  followers: z.number().optional(),
-  popularity: z.number().optional(),
-  stored_tracks: z.any().optional(),
-});
-
-const ShowSchema = z.object({
-  artist_id: z.string(),
-  tm_event_id: z.string(),
-  show_time: z.string(),
-  venue_id: z.string().optional(),
-});
-
-const SongSchema = z.object({
-  artist_id: z.string(),
-  name: z.string(),
-  spotify_id: z.string().optional(),
-  setlist_fm_id: z.string().optional(),
-  duration_ms: z.number().optional(),
-});
-
-/**
- * Main sync handler
- * Accepts JSON body: { artistSpotifyId: string }
- * - Fetches artist and tracks from Spotify
- * - Fetches shows from Ticketmaster
- * - Upserts all data into Supabase
- */
-serve(async (req: Request) => {
+async function syncArtist(
+  ticketmasterId: string,
+  spotifyId?: string,
+  options: SyncOptions = {}
+) {
+  console.log(`[unified-sync-v2] Syncing artist with Ticketmaster ID: ${ticketmasterId}`);
+  
   try {
-    const { artistSpotifyIds = [], batch = false } = await req.json();
+    // 1. Get the internal Artist UUID based on the Ticketmaster ID
+    const { data: artistData, error: artistFetchError } = await supabase
+      .from('artists')
+      .select('id') // Select the primary UUID key
+      .eq('ticketmaster_id', ticketmasterId)
+      .single();
 
-    // Fetch secrets at runtime
-    const SPOTIFY_CLIENT_ID = await getSecret("SPOTIFY_CLIENT_ID");
-    const SPOTIFY_CLIENT_SECRET = await getSecret("SPOTIFY_CLIENT_SECRET");
-    const TICKETMASTER_API_KEY = await getSecret("TICKETMASTER_API_KEY");
-    const SETLIST_FM_API_KEY = await getSecret("SETLIST_FM_API_KEY");
+    if (artistFetchError || !artistData?.id) {
+      console.error(`[unified-sync-v2] Error fetching artist UUID for TM ID ${ticketmasterId}:`, artistFetchError);
+      throw new Error(`Could not find artist with Ticketmaster ID ${ticketmasterId} to link shows.`);
+    }
+    const artistUuid = artistData.id;
+    console.log(`[unified-sync-v2] Found artist UUID: ${artistUuid} for TM ID: ${ticketmasterId}`);
 
-    const results: any[] = [];
-    for (const artistSpotifyId of artistSpotifyIds) {
-      try {
-        log("Syncing artist", { artistSpotifyId });
+    // Update sync status to 'syncing'
+    await supabase
+      .from('artists')
+      .update({
+        sync_status: { ticketmaster: 'syncing', spotify: spotifyId ? 'syncing' : 'pending' },
+        last_sync: new Date().toISOString()
+      })
+      .eq('ticketmaster_id', ticketmasterId);
 
-        // 1. Authenticate with Spotify
-        const spotifyTokenRes = await retry(() =>
-          fetch("https://accounts.spotify.com/api/token", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/x-www-form-urlencoded",
-              "Authorization": "Basic " + btoa(`${SPOTIFY_CLIENT_ID}:${SPOTIFY_CLIENT_SECRET}`)
-            },
-            body: "grant_type=client_credentials"
+    // Fetch shows from Ticketmaster
+    const shows = await fetchTicketmasterShows(ticketmasterId, Deno.env.get('TICKETMASTER_API_KEY')!);
+    console.log(`[unified-sync-v2] Found ${shows.length} shows for artist`);
+
+    // Process each show and its venue
+    for (const show of shows) {
+      // Extract and upsert venue
+      const venue = extractVenueFromShow(show);
+      let venueUuid: string | null = null; // Variable to hold the venue's UUID
+      if (venue) {
+        const { data: upsertedVenue, error: venueError } = await supabase
+          .from('venues')
+          .upsert({
+            // Map tm_venue_id from API to ticketmaster_id in DB
+            ticketmaster_id: venue.tm_venue_id,
+            name: venue.name,
+            city: venue.city,
+            state: venue.state,
+            country: venue.country,
+            address: venue.address,
+            postal_code: venue.postal_code,
+            latitude: venue.latitude,
+            longitude: venue.longitude,
+            url: venue.url,
+            image_url: venue.image_url,
+            updated_at: new Date().toISOString()
+          }, {
+            onConflict: 'ticketmaster_id' // Use the correct constraint name
           })
-        );
-        if (!spotifyTokenRes.ok) throw new Error("Spotify token fetch failed");
-        const { access_token } = await spotifyTokenRes.json();
+          .select('id') // Select the primary UUID key after upsert
+          .single();
 
-        // 2. Fetch artist and tracks from Spotify
-        const artistData = await retry(() => fetchSpotifyArtist(artistSpotifyId, access_token));
-        const tracks = await retry(() => fetchSpotifyArtistTracks(artistSpotifyId, access_token));
-
-        // 3. Upsert artist
-        const artistPayload = {
-          name: artistData.name,
-          spotify_id: artistData.id,
-          image_url: artistData.images?.[0]?.url,
-          genres: artistData.genres,
-          followers: artistData.followers?.total,
-          popularity: artistData.popularity,
-          stored_tracks: tracks.map((t: any) => ({
-            name: t.name,
-            id: t.id,
-            duration_ms: t.duration_ms,
-            popularity: t.popularity
-          }))
-        };
-        const { data: upsertedArtist, error: artistError } = await supabase
-          .from("artists")
-          .upsert(artistPayload, { onConflict: "spotify_id" })
-          .select();
-        if (artistError) throw artistError;
-        const artistId = upsertedArtist?.[0]?.id;
-
-        // 4. Upsert tracks (songs)
-        for (const t of tracks) {
-          const songPayload = {
-            artist_id: artistId,
-            name: t.name,
-            spotify_id: t.id,
-            duration_ms: t.duration_ms
-          };
-          const { error: songError } = await supabase
-            .from("songs")
-            .upsert(songPayload, { onConflict: "artist_id" });
-          if (songError) throw songError;
+        if (venueError) {
+          console.error(`[unified-sync-v2] Error upserting venue (TM ID: ${venue.tm_venue_id}):`, venueError);
+          // Continue to next show if venue fails
+        } else if (upsertedVenue?.id) {
+           venueUuid = upsertedVenue.id; // Store the venue's primary UUID
+           console.log(`[unified-sync-v2] Upserted venue ${venue.name}, got UUID: ${venueUuid}`);
+        } else {
+           console.warn(`[unified-sync-v2] Venue upsert for ${venue.name} did not return an ID.`);
         }
+      }
 
-        // 5. Fetch shows from Ticketmaster
-        const shows = await retry(() => fetchTicketmasterShows(artistData.name, TICKETMASTER_API_KEY));
+      // Upsert show, linking via UUIDs
+      const { error: showError } = await supabase
+        .from('shows')
+        .upsert({
+          ticketmaster_id: show.id,
+          name: show.name,
+          date: show.dates?.start?.dateTime || show.dates?.start?.localDate,
+          image_url: show.images?.[0]?.url,
+          ticket_url: show.url,
+          url: show.url,
+          status: show.dates?.status?.code,
+          artist_id: artistUuid, // Use the fetched artist UUID
+          venue_id: venueUuid, // Use the fetched venue UUID (can be null)
+          updated_at: new Date().toISOString()
+        }, {
+          onConflict: 'ticketmaster_id' // Use Ticketmaster ID for conflict resolution
+        });
 
-        // 6. Upsert venues and shows
-        for (const show of shows) {
-          // Venue
-          const venue = extractVenueFromShow(show);
-          let venueId = null;
-          if (venue) {
-            const { data: upsertedVenue, error: venueError } = await supabase
-              .from("venues")
-              .upsert(venue, { onConflict: "tm_venue_id" })
-              .select();
-            if (venueError) throw venueError;
-            venueId = upsertedVenue?.[0]?.id;
-          }
-          // Show
-          const showPayload = {
-            artist_id: artistId,
-            tm_event_id: show.id,
-            show_time: show.dates?.start?.dateTime,
-            venue_id: venueId
-          };
-          const { data: upsertedShow, error: showError } = await supabase
-            .from("shows")
-            .upsert(showPayload, { onConflict: "tm_event_id" })
-            .select();
-          if (showError) throw showError;
-          const showId = upsertedShow?.[0]?.id;
-
-          // 7. Fetch setlists from Setlist.fm (if MBID available)
-          if (artistData.external_ids?.mbid && SETLIST_FM_API_KEY) {
-            const setlists = await retry(() =>
-              fetchSetlists(artistData.external_ids.mbid, SETLIST_FM_API_KEY)
-            );
-            for (const setlist of setlists) {
-              const setlistPayload = {
-                show_id: showId,
-                setlistfm_id: setlist.id,
-                event_date: setlist.eventDate,
-                venue_id: venueId
-              };
-              const { data: upsertedSetlist, error: setlistError } = await supabase
-                .from("setlists")
-                .upsert(setlistPayload, { onConflict: "setlistfm_id" })
-                .select();
-              if (setlistError) throw setlistError;
-              const setlistId = upsertedSetlist?.[0]?.id;
-
-              // 8. Upsert setlist songs
-              const setlistSongs = extractSetlistSongs(setlist);
-              for (const song of setlistSongs) {
-                const setlistSongPayload = {
-                  setlist_id: setlistId,
-                  name: song.name,
-                  encore: song.encore,
-                  cover: song.cover
-                };
-                const { error: setlistSongError } = await supabase
-                  .from("setlist_songs")
-                  .upsert(setlistSongPayload, { onConflict: "setlist_id" });
-                if (setlistSongError) throw setlistSongError;
-              }
-            }
-          }
-        }
-
-        results.push({ artistSpotifyId, success: true });
-        log("Sync complete", { artistSpotifyId });
-      } catch (err) {
-        log("Sync failed", { artistSpotifyId, error: err });
-        results.push({ artistSpotifyId, success: false, error: err instanceof Error ? err.message : String(err) });
+      if (showError) {
+        console.error(`[unified-sync-v2] Error upserting show:`, showError);
       }
     }
 
-    return new Response(JSON.stringify({
-      success: true,
-      batch,
-      results
-    }), { status: 200 });
+    // If we have a Spotify ID and it's not being skipped, sync Spotify data
+    let spotifyData = null;
+    let spotifySongs = null;
+    
+    if (spotifyId && !options.skipDependencies) {
+      // Get Spotify access token
+      const tokenResponse = await fetch('https://accounts.spotify.com/api/token', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Authorization': `Basic ${btoa(`${Deno.env.get('SPOTIFY_CLIENT_ID')}:${Deno.env.get('SPOTIFY_CLIENT_SECRET')}`)}`,
+        },
+        body: 'grant_type=client_credentials'
+      });
 
-  } catch (err) {
-    let message = "Unknown error";
-    if (err instanceof Error) {
-      message = err.message;
+      const { access_token } = await tokenResponse.json();
+
+      // Fetch artist data and songs in parallel
+      [spotifyData, spotifySongs] = await Promise.all([
+        fetchSpotifyArtist(spotifyId, access_token),
+        fetchSpotifyArtistSongs(spotifyId, access_token)
+      ]);
     }
-    log("Fatal sync error", { error: message });
-    return new Response(JSON.stringify({ error: message }), { status: 500 });
+
+    // Update artist with all synced data
+    const { error: artistError } = await supabase
+      .from('artists')
+      .update({
+        sync_status: {
+          ticketmaster: 'success',
+          spotify: spotifyData ? 'success' : 'pending'
+        },
+        upcoming_shows_count: shows.length,
+        name: spotifyData?.name,
+        image_url: spotifyData?.images?.[0]?.url,
+        spotify_url: spotifyData?.external_urls?.spotify,
+        genres: spotifyData?.genres,
+        popularity: spotifyData?.popularity,
+        followers: spotifyData?.followers?.total,
+        stored_songs: spotifySongs ? spotifySongs.map(song => ({
+          id: song.id,
+          name: song.name,
+          duration_ms: song.duration_ms,
+          popularity: song.popularity
+        })) : undefined,
+        last_sync: new Date().toISOString(),
+        last_spotify_sync: spotifyData ? new Date().toISOString() : undefined,
+        last_ticketmaster_sync: new Date().toISOString()
+      })
+      .eq('ticketmaster_id', ticketmasterId);
+
+    if (artistError) {
+      console.error(`[unified-sync-v2] Error updating artist:`, artistError);
+      throw artistError;
+    }
+
+    return { 
+      success: true,
+      showsCount: shows.length,
+      songsCount: spotifySongs?.length || 0
+    };
+  } catch (err) {
+    console.error(`[unified-sync-v2] Error syncing artist:`, err);
+    
+    const error = err as Error;
+    
+    // Update sync status to error
+    await supabase
+      .from('artists')
+      .update({
+        sync_status: { 
+          ticketmaster: 'error',
+          spotify: spotifyId ? 'error' : 'pending'
+        },
+        last_sync_error: error.message || 'Unknown error occurred'
+      })
+      .eq('ticketmaster_id', ticketmasterId);
+
+    throw new Error(`Artist sync failed: ${error.message || 'Unknown error occurred'}`);
+  }
+}
+
+serve(async (req) => {
+  // Handle CORS
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders });
+  }
+
+  try {
+  const requestData = await req.json() as SyncRequest;
+  const { entityType, entityId, spotifyId, options = {} } = requestData;
+  let tmId = requestData.ticketmasterId;
+
+  if (entityType !== 'artist') {
+    throw new Error('Only artist sync is currently supported');
+  }
+
+  if (!entityId && !tmId) {
+    throw new Error('Either entityId or ticketmasterId is required');
+  }
+
+  // If we have an entityId but no ticketmasterId, fetch it from the database
+  if (entityId && !tmId) {
+    const { data: artist, error: fetchError } = await supabase
+      .from('artists')
+      .select('ticketmaster_id')
+      .eq('id', entityId)
+      .single();
+
+    if (fetchError) {
+      throw new Error(`Failed to fetch artist: ${fetchError.message}`);
+    }
+
+    if (!artist?.ticketmaster_id) {
+      throw new Error('Artist has no Ticketmaster ID');
+    }
+
+    tmId = artist.ticketmaster_id;
+  }
+
+  if (!tmId) {
+    throw new Error('Could not determine Ticketmaster ID');
+  }
+
+  console.log(`[unified-sync-v2] Starting sync for artist with Ticketmaster ID: ${tmId}`);
+  const result = await syncArtist(tmId, spotifyId, options);
+  console.log(`[unified-sync-v2] Sync completed successfully:`, result);
+
+    return new Response(
+      JSON.stringify(result),
+      {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200,
+      },
+    );
+  } catch (err) {
+    const error = err as Error;
+    console.error('Error in unified-sync-v2:', error);
+    return new Response(
+      JSON.stringify({ error: error.message || 'Unknown error occurred' }),
+      {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 500,
+      },
+    );
   }
 });

@@ -3,10 +3,15 @@
 BEGIN;
 
 -- ========= artists =========
-
--- Drop existing potentially conflicting/redundant policies
-DROP POLICY IF EXISTS "Allow SELECT for authenticated" ON public.artists;
-DROP POLICY IF EXISTS "Allow authenticated users to create artists" ON public.artists;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'artists'
+  ) THEN
+    -- Drop existing potentially conflicting/redundant policies
+    DROP POLICY IF EXISTS "Allow SELECT for authenticated" ON public.artists;
+    DROP POLICY IF EXISTS "Allow authenticated users to create artists" ON public.artists;
 DROP POLICY IF EXISTS "Allow authenticated users to update artists" ON public.artists;
 DROP POLICY IF EXISTS "Allow public read access" ON public.artists;
 DROP POLICY IF EXISTS "Allow public read access to artists" ON public.artists;
@@ -24,13 +29,20 @@ CREATE POLICY "Enable read access for all users" ON public.artists FOR SELECT US
 -- 2. Allow ALL operations for service_role
 CREATE POLICY "Allow service_role full access" ON public.artists FOR ALL
   USING (auth.role() = 'service_role')
-  WITH CHECK (auth.role() = 'service_role');
+    WITH CHECK (auth.role() = 'service_role');
+  END IF;
+END $$;
 
 -- ========= shows =========
-
--- Drop existing potentially conflicting/redundant policies
-DROP POLICY IF EXISTS "Allow SELECT for authenticated" ON public.shows;
-DROP POLICY IF EXISTS "Allow authenticated users to create shows" ON public.shows;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'shows'
+  ) THEN
+    -- Drop existing potentially conflicting/redundant policies
+    DROP POLICY IF EXISTS "Allow SELECT for authenticated" ON public.shows;
+    DROP POLICY IF EXISTS "Allow authenticated users to create shows" ON public.shows;
 DROP POLICY IF EXISTS "Allow authenticated users to update shows" ON public.shows;
 DROP POLICY IF EXISTS "Allow public read access" ON public.shows;
 DROP POLICY IF EXISTS "Allow public read access to shows" ON public.shows;
@@ -47,13 +59,20 @@ CREATE POLICY "Enable read access for all users" ON public.shows FOR SELECT USIN
 -- 2. Allow ALL operations for service_role
 CREATE POLICY "Allow service_role full access" ON public.shows FOR ALL
   USING (auth.role() = 'service_role')
-  WITH CHECK (auth.role() = 'service_role');
+    WITH CHECK (auth.role() = 'service_role');
+  END IF;
+END $$;
 
 -- ========= setlists =========
-
--- Drop existing potentially conflicting/redundant policies
-DROP POLICY IF EXISTS "Allow public read access" ON public.setlists;
-DROP POLICY IF EXISTS "Allow service role full access" ON public.setlists; -- Will be recreated
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'setlists'
+  ) THEN
+    -- Drop existing potentially conflicting/redundant policies
+    DROP POLICY IF EXISTS "Allow public read access" ON public.setlists;
+    DROP POLICY IF EXISTS "Allow service role full access" ON public.setlists; -- Will be recreated
 DROP POLICY IF EXISTS "Public setlists are viewable by everyone" ON public.setlists;
 DROP POLICY IF EXISTS "Service role and anon can do all on setlists" ON public.setlists;
 DROP POLICY IF EXISTS "Setlists are deletable by authenticated users" ON public.setlists;
@@ -77,13 +96,20 @@ CREATE POLICY "Allow service_role full access" ON public.setlists FOR ALL
 -- Example: Allow insert/update/delete if a user_id column exists
 -- CREATE POLICY "Allow authenticated users to manage own setlists" ON public.setlists
 --   FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
--- For now, only allowing service role write access based on previous policies.
+    -- For now, only allowing service role write access based on previous policies.
+  END IF;
+END $$;
 
 -- ========= votes =========
-
--- Drop existing potentially conflicting/redundant policies
-DROP POLICY IF EXISTS "Allow service role access to votes" ON public.votes; -- Will be recreated
-DROP POLICY IF EXISTS "Allow users to read own votes" ON public.votes; -- Will be recreated
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'votes'
+  ) THEN
+    -- Drop existing potentially conflicting/redundant policies
+    DROP POLICY IF EXISTS "Allow service role access to votes" ON public.votes; -- Will be recreated
+    DROP POLICY IF EXISTS "Allow users to read own votes" ON public.votes; -- Will be recreated
 DROP POLICY IF EXISTS "Authenticated users can vote" ON public.votes;
 DROP POLICY IF EXISTS "Service role and anon can do all on votes" ON public.votes;
 DROP POLICY IF EXISTS "Users can create their own votes" ON public.votes; -- Will be recreated
@@ -106,6 +132,8 @@ CREATE POLICY "Allow users to manage their own votes" ON public.votes FOR ALL
 -- 3. Allow service_role full access
 CREATE POLICY "Allow service_role full access" ON public.votes FOR ALL
   USING (auth.role() = 'service_role')
-  WITH CHECK (auth.role() = 'service_role');
+    WITH CHECK (auth.role() = 'service_role');
+  END IF;
+END $$;
 
 COMMIT;

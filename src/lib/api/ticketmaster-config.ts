@@ -1,7 +1,7 @@
 import { ErrorSource, handleError } from '@/lib/error-handling';
 
-// API base URL - use proxy in both development and production
-const API_BASE_URL = typeof window !== 'undefined' ? `${window.location.origin}/api/ticketmaster` : '/api/ticketmaster';
+// Direct Ticketmaster API URL
+const API_BASE_URL = 'https://app.ticketmaster.com/discovery/v2';
 
 // API request configuration
 const API_CONFIG = {
@@ -61,24 +61,31 @@ export async function callTicketmasterApi(endpoint: string, params: Record<strin
   let retryCount = 0;
   let lastError: Error | null = null;
 
+  const apiKey = import.meta.env.VITE_TICKETMASTER_API_KEY;
+  if (!apiKey) {
+    handleError({
+      message: 'VITE_TICKETMASTER_API_KEY not configured',
+      source: ErrorSource.CONFIG,
+      step: 'Ticketmaster API Config'
+    });
+    return { _embedded: { events: [], attractions: [] } };
+  }
+
   while (retryCount <= API_CONFIG.maxRetries) {
     try {
-      // Build the URL with the current origin to handle any port changes
-      const baseUrl = typeof window !== 'undefined' 
-        ? `${window.location.origin}${API_BASE_URL}` 
-        : API_BASE_URL;
+      // Ensure endpoint starts with a forward slash
+      const normalizedEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+      const url = new URL(`${API_BASE_URL}${normalizedEndpoint}`);
       
-      const url = new URL(baseUrl);
+      // Add API key first
+      url.searchParams.append('apikey', apiKey);
       
-      // Add endpoint as a query parameter
-      url.searchParams.append('endpoint', endpoint);
-      
-      // Add additional parameters
+      // Add additional parameters, filtering out undefined/null values
       Object.entries(params).forEach(([key, value]) => {
-        url.searchParams.append(key, value);
+        if (value != null && value !== '') {
+          url.searchParams.append(key, value);
+        }
       });
-      
-      console.log(`Calling Ticketmaster API: ${url.toString()} (attempt ${retryCount + 1})`);
       
       // Add timeout to fetch
       const controller = new AbortController();
@@ -92,19 +99,18 @@ export async function callTicketmasterApi(endpoint: string, params: Record<strin
         signal: controller.signal
       });
       
-      // Clear timeout
       clearTimeout(timeoutId);
       
-      // Parse the response data - handle potential JSON parsing errors
+      // Parse the response data
       let errorData: TicketmasterErrorResponse = {};
       let data: any;
       
+      const responseText = await response.text();
       try {
-        data = await response.json();
+        data = JSON.parse(responseText);
         errorData = data as TicketmasterErrorResponse;
       } catch (parseError) {
-        // If JSON parsing fails, continue with error handling
-        console.error('Failed to parse Ticketmaster API response:', parseError);
+        console.error('Failed to parse Ticketmaster API response:', parseError, 'Response text:', responseText);
         if (!response.ok) {
           throw new Error(`Ticketmaster API error (${response.status}): ${response.statusText}`);
         }
@@ -113,37 +119,28 @@ export async function callTicketmasterApi(endpoint: string, params: Record<strin
       if (!response.ok) {
         // Check if we should retry based on status code
         if ([429, 500, 502, 503, 504].includes(response.status)) {
-          // These status codes are likely transient issues, so we should retry
-          const errorMessage = `Ticketmaster API error (${response.status}): ${errorData.fault?.faultstring || response.statusText}`;
-          throw new Error(errorMessage);
+          throw new Error(`Ticketmaster API error (${response.status}): ${errorData.fault?.faultstring || response.statusText}`);
         }
         
         // For other status codes, we shouldn't retry
         let errorMessage = `Ticketmaster API error (${response.status}): ${response.statusText}`;
         
-        // Add more details if available
         if (errorData.fault?.faultstring) {
           errorMessage = `Ticketmaster API error (${response.status}): ${errorData.fault.faultstring}`;
-        } else if (errorData.errors && Array.isArray(errorData.errors) && errorData.errors.length > 0) {
+        } else if (errorData.errors?.[0]) {
           errorMessage = `Ticketmaster API error (${response.status}): ${errorData.errors[0].detail || errorData.errors[0].code || response.statusText}`;
         }
         
         const error = new Error(errorMessage);
-        // Set the noRetry property
         (error as Error & { cause: ApiErrorCause }).cause = { noRetry: true };
         throw error;
       }
       
       return data;
     } catch (error) {
-      // Type assertion for the error
       const typedError = error as Error & { cause?: ApiErrorCause, name?: string };
       lastError = typedError;
       
-      // Don't retry if:
-      // 1. It's a timeout error (AbortError)
-      // 2. We've explicitly marked it as no retry
-      // 3. We've reached max retries
       const isAbortError = typedError.name === 'AbortError';
       const isNoRetry = typedError.cause?.noRetry === true;
       
@@ -151,21 +148,71 @@ export async function callTicketmasterApi(endpoint: string, params: Record<strin
         break;
       }
       
-      // Wait before retrying
       retryCount++;
-      console.log(`Retrying API call (${retryCount}/${API_CONFIG.maxRetries})`);
       await delay(retryCount);
     }
   }
   
-  // If we got here, all retries failed
   handleError({
     message: `Error calling Ticketmaster API after ${retryCount} retries: ${lastError?.message || 'Unknown error'}`,
     source: ErrorSource.API,
     step: 'Ticketmaster API Call',
-    originalError: lastError
+    originalError: lastError,
+    context: { endpoint, params }
   });
   
-  // Return empty data instead of null to prevent JSON parsing errors
-  return { _embedded: { events: [] } };
+  // Return empty data structure that matches the expected format
+  return { _embedded: { events: [], attractions: [] } };
+}
+
+/**
+ * Fetch artist events from Ticketmaster
+ */
+export async function fetchArtistEvents(artistId: string) {
+  if (!artistId) {
+    console.warn('fetchArtistEvents called without artistId');
+    return [];
+  }
+
+  const params = {
+    attractionId: artistId,
+    sort: 'date,asc',
+    size: '100',
+    includeTBA: 'no',  // Exclude TBA events
+    includeTest: 'no', // Exclude test events
+    source: 'ticketmaster'
+  };
+
+  try {
+    const data = await callTicketmasterApi('events', params);
+    return data._embedded?.events || [];
+  } catch (error) {
+    console.error('Error fetching artist events:', error);
+    return [];
+  }
+}
+
+/**
+ * Search for artists by keyword
+ */
+export async function searchArtists(keyword: string, size: string = '10') {
+  if (!keyword) {
+    console.warn('searchArtists called without keyword');
+    return [];
+  }
+
+  const params = {
+    keyword: keyword.trim(),
+    size,
+    classificationName: 'music',
+    source: 'ticketmaster'
+  };
+
+  try {
+    const data = await callTicketmasterApi('attractions', params);
+    return data._embedded?.attractions || [];
+  } catch (error) {
+    console.error('Error searching artists:', error);
+    return [];
+  }
 }

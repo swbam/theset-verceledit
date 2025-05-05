@@ -5,6 +5,7 @@ export enum ErrorSource {
   API = "API",
   Database = "Database",
   Client = "Client",
+  CONFIG = "Configuration",
   Unknown = "Unknown"
 }
 
@@ -49,6 +50,12 @@ export function handleError(error: ErrorDetails): void {
       
     case ErrorSource.Client:
       toast.error(error.message);
+      break;
+      
+    case ErrorSource.CONFIG:
+      toast.error(toastMessage, {
+        description: "There is a configuration issue. Please check your environment variables."
+      });
       break;
       
     case ErrorSource.Unknown:

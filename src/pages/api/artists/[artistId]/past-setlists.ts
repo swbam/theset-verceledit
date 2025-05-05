@@ -58,14 +58,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         })) || []
       }));
 
-      // Trigger background sync to refresh data
-      try {
-        await supabase.functions.invoke('sync-artist-setlists', {
-          body: { artistId }
-        });
-      } catch (syncError) {
-        console.error(`Background sync failed for artist ${artistId} setlists:`, syncError);
-      }
+      // Trigger background sync to refresh data (fire and forget, don't block response)
+      supabase.functions.invoke('sync-artist-setlists', {
+        body: { artistId }
+      }).catch(syncError => {
+        console.error(`Background sync invocation failed for artist ${artistId} setlists:`, syncError);
+        // Log error, but don't let it affect the response
+      });
 
       return res.status(200).json(formattedSetlists);
     }
@@ -79,20 +78,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
 
       if (setlistFmError) {
-        throw setlistFmError;
+        // Log the specific error from the function invocation
+        console.error(`Error invoking fetch-artist-setlists for artist ${artistId}:`, setlistFmError);
+        // Return empty array as fallback, but log the error
+        return res.status(200).json([]);
       }
 
       if (!setlistFmData || !setlistFmData.setlists || setlistFmData.setlists.length === 0) {
         // No setlists found in Setlist.fm either
+        console.log(`No setlists found via Setlist.fm function for artist ${artistId}`);
         return res.status(200).json([]);
       }
 
       // Return the setlists from Setlist.fm
+      console.log(`Successfully fetched ${setlistFmData.setlists.length} setlists via Setlist.fm function for artist ${artistId}`);
       return res.status(200).json(setlistFmData.setlists);
-    } catch (setlistFmError) {
-      console.error('Error fetching setlists from Setlist.fm:', setlistFmError);
-      // Return empty array if Setlist.fm fetch fails
-      return res.status(200).json([]);
+    } catch (invokeError) {
+      // Catch any other potential errors during invocation/processing
+      console.error('Unexpected error during Setlist.fm fetch invocation:', invokeError);
+      return res.status(500).json({ error: 'Failed to fetch setlists from external source' });
     }
   } catch (error) {
     console.error('Error in past-setlists API:', error);

@@ -33,6 +33,11 @@ const supabase = createClient(
 // Export direct reference for use in other modules
 export { supabase };
 
+// Standard CORS headers for API routes
+export const corsHeaders = {
+  'Access-Control-Allow-Origin': '*', // Adjust as needed for production
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
 // Export typesafe client for specific functions
 export type SupabaseClient = typeof supabase;
 
@@ -233,9 +238,12 @@ export async function getTrendingShows(limit = 10): Promise<Show[]> {
       .sort((a, b) => b.score - a.score)
       .slice(0, limit);
     
-    // Remove scoring fields before returning
-    return sortedShows.map(({ totalVotes, score, ...show }) => show);
-    
+    // Remove scoring fields and ensure artist_id is present before returning
+    return sortedShows.map(({ totalVotes, score, ...show }) => ({
+      ...show,
+      artist_id: show.artist?.id // Add the artist_id from the nested artist object
+    }));
+
   } catch (error) {
     console.error('Unexpected error in getTrendingShows:', error);
     return [];
