@@ -197,3 +197,33 @@ export function extractVenueFromShow(show: TicketmasterShow) {
     url: venue.url || null
   };
 }
+
+// Add a new function to fetch a single venue by its Ticketmaster ID
+export async function fetchTicketmasterVenue(venueId: string, apiKey: string): Promise<any> {
+  if (!venueId || !apiKey) {
+    throw new Error('Venue ID and API key are required for Ticketmaster venue fetch');
+  }
+  
+  console.log(`[Ticketmaster] Fetching venue data for ID: ${venueId}`);
+
+  const params = new URLSearchParams({
+    id: venueId,
+    apikey: apiKey
+  });
+
+  // Use the venues endpoint
+  const response = await fetch(
+    `https://app.ticketmaster.com/discovery/v2/venues/${venueId}.json?${params.toString()}`,
+    {
+      headers: { 'Accept': 'application/json' }
+    }
+  );
+
+  // Need to handle potential 404s or other errors specifically for single venue fetch
+  if (response.status === 404) {
+    console.warn(`[Ticketmaster] Venue with ID ${venueId} not found.`);
+    return null; // Or throw a specific error if preferred
+  }
+
+  return handleApiResponse<any>(response, 'Ticketmaster Venue');
+}

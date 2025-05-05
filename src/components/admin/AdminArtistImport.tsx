@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 // Import client-side safe functions only
-import { searchArtistsWithEvents } from '@/lib/api/artist'; // Assuming this was restored/exists
+import { searchArtistsWithEvents } from '@/lib/ticketmaster';
 // Removed imports for server-side logic (save*, fetchAndStore*)
 import { supabase } from '@/integrations/supabase/client';
 import { Input } from '@/components/ui/input';

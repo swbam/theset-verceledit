@@ -13,7 +13,7 @@ export async function syncArtist(artistId: string): Promise<void> {
     const supabase = createServerActionClient({ cookies });
     
     // Use the unified sync endpoint to update artist data
-    const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/unified-sync`, {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/unified-sync-v2`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -47,7 +47,7 @@ export async function syncShow(showId: string): Promise<void> {
     const supabase = createServerActionClient({ cookies });
     
     // Use the unified sync endpoint to update show data
-    const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/unified-sync`, {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/unified-sync-v2`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -70,4 +70,4 @@ export async function syncShow(showId: string): Promise<void> {
     console.error('Error in syncShow:', error);
     throw error;
   }
-} 
+}

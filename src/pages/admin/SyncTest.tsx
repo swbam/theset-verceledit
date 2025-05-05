@@ -1,5 +1,5 @@
 import React from 'react';
-import UnifiedSyncTest from '@/components/admin/UnifiedSyncTest';
+import { UnifiedSyncTest } from '@/components/admin/UnifiedSyncTest';
 import AdminSyncStatus from '@/components/admin/AdminSyncStatus';
 
 export default function SyncTestPage() {

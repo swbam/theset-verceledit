@@ -1,5 +1,4 @@
-
-import { searchArtistsWithEvents } from "@/lib/api/artist/search";
+import { searchArtistsWithEvents } from "@/lib/ticketmaster";
 import { TestResults } from '../types';
 import { logError, logSuccess } from '../logger';
 

@@ -6,7 +6,7 @@ import { NextResponse } from 'next/server';
 export async function GET() {
   try {
     // Initialize unified sync process
-    const result = await supabase.functions.invoke('unified-sync', {
+    const result = await supabase.functions.invoke('unified-sync-v2', {
       body: {}
     });
 

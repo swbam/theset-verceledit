@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Search as SearchIcon, MusicIcon } from 'lucide-react';
 // Import the specific function and its return type
-import { searchArtistsWithEvents, ArtistWithEvents } from '@/lib/api/artist';
+import { searchArtistsWithEvents } from '@/lib/ticketmaster';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
 import SearchBar from '@/components/ui/SearchBar';
@@ -13,6 +13,17 @@ import { useDocumentTitle } from '@/hooks/use-document-title';
 import type { Artist as BaseArtist } from '@/lib/types';
 import { supabase } from '@/integrations/supabase/client'; // Import Supabase client
 import { toast } from 'sonner'; // Import toast for feedback
+
+// Define the ArtistWithEvents type based on what searchArtistsWithEvents returns
+interface ArtistWithEvents {
+  id: string;
+  name: string;
+  image?: string;
+  genres?: string[];
+  upcomingShows: number;
+  source?: string;
+}
+
 const Search = () => {
   const navigate = useNavigate();
   const location = useLocation();

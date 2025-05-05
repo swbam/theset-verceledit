@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { Music, CalendarDays } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useQuery } from '@tanstack/react-query';
-import { searchArtistsWithEvents } from '@/lib/api/artist';
+import { searchArtistsWithEvents } from '@/lib/ticketmaster';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client'; // Import supabase client
 
@@ -67,33 +67,28 @@ const ArtistSearchResults = ({
     return null;
   }
 
-  const handleSelect = (artist: Artist) => {
-    // Sync artist data using unified-sync
+  const handleSync = (artist: Artist) => {
     console.log(`[ArtistSearchResults] Syncing artist: ${artist.name} (ID: ${artist.id})`);
     
-    supabase.functions.invoke('unified-sync', {
+    supabase.functions.invoke('unified-sync-v2', {
       body: {
         entityType: 'artist',
-        ticketmasterId: artist.id,
-        entityName: artist.name,
+        entityId: artist.id,
         options: {
-          skipDependencies: false,
           forceRefresh: true
         }
       }
-    }).then(({ data, error }) => {
-      if (error) {
-        console.error(`[ArtistSearchResults] Error syncing artist ${artist.name}:`, error);
-        toast.error(`Failed to sync artist ${artist.name}: ${error.message}`);
-      } else if (!data?.success) {
-        console.warn(`[ArtistSearchResults] Artist sync failed for ${artist.name}:`, data?.error || data?.message);
-        toast.warning(`Sync issue for artist ${artist.name}: ${data?.error || data?.message}`);
+    }).then(response => {
+      if (response.error) {
+        console.error(`Sync error for ${artist.name}:`, response.error);
+        toast.error(`Failed to sync ${artist.name}`);
       } else {
-        console.log(`[ArtistSearchResults] Successfully synced artist ${artist.name}`);
+        console.log(`Sync completed for ${artist.name}:`, response.data);
+        toast.success(`Successfully synced ${artist.name}`);
       }
-    }).catch(invokeError => {
-      console.error(`[ArtistSearchResults] Network error syncing artist ${artist.name}:`, invokeError);
-      toast.error(`Network error syncing artist ${artist.name}`);
+    }).catch(error => {
+      console.error(`Sync error for ${artist.name}:`, error);
+      toast.error(`Failed to sync ${artist.name}`);
     });
     
     // Call the original onSelect handler
@@ -110,7 +105,7 @@ const ArtistSearchResults = ({
             key={artist.id}
             to={`/artists/${artist.id}`}
             className="flex items-center justify-between px-4 py-2.5 hover:bg-secondary/80 transition-colors"
-            onClick={() => handleSelect(artist)}
+            onClick={() => handleSync(artist)}
           >
             <div className="font-medium">{artist.name}</div>
             <div className="text-xs flex items-center text-muted-foreground">
@@ -130,7 +125,7 @@ const ArtistSearchResults = ({
           key={artist.id}
           to={`/artists/${artist.id}`}
           className="flex items-center gap-3 px-3 py-2 hover:bg-secondary transition-colors"
-          onClick={() => handleSelect(artist)}
+          onClick={() => handleSync(artist)}
         >
           {artist.image ? (
             <img 

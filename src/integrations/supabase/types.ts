@@ -243,13 +243,6 @@ export type Database = {
             referencedRelation: "setlists"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "played_setlist_songs_song_id_fkey"
-            columns: ["song_id"]
-            isOneToOne: false
-            referencedRelation: "tracks"
-            referencedColumns: ["id"]
-          },
         ]
       }
       rate_limits: {
@@ -275,55 +268,6 @@ export type Database = {
           reset_at?: string
         }
         Relationships: []
-      }
-      setlist_raw_data: {
-        Row: {
-          artist_id: string | null
-          created_at: string | null
-          id: string
-          raw_data: Json | null
-          setlist_id: string | null
-          show_id: string | null
-        }
-        Insert: {
-          artist_id?: string | null
-          created_at?: string | null
-          id?: string
-          raw_data?: Json | null
-          setlist_id?: string | null
-          show_id?: string | null
-        }
-        Update: {
-          artist_id?: string | null
-          created_at?: string | null
-          id?: string
-          raw_data?: Json | null
-          setlist_id?: string | null
-          show_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "setlist_raw_data_artist_id_fkey"
-            columns: ["artist_id"]
-            isOneToOne: false
-            referencedRelation: "artists"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "setlist_raw_data_setlist_id_fkey"
-            columns: ["setlist_id"]
-            isOneToOne: false
-            referencedRelation: "setlists"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "setlist_raw_data_show_id_fkey"
-            columns: ["show_id"]
-            isOneToOne: true
-            referencedRelation: "shows"
-            referencedColumns: ["id"]
-          },
-        ]
       }
       setlist_songs: {
         Row: {
@@ -468,12 +412,16 @@ export type Database = {
           duration_minutes: number | null
           id: string
           image_url: string | null
+          last_sync: string | null
+          last_sync_error: string | null
           last_updated: string | null
           max_price: number | null
           min_price: number | null
           name: string
           popularity: number | null
+          setlist_suggestions: Json | null
           status: string | null
+          sync_status: string | null
           ticket_url: string | null
           ticketmaster_id: string | null
           total_votes: number | null
@@ -489,12 +437,16 @@ export type Database = {
           duration_minutes?: number | null
           id?: string
           image_url?: string | null
+          last_sync?: string | null
+          last_sync_error?: string | null
           last_updated?: string | null
           max_price?: number | null
           min_price?: number | null
           name: string
           popularity?: number | null
+          setlist_suggestions?: Json | null
           status?: string | null
+          sync_status?: string | null
           ticket_url?: string | null
           ticketmaster_id?: string | null
           total_votes?: number | null
@@ -510,12 +462,16 @@ export type Database = {
           duration_minutes?: number | null
           id?: string
           image_url?: string | null
+          last_sync?: string | null
+          last_sync_error?: string | null
           last_updated?: string | null
           max_price?: number | null
           min_price?: number | null
           name?: string
           popularity?: number | null
+          setlist_suggestions?: Json | null
           status?: string | null
+          sync_status?: string | null
           ticket_url?: string | null
           ticketmaster_id?: string | null
           total_votes?: number | null
@@ -712,106 +668,6 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: []
-      }
-      top_tracks: {
-        Row: {
-          album: string | null
-          album_id: string | null
-          album_image_url: string | null
-          artist_id: string
-          created_at: string | null
-          duration_ms: number | null
-          id: string
-          name: string
-          popularity: number | null
-          preview_url: string | null
-          spotify_id: string | null
-          spotify_url: string | null
-          updated_at: string | null
-        }
-        Insert: {
-          album?: string | null
-          album_id?: string | null
-          album_image_url?: string | null
-          artist_id: string
-          created_at?: string | null
-          duration_ms?: number | null
-          id?: string
-          name: string
-          popularity?: number | null
-          preview_url?: string | null
-          spotify_id?: string | null
-          spotify_url?: string | null
-          updated_at?: string | null
-        }
-        Update: {
-          album?: string | null
-          album_id?: string | null
-          album_image_url?: string | null
-          artist_id?: string
-          created_at?: string | null
-          duration_ms?: number | null
-          id?: string
-          name?: string
-          popularity?: number | null
-          preview_url?: string | null
-          spotify_id?: string | null
-          spotify_url?: string | null
-          updated_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "top_tracks_artist_id_fkey"
-            columns: ["artist_id"]
-            isOneToOne: false
-            referencedRelation: "artists"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      tracks: {
-        Row: {
-          artist_id: string | null
-          created_at: string | null
-          duration_ms: number | null
-          id: string
-          name: string
-          popularity: number | null
-          preview_url: string | null
-          spotify_id: string | null
-          spotify_url: string | null
-        }
-        Insert: {
-          artist_id?: string | null
-          created_at?: string | null
-          duration_ms?: number | null
-          id?: string
-          name: string
-          popularity?: number | null
-          preview_url?: string | null
-          spotify_id?: string | null
-          spotify_url?: string | null
-        }
-        Update: {
-          artist_id?: string | null
-          created_at?: string | null
-          duration_ms?: number | null
-          id?: string
-          name?: string
-          popularity?: number | null
-          preview_url?: string | null
-          spotify_id?: string | null
-          spotify_url?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "tracks_artist_id_fkey"
-            columns: ["artist_id"]
-            isOneToOne: false
-            referencedRelation: "artists"
-            referencedColumns: ["id"]
-          },
-        ]
       }
       trending_shows_cache: {
         Row: {

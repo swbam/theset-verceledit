@@ -44,8 +44,8 @@ export default function SyncTestPage() {
         options
       };
 
-      // Call the unified-sync function
-      const { data, error } = await supabase.functions.invoke('unified-sync', {
+      // Call the unified-sync-v2 function
+      const { data, error } = await supabase.functions.invoke('unified-sync-v2', {
         body: payload,
       });
 

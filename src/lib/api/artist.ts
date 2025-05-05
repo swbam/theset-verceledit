@@ -117,20 +117,6 @@ export async function importArtistFromTicketmaster(tmArtistId: string): Promise<
         spotify: 'pending'
       },
       deleted_at: null
-      sync_status: {
-        ticketmaster: 'pending',
-        spotify: 'pending'
-      },
-      deleted_at: null,
-      sync_status: {
-        ticketmaster: 'pending',
-        spotify: 'pending'
-      },
-      deleted_at: null,
-      sync_status: {
-        ticketmaster: 'pending',
-        spotify: 'pending'
-      }
     };
 
     const { data: artist, error } = await supabase

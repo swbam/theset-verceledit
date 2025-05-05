@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { ChevronRight } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { fetchFeaturedArtists } from '@/lib/api/artist';
+import { fetchFeaturedArtists } from '@/lib/ticketmaster';
 
 const FeaturedArtistsSection = () => {
   // Fetch featured artists

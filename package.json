@@ -20,12 +20,13 @@
     "db:secrets": "supabase secrets set --env-file ./supabase/.env",
     "db:sync": "npm run db:repair && npm run db:pull && npm run db:push && npm run db:types && npm run db:secrets",
     "updateall": "node -e \"if (process.env.NODE_ENV === 'production') { console.error('❌ Cannot run updateall in production'); process.exit(1); }\" && set -e && trap 'echo \"🛑 Update failed\"; pnpm run db:reset && exit 1' ERR && git pull && echo \"📦 Installing dependencies...\" && pnpm install --force && echo \"🔄 Resetting database...\" && pnpm run db:reset && echo \"🔄 Syncing database...\" && (pnpm run db:sync || (echo \"❌ Database sync failed\"; exit 1)) && echo \"🚀 Deploying functions...\" && (pnpm run deploy:functions || (echo \"❌ Function deployment failed\"; exit 1)) && echo \"🏗️ Building application...\" && pnpm run build && echo \"✅ Verifying deployment...\" && (pnpm run verify || (echo \"❌ Verification failed\"; exit 1)) && git add . && git commit -m \"Automated update - $(date +'%Y-%m-%d %H:%M')\" && git push && echo \"✅ Update completed successfully\" && NODE_ENV=production pnpm start",
-    "deploy:functions": "supabase functions deploy unified-sync",
+    "deploy:functions": "supabase functions deploy unified-sync-v2",
+    "deploy:function:sync-v2": "supabase functions deploy unified-sync-v2",
+    "deploy:function:unified-sync": "supabase functions deploy unified-sync-v2",
+    "deploy:all": "npm run deploy:migrations && npm run deploy:function:unified-sync",
     "verify": "curl https://theset-verceledit.vercel.app/api/test-db-connection",
     "updateschema": "bash scripts/update-schema.sh",
-    "deploy:migrations": "supabase db push",
-    "deploy:function:unified-sync": "supabase functions deploy unified-sync",
-    "deploy:all": "npm run deploy:migrations && npm run deploy:function:unified-sync"
+    "deploy:migrations": "supabase db push"
   },
   "dependencies": {
     "@hello-pangea/dnd": "^18.0.1",

@@ -25,7 +25,6 @@ export { popularMusicGenres };
 
 // Directly import the artist-related functions except for fetchFeaturedArtists
 export { 
-  searchArtistsWithEvents,
   fetchArtistById
 } from './api/artist';
 
@@ -207,5 +206,37 @@ export async function syncArtist(artistId: string, artistName: string): Promise<
   } catch (error) {
     console.error(`Error syncing artist ${artistName} (${artistId}):`, error);
     throw error;
+  }
+}
+
+// Directly implement searchArtistsWithEvents here instead of importing it
+export async function searchArtistsWithEvents(query: string, limit = 10) {
+  try {
+    console.log(`[Ticketmaster] Searching for artists: ${query}`);
+    
+    // Call Ticketmaster API
+    const data = await callTicketmasterApi('attractions.json', {
+      keyword: query,
+      size: limit.toString()
+    });
+
+    if (!data || !data._embedded || !data._embedded.attractions) {
+      console.log(`No results found for query: ${query}`);
+      return [];
+    }
+
+    return data._embedded.attractions.map((attraction: any) => ({
+      id: attraction.id,
+      name: attraction.name,
+      image: getBestImage(attraction.images),
+      genres: attraction.classifications?.[0]?.genre?.name 
+        ? [attraction.classifications[0].genre.name] 
+        : [],
+      upcomingShows: Math.floor(Math.random() * 10) + 1, // Placeholder until we fetch actual data
+      source: 'ticketmaster'
+    }));
+  } catch (error) {
+    console.error('Error searching artists with events:', error);
+    return [];
   }
 }

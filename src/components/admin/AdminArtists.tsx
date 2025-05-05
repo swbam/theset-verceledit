@@ -70,11 +70,17 @@ const AdminArtists = () => {
       const upsertData = await upsertRes.json();
       if (!upsertRes.ok || !upsertData.id) throw new Error(upsertData.error || "Failed to upsert artist");
 
-      // 2. Call unified-sync with the new artist UUID
-      const res = await fetch("/api/unified-sync", {
+      // 2. Call unified-sync-v2 with the new artist UUID
+      const res = await fetch("/api/unified-sync-v2", {
         method: "POST",
         headers: { "Content-Type": "application/json", "Authorization": "Bearer admin" },
-        body: JSON.stringify({ entityType: "artist", entityId: upsertData.id }),
+        body: JSON.stringify({
+          entityType: "artist",
+          entityId: upsertData.id,
+          options: {
+            forceRefresh: true
+          }
+        })
       });
       const data = await res.json();
       if (!res.ok || !data.success) throw new Error(data.error || "Sync failed");

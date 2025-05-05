@@ -42,18 +42,35 @@ export interface ArtistEvent {
   ticketmaster_id?: string | null;
 }
 
-import { supabase } from "@/integrations/supabase/client";
+import { createClient } from '@supabase/supabase-js';
 import { callTicketmasterApi } from "../ticketmaster-config";
 
 /**
  * Fetch upcoming shows for an artist
  */
 export async function fetchArtistEvents(artistIdentifier: string): Promise<Show[]> {
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
+
   try {
     console.log(`Fetching events for artist ID: ${artistIdentifier}`);
     
-    // First try to get shows from Supabase
-    const { data: supabaseShows } = await supabase
+      // Trigger a background sync to refresh the data
+    await supabase.functions.invoke('unified-sync-v2', {
+          body: {
+            entityType: 'artist',
+            entityId: artistIdentifier,
+            options: {
+              skipDependencies: false,
+              forceRefresh: true
+            }
+          }
+        });
+
+    // Fetch the shows from the database
+    const { data: supabaseShows, error } = await supabase
       .from('shows')
       .select(`
         id,
@@ -69,10 +86,12 @@ export async function fetchArtistEvents(artistIdentifier: string): Promise<Show[
       .eq('artist_id', artistIdentifier)
       .gt('date', new Date().toISOString())
       .order('date', { ascending: true });
-    
+      
+    if (error) throw error;
+
     if (supabaseShows && supabaseShows.length > 0) {
       console.log(`Found ${supabaseShows.length} shows in database for artist ID: ${artistIdentifier}`);
-      
+
       // Transform the data to match the expected format
       const shows: Show[] = supabaseShows.map((show: SupabaseShow) => ({
         id: show.id,
@@ -94,33 +113,31 @@ export async function fetchArtistEvents(artistIdentifier: string): Promise<Show[
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       }));
-      
       // Trigger a background sync to refresh the data
-      try {
-        await supabase.functions.invoke('unified-sync', {
-          body: {
-            entityType: 'artist',
-            entityId: artistIdentifier,
-            options: {
-              skipDependencies: false,
-              forceRefresh: true
+        try {
+        await supabase.functions.invoke('unified-sync-v2', {
+            body: {
+              entityType: 'artist',
+              entityId: artistIdentifier,
+              options: {
+              skipDependencies: false
+              }
             }
-          }
-        });
-      } catch (syncError) {
-        console.error(`Background sync failed for artist ${artistIdentifier}:`, syncError);
-      }
-      
-      return shows;
-    }
-    
+          });
+        } catch (syncError) {
+        console.error(`Background sync error for artist ${artistIdentifier}:`, syncError);
+        // Continue with what we have
+        }
+    return shows;
+  }
+
     // If no shows in database, fetch from Ticketmaster API
     console.log(`No shows found in database, fetching from Ticketmaster for artist ID: ${artistIdentifier}`);
-    
+
     // Determine search parameter based on ID format
     let searchParam: any = {};
     let ticketmasterId: string | null = null;
-    
+
     // Check if it's a Ticketmaster ID (usually starts with K or G)
     if (/^[KG]\d/.test(artistIdentifier)) {
       // Ticketmaster ID
@@ -142,11 +159,11 @@ export async function fetchArtistEvents(artistIdentifier: string): Promise<Show[
       } else {
         // Fallback to using the ID as a keyword
         searchParam = { keyword: artistIdentifier };
-      }
+}
     }
-    
+
     console.log(`Fetching from Ticketmaster API with params:`, searchParam);
-    
+
     // Fetch from Ticketmaster API with increased size to get all shows
     const data = await callTicketmasterApi('events.json', {
       ...searchParam,
@@ -161,11 +178,11 @@ export async function fetchArtistEvents(artistIdentifier: string): Promise<Show[
     }
 
     console.log(`Found ${data._embedded.events.length} events from Ticketmaster for artist ID: ${artistIdentifier}`);
-    
+
     const shows: Show[] = data._embedded.events.map((event: any) => {
       // Get artist info from the event
       let artistId = '';
-      
+
       if (event._embedded?.attractions && event._embedded.attractions.length > 0) {
         const attraction = event._embedded.attractions[0];
         artistId = attraction.id;
@@ -173,7 +190,7 @@ export async function fetchArtistEvents(artistIdentifier: string): Promise<Show[
         // Fallback to using the provided artist ID
         artistId = ticketmasterId || artistIdentifier;
       }
-      
+
       // Process venue
       let venue: Venue | null = null;
       let venueId = null;
@@ -188,7 +205,7 @@ export async function fetchArtistEvents(artistIdentifier: string): Promise<Show[
         };
         venueId = venueData.id;
       }
-      
+
       // Create show object
       return {
         id: event.id,
@@ -213,28 +230,29 @@ export async function fetchArtistEvents(artistIdentifier: string): Promise<Show[
       };
     });
 
-      // Queue a background sync to save these shows to the database
-      if (shows.length > 0) {
-        try {
-          await supabase.functions.invoke('unified-sync', {
-            body: {
-              entityType: 'artist',
-              entityId: artistIdentifier,
-              ticketmasterId: ticketmasterId,
-              options: {
-                skipDependencies: false,
-                forceRefresh: true
-              }
+    // Queue a background sync to save these shows to the database
+    if (shows.length > 0) {
+      try {
+        await supabase.functions.invoke('unified-sync-v2', {
+          body: {
+            entityType: 'artist',
+            entityId: artistIdentifier,
+            ticketmasterId: ticketmasterId,
+            options: {
+              skipDependencies: false,
+              forceRefresh: true
             }
-          });
-        } catch (syncError) {
-          console.error(`Background sync failed for artist ${artistIdentifier}:`, syncError);
-        }
+          }
+        });
+      } catch (syncError) {
+        console.error(`Background sync error for artist ${artistIdentifier}:`, syncError);
+        // Continue with what we have
       }
+    }
 
     return shows;
   } catch (error) {
     console.error("Error fetching artist events:", error);
-    return [];
+    throw error;
   }
 }

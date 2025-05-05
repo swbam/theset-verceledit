@@ -27,4 +27,4 @@ for func in "${OLD_FUNCTIONS[@]}"; do
   supabase functions delete $func
 done
 
-echo "Old functions deleted. Only unified-sync remains." 
+echo "Old functions deleted. Only unified-sync-v2 remains."

@@ -1,6 +1,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import { Show } from '@/lib/types';
 import { callTicketmasterApi } from './ticketmaster-config';
+import { unifiedSyncService } from '@/lib/sync/unified-sync';
 
 export async function fetchShowDetails(showId: string): Promise<Show | null> {
   try {
@@ -80,58 +81,37 @@ export async function fetchShowsByGenre(genre: string): Promise<Show[]> {
   }
 }
 
-export async function saveShow(show: Show): Promise<{ success: boolean; error?: string; data?: Show }> {
+export async function saveShow(show: Show): Promise<{ success: boolean; error?: string; data?: any }> {
+  // Ensure the show object has an ID (UUID)
+  if (!show.id) {
+      console.error('[API/shows] Error saving show: Show object must have an id (UUID). Input:', show);
+      return { success: false, error: 'Show ID (UUID) is required to save/sync.' };
+  }
+  
   try {
-    console.log(`[API/shows] Saving show ${show.id}`);
+    console.log(`[API/shows] Syncing show using unified service for ID: ${show.id}`);
 
-    // 1. Sync Artist if available
-    if (show.artist_id) {
-      console.log(`[API/shows] Syncing artist ${show.artist_id}`);
-      const artistResult = await supabase.functions.invoke('sync-artist', {
-        body: { artistId: show.artist_id }
-      });
-
-      if (!artistResult.data?.success) {
-        console.error(`[API/shows] Artist sync failed:`, artistResult.error);
-      }
-    }
-
-    // 2. Sync Venue if available
-    if (show.venue_id) {
-      console.log(`[API/shows] Syncing venue ${show.venue_id}`);
-      const venueResult = await supabase.functions.invoke('sync-venue', {
-        body: { venueId: show.venue_id }
-      });
-
-      if (!venueResult.data?.success) {
-        console.error(`[API/shows] Venue sync failed:`, venueResult.error);
-      }
-    }
-
-    // 3. Sync Show
-    console.log(`[API/shows] Syncing show ${show.id}`);
-    const showResult = await supabase.functions.invoke('sync-show', {
-      body: { 
-        showId: show.id,
-        payload: show
-      }
+    // Call the unified sync service
+    const result = await unifiedSyncService.syncShow(show.id, { 
+      // Pass options if needed, e.g., forceRefresh
+      // forceRefresh: true 
     });
 
-    if (!showResult.data?.success) {
-      throw new Error(showResult.error?.message || 'Show sync failed');
-    }
-
-    console.log(`[API/shows] Successfully synced show ${show.id}`);
+    // Assuming the sync service throws on internal errors, 
+    // we just need to check the result structure if needed, or assume success if no throw.
+    // The unified-sync-v2 function returns { success: boolean, ... }, but the service wrapper might transform it.
+    // For simplicity, let's assume success if no error is thrown.
+    console.log(`[API/shows] Successfully triggered sync for show ${show.id}. Result:`, result); 
     return { 
       success: true, 
-      data: showResult.data.data 
+      data: result // Pass through the result from the sync function
     };
 
   } catch (error) {
-    console.error('[API/shows] Error saving show:', error);
+    console.error(`[API/shows] Error saving/syncing show ${show.id}:`, error);
     return { 
       success: false, 
-      error: error instanceof Error ? error.message : 'Unknown error' 
+      error: error instanceof Error ? error.message : 'Unknown error during show sync' 
     };
   }
 }

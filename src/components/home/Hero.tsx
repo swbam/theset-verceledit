@@ -4,7 +4,7 @@ import { Search, Music, PlusCircle, Users, Award } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { searchArtistsWithEvents } from '@/lib/api/artist';
+import { searchArtistsWithEvents } from '@/lib/ticketmaster';
 import ArtistSearchResults from '@/components/artists/ArtistSearchResults';
 
 const Hero = () => {
