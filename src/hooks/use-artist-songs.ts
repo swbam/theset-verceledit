@@ -22,7 +22,7 @@ export function useArtistSongs(
       // First try to get the artist from our database
       const { data: artist, error: artistError } = await supabase
         .from('artists')
-        .select('*')
+        .select('id, name, ticketmaster_id, spotify_id')
         .eq('id', artistId)
         .single();
 
@@ -50,21 +50,33 @@ export function useArtistSongs(
       if (!artistSongs || artistSongs.length === 0) {
         console.log(`useArtistSongs: No songs found in DB for artist ${artistId}. Triggering sync.`);
         
+        if (!artist.ticketmaster_id || !artist.spotify_id) {
+          console.error('useArtistSongs: Missing external IDs for artist sync');
+          return [];
+        }
+
         try {
           console.log(`useArtistSongs: Invoking unified-sync-v2 for artist ${artist.name}`);
           const response = await fetch('/api/unified-sync-v2', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ 
-              type: 'artist',
-              artistId: artist.id,
-              forceRefresh: true
+              entityType: 'artist',
+              ticketmasterId: artist.ticketmaster_id,
+              spotifyId: artist.spotify_id,
+              options: {
+                forceRefresh: true
+              }
             })
           });
 
           if (!response.ok) {
-            throw new Error('Failed to sync artist');
+            const error = await response.json();
+            throw new Error(`Failed to sync artist: ${error.message || 'Unknown error'}`);
           }
+
+          // Wait a moment for the sync to complete
+          await new Promise(resolve => setTimeout(resolve, 2000));
 
           // Refetch songs after sync
           const { data: updatedSongs, error: refetchError } = await supabase
@@ -74,7 +86,14 @@ export function useArtistSongs(
             .order('popularity', { ascending: false });
 
           if (refetchError) throw refetchError;
-          return updatedSongs || [];
+          
+          if (!updatedSongs || updatedSongs.length === 0) {
+            console.warn('useArtistSongs: No songs found after sync');
+            return [];
+          }
+
+          console.log(`useArtistSongs: Synced ${updatedSongs.length} songs for artist ${artist.name}`);
+          return updatedSongs;
         } catch (error) {
           console.error('Error syncing artist:', error);
           return [];
@@ -85,14 +104,22 @@ export function useArtistSongs(
       return artistSongs;
     },
     enabled: options.enabled && !!artistId,
+    staleTime: 5 * 60 * 1000, // Consider data fresh for 5 minutes
+    cacheTime: 30 * 60 * 1000, // Keep in cache for 30 minutes
   });
 
-  const getAvailableSongs = useCallback(() => {
-    return songs || [];
+  const getAvailableSongs = useCallback((setlist: any[] = []) => {
+    if (!songs) return [];
+    
+    // Filter out songs that are already in the setlist
+    return songs.filter(song => {
+      if (!song?.id) return false;
+      return !setlist.some(setlistSong => setlistSong.song_id === song.id);
+    });
   }, [songs]);
 
   return {
-    songs,
+    songs: songs || [],
     isLoading,
     isError,
     error: artistError,

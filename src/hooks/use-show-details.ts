@@ -30,6 +30,10 @@ export function useShowDetails(id: string | undefined) {
         return null;
       }
 
+      if (data?.artist?.spotify_id) {
+        setSpotifyArtistId(data.artist.spotify_id);
+      }
+
       return data;
     } catch (err) {
       console.error("Error checking show in database:", err);
@@ -51,15 +55,22 @@ export function useShowDetails(id: string | undefined) {
       const dbShow = await checkShowInDatabase(id);
       
       if (!dbShow) {
-        // If not in database, trigger sync and wait for it
-        console.log("Show not found in database, triggering sync...");
-        const { error: syncError } = await supabase.functions.invoke('sync-show', {
-          body: { showId: id }
+        // If not in database, trigger unified sync
+        console.log("Show not found in database, triggering unified sync...");
+        
+        // First get the show from Ticketmaster to get artist info
+        const response = await fetch(`/api/unified-sync-v2`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            entityType: 'show',
+            ticketmasterId: id
+          })
         });
 
-        if (syncError) {
-          console.error("Error syncing show:", syncError);
-          throw new Error("Failed to sync show data");
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(`Failed to sync show: ${error.message || 'Unknown error'}`);
         }
 
         // Wait for sync to complete with retries
@@ -83,6 +94,22 @@ export function useShowDetails(id: string | undefined) {
           }
 
           if (show) {
+            // If we found the show, also sync the artist's songs if needed
+            if (show.artist?.spotify_id) {
+              setSpotifyArtistId(show.artist.spotify_id);
+              
+              // Trigger artist sync to ensure we have songs
+              await fetch(`/api/unified-sync-v2`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  entityType: 'artist',
+                  ticketmasterId: show.artist.ticketmaster_id,
+                  spotifyId: show.artist.spotify_id
+                })
+              });
+            }
+            
             syncedShow = show;
             break;
           }
@@ -107,18 +134,20 @@ export function useShowDetails(id: string | undefined) {
   });
 
   // vote for a song in the database
-  const voteForSong = useCallback(async (songId: string, showId: string) => {
-    if (!songId || !showId) return false;
+  const voteForSong = useCallback(async (songId: string) => {
+    if (!songId) return false;
     try {
-      const { error } = await supabase.rpc('add_vote', {
-        p_song_id: songId,
-        p_show_id: showId,
+      const response = await fetch('/api/vote', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ songId })
       });
-      if (error) {
-        console.error("Error voting for song:", error);
-        return false;
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to vote');
       }
-      console.log(`Vote recorded for song ${songId}`);
+
       return true;
     } catch (error) {
       console.error("Error voting for song:", error);
@@ -127,32 +156,37 @@ export function useShowDetails(id: string | undefined) {
   }, []);
 
   // Add new song to setlist in database
-  // Define a basic type for the song object expected here
-  type SongInput = { id: string; position: number; info?: string | null; is_encore?: boolean };
-
-  const addSongToSetlist = useCallback(async (setlistId: string, song: SongInput) => {
-    if (!setlistId || !song) return false;
+  const addSongToSetlist = useCallback(async (song: { id: string; name: string }) => {
+    if (!show?.id || !song.id) return false;
     try {
-      const { error } = await supabase
-        .from('played_setlist_songs')
-        .insert({
-          id: uuidv4(),
-          setlist_id: setlistId,
-          song_id: song.id,
-          position: song.position,
-          info: song.info ?? null,
-          is_encore: song.is_encore ?? false,
-        });
-      if (error) {
-        console.error("Error adding song to setlist:", error);
-        return false;
+      // First get the setlist for this show
+      const { data: setlist } = await supabase
+        .from('setlists')
+        .select('id')
+        .eq('show_id', show.id)
+        .single();
+
+      if (!setlist?.id) {
+        throw new Error('Setlist not found');
       }
+
+      // Add song to setlist
+      const { error: insertError } = await supabase
+        .from('setlist_songs')
+        .insert({
+          setlist_id: setlist.id,
+          song_id: song.id,
+          position: 0, // Will be updated by trigger
+          votes: 0
+        });
+
+      if (insertError) throw insertError;
       return true;
     } catch (error) {
       console.error("Error adding song to setlist:", error);
       return false;
     }
-  }, []);
+  }, [show?.id]);
 
   return {
     show,
