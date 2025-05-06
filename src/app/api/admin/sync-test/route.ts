@@ -16,18 +16,29 @@ export async function POST(request: Request) {
 
     // Call unified-sync-v2 Edge Function
     const { data: syncData, error: syncError } = await supabase.functions.invoke('unified-sync-v2', {
-      body: { artistName, mode: 'full' }
+      body: { 
+        entityType: 'artist',
+        artistName,
+        mode: 'full',
+        options: {
+          forceRefresh: true,
+          skipDependencies: false
+        }
+      }
     });
 
     if (syncError) {
       console.error('Sync error:', syncError);
-      return NextResponse.json({ error: syncError.message }, { status: 500 });
+      return NextResponse.json({ 
+        error: syncError.message,
+        logs: syncData?.logs || []
+      }, { status: 500 });
     }
 
     // Get counts from database for detailed response
     const { data: artist } = await supabase
       .from('artists')
-      .select('id')
+      .select('id, name, spotify_id, ticketmaster_id, sync_status, last_sync, last_sync_error')
       .eq('name', artistName)
       .single();
 
@@ -35,31 +46,47 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Artist not found after sync' }, { status: 500 });
     }
 
-    const { count: songsCount } = await supabase
-      .from('songs')
-      .select('*', { count: 'exact', head: true })
-      .eq('artist_id', artist.id);
-
-    const { count: showsCount } = await supabase
-      .from('shows')
-      .select('*', { count: 'exact', head: true })
-      .eq('artist_id', artist.id);
-
-    const { count: setlistsCount } = await supabase
-      .from('setlists')
-      .select('*', { count: 'exact', head: true })
-      .eq('artist_id', artist.id);
+    // Get all related data counts
+    const [songsResult, showsResult, setlistsResult] = await Promise.all([
+      supabase
+        .from('songs')
+        .select('*', { count: 'exact', head: true })
+        .eq('artist_id', artist.id),
+      supabase
+        .from('shows')
+        .select('*', { count: 'exact', head: true })
+        .eq('artist_id', artist.id),
+      supabase
+        .from('setlists')
+        .select('*', { count: 'exact', head: true })
+        .eq('artist_id', artist.id)
+    ]);
 
     return NextResponse.json({
-      artistId: artist.id,
-      songsCount: songsCount || 0,
-      showsCount: showsCount || 0,
-      setlistsCount: setlistsCount || 0,
-      syncDetails: syncData
+      artist: {
+        id: artist.id,
+        name: artist.name,
+        spotify_id: artist.spotify_id,
+        ticketmaster_id: artist.ticketmaster_id,
+        sync_status: artist.sync_status,
+        last_sync: artist.last_sync,
+        last_sync_error: artist.last_sync_error
+      },
+      counts: {
+        songs: songsResult.count || 0,
+        shows: showsResult.count || 0,
+        setlists: setlistsResult.count || 0
+      },
+      logs: syncData?.logs || [],
+      success: true
     });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Admin sync error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ 
+      error: error.message,
+      success: false,
+      logs: []
+    }, { status: 500 });
   }
 } 
