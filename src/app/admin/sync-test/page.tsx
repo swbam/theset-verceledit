@@ -7,6 +7,7 @@ import { Card } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { ReloadIcon, TrashIcon } from '@radix-ui/react-icons';
+import { createClient } from '@supabase/supabase-js';
 
 interface SyncLog {
   timestamp: string;
@@ -14,6 +15,11 @@ interface SyncLog {
   status: 'success' | 'error' | 'info';
   details?: any;
 }
+
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL!;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY!;
+
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 export default function AdminSyncTest() {
   const [artistName, setArtistName] = useState('');
@@ -38,34 +44,38 @@ export default function AdminSyncTest() {
     setIsLoading(true);
     setSyncStatus('syncing');
     setError(null);
+    setLogs([]);
     addLog(`Starting sync for artist: ${artistName}`, 'info');
     
     try {
-      const apiUrl = import.meta.env.DEV ? 'http://localhost:5173/api/admin/sync-test' : '/api/admin/sync-test';
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ artistName })
+      const { data, error: functionInvokeError } = await supabase.functions.invoke('admin-sync-test', {
+        body: { artistName }
       });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Sync failed');
+      if (functionInvokeError) {
+        throw new Error(functionInvokeError.message || 'Function invocation failed');
       }
 
-      // Add Edge Function logs
-      if (data.logs) {
+      if (data && data.error) {
+        if (data.logs) {
+          data.logs.forEach((log: SyncLog) => {
+            addLog(`${log.step}: ${typeof log.details === 'object' ? JSON.stringify(log.details) : log.details}`, log.status);
+          });
+        }
+        throw new Error(data.error);
+      }
+
+      if (data && data.logs) {
         data.logs.forEach((log: SyncLog) => {
-          addLog(`${log.step}: ${JSON.stringify(log.details)}`, log.status);
+          addLog(`${log.step}: ${typeof log.details === 'object' ? JSON.stringify(log.details) : log.details}`, log.status);
         });
       }
 
       addLog('Sync completed successfully', 'success');
-      if (data.artist) {
+      if (data && data.artist) {
         addLog(`Artist ID: ${data.artist.id}`, 'info');
       }
-      if (data.counts) {
+      if (data && data.counts) {
         addLog(`Songs imported: ${data.counts.songs}`, 'info');
         addLog(`Shows imported: ${data.counts.shows}`, 'info');
         addLog(`Setlists imported: ${data.counts.setlists}`, 'info');
