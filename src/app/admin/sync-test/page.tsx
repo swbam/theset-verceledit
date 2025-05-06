@@ -41,7 +41,8 @@ export default function AdminSyncTest() {
     addLog(`Starting sync for artist: ${artistName}`, 'info');
     
     try {
-      const response = await fetch('/api/admin/sync-test', {
+      const apiUrl = import.meta.env.DEV ? 'http://localhost:5173/api/admin/sync-test' : '/api/admin/sync-test';
+      const response = await fetch(apiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ artistName })
@@ -61,10 +62,14 @@ export default function AdminSyncTest() {
       }
 
       addLog('Sync completed successfully', 'success');
-      addLog(`Artist ID: ${data.artistId}`, 'info');
-      addLog(`Songs imported: ${data.songsCount}`, 'info');
-      addLog(`Shows imported: ${data.showsCount}`, 'info');
-      addLog(`Setlists imported: ${data.setlistsCount}`, 'info');
+      if (data.artist) {
+        addLog(`Artist ID: ${data.artist.id}`, 'info');
+      }
+      if (data.counts) {
+        addLog(`Songs imported: ${data.counts.songs}`, 'info');
+        addLog(`Shows imported: ${data.counts.shows}`, 'info');
+        addLog(`Setlists imported: ${data.counts.setlists}`, 'info');
+      }
       setSyncStatus('success');
     } catch (error: any) {
       const errorMessage = error.message || 'Unknown error occurred';

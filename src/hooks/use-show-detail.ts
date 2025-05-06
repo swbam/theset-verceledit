@@ -147,14 +147,14 @@ export function useShowDetail(id: string | undefined) {
       artistSongsResponse.refetch();
     }
   }, [artistSongsResponse]);
-
+  
   const songs = artistSongsResponse?.songs || [];
   const isLoadingSongs = artistSongsResponse?.isLoading || false;
   const isSongsError = artistSongsResponse?.isError || false;
   const songsError = artistSongsResponse?.error || null;
   const storedSongsData = artistSongsResponse?.storedSongsData || [];
   const getAvailableSongs = artistSongsResponse?.getAvailableSongs || ((setlist: any[]) => []);
-
+  
   // Loading states
   const isLoadingAllSongs = isLoadingSongs;
   const allSongsData = { songs };

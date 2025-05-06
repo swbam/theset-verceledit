@@ -1,17 +1,19 @@
 import { createClient } from '@supabase/supabase-js';
-import { NextResponse } from 'next/server';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseServiceKey = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-export async function POST(request: Request) {
+export async function POST(req: Request) {
   try {
-    const { artistName } = await request.json();
+    const { artistName } = await req.json();
 
     if (!artistName) {
-      return NextResponse.json({ error: 'Artist name is required' }, { status: 400 });
+      return new Response(JSON.stringify({ error: 'Artist name is required' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
     }
 
     // Call unified-sync-v2 Edge Function
@@ -29,10 +31,13 @@ export async function POST(request: Request) {
 
     if (syncError) {
       console.error('Sync error:', syncError);
-      return NextResponse.json({ 
+      return new Response(JSON.stringify({ 
         error: syncError.message,
         logs: syncData?.logs || []
-      }, { status: 500 });
+      }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      });
     }
 
     // Get counts from database for detailed response
@@ -43,7 +48,10 @@ export async function POST(request: Request) {
       .single();
 
     if (!artist) {
-      return NextResponse.json({ error: 'Artist not found after sync' }, { status: 500 });
+      return new Response(JSON.stringify({ error: 'Artist not found after sync' }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      });
     }
 
     // Get all related data counts
@@ -62,7 +70,7 @@ export async function POST(request: Request) {
         .eq('artist_id', artist.id)
     ]);
 
-    return NextResponse.json({
+    return new Response(JSON.stringify({
       artist: {
         id: artist.id,
         name: artist.name,
@@ -79,14 +87,20 @@ export async function POST(request: Request) {
       },
       logs: syncData?.logs || [],
       success: true
+    }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' }
     });
 
   } catch (error: any) {
     console.error('Admin sync error:', error);
-    return NextResponse.json({ 
+    return new Response(JSON.stringify({ 
       error: error.message,
       success: false,
       logs: []
-    }, { status: 500 });
+    }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
   }
 } 

@@ -26,31 +26,31 @@ export async function POST(request: Request) {
     if (!songId) {
       return NextResponse.json({ error: 'Song ID is required' }, { status: 400 });
     }
-
+    
     // Get user from session
     const { data: { session } } = await supabase.auth.getSession();
     const userId = session?.user?.id;
-
+    
     // Get the setlist song record
     const { data: setlistSong, error: songError } = await supabase
       .from('setlist_songs')
       .select('id, votes')
       .eq('song_id', songId)
       .single();
-
+      
     if (songError || !setlistSong) {
       return NextResponse.json({ error: 'Song not found in setlist' }, { status: 404 });
     }
-
+    
     // If user is authenticated, check for existing vote
     if (userId) {
       const { data: existingVote } = await supabase
         .from('user_votes')
-        .select('id')
-        .eq('user_id', userId)
-        .eq('song_id', songId)
-        .single();
-
+      .select('id')
+      .eq('user_id', userId)
+      .eq('song_id', songId)
+      .single();
+    
       if (existingVote) {
         return NextResponse.json({ error: 'Already voted for this song' }, { status: 400 });
       }
@@ -59,26 +59,26 @@ export async function POST(request: Request) {
       const { error: voteError } = await supabase
         .from('user_votes')
         .insert({ user_id: userId, song_id: songId });
-
+          
       if (voteError) {
         console.error('Failed to record vote:', voteError);
         return NextResponse.json({ error: 'Failed to record vote' }, { status: 500 });
       }
-    }
-
+        }
+        
     // Increment the vote count
     const { error: updateError } = await supabase
       .from('setlist_songs')
       .update({ votes: (setlistSong.votes || 0) + 1 })
       .eq('id', setlistSong.id);
-
+        
     if (updateError) {
       console.error('Failed to update vote count:', updateError);
-      return NextResponse.json({ error: 'Failed to update vote count' }, { status: 500 });
-    }
+          return NextResponse.json({ error: 'Failed to update vote count' }, { status: 500 });
+        }
 
     return NextResponse.json({ success: true, message: 'Vote recorded' });
-
+    
   } catch (error) {
     console.error('Vote API error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
