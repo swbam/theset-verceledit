@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { useRealtimeVotes } from '@/hooks/use-realtime-votes';
 import { toast } from 'sonner';
@@ -37,38 +36,40 @@ export function useSongManagement(showId: string, initialSongs: Song[], isAuthen
     }
   };
 
-  const handleAddSong = (allTracksData: any) => {
+  const handleAddSong = (allSongsData: any) => {
     if (!selectedTrack) {
       toast.error("Please select a song first");
       return;
     }
 
-    // Find the selected track in the available tracks
-    const trackToAdd = allTracksData?.tracks?.find((track: any) => track.id === selectedTrack);
+    // Find the selected song in the available songs
+    const songToAdd = allSongsData?.songs?.find((song: any) => song.id === selectedTrack);
     
-    if (trackToAdd) {
-      // Check if the song already exists in the setlist
-      const songExists = setlist.some(song => song.id === trackToAdd.id);
-      
-      if (songExists) {
-        toast.info(`"${trackToAdd.name}" is already in the setlist!`);
-        return;
-      }
-      // Add the song to the setlist
-      // Ensure the object passed matches the expected RealtimeSong type
-      addSongToSetlist({
-        id: trackToAdd.id, // Assuming trackToAdd.id is string
-        name: trackToAdd.name, // Assuming trackToAdd.name is string
-        votes: 0,
-        userVoted: false
-      });
-      
-      setSelectedTrack('');
-      toast.success(`"${trackToAdd.name}" added to setlist!`);
-      
-      // Log the update for debugging
-      console.log(`Added song to setlist: ${trackToAdd.name}`, setlist.length + 1);
+    if (!songToAdd) {
+      return;
     }
+
+    // Check if the song already exists in the setlist
+    const songExists = setlist.some(song => song.id === songToAdd.id);
+    
+    if (songExists) {
+      toast.info(`"${songToAdd.name}" is already in the setlist!`);
+      return;
+    }
+    // Add the song to the setlist
+    // Ensure the object passed matches the expected RealtimeSong type
+    addSongToSetlist({
+      id: songToAdd.id, // Assuming songToAdd.id is string
+      name: songToAdd.name, // Assuming songToAdd.name is string
+      votes: 0,
+      userVoted: false
+    });
+    
+    setSelectedTrack('');
+    toast.success(`"${songToAdd.name}" added to setlist!`);
+    
+    // Log the update for debugging
+    console.log(`Added song to setlist: ${songToAdd.name}`, setlist.length + 1);
   };
 
   return {

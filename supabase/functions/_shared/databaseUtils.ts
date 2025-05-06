@@ -1,6 +1,6 @@
 // Import shared Supabase client and types
 import { supabaseAdmin } from './supabaseClient.ts';
-import type { Artist, Venue, Show, SetlistSong, Song, Setlist } from './types.ts'; // Use shared types
+import type { Artist, Venue, Show, SetlistSong, Song, Setlist, SetlistFmSetlist, SetlistFmSong, SetlistFmVenue } from './types.ts'; // Use shared types
 // Import song utilities from the shared location
 import { fetchAndStoreArtistTracks, saveSongToDatabase } from './songDbUtils.ts';
 
@@ -28,13 +28,21 @@ export async function saveArtistToDatabase(artistInput: Partial<Artist>): Promis
         .from('artists')
         .select('*'); // Select all columns
 
-      // Build OR condition based on available IDs
       const orConditions: string[] = [];
       if (artistInput.ticketmaster_id) orConditions.push(`ticketmaster_id.eq.${artistInput.ticketmaster_id}`);
       if (artistInput.spotify_id) orConditions.push(`spotify_id.eq.${artistInput.spotify_id}`);
-      query.or(orConditions.join(','));
+      // Add name match as a fallback, but be cautious with this
+      // orConditions.push(`name.eq.${artistInput.name}`);
+      if (orConditions.length > 0) {
+         query.or(orConditions.join(','));
+      } else if (artistInput.name) { // If only name is provided, use that (less reliable)
+          query.eq('name', artistInput.name);
+      } else {
+          // Should not happen based on initial validation
+          throw new Error("Cannot check artist without TM ID, Spotify ID, or name.");
+      }
 
-      const { data: existingData, error: checkError } = await query.maybeSingle();
+      const { data: existingData, error: checkError } = await query.limit(1).maybeSingle();
 
       if (checkError) {
         console.error(`[EF saveArtist] Error checking artist ${artistInput.name}:`, checkError);
@@ -76,7 +84,6 @@ export async function saveArtistToDatabase(artistInput: Partial<Artist>): Promis
       ...artistInput, // Overwrite with new input data
       ticketmaster_id: artistInput.ticketmaster_id || existingArtist?.ticketmaster_id,
       spotify_id: artistInput.spotify_id || existingArtist?.spotify_id,
-      setlist_fm_id: artistInput.setlist_fm_id || existingArtist?.setlist_fm_id,
       name: artistInput.name, // Always update name from input
       image_url: artistInput.image_url || existingArtist?.image_url,
       url: artistInput.url || existingArtist?.url,
@@ -85,10 +92,19 @@ export async function saveArtistToDatabase(artistInput: Partial<Artist>): Promis
       genres: artistInput.genres || existingArtist?.genres || [],
       updated_at: new Date().toISOString(),
     };
-    // Remove the UUID 'id' field if it came from existingArtist, as upsert uses conflict target
     delete artistDataForUpsert.id;
     // Ensure primary identifier is present for conflict resolution
-    const conflictTarget = artistInput.ticketmaster_id ? 'ticketmaster_id' : 'spotify_id';
+    // Prioritize TM ID > Spotify ID
+    const conflictTarget = artistInput.ticketmaster_id
+        ? 'ticketmaster_id'
+        : artistInput.spotify_id
+        ? 'spotify_id'
+        : 'name'; // Fallback to name if no IDs, but ensure name has a unique constraint if used
+
+    // If conflict target is name, ensure name is part of the upsert data
+    if (conflictTarget === 'name' && !artistDataForUpsert.name) {
+        throw new Error('Cannot upsert artist without name when name is the conflict target.');
+    }
 
     try {
       console.log(`[EF saveArtist] Attempting upsert for artist: ${artistDataForUpsert.name} on conflict: ${conflictTarget}`);
@@ -110,6 +126,7 @@ export async function saveArtistToDatabase(artistInput: Partial<Artist>): Promis
             .from('artists')
             .select('*')
             .or(`ticketmaster_id.eq.${artistInput.ticketmaster_id || ''},spotify_id.eq.${artistInput.spotify_id || ''}`)
+            .limit(1)
             .maybeSingle();
           if (fetchError) {
             console.error(`[EF saveArtist] Error fetching conflicted artist:`, fetchError);
@@ -147,20 +164,38 @@ export async function saveArtistToDatabase(artistInput: Partial<Artist>): Promis
  */
 export async function saveVenueToDatabase(venueInput: Partial<Venue>): Promise<Venue | null> {
   try {
-    if (!venueInput || !venueInput.ticketmaster_id || !venueInput.name) {
-      console.error("[EF saveVenue] Invalid input: Missing name or Ticketmaster ID", venueInput);
+    // Need TM ID OR Name+City
+    const hasTmId = !!venueInput.ticketmaster_id;
+    const hasNameCity = !!venueInput.name && !!venueInput.city;
+
+    if (!venueInput || (!hasTmId && !hasNameCity)) {
+      console.error("[EF saveVenue] Invalid input: Missing identifier (TM ID/Name+City)", venueInput);
       return null;
     }
     console.log(`[EF saveVenue] Processing venue: ${venueInput.name} (TM ID: ${venueInput.ticketmaster_id})`);
 
-    // 1. Check if venue exists by Ticketmaster ID
+    // 1. Check if venue exists by external IDs or Name+City
     let existingVenue: Venue | null = null;
     try {
-      const { data: existingData, error: checkError } = await supabaseAdmin
+      const query = supabaseAdmin
         .from('venues')
-        .select('*') // Select all columns
-        .eq('ticketmaster_id', venueInput.ticketmaster_id)
-        .maybeSingle();
+        .select('*'); // Select all columns
+
+      const orConditions: string[] = [];
+      if (hasTmId) orConditions.push(`ticketmaster_id.eq.${venueInput.ticketmaster_id}`);
+      // if (hasSetlistFmId) orConditions.push(`setlist_fm_id.eq.${venueInput.setlist_fm_id}`); // Removed Setlist.fm
+
+      if (orConditions.length > 0) {
+          query.or(orConditions.join(','));
+      } else if (hasNameCity) {
+          // Use Name + City as fallback (requires careful handling of duplicates)
+          query.eq('name', venueInput.name);
+          query.eq('city', venueInput.city);
+          // Maybe add state/country if available for better matching?
+          // if (venueInput.country) query.eq('country', venueInput.country);
+      }
+
+      const { data: existingData, error: checkError } = await query.limit(1).maybeSingle();
 
       if (checkError) {
         console.error(`[EF saveVenue] Error checking venue ${venueInput.name}:`, checkError);
@@ -193,7 +228,7 @@ export async function saveVenueToDatabase(venueInput: Partial<Venue>): Promise<V
     const venueDataForUpsert: Partial<Venue> = {
       ...(existingVenue || {}),
       ...venueInput,
-      ticketmaster_id: venueInput.ticketmaster_id, // Ensure TM ID is present
+      ticketmaster_id: venueInput.ticketmaster_id || existingVenue?.ticketmaster_id, // Ensure TM ID is present
       name: venueInput.name,
       city: venueInput.city || existingVenue?.city,
       state: venueInput.state || existingVenue?.state,
@@ -208,12 +243,24 @@ export async function saveVenueToDatabase(venueInput: Partial<Venue>): Promise<V
     };
     delete venueDataForUpsert.id; // Remove UUID id before upsert
 
+    // Determine conflict target
+    const conflictTarget = hasTmId
+        ? 'ticketmaster_id'
+        // : hasSetlistFmId // Removed Setlist.fm
+        // ? 'setlist_fm_id'
+        : 'name, city'; // Requires a unique constraint on (name, city)
+        
+    // Ensure conflict target columns are present
+    if (conflictTarget === 'name, city' && (!venueDataForUpsert.name || !venueDataForUpsert.city)) {
+       throw new Error('Cannot upsert venue on (name, city) without both name and city.');
+    }
+
     try {
-      console.log(`[EF saveVenue] Attempting upsert for venue: ${venueDataForUpsert.name} on conflict: ticketmaster_id`);
+      console.log(`[EF saveVenue] Attempting upsert for venue: ${venueDataForUpsert.name} on conflict: ${conflictTarget}`);
       const { data: upsertedData, error: upsertError } = await supabaseAdmin
         .from('venues')
         .upsert(venueDataForUpsert, { 
-            onConflict: 'ticketmaster_id',
+            onConflict: conflictTarget,
             ignoreDuplicates: false // Update on conflict
         })
         .select()
@@ -224,11 +271,13 @@ export async function saveVenueToDatabase(venueInput: Partial<Venue>): Promise<V
         // Attempt to fetch again on conflict
         if (upsertError.code === '23505') { 
           console.warn(`[EF saveVenue] Upsert conflict, attempting to fetch existing venue again...`);
-          const { data: conflictedVenue, error: fetchError } = await supabaseAdmin
-            .from('venues')
-            .select('*')
-            .eq('ticketmaster_id', venueInput.ticketmaster_id)
-            .maybeSingle();
+          const fetchQuery = supabaseAdmin.from('venues').select('*');
+          if (hasTmId) fetchQuery.eq('ticketmaster_id', venueInput.ticketmaster_id);
+          // else if (hasSetlistFmId) fetchQuery.eq('setlist_fm_id', venueInput.setlist_fm_id); // Removed Setlist.fm
+          else if (hasNameCity) fetchQuery.eq('name', venueInput.name).eq('city', venueInput.city);
+          else { /* Should not happen based on initial check */ throw new Error('Cannot fetch conflicting venue without identifier'); }
+          
+          const { data: conflictedVenue, error: fetchError } = await fetchQuery.maybeSingle();
           if (fetchError) console.error(`[EF saveVenue] Error fetching conflicted venue:`, fetchError);
           if (conflictedVenue) {
             console.log(`[EF saveVenue] Found conflicted venue with ID: ${conflictedVenue.id}. Returning it.`);
@@ -258,10 +307,14 @@ export async function saveVenueToDatabase(venueInput: Partial<Venue>): Promise<V
  * Also triggers setlist creation.
  */
 // Simplified signature to accept just Partial<Show>
-export async function saveShowToDatabase(showInput: Partial<Show>): Promise<Show | null> {
+export async function saveShowToDatabase(showInput: Partial<Show> & { artist?: Partial<Artist>, venue?: Partial<Venue> }): Promise<Show | null> {
   try {
-    if (!showInput || !showInput.ticketmaster_id || !showInput.name) {
-      console.error("[EF saveShow] Invalid input: Missing name or Ticketmaster ID", showInput);
+    // Need TM ID OR (ArtistID + Date + VenueID/Name)
+    const hasTmId = !!showInput.ticketmaster_id;
+    const hasArtistDateVenue = !!showInput.artist_id && !!showInput.date && (!!showInput.venue_id || !!showInput.venue?.name);
+    
+    if (!showInput || !showInput.name || (!hasTmId && !hasArtistDateVenue)) {
+      console.error("[EF saveShow] Invalid input: Missing name or identifier (TM ID/Artist+Date+Venue)", showInput);
       return null;
     }
     console.log(`[EF saveShow] Processing show: ${showInput.name} (TM ID: ${showInput.ticketmaster_id})`);
@@ -305,7 +358,9 @@ export async function saveShowToDatabase(showInput: Partial<Show>): Promise<Show
     // Resolve Venue
     if (showInput.venue && typeof showInput.venue === 'object') {
       console.log(`[EF saveShow] Show included venue object: ${showInput.venue.name}`);
-      const savedVenue = await saveVenueToDatabase(showInput.venue);
+      // Pass source if known, defaults to ticketmaster
+      // const venueSource = showInput.setlist_fm_id ? 'setlistfm' : 'ticketmaster'; // Removed Setlist.fm source check
+      const savedVenue = await saveVenueToDatabase(showInput.venue /*, venueSource */);
       dbVenueId = savedVenue?.id;
     } else if (showInput.venue_id) {
       // If only venue_id (assumed TM ID unless UUID) is provided
@@ -330,14 +385,32 @@ export async function saveShowToDatabase(showInput: Partial<Show>): Promise<Show
        // throw new Error(`Failed to resolve venue for show ${showInput.name}`);
     }
 
-    // 2. Check if show already exists by Ticketmaster ID
+    // 2. Check if show already exists by external IDs or Artist+Date+Venue
     let existingShow: Show | null = null;
     try {
-      const { data: existingData, error: checkError } = await supabaseAdmin
-        .from('shows')
-        .select('*') // Select all columns
-        .eq('ticketmaster_id', showInput.ticketmaster_id)
-        .maybeSingle();
+      const query = supabaseAdmin.from('shows').select('*'); // Select all columns
+
+      const orConditions: string[] = [];
+      if (hasTmId) orConditions.push(`ticketmaster_id.eq.${showInput.ticketmaster_id}`);
+      // if (hasSetlistFmId) orConditions.push(`setlist_fm_id.eq.${showInput.setlist_fm_id}`); // Removed Setlist.fm
+      
+      if (orConditions.length > 0) {
+         query.or(orConditions.join(','));
+      } else if (hasArtistDateVenue && dbArtistId) {
+         // Fallback check: Artist + Date + Venue (less reliable)
+         query.eq('artist_id', dbArtistId); 
+         // Normalize date for comparison 
+         const dateOnly = showInput.date?.split('T')[0];
+         if (dateOnly) query.eq('date', dateOnly); 
+         // Match venue ID if available, otherwise maybe name?
+         if (dbVenueId) query.eq('venue_id', dbVenueId);
+         // else if (showInput.venue?.name) query.eq('venue_name', showInput.venue.name); // Careful with this
+      } else {
+          console.warn('[EF saveShow] Cannot check for existing show without sufficient identifiers.');
+          // Proceed to potentially create a new one, relying on upsert conflict later
+      }
+      
+      const { data: existingData, error: checkError } = await query.limit(1).maybeSingle();
 
       if (checkError) {
         console.error(`[EF saveShow] Error checking show ${showInput.name}:`, checkError);
@@ -374,7 +447,7 @@ export async function saveShowToDatabase(showInput: Partial<Show>): Promise<Show
     const showDataForUpsert: Partial<Show> = {
       ...(existingShow || {}),
       // ...showInput, // Be careful not to overwrite resolved artist/venue IDs
-      ticketmaster_id: showInput.ticketmaster_id, // Ensure TM ID is present
+      ticketmaster_id: showInput.ticketmaster_id || existingShow?.ticketmaster_id, // Ensure TM ID is present
       name: showInput.name,
       artist_id: dbArtistId || existingShow?.artist_id || undefined, // Use resolved DB UUID
       venue_id: dbVenueId || existingShow?.venue_id || undefined,   // Use resolved DB UUID
@@ -388,14 +461,34 @@ export async function saveShowToDatabase(showInput: Partial<Show>): Promise<Show
     delete (showDataForUpsert as any).artist; // Remove nested objects
     delete (showDataForUpsert as any).venue;  // Remove nested objects
 
+    // Determine conflict target
+    const conflictTarget = hasTmId
+        ? 'ticketmaster_id'
+        // : hasSetlistFmId // Removed Setlist.fm
+        // ? 'setlist_fm_id'
+        : 'artist_id, date, venue_id'; // Requires unique constraint
+        
+    // Basic validation for fallback target
+    if (conflictTarget === 'artist_id, date, venue_id' && (!showDataForUpsert.artist_id || !showDataForUpsert.date || !showDataForUpsert.venue_id)) {
+        console.warn(`[EF saveShow] Cannot reliably upsert show ${showDataForUpsert.name} on fallback constraint (artist/date/venue) due to missing data. Inserting without explicit conflict target.`);
+        // Let insert proceed, duplicates might occur or be caught by other constraints
+    }
+
     try {
-      console.log(`[EF saveShow] Attempting upsert for show: ${showDataForUpsert.name} on conflict: ticketmaster_id`);
-      const { data: upsertedData, error: upsertError } = await supabaseAdmin
-      .from('shows')
-        .upsert(showDataForUpsert, { 
-            onConflict: 'ticketmaster_id',
-            ignoreDuplicates: false // Update on conflict
-        })
+      console.log(`[EF saveShow] Attempting upsert for show: ${showDataForUpsert.name} on conflict: ${conflictTarget}`);
+      const upsertQuery = supabaseAdmin.from('shows').upsert(showDataForUpsert);
+      // Only apply onConflict if we have a reliable target
+      if (conflictTarget === 'ticketmaster_id' /* || conflictTarget === 'setlist_fm_id' */ || (conflictTarget === 'artist_id, date, venue_id' && showDataForUpsert.artist_id && showDataForUpsert.date && showDataForUpsert.venue_id)) {
+          upsertQuery.upsert(showDataForUpsert, { 
+              onConflict: conflictTarget,
+              ignoreDuplicates: false // Update on conflict
+          });
+      } else {
+          // Insert without explicit conflict target if fallback is unreliable
+          upsertQuery.insert(showDataForUpsert);
+      }
+
+      const { data: upsertedData, error: upsertError } = await upsertQuery
       .select()
       .single();
 
@@ -404,11 +497,13 @@ export async function saveShowToDatabase(showInput: Partial<Show>): Promise<Show
          // Attempt to fetch again on conflict
         if (upsertError.code === '23505') { 
           console.warn(`[EF saveShow] Upsert conflict, attempting to fetch existing show again...`);
-          const { data: conflictedShow, error: fetchError } = await supabaseAdmin
-            .from('shows')
-            .select('*')
-            .eq('ticketmaster_id', showInput.ticketmaster_id)
-            .maybeSingle();
+          const fetchQuery = supabaseAdmin.from('shows').select('*');
+          if (hasTmId) fetchQuery.eq('ticketmaster_id', showInput.ticketmaster_id);
+          // else if (hasSetlistFmId) fetchQuery.eq('setlist_fm_id', showInput.setlist_fm_id); // Removed Setlist.fm
+          // Add fallback fetch logic if needed, but it's complex
+          else { console.warn('[EF saveShow] Cannot reliably fetch conflicting show without TM ID.'); }
+
+          const { data: conflictedShow, error: fetchError } = await fetchQuery.limit(1).maybeSingle();
           if (fetchError) console.error(`[EF saveShow] Error fetching conflicted show:`, fetchError);
           if (conflictedShow) {
             console.log(`[EF saveShow] Found conflicted show with ID: ${conflictedShow.id}. Returning it.`);
@@ -422,12 +517,15 @@ export async function saveShowToDatabase(showInput: Partial<Show>): Promise<Show
       console.log(`[EF saveShow] Successfully saved/updated show ${savedDbShow.name} (DB ID: ${savedDbShow.id})`);
 
       // 4. Trigger setlist creation (async, don't block show return)
+      // Pass Setlist.fm ID if available, so it can be stored on the setlist record
+      // const setlistFmId = showInput.setlist_fm_id; // Removed Setlist.fm ID pass-through
       if (savedDbShow.id && dbArtistId) {
-          console.log(`[EF saveShow] Triggering setlist creation for show ID: ${savedDbShow.id}, artist ID: ${dbArtistId}`);
-          createSetlistDirectly(savedDbShow.id, dbArtistId)
+          console.log(`[EF saveShow] Triggering setlist creation/check for show ID: ${savedDbShow.id}, artist ID: ${dbArtistId}`);
+          // Call createSetlistRecord without Setlist.fm ID
+          createSetlistRecord(savedDbShow.id, dbArtistId /*, setlistFmId */)
             .then(setlistId => {
               if (setlistId) {
-                console.log(`[EF saveShow] Setlist creation initiated successfully for show ${savedDbShow.name}. Setlist ID: ${setlistId}`);
+                console.log(`[EF saveShow] Setlist creation/check initiated successfully for show ${savedDbShow.name}. Setlist ID: ${setlistId}`);
            } else {
                 console.warn(`[EF saveShow] Setlist creation function returned null for show ${savedDbShow.name}.`);
            }
@@ -454,7 +552,7 @@ export async function saveShowToDatabase(showInput: Partial<Show>): Promise<Show
  * This should be called *after* the show is confirmed to be in the database.
  * Returns the UUID of the created or existing setlist, or null on failure.
  */
-export async function createSetlistDirectly(dbShowId: string, dbArtistId: string): Promise<string | null> {
+export async function createSetlistRecord(dbShowId: string, dbArtistId: string): Promise<string | null> {
   try {
     if (!dbShowId || !dbArtistId) {
       console.error('[EF createSetlist] Invalid input: Missing dbShowId or dbArtistId.');
@@ -463,11 +561,16 @@ export async function createSetlistDirectly(dbShowId: string, dbArtistId: string
     console.log(`[EF createSetlist] Checking/Creating setlist for Show ID: ${dbShowId}, Artist ID: ${dbArtistId}`);
 
     // 1. Check if a setlist already exists for this show
-    const { data: existingSetlist, error: checkError } = await supabaseAdmin
-      .from('setlists')
-      .select('id') // Only need the ID
-      .eq('show_id', dbShowId)
-      .maybeSingle();
+    const checkQuery = supabaseAdmin.from('setlists').select('id');
+    // const orConditions: string[] = [`show_id.eq.${dbShowId}`];
+    // if (setlistFmId) { // Removed Setlist.fm ID check
+    //   orConditions.push(`setlist_fm_id.eq.${setlistFmId}`);
+    // }
+    // checkQuery.or(orConditions.join(','));
+    checkQuery.eq('show_id', dbShowId); // Check only by show_id
+
+
+    const { data: existingSetlist, error: checkError } = await checkQuery.limit(1).maybeSingle();
 
     if (checkError) {
       console.error(`[EF createSetlist] Error checking for existing setlist (Show ID: ${dbShowId}):`, checkError);
@@ -477,8 +580,11 @@ export async function createSetlistDirectly(dbShowId: string, dbArtistId: string
     if (existingSetlist) {
       console.log(`[EF createSetlist] Setlist already exists for Show ID: ${dbShowId}. Setlist ID: ${existingSetlist.id}. Triggering population.`);
       // Populate songs even if setlist exists (in case it was empty or needs update)
+      // populateSetlistFromSetlistFm(existingSetlist.id, dbArtistId, existingSetlist as SetlistFmSetlist) // Removed Setlist.fm population call
+      //   .catch(e => console.error(`[EF createSetlist] Error populating existing setlist ${existingSetlist.id}:`, e));
+      // Call the standard song population instead
       populateSetlistSongs(existingSetlist.id, dbArtistId)
-        .catch(e => console.error(`[EF createSetlist] Error populating existing setlist ${existingSetlist.id}:`, e));
+        .catch(e => console.error(`[EF createSetlist] Error populating existing setlist ${existingSetlist.id} with standard songs:`, e));
       return existingSetlist.id;
     }
 
@@ -492,6 +598,7 @@ export async function createSetlistDirectly(dbShowId: string, dbArtistId: string
       // date, venue, etc., could potentially be fetched from the 'shows' table if needed
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
+      // setlist_fm_id: setlistFmId // Removed Setlist.fm ID storage
     };
 
     const { data: newSetlist, error: createError } = await supabaseAdmin
@@ -510,7 +617,7 @@ export async function createSetlistDirectly(dbShowId: string, dbArtistId: string
          const { data: raceSetlist, error: raceCheckError } = await supabaseAdmin
             .from('setlists')
             .select('id')
-            .eq('show_id', dbShowId)
+            .eq('show_id', dbShowId) // Check by show_id
             .maybeSingle();
           if (raceCheckError) console.error('[EF createSetlist] Error re-checking after unique violation:', raceCheckError);
           if (raceSetlist) {
@@ -786,72 +893,4 @@ export async function saveVoteToDatabase(
 
         // Handle foreign key violation (song_id references setlist_songs)
         if (upsertError.code === '23503') {
-          console.error(`[EF saveVote] Foreign key violation. Check if setlist_song ID ${voteInput.song_id} exists.`);
-        }
-        
-        throw new Error(`Failed to save vote. Code: ${upsertError.code}, Message: ${upsertError.message}`);
-      }
-
-      // 4. Update song vote_count in the setlist_songs table (async background task)
-      if (existingVote?.count !== voteCount) {
-        updateSetlistSongVoteCount(voteInput.song_id)
-          .catch(err => console.error(`[EF saveVote] Error updating setlist song vote count:`, err));
-      }
-
-      console.log(`[EF saveVote] Successfully saved vote (ID: ${upsertedData.id}, Count: ${upsertedData.count})`);
-      return upsertedData;
-      
-    } catch (saveError) {
-      console.error("[EF saveVote] Error during vote upsert:", saveError);
-      throw saveError;
-    }
-  } catch (error) {
-    console.error("[EF saveVote] Unexpected top-level error:", error);
-    return null;
-  }
-}
-
-/**
- * Helper to update the vote_count on a setlist_song record
- * based on the sum of all associated votes
- */
-async function updateSetlistSongVoteCount(setlistSongId: string): Promise<boolean> {
-  try {
-    console.log(`[EF updateSongVoteCount] Updating vote count for setlist_song ID: ${setlistSongId}`);
-    
-    // 1. Calculate total votes for this song
-    const { data: votesData, error: countError } = await supabaseAdmin
-      .from('votes')
-      .select('count')
-      .eq('song_id', setlistSongId);
-      
-    if (countError) {
-      console.error(`[EF updateSongVoteCount] Error counting votes:`, countError);
-      return false;
-    }
-    
-    // Sum the count values
-    const totalVotes = votesData.reduce((sum, vote) => sum + (vote.count || 0), 0);
-    console.log(`[EF updateSongVoteCount] Calculated total votes: ${totalVotes}`);
-    
-    // 2. Update the setlist_song record
-    const { error: updateError } = await supabaseAdmin
-      .from('setlist_songs')
-      .update({ 
-        vote_count: totalVotes,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', setlistSongId);
-      
-    if (updateError) {
-      console.error(`[EF updateSongVoteCount] Error updating setlist_song:`, updateError);
-      return false;
-    }
-    
-    console.log(`[EF updateSongVoteCount] Successfully updated vote count to ${totalVotes}`);
-    return true;
-  } catch (error) {
-    console.error(`[EF updateSongVoteCount] Unexpected error:`, error);
-    return false;
-  }
-}
+          console.error(`[EF saveVote] Foreign key violation. Check if setlist_song ID ${voteInput.song_id} exists.`

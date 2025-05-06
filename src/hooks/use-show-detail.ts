@@ -1,12 +1,11 @@
-
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useShowDetails } from '@/hooks/use-show-details';
-import { useArtistTracks } from '@/hooks/use-artist-tracks';
 import { useSongManagement } from '@/hooks/use-song-management';
 import { useAuth } from '@/contexts/auth';
-import { supabase } from '@/integrations/supabase/client'; // Import supabase client
-import { isPast } from 'date-fns'; // Import date-fns helper
-import { Song } from '@/lib/types'; // Import Song type
+import { supabase } from '@/integrations/supabase/client';
+import { isPast } from 'date-fns';
+import { Song } from '@/lib/types';
+import { useArtistSongs } from '@/hooks/use-artist-songs';
 
 export function useShowDetail(id: string | undefined) {
   const [documentMetadata, setDocumentMetadata] = useState({
@@ -134,35 +133,31 @@ export function useShowDetail(id: string | undefined) {
     fetchPlayedSetlist();
   }, [isPastShow, show?.id]);
   
-  // Get artist tracks with optimized settings:
-  // - staleTime set to 1 hour to better utilize cache
-  // - immediate loading enabled
-  // - prioritize stored tracks (Note: prioritizeStored option removed from useArtistTracks)
-  const artistTracksResponse = useArtistTracks(
-    show?.artist_id || undefined, // 1st arg: Internal Artist UUID
-    // undefined,                 // Removed 2nd (unused) argument entirely
-    { immediate: true }           // Now the 2nd argument is the options object
+  // Get artist songs with optimized settings:
+  // - enabled by default
+  // - uses stored songs from database
+  const artistSongsResponse = useArtistSongs(
+    spotifyArtistId,
+    { enabled: true }
   );
 
-  // Function to load tracks manually when needed
-  const loadTracks = useCallback(() => {
-    if (artistTracksResponse.refetch) {
-      artistTracksResponse.refetch();
+  // Function to load songs manually when needed
+  const loadSongs = useCallback(() => {
+    if (artistSongsResponse.refetch) {
+      artistSongsResponse.refetch();
     }
-  }, [artistTracksResponse]);
-  
-  // Extract all needed properties with defaults, ensuring response object exists
-  const tracks = artistTracksResponse && 'tracks' in artistTracksResponse ? artistTracksResponse.tracks : [];
-  const isLoadingTracks = artistTracksResponse && 'isLoading' in artistTracksResponse ? artistTracksResponse.isLoading : true; // Default to true if response is undefined
-  const isTracksError = artistTracksResponse && 'isError' in artistTracksResponse ? artistTracksResponse.isError : false;
-  const tracksError = artistTracksResponse && 'error' in artistTracksResponse ? artistTracksResponse.error : null;
-  const initialSongs = artistTracksResponse && 'initialSongs' in artistTracksResponse ? artistTracksResponse.initialSongs : [];
-  const storedTracksData = artistTracksResponse && 'storedTracksData' in artistTracksResponse ? artistTracksResponse.storedTracksData : [];
-  const getAvailableTracks = artistTracksResponse && 'getAvailableTracks' in artistTracksResponse ? artistTracksResponse.getAvailableTracks : ((setlist: any[]) => []);
-  
-  // For backward compatibility
-  const isLoadingAllTracks = isLoadingTracks;
-  const allTracksData = { tracks };
+  }, [artistSongsResponse]);
+
+  const songs = artistSongsResponse?.songs || [];
+  const isLoadingSongs = artistSongsResponse?.isLoading || false;
+  const isSongsError = artistSongsResponse?.isError || false;
+  const songsError = artistSongsResponse?.error || null;
+  const storedSongsData = artistSongsResponse?.storedSongsData || [];
+  const getAvailableSongs = artistSongsResponse?.getAvailableSongs || ((setlist: any[]) => []);
+
+  // Loading states
+  const isLoadingAllSongs = isLoadingSongs;
+  const allSongsData = { songs };
   
   // Song management (voting, adding songs)
   const {
@@ -176,55 +171,49 @@ export function useShowDetail(id: string | undefined) {
   } = useSongManagement(
       id || '',
       // Filter initialSongs to ensure 'id' is defined and map to add default vote properties
-      initialSongs
+      songs
         .filter((song): song is Song & { id: string } => song.id !== undefined) // Type guard to ensure id is string
         .map(song => ({ ...song, votes: 0, userVoted: false })),
       isAuthenticated,
       login
     );
 
-  // Compute available tracks directly without useMemo
-  // Type guard to ensure an object has a non-null, string 'id' property
-  const hasStringId = (item: any): item is { id: string } => typeof item?.id === 'string';
-
-  // Create a Set of IDs from the current setlist, filtering for valid IDs
-  const setlistIds = new Set(
-    (setlist || []).filter(hasStringId).map(song => song.id)
-  );
-
-  // Filter storedTracksData, ensuring track.id is defined before checking
-  const availableTracks = (storedTracksData || [])
-    .filter(hasStringId) // Ensure track has a string ID
-    .filter(track => !setlistIds.has(track.id)); // Check against the Set
+  // Compute available songs directly
+  const availableSongs = (storedSongsData || [])
+    .filter((song: any) => {
+      if (!song?.id) return false;
+      const isInSetlist = setlist.some((s: any) => s.song_id === song.id);
+      return !isInSetlist;
+    });
   
   // Optimized add song handler with better error handling
-  const handleAddSongClick = useCallback((trackId?: string) => {
-    const trackToUse = trackId || selectedTrack;
+  const handleAddSongClick = useCallback((songId?: string) => {
+    const songToUse = songId || selectedTrack;
     
-    if (!trackToUse) {
+    if (!songToUse) {
       return;
     }
     
-    if (storedTracksData && Array.isArray(storedTracksData) && storedTracksData.length > 0) {
-      const track = storedTracksData.find((t: any) => t.id === trackToUse);
-      if (track) {
-        handleAddSong({ tracks: storedTracksData });
+    if (storedSongsData && Array.isArray(storedSongsData) && storedSongsData.length > 0) {
+      const song = storedSongsData.find((s: any) => s.id === songToUse);
+      if (song) {
+        handleAddSong({ songs: storedSongsData });
         return;
       }
     }
     
-    if (allTracksData && allTracksData.tracks) {
-      handleAddSong(allTracksData);
+    if (allSongsData && allSongsData.songs) {
+      handleAddSong(allSongsData);
     }
-  }, [storedTracksData, allTracksData, handleAddSong, selectedTrack]);
+  }, [storedSongsData, allSongsData, handleAddSong, selectedTrack]);
   
   return {
     show,
     setlist,
     loading: {
       show: isLoadingShow,
-      tracks: isLoadingTracks,
-      allTracks: isLoadingAllTracks
+      songs: isLoadingSongs,
+      allSongs: isLoadingAllSongs
     },
     error: {
       show: isError ? showError : null
@@ -237,9 +226,9 @@ export function useShowDetail(id: string | undefined) {
       handleAddSong: handleAddSongClick,
       anonymousVoteCount
     },
-    availableTracks,
+    availableSongs,
     documentMetadata,
-    loadTracks,
+    loadSongs,
     isPastShow, // Return the flag
     playedSetlist, // Return the played setlist
     isLoadingPlayedSetlist // Return loading state for played setlist

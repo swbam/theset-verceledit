@@ -72,6 +72,59 @@ interface TicketmasterShow {
   };
 }
 
+// --- Setlist.fm Types ---
+interface SetlistFmSong {
+  name: string;
+  info?: string;
+}
+
+interface SetlistFmSet {
+  encore?: number; // Or boolean depending on API version
+  song: SetlistFmSong[];
+}
+
+interface SetlistFmVenue {
+  name: string;
+  city?: {
+    name: string;
+    state?: string;
+    country?: {
+      code: string;
+      name: string;
+    };
+  };
+  id?: string; // Sometimes available
+}
+
+interface SetlistFmArtist {
+  mbid?: string;
+  name: string;
+}
+
+interface SetlistFmSetlist {
+  id: string; // Setlist.fm's unique ID for the setlist
+  versionId?: string;
+  eventDate: string; // DD-MM-YYYY format
+  lastUpdated?: string; // ISO 8601 format
+  artist: SetlistFmArtist;
+  venue: SetlistFmVenue;
+  tour?: { name: string };
+  sets: {
+    set: SetlistFmSet[];
+  };
+  info?: string;
+  url?: string;
+}
+
+interface SetlistFmResponse {
+  type: string;
+  itemsPerPage: number;
+  page: number;
+  total: number;
+  setlist: SetlistFmSetlist[];
+}
+// --- End Setlist.fm Types ---
+
 async function handleApiResponse<T>(response: Response, apiName: string): Promise<T> {
   if (!response.ok) {
     let errorMessage = `${apiName} API error: ${response.status} ${response.statusText}`;
@@ -226,4 +279,47 @@ export async function fetchTicketmasterVenue(venueId: string, apiKey: string): P
   }
 
   return handleApiResponse<any>(response, 'Ticketmaster Venue');
+}
+
+export async function fetchSetlistFmSetlists(
+  artistMbid: string | null,
+  artistName: string,
+  apiKey: string,
+  page = 1
+): Promise<SetlistFmResponse> {
+  if ((!artistMbid && !artistName) || !apiKey) {
+    throw new Error('Artist MBID or Name, and API key are required for Setlist.fm fetch');
+  }
+
+  const searchParam = artistMbid ? 'artistMbid' : 'artistName';
+  const searchValue = artistMbid || artistName;
+
+  console.log(`[Setlist.fm] Fetching setlists for ${searchParam}=${searchValue}, page ${page}`);
+
+  const params = new URLSearchParams({
+    [searchParam]: searchValue,
+    p: page.toString(),
+    // Add other params like year if needed
+  });
+
+  const response = await fetch(
+    `https://api.setlist.fm/rest/1.0/search/setlists?${params.toString()}`,
+    {
+      headers: {
+        'x-api-key': apiKey,
+        'Accept': 'application/json',
+        // Setlist.fm might require specific Accept-Language for consistency
+        'Accept-Language': 'en',
+      }
+    }
+  );
+
+  // Setlist.fm returns 404 if no setlists found, handle gracefully
+  if (response.status === 404) {
+     console.log(`[Setlist.fm] No setlists found for ${searchParam}=${searchValue} (404)`);
+     return { type: 'setlists', itemsPerPage: 0, page: 1, total: 0, setlist: [] };
+  }
+
+  // Use the existing handler for other errors/success
+  return handleApiResponse<SetlistFmResponse>(response, 'Setlist.fm');
 }
