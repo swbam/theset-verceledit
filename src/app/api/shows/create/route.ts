@@ -1,5 +1,6 @@
-import { adminClient } from '@/lib/db';
-import { supabase } from '@/integrations/supabase/client';
+import { NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
+import { randomUUID } from 'crypto';
 import type { Show, Artist } from '@/lib/types';
 
 interface VenueData {
@@ -24,111 +25,85 @@ interface ShowCreate {
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json() as ShowCreate;
+    const requestData = await request.json();
 
-    // Validate required fields
-    if (!body.date || !body.artist?.id || !body.artist?.name || !body.venue?.id || !body.venue?.name) {
-      return Response.json({ error: 'Missing required fields' }, { status: 400 });
+    if (!requestData?.name) {
+      return NextResponse.json(
+        { error: 'Missing required fields' },
+        { status: 400 }
+      );
     }
 
-    // Check if show exists already to avoid duplicates
-    const { data: existingShows, error: checkError } = await adminClient
+    // Initialize Supabase client
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+
+    // Generate UUID for the show if not provided
+    const showId = requestData.id || randomUUID();
+    
+    // Create show record
+    const { data: showData, error: createError } = await supabase
       .from('shows')
-      .select('id')
-      .eq('date', new Date(body.date).toISOString())
-      .eq('artist_id', body.artist.id)
-      .eq('venue_id', body.venue.id);
+      .insert({
+        id: showId,
+        name: requestData.name,
+        date: requestData.date || new Date().toISOString(),
+        artist_id: requestData.artist_id,
+        venue_id: requestData.venue_id,
+        ticket_url: requestData.ticket_url,
+        image_url: requestData.image_url,
+        ticketmaster_id: requestData.ticketmaster_id,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
+      .select('*')
+      .single();
 
-    if (checkError) {
-      console.error('Error checking for existing show:', checkError);
-      return Response.json({ error: 'Database error' }, { status: 500 });
+    if (createError) {
+      console.error('[API/shows/create] Error creating show:', createError);
+      return NextResponse.json(
+        { error: 'Failed to create show', details: createError.message },
+        { status: 500 }
+      );
     }
 
-    // If show exists, return the first match
-    if (existingShows && existingShows.length > 0) {
-      return Response.json({ 
-        id: existingShows[0].id,
-        message: 'Show already exists'
-      }, { status: 200 });
-    }
+    console.log('API Route: Created show:', showData);
 
-    // Prepare the show object
-    const showToSave = {
-      id: body.ticketmaster_id || crypto.randomUUID(),
-      name: body.name || `${body.artist.name} Concert`,
-      date: new Date(body.date).toISOString(),
-      artist_id: body.artist.id,
-      venue_id: body.venue.id,
-      external_url: body.external_url,
-      image_url: body.image_url,
-      venue: {
-        id: body.venue.id,
-        name: body.venue.name,
-        city: body.venue.city,
-        state: body.venue.state,
-        country: body.venue.country || 'USA',
-      },
-      artist: body.artist
-    };
+    // Sync the newly created show using unified-sync-v2
+    if (showData.id) {
+      console.log(`[API/shows/create] Syncing show ${showData.id} using unified-sync-v2`);
+      
+      const syncResult = await supabase.functions.invoke('unified-sync-v2', {
+        body: {
+          entityType: 'show',
+          entityId: showData.id,
+          options: {
+            forceRefresh: true
+          }
+        }
+      });
 
-    console.log('API Route: Starting sync for show:', showToSave);
-
-    // 1. Sync Artist
-    console.log(`[API/shows/create] Syncing artist ${showToSave.artist_id}`);
-    const artistResult = await supabase.functions.invoke('sync-artist', {
-      body: { artistId: showToSave.artist_id }
-    });
-
-    if (!artistResult.data?.success) {
-      console.error(`[API/shows/create] Artist sync failed:`, artistResult.error);
-    }
-
-    // 2. Sync Venue
-    console.log(`[API/shows/create] Syncing venue ${showToSave.venue_id}`);
-    const venueResult = await supabase.functions.invoke('sync-venue', {
-      body: { venueId: showToSave.venue_id }
-    });
-
-    if (!venueResult.data?.success) {
-      console.error(`[API/shows/create] Venue sync failed:`, venueResult.error);
-    }
-
-    // 3. Sync Show
-    console.log(`[API/shows/create] Syncing show ${showToSave.id}`);
-    const showResult = await supabase.functions.invoke('sync-show', {
-      body: { 
-        showId: showToSave.id,
-        payload: showToSave
+      if (syncResult.error) {
+        console.error(`[API/shows/create] Show sync failed:`, syncResult.error);
+        // Continue anyway since the show was created
+      } else {
+        console.log(`[API/shows/create] Successfully synced show ${showData.id}`);
       }
-    });
-
-    if (!showResult.data?.success) {
-      throw new Error(showResult.error?.message || 'Show sync failed');
     }
 
-    console.log(`[API/shows/create] Successfully synced show ${showToSave.id}`);
-
-    return new Response(JSON.stringify({ 
-      success: true, 
-      message: `Show ${showToSave.id} synced successfully`,
-      showData: showToSave
-    }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
+    return NextResponse.json({
+      success: true,
+      message: 'Show created successfully',
+      data: showData
     });
 
-  } catch (error: unknown) {
-    let errorMessage = "Unknown error";
-    if (error instanceof Error) {
-      errorMessage = error.message;
-    }
-    console.error("Error in POST /api/shows/create:", error);
-    return new Response(JSON.stringify({ 
-      error: "Server error creating show", 
-      details: errorMessage 
-    }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
-    });
+  } catch (error: any) {
+    console.error('[API/shows/create] Unexpected error:', error);
+    return NextResponse.json(
+      { error: error.message || 'An unknown error occurred' },
+      { status: 500 }
+    );
   }
 }

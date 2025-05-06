@@ -30,49 +30,46 @@ export async function GET(request: Request) {
 
     const eventData = await response.json();
 
-    // Extract venue data if available
-    const venue = eventData._embedded?.venues?.[0];
-    let venueId = null;
+    // Find if we have a show record with this Ticketmaster ID
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
 
-    if (venue) {
-      const supabase = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!
-      );
+    const { data: showRecord, error: lookupError } = await supabase
+      .from('shows')
+      .select('id, ticketmaster_id')
+      .eq('ticketmaster_id', eventId)
+      .single();
 
-      // Upsert venue data
-      const { data: venueData, error: venueError } = await supabase
-        .from('venues')
-        .upsert({
-          ticketmaster_id: venue.id,
-          name: venue.name,
-          city: venue.city?.name,
-          state: venue.state?.name,
-          country: venue.country?.name,
-          address: venue.address?.line1,
-          postal_code: venue.postalCode,
-          latitude: venue.location?.latitude,
-          longitude: venue.location?.longitude,
-          url: venue.url,
-          image_url: venue.images?.[0]?.url,
-          updated_at: new Date().toISOString(),
-        }, {
-          onConflict: 'ticketmaster_id',
-          returning: 'minimal'
-        })
-        .select('id')
-        .single();
+    let processedShowId = null;
 
-      if (venueError) {
-        console.error('Failed to upsert venue:', venueError);
+    if (lookupError) {
+      console.warn(`Show with Ticketmaster ID ${eventId} not found in database, cannot sync venue.`);
+    } else if (showRecord && showRecord.id) {
+      processedShowId = showRecord.id;
+      
+      // Use the unified-sync-v2 Edge Function to sync the show
+      const { data: syncResult, error: syncError } = await supabase.functions.invoke('unified-sync-v2', {
+        body: {
+          entityType: 'show',
+          entityId: showRecord.id,
+          options: {
+            forceRefresh: true
+          }
+        }
+      });
+
+      if (syncError) {
+        console.error('Failed to sync show via Edge Function:', syncError);
       } else {
-        venueId = venueData.id;
+        console.log('Successfully synced show via Edge Function:', syncResult);
       }
     }
 
     return NextResponse.json({
       ...eventData,
-      processedVenueId: venueId
+      processedShowId
     });
   } catch (error: any) {
     console.error('Error in Ticketmaster event API route:', error);

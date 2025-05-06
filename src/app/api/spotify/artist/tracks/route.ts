@@ -66,25 +66,48 @@ export async function GET(request: Request) {
       }
     }));
 
-    // Store tracks in the database for future reference
+    // Find the artist in our database
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
 
-    // Update the artist with the stored songs
-    const { error: updateError } = await supabase
+    // Get the artist's ID and Ticketmaster ID from Supabase
+    const { data: artistRecord, error: lookupError } = await supabase
       .from('artists')
-      .update({
-        stored_songs: simplifiedTracks,
-        last_spotify_sync: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      })
-      .eq('spotify_id', spotifyId);
+      .select('id, spotify_id, ticketmaster_id')
+      .eq('spotify_id', spotifyId)
+      .single();
 
-    if (updateError) {
-      console.error('Failed to update artist songs in database:', updateError);
-      // Continue anyway, as we want to return the tracks data
+    if (lookupError) {
+      console.error('Failed to find artist in database:', lookupError);
+      return NextResponse.json(
+        { error: 'Artist not found in database. Please add the artist first.' },
+        { status: 404 }
+      );
+    }
+
+    // Use the unified-sync-v2 Edge Function instead of direct DB update
+    if (artistRecord && artistRecord.ticketmaster_id) {
+      const { data: syncResult, error: syncError } = await supabase.functions.invoke('unified-sync-v2', {
+        body: {
+          entityType: 'artist',
+          ticketmasterId: artistRecord.ticketmaster_id,
+          spotifyId: spotifyId,
+          options: {
+            forceRefresh: true
+          }
+        }
+      });
+
+      if (syncError) {
+        console.error('Failed to sync artist tracks via Edge Function:', syncError);
+        // Continue anyway to return the tracks data
+      } else {
+        console.log('Successfully synced artist tracks via Edge Function:', syncResult);
+      }
+    } else {
+      console.warn('Could not sync artist tracks: missing ticketmaster_id');
     }
 
     return NextResponse.json(simplifiedTracks);

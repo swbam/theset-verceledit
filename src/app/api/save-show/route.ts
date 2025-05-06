@@ -1,72 +1,45 @@
-import { adminClient } from '@/lib/db';
-import { supabase } from '@/integrations/supabase/client';
+import { NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
 
 export async function POST(request: Request) {
   try {
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+
+    // Parse request body to get show information
     const showPayload = await request.json();
 
-    // Validate payload
-    if (!showPayload || !showPayload.id || !showPayload.artist_id || !showPayload.venue_id) {
-      return new Response(JSON.stringify({ success: false, error: 'Invalid show data provided. Required fields: id, artist_id, venue_id' }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' },
-      });
+    if (!showPayload.id) {
+      return NextResponse.json({ error: 'Missing required show ID' }, { status: 400 });
     }
 
-    // 1. Sync Artist
-    console.log(`[API/save-show] Syncing artist ${showPayload.artist_id}`);
-    const artistResult = await supabase.functions.invoke('sync-artist', {
-      body: { artistId: showPayload.artist_id }
-    });
-
-    if (!artistResult.data?.success) {
-      console.error(`[API/save-show] Artist sync failed:`, artistResult.error);
-    }
-
-    // 2. Sync Venue
-    console.log(`[API/save-show] Syncing venue ${showPayload.venue_id}`);
-    const venueResult = await supabase.functions.invoke('sync-venue', {
-      body: { venueId: showPayload.venue_id }
-    });
-
-    if (!venueResult.data?.success) {
-      console.error(`[API/save-show] Venue sync failed:`, venueResult.error);
-    }
-
-    // 3. Sync Show
-    console.log(`[API/save-show] Syncing show ${showPayload.id}`);
-    const showResult = await supabase.functions.invoke('sync-show', {
-      body: { 
-        showId: showPayload.id,
-        payload: showPayload // Pass full payload for additional context
+    console.log(`[API/save-show] Syncing show ${showPayload.id} using unified-sync-v2`);
+    
+    // Use the unified-sync-v2 Edge Function for all syncing
+    const syncResult = await supabase.functions.invoke('unified-sync-v2', {
+      body: {
+        entityType: 'show',
+        entityId: showPayload.id,
+        options: {
+          forceRefresh: true
+        }
       }
     });
 
-    if (!showResult.data?.success) {
-      throw new Error(showResult.error?.message || 'Show sync failed');
+    if (syncResult.error) {
+      console.error(`[API/save-show] Show sync failed:`, syncResult.error);
+      return NextResponse.json({ error: syncResult.error.message }, { status: 500 });
     }
 
     console.log(`[API/save-show] Successfully synced show ${showPayload.id}`);
-
-    return new Response(JSON.stringify({ 
-      success: true, 
-      message: `Show ${showPayload.id} synced successfully`,
-      data: showResult.data
-    }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-    });
-
-  } catch (error) {
-    console.error('[API/save-show] Error processing request:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    return new Response(JSON.stringify({ 
-      success: false, 
-      error: 'Internal server error', 
-      details: errorMessage 
-    }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
-    });
+    return NextResponse.json({ success: true, data: syncResult.data });
+  } catch (error: any) {
+    console.error('Error in save-show API route:', error);
+    return NextResponse.json(
+      { error: error.message || 'Error saving show' },
+      { status: 500 }
+    );
   }
 }
