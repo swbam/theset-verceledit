@@ -3,8 +3,8 @@ import { createClient } from '@supabase/supabase-js';
 // --- Client-Side Safe Configuration ---
 const clientConfig = {
   supabase: {
-    url: process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-    anonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
+    url: process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL || '',
+    anonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || '',
   },
   // Add other client-safe configs here if needed
 };

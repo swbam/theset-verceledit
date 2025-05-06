@@ -1,90 +1,75 @@
-import { defineConfig } from "vite";
+import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
-import { componentTagger } from "lovable-tagger";
 
 // https://vitejs.dev/config/
-export default defineConfig(({ mode }) => ({
-  server: {
-    host: "::",
-    port: 8080,
-    allowedHosts: [
-      "2f07b5a9-6ac0-4b2b-b498-ccde0e20673b.lovableproject.com",
-      // Add wildcards to allow any lovable project domain
-      "*.lovableproject.com"
-    ],
-    // proxy: { ... } // Removed incorrect proxy setting
-  },
-  plugins: [
-    react(),
-    mode === 'development' &&
-    componentTagger(),
-  ].filter(Boolean),
-  resolve: {
-    alias: {
-      "@": path.resolve(__dirname, "./src"),
+export default defineConfig(({ mode }) => {
+  // Load env files based on mode
+  const env = loadEnv(mode, process.cwd(), '');
+  
+  // Map environment variables for compatibility
+  const processEnv = {
+    'process.env.NEXT_PUBLIC_SUPABASE_URL': JSON.stringify(env.NEXT_PUBLIC_SUPABASE_URL || env.VITE_SUPABASE_URL),
+    'process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY': JSON.stringify(env.NEXT_PUBLIC_SUPABASE_ANON_KEY || env.VITE_SUPABASE_ANON_KEY),
+    'process.env.NODE_ENV': JSON.stringify(env.NODE_ENV || mode),
+  };
+  
+  // Merge all env variables to make them available to Vite
+  Object.keys(env).forEach(key => {
+    if (key.startsWith('VITE_') || key.startsWith('NEXT_PUBLIC_')) {
+      processEnv[`process.env.${key}`] = JSON.stringify(env[key]);
+    }
+  });
+
+  return {
+    server: {
+      host: "::",
+      port: parseInt(env.VITE_APP_PORT || '8080'),
+      allowedHosts: true,
+      hmr: {
+        overlay: true,
+      },
     },
-  },
-  // Add define to handle process.env variables in browser
-  define: {
-    'process.env': {
-      // Map Next.js environment variables to Vite format
-      NEXT_PUBLIC_SUPABASE_URL: JSON.stringify(process.env.NEXT_PUBLIC_SUPABASE_URL || import.meta.env?.VITE_SUPABASE_URL),
-      NEXT_PUBLIC_SUPABASE_ANON_KEY: JSON.stringify(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || import.meta.env?.VITE_SUPABASE_ANON_KEY),
-      NODE_ENV: JSON.stringify(process.env.NODE_ENV || mode),
+    plugins: [
+      react(),
+    ].filter(Boolean),
+    resolve: {
+      alias: {
+        "@": path.resolve(__dirname, "./src"),
+      },
     },
-  },
-  build: {
-    // Increase the warning limit to avoid unnecessary warnings
-    chunkSizeWarningLimit: 1000,
-    rollupOptions: {
-      output: {
-        // Manually split chunks for better performance
-        manualChunks: {
-          // Vendor chunk for third-party libraries
-          vendor: [
-            'react',
-            'react-dom',
-            'react-router-dom',
-            '@supabase/supabase-js',
-            '@tanstack/react-query'
-          ],
-          // UI components chunk - individual Radix packages instead of '@radix-ui'
-          ui: [
-            '@radix-ui/react-tabs',
-            '@radix-ui/react-tooltip',
-            '@radix-ui/react-dialog',
-            '@radix-ui/react-popover',
-            '@radix-ui/react-select',
-            '@radix-ui/react-slot',
-            'lucide-react',
-            'class-variance-authority',
-            'clsx',
-            'tailwind-merge'
-          ],
-          // API services chunk
-          api: [
-            'src/lib/api/index.ts',
-            'src/lib/ticketmaster.ts',
-            'src/integrations/supabase/client.ts'
-          ],
-          // Auth related code
-          auth: [
-            'src/contexts/auth/index.ts',
-            'src/pages/Auth.tsx',
-            'src/pages/AuthCallback.tsx'
-          ]
+    define: processEnv,
+    build: {
+      chunkSizeWarningLimit: 1000,
+      sourcemap: mode !== 'production',
+      cssCodeSplit: true,
+      minify: mode === 'production',
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            vendor: [
+              'react',
+              'react-dom',
+              'react-router-dom',
+              '@supabase/supabase-js',
+              '@tanstack/react-query'
+            ]
+          }
         }
       }
-    }
-  },
-  // Optimize dependencies
-  optimizeDeps: {
-    include: [
-      'react',
-      'react-dom',
-      'react-router-dom',
-      '@supabase/supabase-js'
-    ]
+    },
+    optimizeDeps: {
+      include: [
+        'react',
+        'react-dom',
+        'react-router-dom',
+        '@supabase/supabase-js',
+        '@radix-ui/react-tabs',
+        '@tanstack/react-query',
+        'date-fns'
+      ],
+      exclude: []
+    },
+    cacheDir: '.vite-cache',
   }
-}));
+});

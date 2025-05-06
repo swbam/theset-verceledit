@@ -8,11 +8,6 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
-dist
-dist-ssr
-*.local
-supabase/.env
-tsconfig.tsbuildinfo
 
 
 # Editor directories and files
@@ -40,9 +35,3 @@ tsconfig.tsbuildinfo
 build
 out
 coverage
-
-# Misc
-.env
-.env.*
-!.env.example
-.bolt/
