@@ -16,15 +16,24 @@ interface SyncRequest {
   options?: SyncOptions;
 }
 
+interface SyncLog {
+  timestamp: string;
+  step: string;
+  status: 'success' | 'error';
+  details?: any;
+}
+
 // Initialize Supabase client
-const supabaseUrl = Deno.env.get('SUPABASE_URL');
-const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const ticketmasterApiKey = Deno.env.get('TICKETMASTER_API_KEY');
 const spotifyClientId = Deno.env.get('SPOTIFY_CLIENT_ID');
 const spotifyClientSecret = Deno.env.get('SPOTIFY_CLIENT_SECRET');
 
 console.log(`[unified-sync-v2] Env Vars Check:`);
 console.log(`  SUPABASE_URL: ${supabaseUrl ? 'Present' : 'MISSING!'}`);
+console.log(`  SUPABASE_ANON_KEY: ${supabaseAnonKey ? 'Present' : 'MISSING!'}`);
 console.log(`  SUPABASE_SERVICE_ROLE_KEY: ${supabaseServiceKey ? 'Present' : 'MISSING!'}`);
 console.log(`  TICKETMASTER_API_KEY: ${ticketmasterApiKey ? 'Present' : 'MISSING!'}`);
 console.log(`  SPOTIFY_CLIENT_ID: ${spotifyClientId ? 'Present' : 'MISSING!'}`);
@@ -36,7 +45,7 @@ if (!supabaseUrl || !supabaseServiceKey) {
   // For now, let it proceed to potentially fail later, but log the critical issue.
 }
 
-const supabase = createClient(supabaseUrl!, supabaseServiceKey!);
+const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 async function syncArtist(
   ticketmasterId: string,

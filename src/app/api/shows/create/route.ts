@@ -83,7 +83,7 @@ export async function POST(request: Request) {
             forceRefresh: true
           }
         }
-      });
+    });
 
       if (syncResult.error) {
         console.error(`[API/shows/create] Show sync failed:`, syncResult.error);
@@ -94,7 +94,7 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json({
-      success: true,
+      success: true, 
       message: 'Show created successfully',
       data: showData
     });

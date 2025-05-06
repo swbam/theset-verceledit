@@ -49,26 +49,26 @@ export function useSongManagement(showId: string, initialSongs: Song[], isAuthen
       return;
     }
 
-    // Check if the song already exists in the setlist
+      // Check if the song already exists in the setlist
     const songExists = setlist.some(song => song.id === songToAdd.id);
-    
-    if (songExists) {
+      
+      if (songExists) {
       toast.info(`"${songToAdd.name}" is already in the setlist!`);
-      return;
-    }
-    // Add the song to the setlist
-    // Ensure the object passed matches the expected RealtimeSong type
-    addSongToSetlist({
+        return;
+      }
+      // Add the song to the setlist
+      // Ensure the object passed matches the expected RealtimeSong type
+      addSongToSetlist({
       id: songToAdd.id, // Assuming songToAdd.id is string
       name: songToAdd.name, // Assuming songToAdd.name is string
-      votes: 0,
-      userVoted: false
-    });
-    
-    setSelectedTrack('');
+        votes: 0,
+        userVoted: false
+      });
+      
+      setSelectedTrack('');
     toast.success(`"${songToAdd.name}" added to setlist!`);
-    
-    // Log the update for debugging
+      
+      // Log the update for debugging
     console.log(`Added song to setlist: ${songToAdd.name}`, setlist.length + 1);
   };
 

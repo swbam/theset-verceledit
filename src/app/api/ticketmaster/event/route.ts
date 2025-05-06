@@ -31,16 +31,16 @@ export async function GET(request: Request) {
     const eventData = await response.json();
 
     // Find if we have a show record with this Ticketmaster ID
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
+      const supabase = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
 
     const { data: showRecord, error: lookupError } = await supabase
       .from('shows')
       .select('id, ticketmaster_id')
       .eq('ticketmaster_id', eventId)
-      .single();
+        .single();
 
     let processedShowId = null;
 

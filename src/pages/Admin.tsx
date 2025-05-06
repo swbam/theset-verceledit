@@ -1,17 +1,20 @@
 import React, { useEffect } from 'react';
-import AdminDashboard from '@/components/admin/AdminDashboard';
+import { useNavigate } from 'react-router-dom';
 
 /**
  * Admin page component
- * For development purposes, auth check is bypassed
+ * Redirects to the sync test page
  */
 const Admin = () => {
-  useEffect(() => {
-    document.title = 'Admin Dashboard | TheSet';
-  }, []);
+  const navigate = useNavigate();
 
-  // Directly render the dashboard in development
-  return <AdminDashboard />;
+  useEffect(() => {
+    document.title = 'Admin | TheSet';
+    // Redirect to sync test page
+    navigate('/admin/sync-test');
+  }, [navigate]);
+
+  return null;
 };
 
 export default Admin;

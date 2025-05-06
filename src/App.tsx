@@ -24,7 +24,7 @@ import Admin from './pages/Admin';
 import Dashboard from './pages/Dashboard';
 import AdminSetup from './pages/AdminSetup';
 import Import from './pages/Import';
-import SyncTest from './pages/admin/SyncTest';
+import AdminSyncTest from './app/admin/sync-test/page';
 import { ThemeProvider } from 'next-themes';
 
 const GA_TRACKING_ID = "G-CNM6621HGW"; 
@@ -108,7 +108,7 @@ function App() {
                 <Route path="/import" element={<Import />} />
                 <Route path="/admin" element={<Admin />} />
                 <Route path="/admin/setup" element={<AdminSetup />} />
-                <Route path="/admin/sync-test" element={<SyncTest />} />
+                <Route path="/admin/sync-test" element={<AdminSyncTest />} />
                 <Route path="/test-journey" element={<TestJourney />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
