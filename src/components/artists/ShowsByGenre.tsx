@@ -1,6 +1,5 @@
-
 import React from 'react';
-import { Link } from 'react-router-dom';
+import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { fetchShowsByGenre } from '@/lib/ticketmaster';
 import { ChevronRight, CalendarDays, MapPin, Music } from 'lucide-react';
@@ -60,7 +59,7 @@ const ShowsByGenre: React.FC<ShowsByGenreProps> = ({
       <div className="max-w-7xl mx-auto">
         <div className="flex justify-between items-center mb-8">
           <h3 className="text-2xl font-semibold">Shows by {genreName}</h3>
-          <Link to={`/shows?genre=${encodeURIComponent(genreName)}`} className="text-white text-sm hover:underline flex items-center group">
+          <Link href={`/shows?genre=${encodeURIComponent(genreName)}`} className="text-white text-sm hover:underline flex items-center group">
             View all <ChevronRight size={16} className="ml-1 transition-transform group-hover:translate-x-1" />
           </Link>
         </div>
@@ -83,7 +82,7 @@ const ShowsByGenre: React.FC<ShowsByGenreProps> = ({
             <Music className="h-10 w-10 mx-auto text-white/40 mb-3" />
             <p className="text-white/60 mb-4">No upcoming shows found for this genre</p>
             <Button asChild variant="default" size="sm">
-              <Link to="/shows">Browse all shows</Link>
+              <Link href="/shows">Browse all shows</Link>
             </Button>
           </div>
         ) : (
@@ -91,7 +90,7 @@ const ShowsByGenre: React.FC<ShowsByGenreProps> = ({
             {uniqueShows.map((show) => (
               <Link
                 key={show.id}
-                to={`/shows/${show.id}`}
+                href={`/shows/${show.id}`}
                 className="group rounded-lg border border-white/10 overflow-hidden hover:shadow-md transition-all hover:border-white/30 bg-black/20"
               >
                 <div className="relative h-32 overflow-hidden">

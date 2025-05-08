@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useRouter } from 'next/navigation';
 import { Search, Music, PlusCircle, Users, Award } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { Input } from '@/components/ui/input';
@@ -10,7 +10,7 @@ import ArtistSearchResults from '@/components/artists/ArtistSearchResults';
 const Hero = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
-  const navigate = useNavigate();
+  const router = useRouter();
 
   // Debounce search query
   useEffect(() => {
@@ -28,7 +28,7 @@ const Hero = () => {
   };
 
   const handleArtistSelect = (artist: any) => {
-    navigate(`/artists/${artist.id}`);
+    router.push(`/artists/${artist.id}`);
   };
 
   // Only query when we have at least 2 characters
@@ -72,14 +72,14 @@ const Hero = () => {
               <Button 
                 variant="primary"
                 size="lg" 
-                onClick={() => navigate('/shows')}
+                onClick={() => router.push('/shows')}
               >
                 Explore Shows
               </Button>
               <Button 
                 size="lg" 
                 variant="default"
-                onClick={() => navigate('/how-it-works')}
+                onClick={() => router.push('/how-it-works')}
               >
                 How It Works
               </Button>

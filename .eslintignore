@@ -1,0 +1,10 @@
+coverage/**
+reports/**
+scripts/**
+Supabase/**
+supabase/**
+coverage/**
+dist/**
+.test/**
+test-results/**
+*.js 

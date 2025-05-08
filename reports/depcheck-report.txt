@@ -1,0 +1,15 @@
+Unused dependencies
+* @radix-ui/react-icons
+* @types/express
+* concurrently
+Unused devDependencies
+* @tailwindcss/typography
+* @types/jest
+* @vitejs/plugin-react-swc
+* autoprefixer
+* lovable-tagger
+* postcss
+Missing dependencies
+* @jest/types: ./jest.config.ts
+* file:: ./vite.config.ts.timestamp-1745259191889-8723281702111.mjs
+* @supabase/auth-helpers-nextjs: ./src/app/show/[showId]/page.tsx

@@ -1,6 +1,6 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
+import Link from 'next/link';
 import { Calendar, MapPin, Star } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
@@ -220,7 +220,7 @@ const TrendingShows = () => {
             <h2 className="text-3xl font-bold text-white">Trending Shows</h2>
             <p className="text-base text-white/70 mt-1">Shows with the most active voting right now</p>
           </div>
-          <Link to="/shows" className="text-white hover:text-white/80 font-medium flex items-center group">
+          <Link href="/shows" className="flex items-center text-sm text-white hover:text-white/80">
             View all <span className="ml-1 transition-transform group-hover:translate-x-1">→</span>
           </Link>
         </div>
@@ -262,7 +262,7 @@ const TrendingShows = () => {
               return (
                 <Link 
                   key={show.id} 
-                  to={`/shows/${show.id}`}
+                  href={`/shows/${show.id}`}
                   className="bg-black/40 rounded-xl overflow-hidden border border-white/10 hover:border-white/30 transition-all hover:scale-[1.02] group"
                 >
                   <div className="relative aspect-[4/3] overflow-hidden">

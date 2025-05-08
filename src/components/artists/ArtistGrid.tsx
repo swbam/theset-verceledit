@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import ArtistCard from '@/components/artist/ArtistCard';
@@ -42,7 +42,7 @@ const ArtistGrid = ({
         
         {showViewAll && (
           <Button variant="link" asChild className="group">
-            <Link to={viewAllLink} className="flex items-center text-primary">
+            <Link href={viewAllLink} className="flex items-center text-primary">
               {viewAllText}
               <ArrowRight size={16} className="ml-1 transition-transform group-hover:translate-x-1" />
             </Link>

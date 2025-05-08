@@ -1,5 +1,5 @@
 import React, { useState, ReactNode } from 'react';
-import { Link } from 'react-router-dom';
+import Link from 'next/link';
 import { Music2, CalendarDays, Star } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -70,7 +70,7 @@ const ArtistCard = ({
       )}
     >
       <Link 
-        to={`/artists/${artist.id}`} 
+        href={`/artists/${artist.id}`} 
         className="block"
       >
         <div className="relative aspect-square overflow-hidden bg-secondary/20">

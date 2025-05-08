@@ -1,6 +1,5 @@
-
 import React from 'react';
-import { Link } from 'react-router-dom';
+import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { fetchFeaturedShows } from '@/lib/ticketmaster';
@@ -97,7 +96,7 @@ const FeaturedShows = () => {
           </div>
           
           <Link 
-            to="/shows" 
+            href="/shows" 
             className="mt-4 md:mt-0 group inline-flex items-center text-foreground hover:text-primary transition-colors"
           >
             View all shows
@@ -116,7 +115,7 @@ const FeaturedShows = () => {
                 style={{ animationDelay: `${index * 0.1}s` }}
               >
                 <Link 
-                  to={`/shows/${show.id}`} 
+                  href={`/shows/${show.id}`} 
                   className="block rounded-xl overflow-hidden border border-border bg-card hover-scale transition-all"
                 >
                   <div className="relative aspect-[21/9] overflow-hidden">

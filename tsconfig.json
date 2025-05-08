@@ -18,7 +18,6 @@
     "noEmit": true, // Keep this - Vite handles emitting
     "jsx": "preserve", // Use react-jsx for Vite compatibility
     "types": [
-      "vite/client",
       "node",
       "next"
     ], // Add "next" for Next.js types
@@ -50,7 +49,6 @@
   "include": [
     "src/**/*.ts", // Include all TS files in src
     "src/**/*.tsx", // Include all TSX files in src
-    "vite.config.ts", // Include Vite config file
     "next-env.d.ts" // Include Next.js environment types
     // Add other specific files/patterns if needed
     // Removed include for ".next/types/**/*.ts"

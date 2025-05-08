@@ -1,6 +1,5 @@
-
 import React from 'react';
-import { Link } from 'react-router-dom';
+import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { Music, ChevronRight } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -49,7 +48,7 @@ const FeaturedArtists = () => {
             <h2 className="text-3xl font-bold text-white">Featured Artists</h2>
             <p className="text-base text-white/70 mt-1">Top artists with upcoming shows to vote on</p>
           </div>
-          <Link to="/artists" className="text-white hover:text-white/80 font-medium flex items-center group">
+          <Link href="/artists" className="text-white hover:text-white/80 font-medium flex items-center group">
             View all <ChevronRight size={16} className="transition-transform group-hover:translate-x-1" />
           </Link>
         </div>
@@ -81,7 +80,7 @@ const FeaturedArtists = () => {
             {uniqueArtists.map(artist => (
               <Link 
                 key={artist.id}
-                to={`/artists/${artist.id}`}
+                href={`/artists/${artist.id}`}
                 className="bg-black/40 rounded-xl overflow-hidden border border-white/10 hover:border-white/30 transition-all hover:scale-[1.02] group"
               >
                 <div className="aspect-square overflow-hidden relative">

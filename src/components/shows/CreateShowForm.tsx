@@ -1,6 +1,5 @@
-
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { searchArtists } from '@/lib/spotify';
 import { toast } from 'sonner';
@@ -8,13 +7,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { 
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import {
   Popover,
   PopoverContent,
@@ -23,11 +15,10 @@ import {
 import { Calendar } from '@/components/ui/calendar';
 import { format } from 'date-fns';
 import { CalendarIcon, Search, X } from 'lucide-react';
-import { Artist } from '@/lib/types'; // Import local Artist type
 import { SpotifyArtist } from '@/lib/spotify/types'; // Import Spotify's Artist type
 
 const CreateShowForm = () => {
-  const navigate = useNavigate();
+  const router = useRouter();
   const [date, setDate] = useState<Date | undefined>(undefined);
   const [artistSearch, setArtistSearch] = useState('');
   // Use SpotifyArtist type since we're working with Spotify API results
@@ -128,7 +119,7 @@ const CreateShowForm = () => {
      // Using result.show.id assumes the API returns the created show object with its ID
      const redirectPath = result.show?.id ? `/show/${result.show.id}` : '/shows';
      setTimeout(() => {
-       navigate(redirectPath);
+       router.push(redirectPath);
      }, 1500);
 
    } catch (error) {

@@ -1,7 +1,8 @@
+'use client'
 
 import React, { useState, useEffect, useRef, ReactNode } from 'react';
 import { Search, X } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useRouter } from 'next/navigation';
 import { Input } from '@/components/ui/input';
 
 interface SearchBarProps {
@@ -31,7 +32,7 @@ const SearchBar: React.FC<SearchBarProps> = ({
   const [showResults, setShowResults] = useState(false);
   const searchContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const navigate = useNavigate();
+  const router = useRouter();
 
   // Update internal state when value prop changes
   useEffect(() => {
@@ -66,7 +67,7 @@ const SearchBar: React.FC<SearchBarProps> = ({
       if (onSearch) {
         onSearch(query.trim());
       } else if (!disableRedirect) {
-        navigate(`/search?q=${encodeURIComponent(query.trim())}`);
+        router.push(`/search?q=${encodeURIComponent(query.trim())}`);
       }
     }
   };

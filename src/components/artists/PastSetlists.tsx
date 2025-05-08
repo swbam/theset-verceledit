@@ -1,7 +1,6 @@
-
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
+import Link from 'next/link';
 import { Music, ArrowRight, Calendar, Clock, MapPin } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -143,7 +142,7 @@ const PastSetlists: React.FC<PastSetlistsProps> = ({ artistId, artistName }) => 
           </div>
           
           <Button variant="ghost" asChild className="mt-4 md:mt-0 group">
-            <Link to={`/artists/${artistId}/setlists`}>
+            <Link href={`/artists/${artistId}/setlists`}>
               <div className="flex items-center">
                 See all setlists
                 <ArrowRight className="ml-1 h-4 w-4 transition-transform group-hover:translate-x-1" />
@@ -204,7 +203,7 @@ const PastSetlists: React.FC<PastSetlistsProps> = ({ artistId, artistName }) => 
                     {/* Link to the show page if available, otherwise maybe disable or hide */}
                     {setlist.show?.id ? (
                       <Button variant="outline" size="sm" className="mt-3 w-full" asChild>
-                        <Link to={`/show/${setlist.show.id}`}>
+                        <Link href={`/show/${setlist.show.id}`}>
                           <div className="flex items-center justify-center gap-1.5">
                             <Clock size={14} />
                             View Show & Setlist

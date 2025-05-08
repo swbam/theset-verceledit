@@ -1,6 +1,8 @@
+'use client'
 
 import React from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import Link from 'next/link';
+import { usePathname, useRouter } from 'next/navigation';
 import SearchBar from '@/components/ui/SearchBar';
 import UserProfile from '@/components/auth/UserProfile';
 
@@ -27,16 +29,17 @@ const MobileMenu = ({
   closeMenu,
   isSearchPage = false
 }: MobileMenuProps) => {
-  const location = useLocation();
+  const pathname = usePathname();
+  const router = useRouter();
 
   const isActive = (path: string) => {
     if (path === '/') {
-      return location.pathname === '/';
+      return pathname === '/';
     }
-    return location.pathname.startsWith(path);
+    return pathname.startsWith(path);
   };
 
-  const isHomePage = location.pathname === '/';
+  const isHomePage = pathname === '/';
 
   if (!isOpen) return null;
 
@@ -50,28 +53,28 @@ const MobileMenu = ({
     <div className="fixed inset-0 top-16 z-50 bg-background animate-in slide-in-from-top-5">
       <nav className="container flex flex-col gap-6 p-6">
         <Link
-          to="/"
+          href="/"
           className={`text-lg ${isActive('/') ? 'font-semibold text-primary' : 'text-foreground'}`}
           onClick={closeMenu}
         >
           Home
         </Link>
         <Link
-          to="/artists"
+          href="/artists"
           className={`text-lg ${isActive('/artists') ? 'font-semibold text-primary' : 'text-foreground'}`}
           onClick={closeMenu}
         >
           Artists
         </Link>
         <Link
-          to="/shows"
+          href="/shows"
           className={`text-lg ${isActive('/shows') ? 'font-semibold text-primary' : 'text-foreground'}`}
           onClick={closeMenu}
         >
           Upcoming Shows
         </Link>
         <Link
-          to="/how-it-works"
+          href="/how-it-works"
           className={`text-lg ${isActive('/how-it-works') ? 'font-semibold text-primary' : 'text-foreground'}`}
           onClick={closeMenu}
         >

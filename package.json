@@ -90,7 +90,6 @@
     "react-ga4": "^2.1.0",
     "react-hook-form": "^7.56.1",
     "react-resizable-panels": "^2.1.9",
-    "react-router-dom": "^6.30.0",
     "recharts": "^2.15.3",
     "sonner": "^1.7.4",
     "tailwind-merge": "^2.6.0",

@@ -1,5 +1,7 @@
+'use client'
 import React, { useState, useEffect } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import Link from 'next/link';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Menu, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -13,11 +15,11 @@ const Navbar = ({ showSearch = true }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
-  const location = useLocation();
+  const pathname = usePathname();
+  const router = useRouter();
   const isMobile = useIsMobile();
-  const navigate = useNavigate();
-  const isHomePage = location.pathname === '/';
-  const isSearchPage = location.pathname === '/search';
+  const isHomePage = pathname === '/';
+  const isSearchPage = pathname === '/search';
 
   useEffect(() => {
     const handler = setTimeout(() => {
@@ -38,7 +40,7 @@ const Navbar = ({ showSearch = true }) => {
 
   const handleFullSearch = (query: string) => {
     if (query.trim() && !isSearchPage) {
-      navigate(`/search?q=${encodeURIComponent(query)}`);
+      router.push(`/search?q=${encodeURIComponent(query)}`);
       setSearchQuery('');
     }
   };
@@ -57,14 +59,21 @@ const Navbar = ({ showSearch = true }) => {
       }
     }
 
-    navigate(`/artists/${artistId}`);
+    router.push(`/artists/${artistId}`);
     setSearchQuery('');
+  };
+
+  const isActive = (path: string) => {
+    if (path === '/') {
+      return pathname === '/';
+    }
+    return pathname.startsWith(path);
   };
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-16 items-center justify-between">
-        <Link to="/" className="flex items-center" onClick={closeMenu}>
+        <Link href="/" className="flex items-center" onClick={closeMenu}>
           <span className="text-xl font-semibold logo">TheSet</span>
         </Link>
 

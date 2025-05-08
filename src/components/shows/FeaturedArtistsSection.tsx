@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { ChevronRight } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -23,7 +23,7 @@ const FeaturedArtistsSection = () => {
             <h2 className="text-2xl font-bold text-white">Featured Artists</h2>
             <p className="text-sm text-white/70 mt-1">Top artists with upcoming shows to vote on</p>
           </div>
-          <Link to="/artists" className="flex items-center text-sm text-white hover:text-white/80">
+          <Link href="/artists" className="flex items-center text-sm text-white hover:text-white/80">
             View all <ChevronRight size={16} />
           </Link>
         </div>
@@ -43,7 +43,7 @@ const FeaturedArtistsSection = () => {
             featuredArtists.slice(0, 6).map((artist: any) => (
               <Link 
                 key={artist.id} 
-                to={`/artists/${artist.id}`}
+                href={`/artists/${artist.id}`}
                 className="bg-black/40 border border-white/10 rounded-lg overflow-hidden hover:border-white/30 transition-all hover:scale-[1.02]"
               >
                 <div className="aspect-square overflow-hidden relative">

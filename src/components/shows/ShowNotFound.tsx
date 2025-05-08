@@ -1,6 +1,5 @@
-
 import React from 'react';
-import { Link } from 'react-router-dom';
+import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
@@ -15,7 +14,7 @@ const ShowNotFound = () => {
           <p className="text-muted-foreground mb-6">
             We couldn't find the show you're looking for.
           </p>
-          <Link to="/shows" className="text-primary hover:underline flex items-center justify-center">
+          <Link href="/shows" className="text-primary hover:underline flex items-center justify-center">
             <ArrowLeft size={16} className="mr-2" />
             Back to shows
           </Link>

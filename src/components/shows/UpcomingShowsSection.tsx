@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowRight, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -73,7 +73,7 @@ const UpcomingShowsSection = ({
             <h2 className="text-2xl font-bold text-white">Upcoming Shows</h2>
             <p className="text-sm text-white/70 mt-1">Browse and vote on setlists for upcoming concerts</p>
           </div>
-          <Link to="/shows" className="flex items-center text-sm text-white hover:text-white/80">
+          <Link href="/shows" className="flex items-center text-sm text-white hover:text-white/80">
             View all <ChevronRight size={16} />
           </Link>
         </div>
@@ -151,7 +151,7 @@ const UpcomingShowsSection = ({
               Try adjusting your search or browse artists to find shows
             </p>
             <Link 
-              to="/artists" 
+              href="/artists" 
               className="inline-flex items-center text-white hover:underline mt-4"
             >
               Browse artists

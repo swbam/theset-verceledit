@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google';
 import Providers from './providers';
 import { Suspense } from 'react';
 import type { Metadata } from 'next'
+import { checkEnv } from '@/lib/utils/checkEnv';
 
 const inter = Inter({ 
   variable: '--font-inter',
@@ -20,6 +21,8 @@ export default function RootLayout({
 }: {
   children: React.ReactNode
 }) {
+  // Validate critical environment variables at runtime
+  checkEnv();
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${inter.className} bg-background text-foreground`}>

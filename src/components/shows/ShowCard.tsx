@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import Link from 'next/link';
 import { Calendar, MapPin } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
@@ -51,7 +51,7 @@ export default function ShowCard({ show }: ShowCardProps) {
   });
 
   return (
-    <Link to={showUrl}>
+    <Link href={showUrl}>
       <Card className="h-full bg-[#111111]/80 border-white/10 overflow-hidden hover:border-white/30 transition duration-200 hover:translate-y-[-2px]">
         {/* Image section */}
         <div className="relative aspect-[16/9] overflow-hidden">
