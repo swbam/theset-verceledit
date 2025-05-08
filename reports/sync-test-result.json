@@ -1,0 +1,7 @@
+{
+  "error": {
+    "message": "Could not find artist with Ticketmaster ID K8vZ917G2_0",
+    "code": "UNKNOWN_ERROR",
+    "context": "syncArtist"
+  }
+}
