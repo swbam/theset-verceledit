@@ -1,5 +1,3 @@
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
 import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 
@@ -10,7 +8,8 @@ import PastSetlists from '@/components/artist/PastSetlists';
 import ArtistStats from '@/app/components/ArtistStats';
 
 // Import sync functions
-import { syncArtist } from '@/app/actions/sync-actions';
+import { createServerClient } from '@/lib/supabase/server';
+import { Artist, Show } from '@/lib/types';
 
 interface ArtistPageProps {
   params: {
@@ -21,15 +20,8 @@ interface ArtistPageProps {
 export async function generateMetadata(
   { params }: ArtistPageProps
 ): Promise<Metadata> {
-  const cookieStore = cookies();
-  const supabase = createServerComponentClient({ cookies: () => cookieStore });
+  const artist = await getArtist(params.id);
   
-  const { data: artist } = await supabase
-    .from('artists')
-    .select('name')
-    .eq('id', params.id)
-    .single();
-    
   if (!artist) {
     return {
       title: 'Artist Not Found',
@@ -48,64 +40,51 @@ export async function generateMetadata(
   };
 }
 
-export default async function ArtistPage({ params }: ArtistPageProps) {
-  const cookieStore = cookies();
-  const supabase = createServerComponentClient({ cookies: () => cookieStore });
-  
-  // Fetch artist data
-  const { data: artist } = await supabase
+async function getArtist(id: string): Promise<Artist | null> {
+  const supabase = createServerClient();
+  const { data, error } = await supabase
     .from('artists')
     .select('*')
-    .eq('id', params.id)
+    .eq('id', id)
     .single();
-    
+
+  if (error) {
+    console.error('Error fetching artist', error);
+    return null;
+  }
+  return data;
+}
+
+async function getUpcomingShows(artistId: string): Promise<Show[]> {
+  const supabase = createServerClient();
+  const { data, error } = await supabase
+    .from('shows')
+    .select(
+      `*, venues(id, name, city, state)`
+    )
+    .eq('artist_id', artistId)
+    .gte('date', new Date().toISOString())
+    .order('date', { ascending: true });
+
+  if (error) {
+    console.error('Error fetching shows', error);
+    return [];
+  }
+  return data as Show[];
+}
+
+export default async function ArtistPage({ params }: ArtistPageProps) {
+  // Fetch artist data
+  const artist = await getArtist(params.id);
+  
   if (!artist) {
     notFound();
   }
-  
-  // Sync the artist data (this will update shows and other information)
-  try {
-    await syncArtist(artist.id);
-  } catch (error) {
-    console.error('Error syncing artist:', error);
-    // Continue with whatever data we have
-  }
+  const supabase = createServerClient();
   
   // Fetch upcoming shows from the database
-  const { data: upcomingShowsData } = await supabase
-    .from('shows')
-    .select(`
-      id, 
-      name, 
-      date, 
-      ticket_url, 
-      image_url,
-      venue:venues(
-        id,
-        name,
-        city,
-        state
-      )
-    `)
-    .eq('artist_id', artist.id)
-    .gte('date', new Date().toISOString())
-    .order('date', { ascending: true })
-    .limit(10);
+  const shows = await getUpcomingShows(artist.id);
   
-  // Transform the data to match the expected format for the UpcomingShows component
-  const upcomingShows = upcomingShowsData ? upcomingShowsData.map(show => ({
-    id: show.id,
-    name: show.name,
-    date: show.date,
-    venue: show.venue ? {
-      name: show.venue.name,
-      city: show.venue.city,
-      state: show.venue.state
-    } : null,
-    ticket_url: show.ticket_url,
-    image_url: show.image_url
-  })) : [];
-
   // Fetch past setlists
   const { data: pastSetlists } = await supabase
     .from('setlists')
@@ -126,7 +105,7 @@ export default async function ArtistPage({ params }: ArtistPageProps) {
       <ArtistHeader
         artistName={artist.name}
         artistImage={artist.image_url}
-        upcomingShowsCount={upcomingShows?.length || 0}
+        upcomingShowsCount={shows?.length || 0}
       />
       
       <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6 mt-8">
@@ -135,7 +114,7 @@ export default async function ArtistPage({ params }: ArtistPageProps) {
           <section>
             <h2 className="text-2xl font-bold mb-4">Upcoming Shows</h2>
             <UpcomingShows 
-              shows={upcomingShows || []} 
+              shows={shows || []} 
               artistName={artist.name} 
               isLoading={false} 
             />

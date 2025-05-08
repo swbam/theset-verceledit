@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import Link from 'next/link';
 import { Music2, CalendarDays, ArrowLeft, Heart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -13,7 +13,7 @@ const ArtistHeader = ({ artistName, artistImage, upcomingShowsCount }: ArtistHea
   return (
     <section className="px-6 md:px-8 lg:px-12 py-12 header-gradient relative z-10">
       <div className="max-w-7xl mx-auto">
-        <Link to="/search" className="text-white/70 hover:text-white inline-flex items-center mb-6 transition-colors">
+        <Link href="/search" className="text-white/70 hover:text-white inline-flex items-center mb-6 transition-colors">
           <ArrowLeft size={16} className="mr-2" />
           Back to search
         </Link>
