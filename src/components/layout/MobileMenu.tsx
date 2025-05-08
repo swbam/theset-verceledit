@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import SearchBar from '@/components/ui/SearchBar';
 import UserProfile from '@/components/auth/UserProfile';
 
@@ -30,7 +30,6 @@ const MobileMenu = ({
   isSearchPage = false
 }: MobileMenuProps) => {
   const pathname = usePathname();
-  const router = useRouter();
 
   const isActive = (path: string) => {
     if (path === '/') {

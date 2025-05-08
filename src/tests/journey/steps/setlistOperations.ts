@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { TestResults } from '../types';
 import { logError, logSuccess, DETAILED_LOGGING } from '../logger';
@@ -97,14 +96,14 @@ export async function manageSetlistSongs(
   
   try {
     // Using let instead of const to allow reassignment
-    let { data: setlistSongs, error: songsError } = await supabase
+    let { data: setlistSongs, error } = await supabase
       .from('setlist_songs')
       .select('*')
       .eq('setlist_id', setlistId);
     
-    if (songsError) {
-      logError(results, "Setlist Songs", "Database", `Database error fetching setlist songs: ${songsError.message}`, songsError);
-      throw songsError;
+    if (error) {
+      logError(results, "Setlist Songs", "Database", `Database error fetching setlist songs: ${error.message}`, error);
+      throw error;
     }
     
     if (!setlistSongs || setlistSongs.length === 0) {

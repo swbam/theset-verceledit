@@ -54,4 +54,8 @@ case "$1" in
     echo "Unknown command: $1"
     usage
     ;;
-esac 
+esac
+
+pnpm db:reset            # local DB mirrors prod schema
+pnpm dev                 # Next 14 + edge middleware
+supabase functions serve unified-sync-v2 --env-file .env.edge 

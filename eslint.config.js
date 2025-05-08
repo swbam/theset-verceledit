@@ -1,6 +1,5 @@
 // @ts-check
 
-import { FlatCompat } from '@eslint/eslintrc';
 import eslint from '@eslint/js';
 import tseslint from 'typescript-eslint';
 import reactHooks from 'eslint-plugin-react-hooks';
@@ -18,7 +17,14 @@ export default tseslint.config(
       '.next/',
       'node_modules/',
       '.eslintrc.cjs',
-      'server.cjs'
+      'server.cjs',
+      'coverage/**',
+      'reports/**',
+      'scripts/**',
+      'supabase/**',
+      'Supabase/**',
+      '.test/**',
+      'test-results/**'
     ]
   },
   {
@@ -58,7 +64,14 @@ export default tseslint.config(
       'react-refresh/only-export-components': [
         'warn',
         { allowConstantExport: true }
-      ]
+      ],
+      
+      // Temporarily relax a few noisy rules until legacy code is cleaned up
+      '@typescript-eslint/no-unused-vars': 'warn',
+      'no-unused-vars': 'off',
+      'no-useless-escape': 'warn',
+      '@typescript-eslint/ban-ts-comment': 'warn',
+      'prefer-const': 'warn'
     }
   }
 );

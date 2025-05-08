@@ -32,12 +32,6 @@ interface Show {
 // Function to fetch trending shows from our API
 import { supabase } from '@/integrations/supabase/client';
 
-// Define the database function return type
-type VoteCount = {
-  show_id: string;
-  vote_count: number;
-}
-
 /**
  * Show Data Synchronization System
  *

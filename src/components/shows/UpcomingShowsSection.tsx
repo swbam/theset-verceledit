@@ -7,17 +7,17 @@ import ShowCard from '@/components/shows/ShowCard';
 import { fetchShowsByGenre, popularMusicGenres } from '@/lib/ticketmaster';
 
 interface UpcomingShowsSectionProps {
-  searchQuery: string;
-  selectedGenre: string;
-  handleGenreChange: (value: string) => void;
-  artistParam: string | null;
+  searchQuery?: string;
+  selectedGenre?: string;
+  handleGenreChange?: (value: string) => void;
+  artistParam?: string | null;
 }
 
 const UpcomingShowsSection = ({ 
-  searchQuery, 
-  selectedGenre, 
-  handleGenreChange,
-  artistParam 
+  searchQuery = '', 
+  selectedGenre = '', 
+  handleGenreChange = () => {},
+  artistParam = null 
 }: UpcomingShowsSectionProps) => {
   const [activeGenreFilter, setActiveGenreFilter] = useState('All Genres');
   

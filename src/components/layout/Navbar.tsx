@@ -1,7 +1,7 @@
 'use client'
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { Menu, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -61,13 +61,6 @@ const Navbar = ({ showSearch = true }) => {
 
     router.push(`/artists/${artistId}`);
     setSearchQuery('');
-  };
-
-  const isActive = (path: string) => {
-    if (path === '/') {
-      return pathname === '/';
-    }
-    return pathname.startsWith(path);
   };
 
   return (
