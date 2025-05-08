@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/ban-ts-comment */
 // @ts-ignore: Cannot find module 'next/server' type declarations
 import { NextResponse } from 'next/server';
-import { syncTrendingShows } from '@/lib/api/shows';
+import { syncTrendingShows } from '@/lib/api/shows/sync-trending';
 
 /**
  * GET /api/cron/sync-trending
