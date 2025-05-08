@@ -1,37 +1,42 @@
+import { notFound } from 'next/navigation'
 import ShowHeader from '@/components/shows/ShowHeader'
 import { createServerClient } from '@/lib/supabase/server'
-import { Show } from '@/lib/types'
-import { notFound } from 'next/navigation'
 
 export const dynamic = 'force-dynamic'
 
-async function getShow(id: string): Promise<Show | null> {
+interface PageProps { params: { id: string } }
+
+export default async function ShowPage({ params }: PageProps) {
   const supabase = createServerClient()
-  const { data, error } = await supabase
+
+  const { data: show, error } = await supabase
     .from('shows')
     .select(
-      `*, artists(id,name), venues(id,name,city,state)`
+      `id, name, date, image_url, ticket_url,
+       artist:artists(id,name),
+       venue:venues(name,city,state)`
     )
-    .eq('id', id)
+    .eq('id', params.id)
     .single()
 
   if (error) {
     console.error('Error fetching show', error)
-    return null
   }
-  return data as unknown as Show
-}
-
-export default async function ShowPage({ params }: { params: { id: string } }) {
-  const show = await getShow(params.id)
 
   if (!show) {
     notFound()
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-black">
+    <div className="flex flex-col min-h-screen bg-black">
       <ShowHeader show={show as any} />
+
+      <main className="flex-grow container mx-auto px-4 py-12 text-white/80">
+        {/* TODO: integrate SetlistSection for voting */}
+        <p className="text-center text-lg">
+          Voting UI coming soon.
+        </p>
+      </main>
     </div>
   )
 } 
