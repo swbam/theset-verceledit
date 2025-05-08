@@ -1,6 +1,5 @@
-
 import React from 'react';
-import { Link } from 'react-router-dom';
+import Link from 'next/link';
 import { Music, CalendarDays } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -61,7 +60,7 @@ const ArtistSearchResults = ({
         {artists.map((artist) => (
           <Link
             key={artist.id}
-            to={`/artists/${artist.id}`}
+            href={`/artists/${artist.id}`}
             className="flex items-center justify-between px-4 py-2.5 hover:bg-secondary/80 transition-colors"
             onClick={() => handleSelect(artist)}
           >
@@ -81,7 +80,7 @@ const ArtistSearchResults = ({
       {artists.map((artist) => (
         <Link
           key={artist.id}
-          to={`/artists/${artist.id}`}
+          href={`/artists/${artist.id}`}
           className="flex items-center gap-3 px-3 py-2 hover:bg-secondary transition-colors"
           onClick={() => handleSelect(artist)}
         >
