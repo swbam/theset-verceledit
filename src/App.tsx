@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { AuthProvider } from './contexts/auth/AuthContext';
 import { initGA, trackPageView } from './integrations/google-analytics';
+import ErrorBoundary from './components/ErrorBoundary';
 import Index from './pages/Index';
 import ArtistDetail from './pages/ArtistDetail';
 import ShowDetail from './pages/ShowDetail';
@@ -24,7 +25,7 @@ import Admin from './pages/Admin';
 import Dashboard from './pages/Dashboard';
 import AdminSetup from './pages/AdminSetup';
 import Import from './pages/Import';
-import AdminSyncTest from './app/admin/sync-test/page';
+// import SyncTest from './pages/admin/SyncTest';
 import { ThemeProvider } from 'next-themes';
 
 const GA_TRACKING_ID = "G-CNM6621HGW"; 
@@ -54,69 +55,88 @@ const GradientDefinitions = () => {
 
 function App() {
   useEffect(() => {
-    initGA(GA_TRACKING_ID);
-    
-    const applyGradientToIcons = () => {
-      document.querySelectorAll('svg:not(.ignore-gradient) path').forEach(path => {
-        if (path.getAttribute('stroke') && path.getAttribute('stroke') !== 'none') {
-          path.setAttribute('stroke', 'url(#app-gradient)');
-        }
-        if (path.getAttribute('fill') && path.getAttribute('fill') !== 'none') {
-          path.setAttribute('fill', 'url(#app-gradient)');
-        }
+    try {
+      console.log("Initializing Google Analytics...");
+      initGA(GA_TRACKING_ID);
+      
+      const applyGradientToIcons = () => {
+        document.querySelectorAll('svg:not(.ignore-gradient) path').forEach(path => {
+          if (path.getAttribute('stroke') && path.getAttribute('stroke') !== 'none') {
+            path.setAttribute('stroke', 'url(#app-gradient)');
+          }
+          if (path.getAttribute('fill') && path.getAttribute('fill') !== 'none') {
+            path.setAttribute('fill', 'url(#app-gradient)');
+          }
+        });
+      };
+      
+      applyGradientToIcons();
+      
+      const observer = new MutationObserver(mutations => {
+        mutations.forEach(mutation => {
+          if (mutation.addedNodes.length) {
+            applyGradientToIcons();
+          }
+        });
       });
-    };
-    
-    applyGradientToIcons();
-    
-    const observer = new MutationObserver(mutations => {
-      mutations.forEach(mutation => {
-        if (mutation.addedNodes.length) {
-          applyGradientToIcons();
-        }
-      });
-    });
-    
-    observer.observe(document.body, { childList: true, subtree: true });
-    
-    return () => observer.disconnect();
+      
+      observer.observe(document.body, { childList: true, subtree: true });
+      
+      return () => observer.disconnect();
+    } catch (error) {
+      console.error("Error in App useEffect:", error);
+    }
   }, []);
 
+  // Create a new QueryClient for each render
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: {
+        retry: 1,
+        staleTime: 5 * 60 * 1000, // 5 minutes
+      },
+    },
+  });
+
   return (
-    <QueryClientProvider client={new QueryClient()}>
-      <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
-        <BrowserRouter>
-          <TooltipProvider>
-            <AuthProvider>
-              <RouteChangeTracker />
-              <GradientDefinitions />
-              <Routes>
-                <Route path="/" element={<Index />} />
-                <Route path="/artists/:id" element={<ArtistDetail />} />
-                <Route path="/shows/:id" element={<ShowDetail />} />
-                <Route path="/shows" element={<Shows />} />
-                <Route path="/artists" element={<Artists />} />
-                <Route path="/search" element={<Search />} />
-                <Route path="/how-it-works" element={<HowItWorks />} />
-                <Route path="/login" element={<Login />} />
-                <Route path="/auth" element={<Auth />} />
-                <Route path="/auth/callback" element={<AuthCallback />} />
-                <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
-                <Route path="/my-artists" element={<ProtectedRoute><MyArtists /></ProtectedRoute>} />
-                <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-                <Route path="/create-show" element={<ProtectedRoute><CreateShow /></ProtectedRoute>} />
-                <Route path="/import" element={<Import />} />
-                <Route path="/admin" element={<Admin />} />
-                <Route path="/admin/setup" element={<AdminSetup />} />
-                <Route path="/admin/sync-test" element={<AdminSyncTest />} />
-                <Route path="/test-journey" element={<TestJourney />} />
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-            </AuthProvider>
-          </TooltipProvider>
-        </BrowserRouter>
-      </ThemeProvider>
-    </QueryClientProvider>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
+          <BrowserRouter>
+            <TooltipProvider>
+              <ErrorBoundary>
+                <AuthProvider>
+                  <RouteChangeTracker />
+                  <GradientDefinitions />
+                  <Routes>
+                    <Route path="/" element={<Index />} />
+                    <Route path="/artists/:id" element={<ArtistDetail />} />
+                    <Route path="/shows/:id" element={<ShowDetail />} />
+                    <Route path="/shows" element={<Shows />} />
+                    <Route path="/artists" element={<Artists />} />
+                    <Route path="/search" element={<Search />} />
+                    <Route path="/how-it-works" element={<HowItWorks />} />
+                    <Route path="/login" element={<Login />} />
+                    <Route path="/auth" element={<Auth />} />
+                    <Route path="/auth/callback" element={<AuthCallback />} />
+                    <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+                    <Route path="/my-artists" element={<ProtectedRoute><MyArtists /></ProtectedRoute>} />
+                    <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+                    <Route path="/create-show" element={<ProtectedRoute><CreateShow /></ProtectedRoute>} />
+                    <Route path="/import" element={<Import />} />
+                    <Route path="/admin" element={<Admin />} />
+                    <Route path="/admin/setup" element={<AdminSetup />} />
+                    {/* <Route path="/admin/sync-test" element={<SyncTest />} /> */}
+                    <Route path="/test-journey" element={<TestJourney />} />
+                    <Route path="*" element={<NotFound />} />
+                  </Routes>
+                </AuthProvider>
+              </ErrorBoundary>
+            </TooltipProvider>
+          </BrowserRouter>
+        </ThemeProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
   );
 }
 

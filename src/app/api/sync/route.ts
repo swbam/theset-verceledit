@@ -1,91 +1,90 @@
-import { supabase } from "@/integrations/supabase/client";
-import { EntityType } from '@/lib/sync-types';
-import { ErrorSource, handleError } from '@/lib/error-handling';
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
+import { checkCategoryEnvironmentVariables, getRequiredEnv } from '@/lib/utils/checkEnv';
 
-export async function GET() {
+export const dynamic = 'force-dynamic'; // No caching for this route
+
+interface SyncRequest {
+  entityType: 'artist' | 'show' | 'venue';
+  entityId?: string;
+  ticketmasterId?: string;
+  spotifyId?: string;
+  options?: {
+    skipDependencies?: boolean;
+    forceRefresh?: boolean;
+  };
+}
+
+export async function POST(request: NextRequest) {
   try {
-    // Initialize unified sync process
-    const result = await supabase.functions.invoke('unified-sync-v2', {
-      body: {}
-    });
-
-    if (!result.data?.success) {
-      handleError({
-        message: 'Error during unified sync process',
-        source: ErrorSource.API,
-        originalError: result.error
-      });
-      return NextResponse.json({ error: result.error?.message || 'Sync failed' }, { status: 500 });
+    // Validate environment variables
+    checkCategoryEnvironmentVariables('supabase');
+    
+    // Create authenticated Supabase client
+    const supabaseUrl = getRequiredEnv('NEXT_PUBLIC_SUPABASE_URL');
+    const supabaseServiceRole = getRequiredEnv('SUPABASE_SERVICE_ROLE_KEY');
+    const supabase = createClient(supabaseUrl, supabaseServiceRole);
+    
+    // Parse request body
+    const body = await request.json();
+    const { entityType, entityId, ticketmasterId, spotifyId, options } = body as SyncRequest;
+    
+    if (!entityType || !['artist', 'show', 'venue'].includes(entityType)) {
+      return NextResponse.json(
+        { error: 'Invalid entityType. Must be "artist", "show", or "venue"' },
+        { status: 400 }
+      );
     }
-
-    return NextResponse.json(result.data);
-  } catch (error) {
-    handleError({
-      message: 'Unexpected error during unified sync',
-      source: ErrorSource.API,
-      originalError: error
+    
+    // Validate required parameters based on entity type
+    if (entityType === 'artist' && !ticketmasterId) {
+      return NextResponse.json(
+        { error: 'ticketmasterId is required for artist sync' },
+        { status: 400 }
+      );
+    }
+    
+    if ((entityType === 'show' || entityType === 'venue') && !entityId) {
+      return NextResponse.json(
+        { error: `entityId is required for ${entityType} sync` },
+        { status: 400 }
+      );
+    }
+    
+    console.log(`[sync-api] Initiating ${entityType} sync:`, 
+      entityType === 'artist' ? `ticketmasterId=${ticketmasterId}` :
+      `entityId=${entityId}`);
+    
+    // Invoke Edge Function
+    const { data, error } = await supabase.functions.invoke('unified-sync-v2', {
+      body: { entityType, entityId, ticketmasterId, spotifyId, options },
     });
+    
+    if (error) {
+      console.error(`[sync-api] Edge Function error:`, error);
+      return NextResponse.json(
+        { error: error.message || 'Error invoking sync function' },
+        { status: 500 }
+      );
+    }
+    
+    return NextResponse.json(data);
+  } catch (error) {
+    console.error('[sync-api] Unexpected error:', error);
     return NextResponse.json(
-      { error: 'An unexpected error occurred' },
+      { 
+        error: error instanceof Error ? error.message : 'Unknown error occurred',
+        timestamp: new Date().toISOString()
+      },
       { status: 500 }
     );
   }
 }
 
-export async function POST(request: Request) {
-  try {
-    const body = await request.json();
-    const { entityType, entityId, options } = body;
-
-    // Add validation
-    if (!Object.values(EntityType).includes(entityType)) {
-      return new Response(JSON.stringify({
-        success: false,
-        error: `Invalid entityType: ${entityType}`
-      }), { status: 400 });
-    }
-
-    if (!entityType || !entityId) {
-      return new Response(JSON.stringify({
-        success: false,
-        error: 'Missing required fields: entityType, entityId'
-      }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
-
-    // Call the unified sync orchestrator
-    const result = await supabase.functions.invoke('orchestrate-sync', {
-      body: { 
-        entityType,
-        entityId,
-        options: options || {}
-      }
-    });
-
-    if (!result.data?.success) {
-      throw new Error(result.error?.message || `Failed to sync ${entityType} ${entityId}`);
-    }
-
-    return new Response(JSON.stringify({
-      success: true,
-      data: result.data.data,
-      message: `Successfully synced ${entityType} ${entityId}`
-    }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' }
-    });
-
-  } catch (error) {
-    console.error('Sync error:', error);
-    return new Response(JSON.stringify({
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error occurred'
-    }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
-    });
-  }
+export async function GET() {
+  return NextResponse.json({
+    status: 'ok',
+    version: '2',
+    message: 'Use POST request to trigger sync operations'
+  });
 }

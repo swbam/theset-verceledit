@@ -34,4 +34,14 @@ tsconfig.tsbuildinfo
 # Build artifacts
 build
 out
+dist
+.vite-cache
 coverage
+
+# Environment files
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+supabase/.env
+supabase/.env.edge

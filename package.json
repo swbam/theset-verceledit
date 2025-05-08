@@ -10,11 +10,8 @@
   "scripts": {
     "dev": "next dev -p 8080",
     "build": "next build",
-    "build:dev": "vite build --mode development",
+    "start": "next start -p 8080",
     "lint": "eslint .",
-    "preview": "vite preview",
-    "start": "NODE_ENV=production vite preview --port 8080",
-    "start:express": "node server.js",
     "db:migration:apply": "node ./scripts/apply-migrations.cjs",
     "reset:cache": "node ./scripts/clear-cache.js",
     "db:repair": "for migration in 20240719000000 20240720000000 20240721000000 20240722000000 20250322195900 20250322230200 20250322230300 20250323000000 20250323000100 20250323095500 20250323210000 20250406191900 20250406200900 20250406201900 20250406203200 20250406203600 20250406204500 20250407000000 20250408000000 20250411041838 20250416213500 20250417000000 20250417165400 20250418191024 20250418193735 20250418204542 20250418205533 20250418210313 20250419145125 20250419145322 20250419154112 20250419155125 20250419155143 20250419155251 20250421170807 20250421214332 20250425031655 20250425031823 20250425034924 20250425034950 20250425035004 20250425040907 20250622182700; do supabase migration repair --status reverted $migration; done",
@@ -112,7 +109,6 @@
     "@types/react": "^18.3.20",
     "@types/react-dom": "^18.3.6",
     "@types/uuid": "^10.0.0",
-    "@vitejs/plugin-react-swc": "^3.9.0",
     "autoprefixer": "^10.4.21",
     "eslint": "^9.25.1",
     "eslint-plugin-react-hooks": "^5.2.0",
@@ -124,8 +120,7 @@
     "tailwindcss": "^3.4.17",
     "ts-jest": "^29.3.2",
     "typescript": "^5.8.3",
-    "typescript-eslint": "^8.31.1",
-    "vite": "^6.3.5"
+    "typescript-eslint": "^8.31.1"
   },
   "pnpm": {
     "onlyBuiltDependencies": [

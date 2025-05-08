@@ -1,41 +1,22 @@
-export interface Artist {
-  id: string;
-  name: string;
-  ticketmaster_id: string | null;
-  spotify_id: string | null;
-  image_url: string | null;
-  spotify_url: string | null;
-  genres: string[] | null;
-  popularity: number | null;
-  followers: number | null;
-  sync_status: {
-    ticketmaster: 'pending' | 'completed' | 'failed';
-    spotify: 'pending' | 'completed' | 'failed';
-  };
-  deleted_at: string | null;
-  created_at: string;
-  updated_at: string;
+import { Database } from '@/integrations/supabase/types'
+
+export type Artist = Database['public']['Tables']['artists']['Row']
+export type Show = Database['public']['Tables']['shows']['Row'] & {
+  artists?: Artist | null
+  venues?: {
+    id: string
+    name: string
+    city: string
+    state: string | null
+  } | null
 }
 
-export interface Show {
-  id: string;
-  artist_id: string;
-  date: string;
-  venue: {
-    id: string;
-    name: string;
-    city: string;
-    state: string;
-    country: string;
-    ticketmaster_id: string | null;
-  };
-  city: string;
-  state: string;
-  country: string;
-  songs: Song[];
-  deleted_at: string | null;
-  created_at: string;
-  updated_at: string;
+export type PopularArtist = {
+  artist_id: string
+  artist_name: string
+  total_votes: number
+  unique_voters: number
+  image_url?: string | null
 }
 
 export interface Song {

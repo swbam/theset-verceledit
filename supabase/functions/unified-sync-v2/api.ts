@@ -197,34 +197,28 @@ export async function fetchSpotifyArtistSongs(spotifyId: string, accessToken: st
   return songs;
 }
 
-export async function fetchTicketmasterShows(artistId: string, apiKey: string): Promise<TicketmasterShow[]> {
+export async function fetchTicketmasterShows(artistId: string, apiKey: string, page = 0): Promise<{ shows: TicketmasterShow[], page: number, totalPages: number }> {
   if (!artistId || !apiKey) {
     throw new Error('Artist ID and API key are required');
   }
 
-  console.log(`[Ticketmaster] Fetching shows for artist ID: ${artistId}`);
-
-  const params = new URLSearchParams({
-    attractionId: artistId,
-    apikey: apiKey,
-    size: '100',
-    sort: 'date,asc',
-    includeTBA: 'no',
-    includeTest: 'no'
-  });
-
-  const response = await fetch(
-    `https://app.ticketmaster.com/discovery/v2/events.json?${params.toString()}`,
-    {
-      headers: { 'Accept': 'application/json' }
-    }
-  );
-
-  const data = await handleApiResponse<any>(response, 'Ticketmaster');
-  const events = data._embedded?.events || [];
+  console.log(`[Ticketmaster] Fetching shows for artist ID: ${artistId}, page: ${page}`);
   
-  console.log(`[Ticketmaster] Found ${events.length} shows for artist ID: ${artistId}`);
-  return events;
+  const size = 20; // Ticketmaster's default page size
+  const url = `https://app.ticketmaster.com/discovery/v2/events.json?attractionId=${artistId}&apikey=${apiKey}&size=${size}&page=${page}`;
+
+  const response = await fetch(url);
+  const data = await handleApiResponse<any>(response, 'Ticketmaster');
+
+  if (!data._embedded?.events) {
+    return { shows: [], page, totalPages: 0 };
+  }
+
+  const shows = data._embedded.events;
+  const totalPages = Math.ceil(data.page.totalElements / size);
+
+  console.log(`[Ticketmaster] Found ${shows.length} shows on page ${page + 1} of ${totalPages}`);
+  return { shows, page, totalPages };
 }
 
 export function extractVenueFromShow(show: TicketmasterShow) {
