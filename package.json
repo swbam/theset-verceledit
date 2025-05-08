@@ -3,13 +3,18 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  },
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
+    "dev": "next dev -p 8080",
+    "build": "next build",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "preview": "vite preview",
     "start": "NODE_ENV=production vite preview --port 8080",
+    "start:express": "node server.js",
     "db:migration:apply": "node ./scripts/apply-migrations.cjs",
     "reset:cache": "node ./scripts/clear-cache.js",
     "db:repair": "for migration in 20240719000000 20240720000000 20240721000000 20240722000000 20250322195900 20250322230200 20250322230300 20250323000000 20250323000100 20250323095500 20250323210000 20250406191900 20250406200900 20250406201900 20250406203200 20250406203600 20250406204500 20250407000000 20250408000000 20250411041838 20250416213500 20250417000000 20250417165400 20250418191024 20250418193735 20250418204542 20250418205533 20250418210313 20250419145125 20250419145322 20250419154112 20250419155125 20250419155143 20250419155251 20250421170807 20250421214332 20250425031655 20250425031823 20250425034924 20250425034950 20250425035004 20250425040907 20250622182700; do supabase migration repair --status reverted $migration; done",
@@ -19,14 +24,18 @@
     "db:types": "supabase gen types typescript --project-id kzjnkqeosrycfpxjwhil --schema public > src/integrations/supabase/types.ts",
     "db:secrets": "supabase secrets set --env-file ./supabase/.env",
     "db:sync": "npm run db:repair && npm run db:pull && npm run db:push && npm run db:types && npm run db:secrets",
-    "updateall": "node -e \"if (process.env.NODE_ENV === 'production') { console.error('❌ Cannot run updateall in production'); process.exit(1); }\" && set -e && trap 'echo \"🛑 Update failed\"; pnpm run db:reset && exit 1' ERR && git pull && echo \"📦 Installing dependencies...\" && pnpm install --force && echo \"🔄 Resetting database...\" && pnpm run db:reset && echo \"🔄 Syncing database...\" && (pnpm run db:sync || (echo \"❌ Database sync failed\"; exit 1)) && echo \"🚀 Deploying functions...\" && (pnpm run deploy:functions || (echo \"❌ Function deployment failed\"; exit 1)) && echo \"🏗️ Building application...\" && pnpm run build && echo \"✅ Verifying deployment...\" && (pnpm run verify || (echo \"❌ Verification failed\"; exit 1)) && git add . && git commit -m \"Automated update - $(date +'%Y-%m-%d %H:%M')\" && git push && echo \"✅ Update completed successfully\" && NODE_ENV=production pnpm start",
+    "setup:admin": "node scripts/setup-admin.js",
     "deploy:functions": "supabase functions deploy unified-sync-v2",
-    "deploy:function:sync-v2": "supabase functions deploy unified-sync-v2",
-    "deploy:function:unified-sync": "supabase functions deploy unified-sync-v2",
+    "deploy:function:sync-v2": "bash scripts/deploy-unified-sync.sh",
+    "deploy:function:unified-sync": "./scripts/deploy-unified-sync.sh",
     "deploy:all": "npm run deploy:migrations && npm run deploy:function:unified-sync",
     "verify": "curl https://theset-verceledit.vercel.app/api/test-db-connection",
     "updateschema": "bash scripts/update-schema.sh",
-    "deploy:migrations": "supabase db push"
+    "deploy:migrations": "supabase db push",
+    "dev:start": "bash scripts/start-dev.sh",
+    "debug": "NODE_OPTIONS='--inspect' npm run dev",
+    "diagnose": "node scripts/debug-app.js",
+    "test:function:sync": "node scripts/test-unified-sync.js"
   },
   "dependencies": {
     "@hello-pangea/dnd": "^18.0.1",
@@ -98,6 +107,7 @@
     "@eslint/js": "^9.25.1",
     "@playwright/test": "^1.52.0",
     "@tailwindcss/typography": "^0.5.16",
+    "@types/jest": "^29.5.14",
     "@types/node": "^22.15.3",
     "@types/react": "^18.3.20",
     "@types/react-dom": "^18.3.6",
@@ -108,12 +118,14 @@
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.20",
     "globals": "^15.15.0",
+    "jest": "^29.7.0",
     "lovable-tagger": "^1.1.8",
     "postcss": "^8.5.3",
     "tailwindcss": "^3.4.17",
+    "ts-jest": "^29.3.2",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.31.1",
-    "vite": "^5.4.18"
+    "vite": "^6.3.5"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
