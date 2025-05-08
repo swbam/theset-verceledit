@@ -1,6 +1,5 @@
-
 import React from 'react';
-import { Link } from 'react-router-dom';
+import Link from 'next/link';
 import { ArrowLeft, Calendar, MapPin, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -93,7 +92,7 @@ const ShowHeader: React.FC<ShowHeaderProps> = ({ show }) => {
       <div className="px-6 md:px-8 lg:px-12 py-12 relative z-10">
         <div className="max-w-7xl mx-auto">
           {show.artist && (
-            <Link to={`/artists/${show.artist.id}`} className="text-white/80 hover:text-white inline-flex items-center mb-4 transition-colors">
+            <Link href={`/artists/${show.artist?.id}`} className="text-white/80 hover:text-white inline-flex items-center mb-4 transition-colors">
               <ArrowLeft size={18} className="mr-2" />
               Back to artist
             </Link>
