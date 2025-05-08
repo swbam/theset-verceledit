@@ -2,6 +2,9 @@ import React from 'react';
 import { Metadata } from 'next';
 import { createClient } from '@/integrations/supabase/server';
 import ShowsGrid from '@/components/shows/ShowsGrid';
+import TrendingShows from '@/components/shows/TrendingShows'
+import FeaturedArtistsSection from '@/components/shows/FeaturedArtistsSection'
+import UpcomingShowsSection from '@/components/shows/UpcomingShowsSection'
 
 export const metadata: Metadata = {
   title: 'All Shows | The Set',
@@ -10,7 +13,9 @@ export const metadata: Metadata = {
 
 export const revalidate = 3600; // Revalidate this page every hour
 
-export default async function ShowsPage() {
+export const dynamic = 'force-dynamic'
+
+export default function ShowsPage() {
   const supabase = createClient();
   
   // Fetch shows from Supabase
@@ -29,13 +34,11 @@ export default async function ShowsPage() {
   }
 
   return (
-    <main className="container mx-auto max-w-7xl py-12 px-4">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-2">Upcoming Shows</h1>
-        <p className="text-white/80">Browse and vote on setlists for upcoming concerts</p>
-      </div>
-      
-      <ShowsGrid shows={shows || []} />
-    </main>
+    <div className="min-h-screen flex flex-col bg-black text-white">
+      {/* Header can be implemented later */}
+      <TrendingShows />
+      <FeaturedArtistsSection />
+      <UpcomingShowsSection />
+    </div>
   );
 } 

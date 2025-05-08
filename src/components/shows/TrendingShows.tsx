@@ -1,6 +1,5 @@
-
 import React from 'react';
-import { Link } from 'react-router-dom';
+import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { Calendar, ChevronRight } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -35,7 +34,7 @@ const TrendingShows = () => {
             <h2 className="text-2xl font-bold text-white">Trending Shows</h2>
             <p className="text-sm text-white/70 mt-1">Shows with the most active voting right now</p>
           </div>
-          <Link to="/shows" className="flex items-center text-sm text-white hover:text-white/80">
+          <Link href="/shows" className="flex items-center text-sm text-white hover:text-white/80">
             View all <ChevronRight size={16} />
           </Link>
         </div>
@@ -71,7 +70,7 @@ const TrendingShows = () => {
               });
               
               return (
-                <Link key={show.id} to={`/shows/${show.id}`}>
+                <Link key={show.id} href={`/shows/${show.id}`}>
                   <Card className="bg-[#111111]/80 border-white/10 overflow-hidden hover:border-white/30 transition duration-300 hover:scale-[1.02]">
                     <div className="relative aspect-[4/3] overflow-hidden">
                       {show.image_url ? (
